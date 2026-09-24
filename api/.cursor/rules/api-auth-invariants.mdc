@@ -1,0 +1,14 @@
+---
+description: Password ownership, Master Admin singularity, delete permissions, and the two student signup paths.
+alwaysApply: true
+---
+
+# API auth invariants
+
+No actor sets, sees, or resets another user's password. Passwords are stored only as BCrypt hashes. Admin create requests have no password field. Reject the request if one is present. Activation and password-reset codes are stored only as hashes.
+
+Self-registration via `/auth/register` creates an `ACTIVE` student who set their own password. Email verification does not block login. Admin-created accounts start as `PENDING_ACTIVATION` with a null password hash and a one-time activation code. An account grants login only.
+
+Only `MASTER_ADMIN` receives any `*_DELETE` permission. A System Admin delete returns `403` from the API. No endpoint creates, edits the role of, deactivates, or deletes a `MASTER_ADMIN`.
+
+`X-Client-Type: web` returns the refresh token only as an httpOnly cookie. `X-Client-Type: mobile` returns it only in the JSON body. Use the concrete lifetimes and header names in `docs/phases/phase-1.md` unless Shahriar says otherwise.

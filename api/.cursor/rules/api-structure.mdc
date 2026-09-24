@@ -1,0 +1,16 @@
+---
+description: API feature layout, schema changes, and the error and list response shape.
+alwaysApply: true
+---
+
+# API structure
+
+Read `api/.cursor/plans/api-identity.md` before Stage 1 API work. Follow the slice order. Do not start a later slice until the previous slice's checks exist.
+
+Organize code by feature under `com.coachingcenter.api`: `common`, `auth`, `users`. Keep each feature's controller, service, repository, and DTOs inside that feature. Do not add a global `controllers`, `services`, or `repositories` package.
+
+Schema changes go through Flyway only. Keep `ddl-auto=validate`.
+
+Every error body has `code`, `message`, optional `fieldErrors`, `timestamp`, and `requestId`. One `code` names one condition. List endpoints use `page` and `size` and one shared page envelope.
+
+All paths are under `/api/v1`. Do not log secrets, passwords, tokens, or one-time codes.

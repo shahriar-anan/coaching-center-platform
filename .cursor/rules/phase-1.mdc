@@ -1,0 +1,18 @@
+---
+description: Phase 1 stage order and invariants. Work only the current stage in .cursor/plans/phase-1.md.
+alwaysApply: true
+---
+
+# Phase 1
+
+Read `.cursor/plans/phase-1.md` before Phase 1 work. Implement only the stage marked current. Do not write the next stage's code while planning it.
+
+A component plan may add detail. It may not drop a phase exit check, reorder stages, or pull in a later-phase domain.
+
+Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation. Stop and flag a task that seems to need one of these.
+
+Student accounts have two independent paths. Self-registration via `/auth/register` logs in with no admin approval. Admin-created accounts use a one-time activation code. An account grants login only.
+
+No actor sets, sees, or resets another user's password. Deletes are Master Admin only, enforced in the API. Use the concrete values in `docs/phases/phase-1.md` unless Shahriar says otherwise.
+
+Where that spec says "Section 9" for tests, use Section 11.
