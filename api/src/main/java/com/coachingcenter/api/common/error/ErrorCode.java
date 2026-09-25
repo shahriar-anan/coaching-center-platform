@@ -1,0 +1,14 @@
+package com.coachingcenter.api.common.error;
+
+public enum ErrorCode {
+
+	VALIDATION_FAILED,
+	MALFORMED_REQUEST,
+	RESOURCE_NOT_FOUND,
+	METHOD_NOT_ALLOWED,
+	UNSUPPORTED_MEDIA_TYPE,
+	UNAUTHENTICATED,
+	ACCESS_DENIED,
+	INTERNAL_ERROR
+
+}

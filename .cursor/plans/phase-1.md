@@ -21,7 +21,7 @@ api-identity → mobile-login-spike → web-admin → mobile-auth-screens
 
 - Directory: `api/`
 - Later plan: `api/.cursor/plans/api-identity.md`
-- Build the foundation and identity system from the phase spec: Flyway schema, auth, roles, permissions, audit log, OpenAPI, and Testcontainers tests against real PostgreSQL.
+- Build the foundation and identity system from the phase spec: Flyway schema, auth, roles, permissions, audit log, OpenAPI, and tests against real PostgreSQL (Testcontainers-managed in CI; an external local instance is an acceptable substitute for local dev).
 - CI that builds `api` and runs those tests on every push lives in `.github/workflows/`. Plan that workflow with this stage. It is part of this stage's exit.
 - Exit: the spec's Section 11 test list passes against real PostgreSQL, and CI runs that suite.
 

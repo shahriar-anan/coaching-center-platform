@@ -6,7 +6,7 @@ Run every class against PostgreSQL via Testcontainers. Do not use H2. Replace `A
 
 Shared setup:
 
-- Testcontainers PostgreSQL, started with the Spring test context.
+- Real PostgreSQL — either Testcontainers-managed (CI) or an already-running local instance (local dev), selected via env vars. Never H2.
 - A test `EmailSender` that keeps the reset or verification code in memory and does not log it.
 - A test profile that tightens login lockout below 5 failures / 15 minutes so the lockout case does not wait out the production window.
 - Bootstrap one Master Admin from test environment variables.
