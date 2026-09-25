@@ -11,6 +11,7 @@ public class IdentityPermissionContributor implements PermissionContributor {
 	public void contribute(PermissionRegistry registry) {
 		grantStaff(registry, Role.MASTER_ADMIN);
 		registry.grant(Role.MASTER_ADMIN, Permissions.STUDENT_DELETE, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.ADMIN_DELETE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.ADMIN_MANAGE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.AUDIT_READ, PermissionScope.ANY);
 

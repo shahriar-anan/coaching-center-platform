@@ -16,6 +16,8 @@ public final class Permissions {
 
 	public static final String ADMIN_MANAGE = "ADMIN_MANAGE";
 
+	public static final String ADMIN_DELETE = "ADMIN_DELETE";
+
 	public static final String AUDIT_READ = "AUDIT_READ";
 
 	private Permissions() {

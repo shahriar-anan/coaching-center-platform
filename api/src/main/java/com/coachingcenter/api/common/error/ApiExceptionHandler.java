@@ -37,6 +37,11 @@ public class ApiExceptionHandler {
 		return body(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "Request body is malformed.", null, request);
 	}
 
+	@ExceptionHandler(ApiException.class)
+	public ResponseEntity<ApiError> apiException(ApiException exception, HttpServletRequest request) {
+		return body(exception.status(), exception.code(), exception.getMessage(), null, request);
+	}
+
 	@ExceptionHandler(MasterAdminProtectedException.class)
 	public ResponseEntity<ApiError> masterAdminProtected(MasterAdminProtectedException exception,
 			HttpServletRequest request) {

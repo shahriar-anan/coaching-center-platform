@@ -3,7 +3,7 @@ package com.coachingcenter.api;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-abstract class PostgresIntegrationTest {
+public abstract class PostgresIntegrationTest {
 
 	@DynamicPropertySource
 	static void database(DynamicPropertyRegistry registry) {
@@ -20,6 +20,8 @@ abstract class PostgresIntegrationTest {
 		}
 		registry.add("JWT_SECRET", () -> "test-only-jwt-secret-not-a-real-credential");
 		registry.add("WEB_ORIGIN", () -> "http://localhost:3000");
+		registry.add("app.auth.lockout.max-failures", () -> "3");
+		registry.add("app.auth.code-max-attempts", () -> "3");
 	}
 
 }
