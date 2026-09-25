@@ -16,7 +16,7 @@ The workflow file is in the repo. GitHub has not run it yet. That happens on the
 
 ## Failed
 
-None locally. The GitHub job itself is still unrun.
+The first GitHub run reported 1 error. `SchemaIT` inserted `+8801700000001`, the same phone bootstrap creates, so the insert threw before the uniqueness check. The test now uses its own phone and email. `SchemaIT` passed locally after that change.
 
 ## Next
 

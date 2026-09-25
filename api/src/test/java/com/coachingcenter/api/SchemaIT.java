@@ -43,14 +43,15 @@ class SchemaIT extends PostgresIntegrationTest {
 
 	@Test
 	void activePhoneAndEmailAreUniqueAndReusableAfterSoftDelete() throws Exception {
-		UUID first = insertUser("+8801700000001", "first@example.com", null);
-		assertThatThrownBy(() -> insertUser("+8801700000001", "other@example.com", null))
-			.isInstanceOf(SQLException.class);
-		assertThatThrownBy(() -> insertUser("+8801700000002", "first@example.com", null))
-			.isInstanceOf(SQLException.class);
+		String phone = uniquePhone();
+		String otherPhone = uniquePhone();
+		String email = uniqueEmail();
+		UUID first = insertUser(phone, email, null);
+		assertThatThrownBy(() -> insertUser(phone, uniqueEmail(), null)).isInstanceOf(SQLException.class);
+		assertThatThrownBy(() -> insertUser(otherPhone, email, null)).isInstanceOf(SQLException.class);
 
 		markDeleted(first);
-		UUID second = insertUser("+8801700000001", "first@example.com", null);
+		UUID second = insertUser(phone, email, null);
 		assertThat(second).isNotNull();
 		deleteUser(second);
 		deleteUser(first);
@@ -78,6 +79,15 @@ class SchemaIT extends PostgresIntegrationTest {
 		assertThatThrownBy(() -> mutate("DELETE FROM audit_log WHERE id = '" + id + "'"))
 			.isInstanceOf(SQLException.class)
 			.hasMessageContaining("append-only");
+	}
+
+	private static String uniquePhone() {
+		int suffix = java.util.concurrent.ThreadLocalRandom.current().nextInt(100000000, 999999999);
+		return "+8801" + suffix;
+	}
+
+	private static String uniqueEmail() {
+		return "schema-" + UUID.randomUUID() + "@example.com";
 	}
 
 	private Set<String> columns(String table) throws SQLException {
