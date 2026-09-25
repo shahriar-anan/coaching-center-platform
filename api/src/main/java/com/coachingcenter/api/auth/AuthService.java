@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
@@ -54,11 +55,14 @@ public class AuthService {
 
 	private final RefreshTokenRevocation revocations;
 
+	private final AuditRecorder audit;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public AuthService(UserRepository users, StudentProfileRepository profiles, RefreshTokenRepository refreshTokens,
 			OneTimeCodeRepository codes, PasswordEncoder passwords, SecretHasher hasher, JwtService jwt,
-			EmailSender email, LoginLockout lockout, AppProperties properties, RefreshTokenRevocation revocations) {
+			EmailSender email, LoginLockout lockout, AppProperties properties, RefreshTokenRevocation revocations,
+			AuditRecorder audit) {
 		this.users = users;
 		this.profiles = profiles;
 		this.refreshTokens = refreshTokens;
@@ -70,6 +74,7 @@ public class AuthService {
 		this.lockout = lockout;
 		this.properties = properties;
 		this.revocations = revocations;
+		this.audit = audit;
 	}
 
 	@Transactional
@@ -100,8 +105,10 @@ public class AuthService {
 
 	@Transactional
 	public String issueActivationCode(User user, UUID createdBy) {
-		return issueCode(user, ACTIVATION, createdBy,
+		String code = issueCode(user, ACTIVATION, createdBy,
 				Instant.now().plusSeconds(properties.auth().activationCodeDays() * 24L * 60L * 60L));
+		audit.record(AuditRecorder.ACTIVATION_CODE_ISSUED, user.getId());
+		return code;
 	}
 
 	@Transactional
@@ -193,6 +200,7 @@ public class AuthService {
 		User user = users.findByIdAndDeletedAtIsNull(match.getUserId()).orElseThrow(this::invalidCode);
 		user.setPasswordHash(passwords.encode(newPassword));
 		refreshTokens.revokeAllForUser(user.getId(), Instant.now());
+		audit.record(AuditRecorder.PASSWORD_RESET, user.getId());
 	}
 
 	@Transactional

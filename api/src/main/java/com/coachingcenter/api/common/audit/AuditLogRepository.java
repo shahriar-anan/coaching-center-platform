@@ -10,4 +10,6 @@ public interface AuditLogRepository extends Repository<AuditLog, UUID> {
 
 	Page<AuditLog> findAll(Pageable pageable);
 
+	AuditLog save(AuditLog auditLog);
+
 }

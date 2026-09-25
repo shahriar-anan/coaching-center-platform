@@ -17,6 +17,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
 	Optional<User> findByIdAndDeletedAtIsNull(UUID id);
 
+	boolean existsByRoleAndDeletedAtIsNull(String role);
+
 	Page<User> findByRoleAndDeletedAtIsNull(String role, Pageable pageable);
 
 	@Query(value = """

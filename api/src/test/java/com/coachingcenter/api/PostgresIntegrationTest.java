@@ -22,6 +22,10 @@ public abstract class PostgresIntegrationTest {
 		registry.add("WEB_ORIGIN", () -> "http://localhost:3000");
 		registry.add("app.auth.lockout.max-failures", () -> "3");
 		registry.add("app.auth.code-max-attempts", () -> "3");
+		registry.add("MASTER_ADMIN_PHONE", () -> "+8801700000001");
+		registry.add("MASTER_ADMIN_EMAIL", () -> "master-bootstrap@example.com");
+		registry.add("MASTER_ADMIN_NAME", () -> "Master Admin");
+		registry.add("MASTER_ADMIN_PASSWORD", () -> "bootstrap-password-1");
 	}
 
 }

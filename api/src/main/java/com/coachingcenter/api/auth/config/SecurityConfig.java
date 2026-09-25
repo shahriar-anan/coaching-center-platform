@@ -37,6 +37,7 @@ public class SecurityConfig {
 						HttpStatus.FORBIDDEN.value(),
 						ApiError.of(ErrorCode.ACCESS_DENIED, "Access is denied.", RequestIds.current(request)))))
 			.authorizeHttpRequests(auth -> auth
+				.requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/activate",
 						"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/forgot-password",
 						"/api/v1/auth/reset-password", "/api/v1/auth/verify-email", "/api/v1/auth/verify-email/resend")

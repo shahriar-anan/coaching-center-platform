@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(Jwt jwt, Email email, Cors cors, Auth auth) {
+public record AppProperties(Jwt jwt, Email email, Cors cors, Auth auth, Bootstrap bootstrap) {
 
 	public record Jwt(String secret, int accessTokenMinutes) {
 	}
@@ -21,6 +21,9 @@ public record AppProperties(Jwt jwt, Email email, Cors cors, Auth auth) {
 	}
 
 	public record Cors(List<String> allowedOrigins) {
+	}
+
+	public record Bootstrap(String phone, String email, String name, String password) {
 	}
 
 }

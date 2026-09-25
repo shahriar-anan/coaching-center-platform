@@ -14,6 +14,7 @@ import com.coachingcenter.api.auth.PhoneNumbers;
 import com.coachingcenter.api.auth.Role;
 import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.auth.permission.MasterAdminGuard;
+import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 
@@ -30,13 +31,17 @@ public class AccountService {
 
 	private final MasterAdminGuard masterAdminGuard;
 
+	private final AuditRecorder audit;
+
 	public AccountService(UserRepository users, StudentProfileRepository studentProfiles,
-			AdminProfileRepository adminProfiles, AuthService auth, MasterAdminGuard masterAdminGuard) {
+			AdminProfileRepository adminProfiles, AuthService auth, MasterAdminGuard masterAdminGuard,
+			AuditRecorder audit) {
 		this.users = users;
 		this.studentProfiles = studentProfiles;
 		this.adminProfiles = adminProfiles;
 		this.auth = auth;
 		this.masterAdminGuard = masterAdminGuard;
+		this.audit = audit;
 	}
 
 	@Transactional
@@ -104,6 +109,7 @@ public class AccountService {
 		User user = requireRole(id, expectedRole);
 		masterAdminGuard.rejectIfMasterAdmin(Role.valueOf(user.getRole()));
 		user.setStatus(status);
+		audit.record(AuditRecorder.USER_STATUS_CHANGED, user.getId());
 	}
 
 	@Transactional
@@ -111,6 +117,7 @@ public class AccountService {
 		User user = requireRole(id, expectedRole);
 		masterAdminGuard.rejectIfMasterAdmin(Role.valueOf(user.getRole()));
 		user.setDeletedAt(Instant.now());
+		audit.record(AuditRecorder.USER_DELETED, user.getId());
 	}
 
 	@Transactional
