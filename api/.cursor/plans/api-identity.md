@@ -12,7 +12,7 @@ Do not start a later slice until the previous slice's checks exist. Do not build
 
 Spring Boot 4.1.1, Java 21, Maven, Security, JPA, Flyway, validation, actuator, PostgreSQL driver. Do not replace these.
 
-Add, after checking the artifact matches Spring Boot 4.1: a JWT library used by Spring Security (not an OAuth login provider), Testcontainers PostgreSQL, and a springdoc release compatible with Boot 4.1.
+Add, after checking the artifact matches Spring Boot 4.1: a JWT library used by Spring Security (not an OAuth login provider), Testcontainers PostgreSQL, and a springdoc release compatible with Boot 4.1. Testcontainers stays on the classpath for CI. Local `*IT` runs may instead target an already-running PostgreSQL instance via `TEST_DB_URL`, `TEST_DB_USER`, and `TEST_DB_PASSWORD`. Do not use H2 in either mode.
 
 `ApiApplicationTests` boots without a database. Replace it with the Testcontainers suite. Do not leave a context test that starts Flyway against no PostgreSQL.
 

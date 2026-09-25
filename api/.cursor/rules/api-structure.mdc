@@ -1,11 +1,13 @@
 ---
-description: API feature layout, schema changes, and the error and list response shape.
+description: API feature layout, schema changes, error shape, and slice progress notes.
 alwaysApply: true
 ---
 
 # API structure
 
 Read `api/.cursor/plans/api-identity.md` before Stage 1 API work. Follow the slice order. Do not start a later slice until the previous slice's checks exist.
+
+When a slice's checks finish, update `docs/phases/api-identity/slice-<number>-<name>.md` before starting the next slice. Record what was done, what was tested and the result, any failure and why, and what is next. Keep it short when the tests passed.
 
 Organize code by feature under `com.coachingcenter.api`: `common`, `auth`, `users`. Keep each feature's controller, service, repository, and DTOs inside that feature. Do not add a global `controllers`, `services`, or `repositories` package.
 
