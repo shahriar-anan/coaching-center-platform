@@ -37,6 +37,12 @@ public class ApiExceptionHandler {
 		return body(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "Request body is malformed.", null, request);
 	}
 
+	@ExceptionHandler(MasterAdminProtectedException.class)
+	public ResponseEntity<ApiError> masterAdminProtected(MasterAdminProtectedException exception,
+			HttpServletRequest request) {
+		return body(HttpStatus.FORBIDDEN, ErrorCode.MASTER_ADMIN_PROTECTED, exception.getMessage(), null, request);
+	}
+
 	@ExceptionHandler(NoResourceFoundException.class)
 	public ResponseEntity<ApiError> notFound(HttpServletRequest request) {
 		return body(HttpStatus.NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.", null, request);
