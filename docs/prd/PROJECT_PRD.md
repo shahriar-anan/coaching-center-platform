@@ -36,7 +36,7 @@
 | Lecture video | **Unlisted YouTube for the MVP** (confirmed with the client). Built behind a `VideoProvider` interface so a protected provider can replace it later. |
 | Library | Book stock tracking removed. |
 | Admin accounts | Exactly **one Master Admin**; unlimited System Admins. |
-| Language | UI in **Bangla and English** (content is not translated). |
+| Language | UI in **English (main) and Bangla (alternative)**. Content is not translated. |
 | Attendance visibility | Students see their attendance percentage. It has no effect on anything. No automatic attendance/expiry notifications. |
 | Storage | No retention policy for now. |
 | Confirmed | Assumptions 1, 4 to 8, 10, 12 confirmed (Section 14.1). |
@@ -293,7 +293,7 @@ Profile view/edit (permitted fields), password change, notification preferences,
 
 ## 6. Admin Web Panel
 
-Desktop-first web app (Next.js). Language ⚠ (see open questions).
+Desktop-first web app (Next.js). English is the main UI language. Bangla is the alternative.
 
 ### 6.1 Dashboard and Analytics
 **Master Admin (MVP analytics)**
@@ -403,7 +403,7 @@ Prefer soft delete/archiving so historical academic and financial records are ne
 - **Performance:** server-side pagination for all admin lists; indexes; exam autosave batching to avoid per-tap writes; targets set after load testing.
 - **Scalability:** stateless API, PostgreSQL, ability to move files to cloud storage and to upgrade the VPS without redesign.
 - **Time:** stored in UTC, displayed in Asia/Dhaka.
-- **Localization:** UI text in Bangla and English (admin-entered content is not translated). All UI strings are externalized from day one, with a Bangla-capable font. API errors carry stable codes so clients can show localized messages.
+- **Localization:** UI text in English and Bangla (admin-entered content is not translated). English is the language on first launch. Bangla is available as the alternative. All UI strings are externalized from day one, with a Bangla-capable font. API errors carry stable codes so clients can show localized messages.
 - **Storage:** VPS local disk behind a `FileStorage` interface. Written scripts are the biggest growth driver; compress on device, no retention policy for now (confirmed), so monitor disk usage and plan the move to cloud storage before the disk fills; include uploads in backups.
 - **Availability and operations:** automated PostgreSQL backups (stored off the VPS), health checks, error tracking, monitoring of CPU/RAM/disk.
 
@@ -512,7 +512,7 @@ iOS app (with App Store payment policy review), web student portal, gateway-base
 
 | Question | Answer |
 |---|---|
-| App language | Bangla and English UI text. Content is not translated |
+| App language | English is the main UI language. Bangla is the alternative. Content is not translated |
 | Google Play account owner | The client. The developer has access until the project is finished |
 | bKash/Nagad documents | The client has what is needed (verify at application time) |
 | Written exam retention | None for now; monitor disk usage |
@@ -527,11 +527,10 @@ iOS app (with App Store payment policy review), web student portal, gateway-base
 1. **Protected video upgrade (post-MVP):** revisit a DRM provider if link sharing or piracy becomes a problem. Cost depends on total viewing hours.
 2. **Email provider** for password recovery and email verification (client-owned).
 3. **Confirm the password design** in Section 5.1: activation codes for admin-created accounts, emailed reset, email required for students, and admin re-issue of a code when email access is lost.
-4. **Default UI language** on first launch (Bangla or English).
-5. **Hybrid attendance eligibility** (Section 5.10) and the **maximum content-tree depth** (Section 5.4).
-6. **Google Play account type** (personal or organization), which determines whether the 12-tester, 14-day closed test applies.
-7. **Old system identification:** confirm exactly which Nginx site, PM2 process, Supervisor worker and MariaDB database belong to the old coaching system before anything is retired. The VPS hosts other applications too.
-8. **Permanent purge policy** for soft-deleted records (Section 4.5).
+4. **Hybrid attendance eligibility** (Section 5.10) and the **maximum content-tree depth** (Section 5.4).
+5. **Google Play account type** (personal or organization), which determines whether the 12-tester, 14-day closed test applies.
+6. **Old system identification:** confirm exactly which Nginx site, PM2 process, Supervisor worker and MariaDB database belong to the old coaching system before anything is retired. The VPS hosts other applications too.
+7. **Permanent purge policy** for soft-deleted records (Section 4.5).
 
 ### 14.4 Accounts and ownership checklist (all client-owned; developer has access during the project)
 

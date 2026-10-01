@@ -1,0 +1,25 @@
+---
+description: Phase 1 mobile stage order and what the Android app may build.
+globs: mobile/**/*.dart
+alwaysApply: false
+---
+
+# Mobile scope
+
+Read `mobile/.cursor/plans/mobile-login-spike.md` first. Implement that stage before `mobile/.cursor/plans/mobile-auth-screens.md`. Do not start a later slice until the previous slice's checks exist.
+
+When a slice's checks finish, write `mobile/docs/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+
+The app is for students on Android. Build only spec Section 10.2: login, register with email verification, activate, forgot-password and reset, a placeholder home, dev and prod flavors, secure tokens, a 401 refresh-and-retry, and Bangla plus English. English is the language on first launch.
+
+Device exit is Shahriar's physical phone. The agent runs `flutter test` only. Do not install Android system images, create an AVD, or launch an emulator. For a phone run, hand over `flutter run --dart-define=API_BASE_URL=http://<lan-ip>:8080`. Keep `http://10.0.2.2:8080` as the in-app dev default. That URL is not a reason to start an emulator.
+
+```dart
+// BAD — user-facing copy inline
+Text('Sign in')
+
+// GOOD — catalog key, both locales
+Text(t('auth.loginTitle'))
+```
+
+A wrong API field or token placement is an `api` defect. Fix `api` and its tests before adapting the client around it.

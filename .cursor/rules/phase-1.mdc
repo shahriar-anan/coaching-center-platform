@@ -16,3 +16,5 @@ Student accounts have two independent paths. Self-registration via `/auth/regist
 No actor sets, sees, or resets another user's password. Deletes are Master Admin only, enforced in the API. Use the concrete values in `docs/phases/phase-1.md` unless Shahriar says otherwise.
 
 Where that spec says "Section 9" for tests, use Section 11.
+
+Mobile device checks run on Shahriar's physical Android phone. Run `flutter test` for widget tests. Do not install Android system images, create an AVD, or launch an emulator. Hand over `flutter run --dart-define=API_BASE_URL=http://<lan-ip>:8080` for the phone. The in-app default `http://10.0.2.2:8080` is only a URL string.

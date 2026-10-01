@@ -21,7 +21,7 @@ Build the foundation layer and the identity/authentication system for three comp
 Having an account, by either path, grants login only. It grants no access to course content — course enrollment is a Phase 2+ concept, entirely out of scope here. Do not build or imply any gate that requires admin approval before a self-registered account can log in.
 
 **Phase 1 is functionally complete when all of the following hold:**
-1. A Master Admin can authenticate on `web` and create a System Admin account and a student account (the admin-created path).
+1. A Master Admin can authenticate on `web` and create a System Admin account and a student account (the admin-created path). The System Admin activates on `web` with the phone and code from that create, chooses their own password, and can then sign in to the admin panel.
 2. A student can independently self-register via `/auth/register` with no admin involved (the self-registration path), completely unblocked by anything in item 1.
 3. A System-Admin-created or Master-Admin-created student account can be activated on `mobile` using a one-time code, after which the student sets their own password and can log in.
 4. No party other than the account owner can ever set, view, or reset that account's password, at any layer including the database (passwords exist only as hashes).
@@ -270,11 +270,13 @@ Write the authorization mechanism so a future module (e.g. courses in Phase 2) c
 
 ### 10.1 Web (`web`, Next.js)
 Screens/behavior required in this phase, no more:
-- Login page.
+- Login page, with a link to the System Admin activation page.
+- System Admin activation page, reachable without a session. Fields are the phone the Master Admin entered, the activation code, a new password, and confirm password. No name field. Submit `POST /auth/activate` with phone, code, and password only. On success, sign in with that phone and password and open the admin shell. Confirm-password mismatch is checked in the browser and does not call the API.
+- If activation succeeds and `GET /me` returns `STUDENT`, clear the session and say the account is active and this panel is for administrators. Do not describe that as a failed activation. Student registration and the student activation screen stay on `mobile`.
 - Protected route wrapper; unauthenticated users redirected to login.
 - Role-aware navigation: delete-capable actions/buttons are hidden entirely for `SYSTEM_ADMIN`, not merely disabled.
 - Admin accounts page: list, create (`MASTER_ADMIN` only — hide for `SYSTEM_ADMIN`), activate/deactivate, and re-issue activation code, with the code shown once in a copyable UI element.
-- Student list page: search + pagination.
+- Student list page: search + pagination. A `PENDING_ACTIVATION` row can re-issue an activation code (both admin roles). The new code is shown once in a copyable element. Active and inactive rows have no re-issue action.
 - Student create page/form: on success, display the one-time activation code prominently and clearly (it will not be retrievable again through this flow after leaving the screen).
 - Refresh token handled via httpOnly cookie set by the backend; the web app must send `X-Client-Type: web` on auth calls and must not attempt to read or store the refresh token itself.
 - API client built from or validated against the OpenAPI spec.
@@ -336,7 +338,7 @@ Backend integration tests must run against a **real PostgreSQL instance via Test
 
 Do not consider Phase 1 done until every item below is verifiable, not just believed true:
 
-1. A `MASTER_ADMIN`, created only via bootstrap, logs into `web`, creates a `SYSTEM_ADMIN` and a `STUDENT` (the admin-created path).
+1. A `MASTER_ADMIN`, created only via bootstrap, logs into `web`, creates a `SYSTEM_ADMIN` and a `STUDENT` (the admin-created path). The `SYSTEM_ADMIN` activates on `web` with that phone and code, sets their own password, and reaches the admin shell.
 2. The created `STUDENT` activates their account on `mobile` via `/auth/activate`, choosing their own password, and can subsequently log in and remain logged in across app restarts (token persistence + refresh working).
 2a. **Separately**, a different prospective student self-registers directly via `/auth/register` on `mobile` with no admin involved, and can log in. This path must work independently of item 1 — it is not gated by any admin action.
 3. Every delete endpoint rejects `SYSTEM_ADMIN` with `403`, proven by automated tests.

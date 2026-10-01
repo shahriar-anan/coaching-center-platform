@@ -6,10 +6,10 @@ Where that spec says "Section 9" for the test list, use Section 11.
 
 ## Current stage
 
-- id: `api-identity`
-- status: `not started`
+- id: `mobile-auth-screens`
+- status: `complete`
 
-Update this marker only after that stage's exit checks pass. Write the next stage's implementation plan in its directory before writing any code for it.
+`api-identity`, `web-admin`, `mobile-login-spike`, and `mobile-auth-screens` are complete. Shahriar passed the mobile phone exit on 2026-10-01: an admin-created student activates and stays signed in across a restart, a different student self-registers and signs in with no admin, and forgot-password then reset-password works. There is no later stage in this map.
 
 ## Stages
 
@@ -39,7 +39,7 @@ api-identity → mobile-login-spike → web-admin → mobile-auth-screens
 - Starts only after `api-identity` exit checks pass.
 - Build the admin screens in spec Section 10.1.
 - Follow `web/AGENTS.md` and the Next.js docs in `web/node_modules/next/dist/docs/`.
-- Exit: a Master Admin can log in, create a System Admin and a student, and the activation code is shown once.
+- Exit: a Master Admin can log in, create a System Admin and a student, and the activation code is shown once. The System Admin activates on `web` with that phone and code, sets their own password, and reaches the admin shell.
 
 ### mobile-auth-screens
 
