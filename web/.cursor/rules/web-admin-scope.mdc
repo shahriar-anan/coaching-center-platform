@@ -8,7 +8,7 @@ alwaysApply: false
 
 Read `web/.cursor/plans/web-admin.md` before `web-admin` work. Follow the slice order. Do not start a later slice until the previous slice's checks exist.
 
-When a slice's checks finish, write `docs/phases/web-admin/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `web/.cursor/progress/<stage>/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
 
 Build only spec Section 10.1: login, System Admin activation, protected routes, role-aware navigation, admin accounts, student list and create, re-issue on a pending student, cookie-backed refresh, an OpenAPI-derived client, and Bangla plus English catalogs. Student registration, student activation, and password reset belong to `mobile`.
 

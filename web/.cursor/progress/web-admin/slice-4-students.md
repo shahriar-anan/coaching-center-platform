@@ -26,8 +26,8 @@ Run with API on `http://localhost:8080`, `WEB_ORIGIN=http://localhost:3000`, and
 1. Master Admin logs in on `web`, creates a System Admin and a student; copy each activation code once.
 2. System Admin logs in, searches students, and does not see admin nav or student delete.
 
-Vitest cases from `web-admin-tests.md` are not wired yet.
+Vitest cases from `web/.cursor/tests/web-admin.md` are not wired yet.
 
 ## Next
 
-Optional: add Vitest + RTL tests; browser verification against running API; update `.cursor/plans/phase-1.md` stage marker when Shahriar confirms exit.
+The browser exit later passed. The completion record is `docs/phases/phase-1/phase-1-status.md`.

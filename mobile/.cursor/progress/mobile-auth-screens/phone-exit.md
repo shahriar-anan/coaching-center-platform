@@ -24,4 +24,4 @@ None.
 
 ## Next
 
-Phase 1 stage map items for `mobile-login-spike` and `mobile-auth-screens` are complete.
+`mobile-login-spike` and `mobile-auth-screens` are complete. The record is `docs/phases/phase-1/phase-1-status.md`.

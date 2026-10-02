@@ -1,8 +1,8 @@
 # mobile-auth-screens
 
-Stage plan for the remaining Phase 1 student screens. The binding spec is [docs/phases/phase-1.md](../../../docs/phases/phase-1.md) Section 10.2. This plan adds order only. It does not drop an exit check.
+Stage plan for the remaining Phase 1 student screens. The binding spec is [phase-1-scope.md](../../../docs/phases/phase-1/phase-1-scope.md) Section 10.2. This plan adds order only. It does not drop an exit check.
 
-Required test cases are in [mobile-auth-screens-tests.md](mobile-auth-screens-tests.md).
+Required test cases are in [mobile-auth-screens.md](../tests/mobile-auth-screens.md).
 
 Start only after the `mobile-login-spike` exit checks pass. Keep the login client, secure storage, catalogs, and Bangla font from that stage.
 
@@ -67,8 +67,8 @@ Shahriar runs these on a physical Android phone against the running API. The age
 - A different student registers with no admin involved, can log in before verifying email, and can verify email with the dev-exposed code.
 - Forgot-password then reset-password works, and the previous refresh token cannot refresh.
 
-When a slice's checks finish, write `docs/phases/mobile-auth-screens/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `mobile/.cursor/progress/mobile-auth-screens/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
 
 ## Phase 1 done
 
-This stage's exit covers spec Section 12 items 2 and 2a. Items 1 and 3 through 10 are already met by `api-identity` and `web-admin`. Do not mark Phase 1 done until items 2 and 2a pass on Shahriar's physical phone. The checklist is in [mobile-auth-screens-tests.md](mobile-auth-screens-tests.md).
+This stage's exit covers spec Section 12 items 2 and 2a. Items 1 and 3 through 10 are already met by `api-identity` and `web-admin`. Do not mark Phase 1 done until items 2 and 2a pass on Shahriar's physical phone. The checklist is in [mobile-auth-screens.md](../tests/mobile-auth-screens.md). The pass is recorded in [phase-1-status.md](../../../docs/phases/phase-1/phase-1-status.md).

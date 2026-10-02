@@ -1,8 +1,8 @@
 # mobile-login-spike
 
-Stage plan for the Phase 1 login spike. The binding spec is [docs/phases/phase-1.md](../../../docs/phases/phase-1.md) Section 2 step 2 and Section 10.2. This plan adds order only. It does not drop an exit check.
+Stage plan for the Phase 1 login spike. The binding spec is [phase-1-scope.md](../../../docs/phases/phase-1/phase-1-scope.md) Section 2 step 2 and Section 10.2. This plan adds order only. It does not drop an exit check.
 
-Required test cases are in [mobile-login-spike-tests.md](mobile-login-spike-tests.md).
+Required test cases are in [mobile-login-spike.md](../tests/mobile-login-spike.md).
 
 Implement this stage before [mobile-auth-screens.md](mobile-auth-screens.md). Do not build register, activation, forgot-password, email verification, or the full placeholder home in this stage. A signed-in confirmation is enough to prove login.
 
@@ -50,4 +50,4 @@ Replace the counter demo.
 
 Shahriar runs the app on a physical Android phone against the running API, once with a phone and once with an email. The refresh token is present only in the JSON body and is stored in secure storage. The agent does not install a system image, create an AVD, or launch an emulator for this exit.
 
-When a slice's checks finish, write `docs/phases/mobile-login-spike/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `mobile/.cursor/progress/mobile-login-spike/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.

@@ -1,10 +1,10 @@
 # api-identity
 
-Stage 1 implementation plan. The binding spec is [docs/phases/phase-1.md](../../../docs/phases/phase-1.md). This plan adds order only. It does not drop an exit check.
+Stage 1 implementation plan. The binding spec is [phase-1-scope.md](../../../docs/phases/phase-1/phase-1-scope.md). This plan adds order only. It does not drop an exit check.
 
 The spec mentions a bootstrap "Section 8.6" that is not in the file. Bootstrap behavior is stated in slice 6. Do not add a forced first-login password change. That flow is not in the phase API surface.
 
-Required test cases are in [api-identity-tests.md](api-identity-tests.md).
+Required test cases are in [api-identity.md](../tests/api-identity.md).
 
 Do not start a later slice until the previous slice's checks exist. Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation.
 
@@ -94,4 +94,4 @@ Write an `audit_log` row for every delete, status change, activation-code issuan
 
 During implementation, add `.github/workflows/api.yml`. On every push, build `api` and run the Testcontainers suite. Fail the job if tests fail.
 
-Stage exit: every case in [api-identity-tests.md](api-identity-tests.md) passes against real PostgreSQL, and CI runs that suite.
+Stage exit: every case in [api-identity.md](../tests/api-identity.md) passes against real PostgreSQL, and CI runs that suite.

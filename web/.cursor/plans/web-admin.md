@@ -1,8 +1,8 @@
 # web-admin
 
-Stage plan for the Phase 1 admin panel. The binding spec is [docs/phases/phase-1.md](../../../docs/phases/phase-1.md) Section 10.1. This plan adds order and client detail. It does not drop an exit check.
+Stage plan for the Phase 1 admin panel. The binding spec is [phase-1-scope.md](../../../docs/phases/phase-1/phase-1-scope.md) Section 10.1. This plan adds order and client detail. It does not drop an exit check.
 
-Required test cases are in [web-admin-tests.md](web-admin-tests.md).
+Required test cases are in [web-admin.md](../tests/web-admin.md).
 
 ## Progress
 
@@ -16,9 +16,9 @@ Shahriar manually tested the running app. Status: success. Date: 2026-09-26.
 | 4 Students | Done. Pending-student re-issue included. |
 | 5 System Admin activation | Done. Browser pass succeeded. |
 
-The Vitest cases in [web-admin-tests.md](web-admin-tests.md) are not written. The stage exit above was checked in the browser.
+The Vitest cases in [web-admin.md](../tests/web-admin.md) are not written. The stage exit above was checked in the browser.
 
-The stage map still lists `mobile-login-spike` before `web-admin`. This stage was built first because Shahriar asked for the web plan first.
+[phase-1-status.md](../../../docs/phases/phase-1/phase-1-status.md) lists `mobile-login-spike` before `web-admin`. This stage was built first because Shahriar asked for the web plan first.
 
 Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation. Do not add a web CI workflow in this stage. Student self-registration, activation, forgot-password, and reset stay on `mobile` (spec Section 10.2).
 
@@ -122,4 +122,4 @@ Public page linked from login. No session required.
 
 A Master Admin logs into `web` against the running API, creates a System Admin and a student, and each activation code is shown once. The System Admin activates on `web` with that phone and code, sets their own password, and reaches the student list without admin management or a delete control. A System Admin can also search students.
 
-When a slice's checks finish, write `docs/phases/web-admin/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `web/.cursor/progress/web-admin/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
