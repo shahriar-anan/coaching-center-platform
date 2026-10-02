@@ -1,0 +1,26 @@
+---
+description: Web session, password, and delete-visibility rules for the admin panel.
+globs: web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Web session
+
+The web app is for `MASTER_ADMIN` and `SYSTEM_ADMIN`. A `STUDENT` session is cleared and stays on login.
+
+Send `X-Client-Type: web` on login, refresh, and logout. Keep the access token in memory. The refresh token stays in the API's HttpOnly cookie (`refresh_token`, Path `/api/v1/auth`). Call those auth endpoints with `credentials: 'include'`. Do not read or store the refresh token, and do not put `refreshToken` in a JSON body.
+
+System Admin activation submits `phone`, `code`, and `password` to `POST /auth/activate`. No name field. On `204`, sign in with that phone and password. If the resulting role is `STUDENT`, clear the session and say the account is active and this panel is for administrators.
+
+Create-admin and create-student requests contain `fullName`, `phone`, and `email` only. Show `activationCode` once in a copyable element, then drop it when the screen closes.
+
+`SYSTEM_ADMIN` does not see admin-account navigation. Delete controls render only for `MASTER_ADMIN`, and they are absent for `SYSTEM_ADMIN` rather than disabled.
+
+```tsx
+// BAD — refresh token stored, delete only disabled
+localStorage.setItem("refreshToken", body.refreshToken);
+<button disabled={role !== "MASTER_ADMIN"}>Delete</button>
+
+// GOOD — cookie stays untouched, delete omitted
+{role === "MASTER_ADMIN" ? <button>{t("students.delete")}</button> : null}
+```

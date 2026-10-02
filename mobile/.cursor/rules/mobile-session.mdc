@@ -1,0 +1,20 @@
+---
+description: Mobile token storage, client header, and student-only session rules.
+globs: mobile/**/*.dart
+alwaysApply: false
+---
+
+# Mobile session
+
+Send `X-Client-Type: mobile` on login, refresh, and logout. Store the access token and the refresh token only in `flutter_secure_storage`. The refresh token travels in the JSON body. Do not use cookies, and do not log either token.
+
+Register sends `fullName`, `phone`, `email`, and `password`. The account can log in before email verification. Activate and reset send `phone` or `code` plus `password`. Confirm password stays on the device.
+
+A `MASTER_ADMIN` or `SYSTEM_ADMIN` session is cleared and stays on login. This app is for `STUDENT`.
+
+```dart
+// BAD — refresh token in preferences or a cookie jar
+prefs.setString('refreshToken', body['refreshToken']);
+
+// GOOD — secure storage, body on the next refresh
+await secure.write(key: 'refreshToken', value: body['refreshToken'] as String);

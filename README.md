@@ -98,4 +98,4 @@ flutter run
 
 ## Documentation
 
-The product specification is in [docs/prd/PROJECT_PRD.md](docs/prd/PROJECT_PRD.md).
+The product specification is in [docs/prd/PROJECT_PRD.md](docs/prd/PROJECT_PRD.md). Phase specs and status are in [docs/phases/README.md](docs/phases/README.md).

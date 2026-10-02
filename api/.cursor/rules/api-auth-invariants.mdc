@@ -11,4 +11,4 @@ Self-registration via `/auth/register` creates an `ACTIVE` student who set their
 
 Only `MASTER_ADMIN` receives any `*_DELETE` permission. A System Admin delete returns `403` from the API. No endpoint creates, edits the role of, deactivates, or deletes a `MASTER_ADMIN`.
 
-`X-Client-Type: web` returns the refresh token only as an httpOnly cookie. `X-Client-Type: mobile` returns it only in the JSON body. Use the concrete lifetimes and header names in `docs/phases/phase-1.md` unless Shahriar says otherwise.
+`X-Client-Type: web` returns the refresh token only as an httpOnly cookie. `X-Client-Type: mobile` returns it only in the JSON body. Use the concrete lifetimes and header names in `docs/phases/phase-1/phase-1-scope.md` unless Shahriar says otherwise.

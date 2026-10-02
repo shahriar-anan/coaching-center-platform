@@ -1,0 +1,25 @@
+---
+description: Phase 1 web admin scope, slice order, and Next.js 16 conventions.
+globs: web/**/*.{ts,tsx,css,json}
+alwaysApply: false
+---
+
+# Web admin scope
+
+Read `web/.cursor/plans/web-admin.md` before `web-admin` work. Follow the slice order. Do not start a later slice until the previous slice's checks exist.
+
+When a slice's checks finish, write `web/.cursor/progress/<stage>/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+
+Build only spec Section 10.1: login, System Admin activation, protected routes, role-aware navigation, admin accounts, student list and create, re-issue on a pending student, cookie-backed refresh, an OpenAPI-derived client, and Bangla plus English catalogs. Student registration, student activation, and password reset belong to `mobile`.
+
+Before screen code, read `web/node_modules/next/dist/docs/`. This app is Next.js 16. Use `src/proxy.ts` exporting `proxy`. Do not add `middleware.ts`.
+
+```tsx
+// BAD — user-facing copy inline
+<button>Create student</button>
+
+// GOOD — catalog key, both locales
+<button>{t("students.create")}</button>
+```
+
+A wrong API field or cookie is an `api` defect. Fix `api` and its tests before adapting the client around it.
