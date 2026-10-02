@@ -23,4 +23,4 @@ None.
 
 ## Next
 
-The login screen followed this slice. Later notes are `slice-1-session.md`, `slice-2-register.md`, `slice-3-activate.md`, `slice-4-forgot-password.md`, and `phone-exit.md`.
+Slice 2 is the login screen. Later student screens and the phone exit are under `../mobile-auth-screens/`.

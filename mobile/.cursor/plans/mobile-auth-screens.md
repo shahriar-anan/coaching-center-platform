@@ -67,7 +67,7 @@ Shahriar runs these on a physical Android phone against the running API. The age
 - A different student registers with no admin involved, can log in before verifying email, and can verify email with the dev-exposed code.
 - Forgot-password then reset-password works, and the previous refresh token cannot refresh.
 
-When a slice's checks finish, write `mobile/docs/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `docs/phases/mobile-auth-screens/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
 
 ## Phase 1 done
 

@@ -19,23 +19,29 @@ api-identity → mobile-login-spike → web-admin → mobile-auth-screens
 
 ### api-identity
 
+- Status: complete
 - Directory: `api/`
-- Later plan: `api/.cursor/plans/api-identity.md`
+- Plan: `api/.cursor/plans/api-identity.md`
+- Progress: `docs/phases/api-identity/`
 - Build the foundation and identity system from the phase spec: Flyway schema, auth, roles, permissions, audit log, OpenAPI, and tests against real PostgreSQL (Testcontainers-managed in CI; an external local instance is an acceptable substitute for local dev).
 - CI that builds `api` and runs those tests on every push lives in `.github/workflows/`. Plan that workflow with this stage. It is part of this stage's exit.
 - Exit: the spec's Section 11 test list passes against real PostgreSQL, and CI runs that suite.
 
 ### mobile-login-spike
 
+- Status: complete
 - Directory: `mobile/`
-- Later plan: `mobile/.cursor/plans/mobile-login-spike.md`
+- Plan: `mobile/.cursor/plans/mobile-login-spike.md`
+- Progress: `docs/phases/mobile-login-spike/`
 - One login screen wired to the running API. This is a contract spike, not the full screen set.
 - Exit: login works end to end from the app. If a field, status code, or flow is wrong, fix `api` and its tests before any further UI.
 
 ### web-admin
 
+- Status: complete
 - Directory: `web/`
-- Later plan: `web/.cursor/plans/web-admin.md`
+- Plan: `web/.cursor/plans/web-admin.md`
+- Progress: `docs/phases/web-admin/`
 - Starts only after `api-identity` exit checks pass.
 - Build the admin screens in spec Section 10.1.
 - Follow `web/AGENTS.md` and the Next.js docs in `web/node_modules/next/dist/docs/`.
@@ -43,19 +49,14 @@ api-identity → mobile-login-spike → web-admin → mobile-auth-screens
 
 ### mobile-auth-screens
 
+- Status: complete
 - Directory: `mobile/`
-- Later plan: `mobile/.cursor/plans/mobile-auth-screens.md`
+- Plan: `mobile/.cursor/plans/mobile-auth-screens.md`
+- Progress: `docs/phases/mobile-auth-screens/`
 - Starts only after `api-identity` exit checks pass. Same start gate as `web-admin`.
 - Build the remaining student screens in spec Section 10.2.
 - Exit: admin-created activation and independent self-registration both work on the app, and a logged-in student stays logged in across restarts.
 
-## Later plans
-
-Do not write these files in the phase-map step. Write each one when that stage is planned:
-
-- `api/.cursor/plans/api-identity.md`
-- `mobile/.cursor/plans/mobile-login-spike.md`
-- `web/.cursor/plans/web-admin.md`
-- `mobile/.cursor/plans/mobile-auth-screens.md`
+The index of finished slices is [docs/phases/README.md](../../docs/phases/README.md).
 
 A component plan may add detail. It may not drop a phase exit check, reorder these stages, or pull in a later-phase domain.

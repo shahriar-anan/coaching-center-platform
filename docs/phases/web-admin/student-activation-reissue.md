@@ -15,4 +15,4 @@ Offline onboarding creates a student as `PENDING_ACTIVATION` and shows the activ
 
 ## Tested
 
-Not run in the browser in this change. Refresh the students list and use a pending student to confirm the button and the one-time code panel.
+Checked in the browser. A pending student row shows "New activation code", the new code appears once in the copyable panel, and leaving the list drops it.

@@ -50,4 +50,4 @@ Replace the counter demo.
 
 Shahriar runs the app on a physical Android phone against the running API, once with a phone and once with an email. The refresh token is present only in the JSON body and is stored in secure storage. The agent does not install a system image, create an AVD, or launch an emulator for this exit.
 
-When a slice's checks finish, write `mobile/docs/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `docs/phases/mobile-login-spike/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.

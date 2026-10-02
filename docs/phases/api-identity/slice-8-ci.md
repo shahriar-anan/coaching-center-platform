@@ -20,4 +20,4 @@ The first GitHub run reported 1 error. `SchemaIT` inserted `+8801700000001`, the
 
 ## Next
 
-Push this branch. The Actions run for that push is the first execution of the suite in CI.
+The SchemaIT fix is on `foundation-identity`. The GitHub Actions run for that push is the CI proof.

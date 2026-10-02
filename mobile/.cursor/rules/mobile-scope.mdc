@@ -8,7 +8,7 @@ alwaysApply: false
 
 Read `mobile/.cursor/plans/mobile-login-spike.md` first. Implement that stage before `mobile/.cursor/plans/mobile-auth-screens.md`. Do not start a later slice until the previous slice's checks exist.
 
-When a slice's checks finish, write `mobile/docs/slice-<number>-<name>.md` before the next slice. Record what was done, what was tested and the result, any failure and why, and what is next.
+When a slice's checks finish, write `docs/phases/<stage>/slice-<number>-<name>.md` before the next slice. `<stage>` is `mobile-login-spike` or `mobile-auth-screens`. Record what was done, what was tested and the result, any failure and why, and what is next.
 
 The app is for students on Android. Build only spec Section 10.2: login, register with email verification, activate, forgot-password and reset, a placeholder home, dev and prod flavors, secure tokens, a 401 refresh-and-retry, and Bangla plus English. English is the language on first launch.
 
