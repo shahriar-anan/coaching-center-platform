@@ -1,5 +1,6 @@
 package com.coachingcenter.api.catalog;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -77,7 +78,7 @@ class CatalogCourseReadIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(get("/api/v1/catalog/course-categories").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$[0].titleEn").value("Main Category"));
+			.andExpect(jsonPath("$[?(@.id == '%s')].titleEn".formatted(main), hasItem("Main Category")));
 	}
 
 	private UUID createCategory(String token, String titleEn, String titleBn) throws Exception {
