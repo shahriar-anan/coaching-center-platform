@@ -174,11 +174,15 @@ class BookCategoryIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"price\":100,\"available\":true}"))
 			.andExpect(status().isOk());
-		mockMvc.perform(get("/api/v1/catalog/books").param("q", title).param("categoryId", UUID.randomUUID().toString())
+		mockMvc.perform(get("/api/v1/catalog/books").param("q", title)
 			.header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.content[0].titleEn").value(title))
 			.andExpect(jsonPath("$.content[0].categoryId").doesNotExist());
+		mockMvc.perform(get("/api/v1/catalog/books").param("q", title).param("categoryId", UUID.randomUUID().toString())
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(0));
 	}
 
 	private int nextPosition(String token) throws Exception {

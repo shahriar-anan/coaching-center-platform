@@ -113,7 +113,7 @@ class CatalogCourseReadIT extends PostgresIntegrationTest {
 	}
 
 	private void placeCourse(String token, UUID courseId, UUID categoryId, int position) throws Exception {
-		mockMvc.perform(patch("/api/v1/courses/" + courseId + "/placement").header("Authorization", "Bearer " + token)
+		mockMvc.perform(patch("/api/v1/courses/" + courseId).header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
 					{"categoryId":"%s","categoryPosition":%d}
