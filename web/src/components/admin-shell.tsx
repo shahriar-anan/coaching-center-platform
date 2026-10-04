@@ -16,7 +16,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-6">
             <span className="font-semibold">{t("app.title")}</span>
             <nav className="flex gap-4 text-sm">
@@ -29,6 +29,48 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 }
               >
                 {t("nav.students")}
+              </Link>
+              <Link
+                href="/courses"
+                className={
+                  pathname.startsWith("/courses")
+                    ? "font-medium text-zinc-900"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }
+              >
+                {t("nav.courses")}
+              </Link>
+              <Link
+                href="/books"
+                className={
+                  pathname.startsWith("/books")
+                    ? "font-medium text-zinc-900"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }
+              >
+                {t("nav.library")}
+              </Link>
+              {isMaster ? (
+                <Link
+                  href="/payments"
+                  className={
+                    pathname.startsWith("/payments")
+                      ? "font-medium text-zinc-900"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }
+                >
+                  {t("nav.payments")}
+                </Link>
+              ) : null}
+              <Link
+                href="/book-orders"
+                className={
+                  pathname.startsWith("/book-orders")
+                    ? "font-medium text-zinc-900"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }
+              >
+                {t("nav.orders")}
               </Link>
               {isMaster ? (
                 <Link
@@ -59,7 +101,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
     </div>
   );
 }

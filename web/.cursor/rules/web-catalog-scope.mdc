@@ -1,0 +1,19 @@
+---
+description: Phase 2 web catalog management. Admin screens only. Read web/.cursor/plans/web-catalog.md before web-catalog work.
+globs: web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Web catalog scope
+
+Read `web/.cursor/plans/web-catalog.md` before `web-catalog` work. Follow the slice order. Do not start a later slice until the previous slice's progress note exists.
+
+This stage is management for `MASTER_ADMIN` and `SYSTEM_ADMIN`: courses, content, books, payment verification, offline admission, and book-order fulfillment. Students do not browse, purchase, or open lectures here.
+
+Hide controls the role cannot call. Do not render them disabled. System Admin does not see price, delete, archive, close, reopen, payment verification, or cash collected.
+
+When a slice's checks finish, write `web/.cursor/progress/web-catalog/slice-<number>-<name>.md` before the next slice.
+
+**Agent:** `npm run lint`, `npm run build`, `npm run check:openapi`, and mocked component tests when present. Do not boot `api` for component tests. **Shahriar:** browser exit after slice 7 only. The agent must not open a browser or use browser automation.
+
+A wrong API field is an `api` defect. Fix `api` and its tests before adapting the client. The list `GET /api/v1/book-orders` is the only new API in this stage.

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../auth/jwt_role.dart';
 import '../auth/token_store.dart';
 import 'api_exception.dart';
+import 'catalog_models.dart';
 
 class TokenPair {
   const TokenPair({required this.accessToken, required this.refreshToken, required this.expiresInSeconds});
@@ -158,6 +159,230 @@ class AuthApi {
       throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
     }
     return MeProfile(fullName: decoded['fullName'] as String);
+  }
+
+  Future<CatalogPage<CourseSummary>> listCourses({String q = '', String? categoryId}) async {
+    final params = <String, String>{'q': q};
+    if (categoryId != null && categoryId.isNotEmpty) {
+      params['categoryId'] = categoryId;
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/courses').replace(queryParameters: params);
+    final response = await _authorizedGet(uri);
+    return _catalogPage(response, CourseSummary.fromJson);
+  }
+
+  Future<CatalogPage<BookSummary>> listBooks({String q = '', String? categoryId}) async {
+    final params = <String, String>{'q': q};
+    if (categoryId != null && categoryId.isNotEmpty) {
+      params['categoryId'] = categoryId;
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/books').replace(queryParameters: params);
+    final response = await _authorizedGet(uri);
+    return _catalogPage(response, BookSummary.fromJson);
+  }
+
+  Future<List<CourseCategoryNode>> listCourseCategories() async {
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/course-categories');
+    final response = await _authorizedGet(uri);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return decoded.map((entry) => CourseCategoryNode.fromJson(Map<String, dynamic>.from(entry as Map))).toList();
+  }
+
+  Future<List<BookCategorySummary>> listBookCategories() async {
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/book-categories');
+    final response = await _authorizedGet(uri);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return decoded.map((entry) => BookCategorySummary.fromJson(Map<String, dynamic>.from(entry as Map))).toList();
+  }
+
+  Future<CourseDetail> getCourse(String courseId) async {
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/courses/$courseId');
+    final response = await _authorizedGet(uri);
+    return CourseDetail.fromJson(Map<String, dynamic>.from(jsonDecode(response.body) as Map));
+  }
+
+  Future<List<MyCourseSummary>> listMyCourses() async {
+    final uri = Uri.parse('$baseUrl/api/v1/me/courses');
+    final response = await _authorizedGet(uri);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return decoded.map((entry) => MyCourseSummary.fromJson(Map<String, dynamic>.from(entry as Map))).toList();
+  }
+
+  Future<LectureContent> getLecture(String courseId, String lectureId) async {
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/courses/$courseId/lectures/$lectureId');
+    final response = await _authorizedJsonGet(uri);
+    if (response.statusCode == 200) {
+      return LectureContent.fromJson(Map<String, dynamic>.from(jsonDecode(response.body) as Map));
+    }
+    throw _exceptionFromBody(response.body);
+  }
+
+  Future<CoursePurchaseResult> purchaseCourse({
+    required String courseId,
+    required String method,
+    required String transactionRef,
+    String? deliveryMode,
+  }) async {
+    final body = <String, dynamic>{'method': method, 'transactionRef': transactionRef};
+    if (deliveryMode != null) {
+      body['deliveryMode'] = deliveryMode;
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/courses/$courseId/purchases');
+    final response = await _authorizedJsonPost(uri, body);
+    if (response.statusCode != 201) {
+      throw _exceptionFromBody(response.body);
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return CoursePurchaseResult.fromJson(Map<String, dynamic>.from(decoded));
+  }
+
+  Future<BookDetail> getBook(String bookId) async {
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/books/$bookId');
+    final response = await _authorizedGet(uri);
+    return BookDetail.fromJson(Map<String, dynamic>.from(jsonDecode(response.body) as Map));
+  }
+
+  Future<BookOrderResult> placeBookOrder({
+    required String bookId,
+    required String fulfillment,
+    required String paymentMethod,
+    required String phone,
+    String? address,
+    String? area,
+    String? method,
+    String? transactionRef,
+  }) async {
+    final body = <String, dynamic>{
+      'fulfillment': fulfillment,
+      'paymentMethod': paymentMethod,
+      'phone': phone,
+    };
+    if (address != null && address.isNotEmpty) {
+      body['address'] = address;
+    }
+    if (area != null && area.isNotEmpty) {
+      body['area'] = area;
+    }
+    if (method != null) {
+      body['method'] = method;
+    }
+    if (transactionRef != null) {
+      body['transactionRef'] = transactionRef;
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/books/$bookId/orders');
+    final response = await _authorizedJsonPost(uri, body);
+    if (response.statusCode != 201) {
+      throw _exceptionFromBody(response.body);
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return BookOrderResult.fromJson(Map<String, dynamic>.from(decoded));
+  }
+
+  Future<List<BookOrderView>> listMyOrders() async {
+    final uri = Uri.parse('$baseUrl/api/v1/me/orders');
+    final response = await _authorizedGet(uri);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return decoded.map((entry) => BookOrderView.fromJson(Map<String, dynamic>.from(entry as Map))).toList();
+  }
+
+  Future<List<CoursePurchaseView>> listMyPurchases() async {
+    final uri = Uri.parse('$baseUrl/api/v1/me/purchases');
+    final response = await _authorizedGet(uri);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    return decoded
+        .map((entry) => CoursePurchaseView.fromJson(Map<String, dynamic>.from(entry as Map)))
+        .toList();
+  }
+
+  Future<FileDownload> downloadFile(String fileId) async {
+    final uri = Uri.parse('$baseUrl/api/v1/files/$fileId');
+    final response = await _authorizedBytesGet(uri);
+    if (response.statusCode != 200) {
+      throw _exceptionFromBody(response.body);
+    }
+    final disposition = response.headers['content-disposition'] ?? '';
+    final match = RegExp(r'filename="([^"]+)"').firstMatch(disposition);
+    final fileName = match?.group(1) ?? 'download';
+    final contentType = response.headers['content-type'] ?? 'application/octet-stream';
+    return FileDownload(bytes: response.bodyBytes, contentType: contentType, fileName: fileName);
+  }
+
+  Future<http.Response> _authorizedJsonPost(Uri uri, Map<String, dynamic> body) async {
+    return _withRefreshRetry(() async {
+      final access = await _tokens?.readAccessToken();
+      return _client.post(
+        uri,
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ${access ?? ''}'},
+        body: jsonEncode(body),
+      );
+    });
+  }
+
+  Future<http.Response> _authorizedGet(Uri uri) async {
+    final response = await _withRefreshRetry(() async {
+      final access = await _tokens?.readAccessToken();
+      return _client.get(
+        uri,
+        headers: {'Accept': 'application/json', 'Authorization': 'Bearer ${access ?? ''}'},
+      );
+    });
+    if (response.statusCode != 200) {
+      throw _exceptionFromBody(response.body);
+    }
+    return response;
+  }
+
+  Future<http.Response> _authorizedJsonGet(Uri uri) async {
+    return _withRefreshRetry(() async {
+      final access = await _tokens?.readAccessToken();
+      return _client.get(
+        uri,
+        headers: {'Accept': 'application/json', 'Authorization': 'Bearer ${access ?? ''}'},
+      );
+    });
+  }
+
+  Future<http.Response> _authorizedBytesGet(Uri uri) async {
+    final response = await _withRefreshRetry(() async {
+      final access = await _tokens?.readAccessToken();
+      return _client.get(
+        uri,
+        headers: {'Authorization': 'Bearer ${access ?? ''}'},
+      );
+    });
+    return response;
+  }
+
+  CatalogPage<T> _catalogPage<T>(http.Response response, T Function(Map<String, dynamic>) mapItem) {
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['content'] is! List) {
+      throw const ApiException(code: 'INTERNAL_ERROR', message: 'Unexpected response');
+    }
+    final items = (decoded['content'] as List)
+        .map((entry) => mapItem(Map<String, dynamic>.from(entry as Map)))
+        .toList();
+    return CatalogPage(content: items);
   }
 
   Future<http.Response> _withRefreshRetry(Future<http.Response> Function() send) async {

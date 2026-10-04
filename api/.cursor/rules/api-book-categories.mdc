@@ -1,0 +1,15 @@
+---
+description: A book has one flat category. Book categories are not a tree and are not course categories.
+globs: api/**/library/**
+alwaysApply: false
+---
+
+# Book categories
+
+A book category is one label. It has no parent and no children. Do not store it in `course_categories` or `content_nodes`.
+
+A book has at most one `category_id`. Setting a new `category_id` replaces the previous one. Null clears the placement. There is no `category_position` on a book.
+
+`DELETE` of a category is `BOOK_DELETE` only. A category that still has a book returns `409` `CATEGORY_NOT_EMPTY`. A `parentId` on a book category returns `400` `VALIDATION_FAILED`. A taken category position returns `409` `CATEGORY_POSITION_TAKEN`.
+
+Student catalog book routes stay unchanged. This follow-on does not add a category filter there.

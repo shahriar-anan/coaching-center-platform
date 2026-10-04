@@ -8,6 +8,7 @@ import 'package:mobile/api/auth_api.dart';
 import 'package:mobile/app.dart';
 import 'package:mobile/i18n/en.dart';
 
+import 'support/catalog_http.dart';
 import 'support/jwt.dart';
 import 'support/memory_token_store.dart';
 
@@ -84,6 +85,10 @@ void main() {
     final requests = await openRegister(
       tester,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/register')) {
           return http.Response(jsonEncode({'fullName': 'Rahim Ahmed'}), 201, headers: {'content-type': 'application/json'});
         }
@@ -146,6 +151,27 @@ void main() {
         if (request.url.path.endsWith('/auth/register')) {
           return http.Response('{}', 201);
         }
+        if (request.url.path.endsWith('/auth/verify-email')) {
+          return http.Response('', 204);
+        }
+        if (request.url.path.endsWith('/auth/login')) {
+          return http.Response(
+            jsonEncode({
+              'accessToken': unsignedJwt(role: 'STUDENT'),
+              'refreshToken': 'refresh-1',
+              'expiresInSeconds': 900,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path.endsWith('/auth/me')) {
+          return http.Response(jsonEncode({'fullName': 'Rahim Ahmed'}), 200, headers: {'content-type': 'application/json'});
+        }
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/verify-email/resend')) {
           return http.Response(jsonEncode({'message': 'sent'}), 200, headers: {'content-type': 'application/json'});
         }
@@ -156,18 +182,19 @@ void main() {
     await tester.tap(find.byKey(const Key('register-submit')));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byKey(const Key('verification-code')), '123456');
-    await tester.tap(find.byKey(const Key('verify-submit')));
-    await tester.pumpAndSettle();
-    final verify = requests.singleWhere((request) => request.url.path.endsWith('/auth/verify-email'));
-    expect(jsonDecode(verify.body), {'code': '123456'});
-    expect(find.text(english.t('auth.verified')), findsOneWidget);
-
     await tester.tap(find.byKey(const Key('resend')));
     await tester.pumpAndSettle();
     final resend = requests.singleWhere((request) => request.url.path.endsWith('/auth/verify-email/resend'));
     expect(jsonDecode(resend.body), {'email': 'rahim@example.com'});
     expect(find.text(english.t('auth.resendSent')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('verification-code')), '123456');
+    await tester.tap(find.byKey(const Key('verify-submit')));
+    await tester.pumpAndSettle();
+    final verify = requests.singleWhere((request) => request.url.path.endsWith('/auth/verify-email'));
+    expect(jsonDecode(verify.body), {'code': '123456'});
+    expect(requests.any((request) => request.url.path.endsWith('/auth/login')), isTrue);
+    expect(find.byKey(const Key('home')), findsOneWidget);
   });
 
   testWidgets('duplicate phone and email render translated errors', (tester) async {

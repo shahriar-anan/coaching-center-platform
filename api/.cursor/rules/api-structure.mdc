@@ -5,11 +5,13 @@ alwaysApply: true
 
 # API structure
 
-Read `api/.cursor/plans/api-identity.md` before Stage 1 API work. Follow the slice order. Do not start a later slice until the previous slice's checks exist.
+Phase 1 `api-identity` is complete. Do not add identity scope or reopen its slices. Its plan remains `api/.cursor/plans/api-identity.md`.
+
+Phase 2 catalog work follows `docs/phases/phase-2/phase-2-status.md`. Read the current stage plan in `api/.cursor/plans/` before writing that stage. Do not start a later stage, and do not start a later slice, until the previous slice's checks exist.
 
 When a slice's checks finish, update `api/.cursor/progress/<stage>/slice-<number>-<name>.md` before starting the next slice. Record what was done, what was tested and the result, any failure and why, and what is next. Keep it short when the tests passed.
 
-Organize code by feature under `com.coachingcenter.api`: `common`, `auth`, `users`. Keep each feature's controller, service, repository, and DTOs inside that feature. Do not add a global `controllers`, `services`, or `repositories` package.
+Organize code by feature under `com.coachingcenter.api`. Identity stays in `common`, `auth`, and `users`. Catalog features use their own packages (`courses`, `library`, `purchases`, `files`). Keep each feature's controller, service, repository, and DTOs inside that feature. Do not add a global `controllers`, `services`, or `repositories` package.
 
 Schema changes go through Flyway only. Keep `ddl-auto=validate`.
 

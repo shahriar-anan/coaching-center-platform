@@ -8,6 +8,7 @@ import 'package:mobile/api/auth_api.dart';
 import 'package:mobile/app.dart';
 import 'package:mobile/i18n/en.dart';
 
+import 'support/catalog_http.dart';
 import 'support/jwt.dart';
 import 'support/memory_token_store.dart';
 
@@ -26,6 +27,10 @@ void main() {
     final api = AuthApi(
       baseUrl: baseUrl,
       client: MockClient((request) async {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/me')) {
           return http.Response(
             jsonEncode({

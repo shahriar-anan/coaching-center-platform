@@ -1,6 +1,6 @@
 # Phases
 
-Each finished phase has its own directory here. The scope and the status are separate files.
+Each phase has its own directory here. The scope and the status are separate files.
 
 A stage's plan, required test list, and slice notes live in the app that built the stage:
 
@@ -11,4 +11,4 @@ A stage's plan, required test list, and slice notes live in the app that built t
 | Phase | Spec | Status |
 |---|---|---|
 | 1 Foundation and identity | [phase-1-scope.md](phase-1/phase-1-scope.md) | [phase-1-status.md](phase-1/phase-1-status.md) — complete |
-| 2 Catalog and acquisition | [phase-2.md](phase-2.md) | Not started |
+| 2 Catalog and acquisition | [phase-2-scope.md](phase-2/phase-2-scope.md) | [phase-2-status.md](phase-2/phase-2-status.md) — not started |

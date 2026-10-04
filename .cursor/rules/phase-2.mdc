@@ -1,0 +1,36 @@
+---
+description: Phase 2 in progress. Catalog API, mobile-catalog, then web-catalog. Read docs/phases/phase-2/phase-2-status.md before starting a stage.
+alwaysApply: true
+---
+
+# Phase 2
+
+The binding spec is `docs/phases/phase-2/phase-2-scope.md`. The step list and exits are in `docs/phases/phase-2/phase-2-status.md`. Do not start a stage until the previous stage's exit passes. A component plan may add detail; it may not drop an exit check, reorder stages, or pull in a later-phase domain.
+
+## API stages (`api-*`)
+
+Automated checks only. Run the stage's `*IT` classes against real PostgreSQL (see `api/.cursor/tests/`). There is no manual QA for API stages. Do not use H2.
+
+## Mobile stage (`mobile-catalog`)
+
+**Shahriar does manual QA.** The only Phase 2 manual check is the `mobile-catalog` phone exit on Shahriar's physical Android phone, after slice 14. Slices 6–8 are the course-screen follow-on in `mobile/.cursor/plans/mobile-catalog.md`. Slices 9–11 correct freemium entitlement, sibling order, and PDF handoff. Slices 12–14 are the course-screen UI pass. Record the result in `mobile/.cursor/progress/mobile-catalog/phone-exit.md` and update `docs/phases/phase-2/phase-2-status.md` when he passes.
+
+**The agent must not** install Android system images, create an AVD, launch an emulator, or attempt to run or verify the app on a physical device. Do not use browser or device automation for the Flutter app. Hand over `flutter run --dart-define=API_BASE_URL=http://<lan-ip>:8080` for Shahriar's phone. The in-app default `http://10.0.2.2:8080` is only a URL string, not a reason to start an emulator.
+
+**The agent may and should** run scriptable checks during implementation: `flutter test` (mocked HTTP; do not boot `api` for widget tests), `dart analyze` / `flutter analyze`, and any other non-device commands the repo already uses. Slices 1–8 are done when their widget tests pass; the phone exit is separate. Slices 7 and 8 need the catalog course-read API follow-on first.
+
+Do not add a mobile CI workflow.
+
+## Web stage (`web-catalog`)
+
+Admin management only: courses, library, payment verification, offline admission, and book-order fulfillment. No student catalog, purchase, or lecture screens.
+
+Start only after the `mobile-catalog` phone exit.
+
+**Shahriar does manual QA.** The `web-catalog` browser exit is Shahriar only, once, after slice 7. Record the result in `web/.cursor/progress/web-catalog/browser-exit.md` and update `docs/phases/phase-2/phase-2-status.md` when he passes.
+
+**The agent must not** open a browser, use browser automation, or run the browser exit checklist. Do not use the browser MCP to verify the Next.js app.
+
+**The agent may and should** run scriptable checks during implementation: `npm run lint`, `npm run build`, `npm run check:openapi`, and component tests with mocked `fetch` when the repo has them (do not boot `api` for those). Slices 1–7 are done when their automated cases pass; the browser exit is separate.
+
+Do not add a web CI workflow.

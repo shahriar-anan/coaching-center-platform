@@ -19,7 +19,39 @@ public class AuditRecorder {
 
 	public static final String PASSWORD_RESET = "PASSWORD_RESET";
 
+	public static final String COURSE_DELETE = "COURSE_DELETE";
+
+	public static final String COURSE_ARCHIVE = "COURSE_ARCHIVE";
+
+	public static final String COURSE_CLOSE = "COURSE_CLOSE";
+
+	public static final String COURSE_REOPEN = "COURSE_REOPEN";
+
+	public static final String COURSE_CATEGORY_DELETE = "COURSE_CATEGORY_DELETE";
+
+	public static final String BOOK_DELETE = "BOOK_DELETE";
+
+	public static final String BOOK_CATEGORY_DELETE = "BOOK_CATEGORY_DELETE";
+
 	private static final String USER = "USER";
+
+	public static final String COURSE_ENTITY = "COURSE";
+
+	public static final String COURSE_CATEGORY_ENTITY = "COURSE_CATEGORY";
+
+	public static final String BOOK_ENTITY = "BOOK";
+
+	public static final String BOOK_CATEGORY_ENTITY = "BOOK_CATEGORY";
+
+	public static final String PAYMENT_SUCCESS = "PAYMENT_SUCCESS";
+
+	public static final String PAYMENT_FAILED = "PAYMENT_FAILED";
+
+	public static final String CASH_RECEIVED = "CASH_RECEIVED";
+
+	public static final String PAYMENT_ENTITY = "PAYMENT";
+
+	public static final String BOOK_ORDER_ENTITY = "BOOK_ORDER";
 
 	private final AuditLogRepository auditLogs;
 
@@ -28,10 +60,14 @@ public class AuditRecorder {
 	}
 
 	public void record(String action, UUID entityId) {
+		record(action, USER, entityId);
+	}
+
+	public void record(String action, String entityType, UUID entityId) {
 		AuditLog row = new AuditLog();
 		row.setActorUserId(actorId());
 		row.setAction(action);
-		row.setEntityType(USER);
+		row.setEntityType(entityType);
 		row.setEntityId(entityId);
 		row.setCreatedAt(Instant.now());
 		auditLogs.save(row);

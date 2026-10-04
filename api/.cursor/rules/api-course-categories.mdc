@@ -1,0 +1,15 @@
+---
+description: Course categories group whole courses and are not content-tree sections.
+globs: api/**/courses/**
+alwaysApply: false
+---
+
+# Course categories
+
+A category groups whole courses. A section is only a content node inside one course. Do not insert a category into `content_nodes`, and do not use `nodeType` `SECTION` for a category.
+
+A course has at most one `category_id`. Under that category, subcategories and courses share one `position` sequence. A course cannot be the parent of a category.
+
+`DELETE` of a category is `COURSE_DELETE` only. A category that still has a subcategory or a course returns `409` `CATEGORY_NOT_EMPTY`. A parent cycle returns `400` `CATEGORY_CYCLE`. A taken sibling position returns `409` `CATEGORY_POSITION_TAKEN`.
+
+Inside a placed course, a lecture may omit `parentId`, or sit under a section. That tree is unchanged by category placement.

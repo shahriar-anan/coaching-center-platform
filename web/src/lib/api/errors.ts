@@ -31,6 +31,10 @@ export function errorMessageKey(code: string): string {
     CODE_EXPIRED: "errors.codeExpired",
     CODE_ALREADY_USED: "errors.codeAlreadyUsed",
     CODE_ATTEMPTS_EXCEEDED: "errors.codeAttemptsExceeded",
+    SECTION_NOT_EMPTY: "errors.sectionNotEmpty",
+    CATEGORY_NOT_EMPTY: "errors.categoryNotEmpty",
+    INVALID_YOUTUBE_URL: "errors.invalidYouTube",
+    PRICE_REQUIRED: "errors.priceRequired",
   };
   return known[code] ?? "errors.generic";
 }

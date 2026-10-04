@@ -4,14 +4,25 @@ import '../api/api_exception.dart';
 import '../api/auth_api.dart';
 import '../api/error_text.dart';
 import '../auth/local_password.dart';
+import '../auth/session.dart';
+import '../auth/token_store.dart';
 import '../i18n/locale_controller.dart';
 import '../i18n/locale_toggle.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({required this.locale, required this.api, required this.onLeave, super.key});
+  const RegisterScreen({
+    required this.locale,
+    required this.api,
+    required this.tokens,
+    required this.onSignedIn,
+    required this.onLeave,
+    super.key,
+  });
 
   final LocaleController locale;
   final AuthApi api;
+  final TokenStore tokens;
+  final VoidCallback onSignedIn;
   final VoidCallback onLeave;
 
   @override
@@ -102,12 +113,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
     try {
       await widget.api.verifyEmail(code: code);
+      final phone = _phone.text.trim();
+      final password = _password.text;
+      final tokens = await widget.api.login(identifier: phone, password: password);
+      final gate = await completeLogin(widget.tokens, tokens);
       if (!mounted) {
         return;
       }
-      setState(() {
-        _info = widget.locale.messages.t('auth.verified');
-      });
+      if (gate != LoginGate.student) {
+        setState(() {
+          _error = widget.locale.messages.t('auth.studentsOnly');
+        });
+        return;
+      }
+      widget.onSignedIn();
     } on ApiException catch (error) {
       if (!mounted) {
         return;

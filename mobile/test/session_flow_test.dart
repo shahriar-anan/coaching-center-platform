@@ -8,6 +8,7 @@ import 'package:mobile/api/auth_api.dart';
 import 'package:mobile/app.dart';
 import 'package:mobile/i18n/en.dart';
 
+import 'support/catalog_http.dart';
 import 'support/jwt.dart';
 import 'support/memory_token_store.dart';
 
@@ -76,6 +77,10 @@ void main() {
       tester,
       store: store,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/refresh')) {
           return tokens(nextAccess, 'new-refresh');
         }
@@ -118,6 +123,10 @@ void main() {
       tester,
       store: store,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/login')) {
           return tokens(firstAccess, 'refresh-1');
         }
@@ -152,6 +161,10 @@ void main() {
       tester,
       store: secondStore,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/login')) {
           return tokens(firstAccess, 'refresh-1');
         }
@@ -185,6 +198,10 @@ void main() {
       tester,
       store: store,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/refresh')) {
           return tokens(nextAccess, 'refresh-2');
         }
@@ -227,6 +244,10 @@ void main() {
       tester,
       store: restored,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/refresh')) {
           return tokens(nextAccess, 'kept-refresh-2');
         }

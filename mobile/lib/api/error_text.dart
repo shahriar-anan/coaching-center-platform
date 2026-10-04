@@ -17,6 +17,14 @@ String errorMessageKey(String code) {
       return 'errors.duplicatePhone';
     case 'DUPLICATE_EMAIL':
       return 'errors.duplicateEmail';
+    case 'ALREADY_ENROLLED':
+      return 'errors.alreadyEnrolled';
+    case 'COURSE_IS_FREE':
+      return 'errors.courseIsFree';
+    case 'ENROLLMENT_REQUIRED':
+      return 'catalog.lectureLocked';
+    case 'MATERIAL_FORBIDDEN':
+      return 'catalog.fileLocked';
     default:
       return 'errors.generic';
   }

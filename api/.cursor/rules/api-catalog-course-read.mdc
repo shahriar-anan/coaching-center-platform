@@ -1,0 +1,15 @@
+---
+description: Student catalog course read adds a placement path and file names, not the admin trees.
+globs: api/**/catalog/**
+alwaysApply: false
+---
+
+# Student catalog course read
+
+Students read courses through `/api/v1/catalog` with `CATALOG_BROWSE`. Do not send a student to `/course-categories` or `/book-categories`.
+
+`categoryPath` on a course detail is only the categories above that course, titles only. It is not the admin category tree and it does not list other courses.
+
+`courseMaterials` lists course-level files except the cover. Lecture `materials` add file name, content type, and size only when that lecture is already allowed. Bytes stay on `GET /files/{id}` under the existing content gate.
+
+Book catalog responses have no category. Course list search stays a title query.

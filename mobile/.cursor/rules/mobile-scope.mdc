@@ -1,18 +1,28 @@
 ---
-description: Phase 1 mobile stage order and what the Android app may build.
+description: Mobile stage order and what the Android app may build.
 globs: mobile/**/*.dart
 alwaysApply: false
 ---
 
 # Mobile scope
 
-Read `mobile/.cursor/plans/mobile-login-spike.md` first. Implement that stage before `mobile/.cursor/plans/mobile-auth-screens.md`. Do not start a later slice until the previous slice's checks exist.
+Phase 1 mobile stages are complete. Their plans remain `mobile/.cursor/plans/mobile-login-spike.md` and `mobile/.cursor/plans/mobile-auth-screens.md`. Do not reopen them.
 
-When a slice's checks finish, write `mobile/.cursor/progress/<stage>/slice-<number>-<name>.md` before the next slice. `<stage>` is `mobile-login-spike` or `mobile-auth-screens`. Record what was done, what was tested and the result, any failure and why, and what is next.
+Phase 2 student catalog UI is `mobile/.cursor/plans/mobile-catalog.md`. Slices 1–14 are implemented. The phone exit is once, after slice 14.
 
-The app is for students on Android. Build only spec Section 10.2: login, register with email verification, activate, forgot-password and reset, a placeholder home, dev and prod flavors, secure tokens, a 401 refresh-and-retry, and Bangla plus English. English is the language on first launch.
+When a slice's checks finish, write `mobile/.cursor/progress/<stage>/slice-<number>-<name>.md` before the next slice. `<stage>` is `mobile-login-spike`, `mobile-auth-screens`, or `mobile-catalog`. Record what was done, what was tested and the result, any failure and why, and what is next.
 
-Device exit is Shahriar's physical phone. The agent runs `flutter test` only. Do not install Android system images, create an AVD, or launch an emulator. For a phone run, hand over `flutter run --dart-define=API_BASE_URL=http://<lan-ip>:8080`. Keep `http://10.0.2.2:8080` as the in-app dev default. That URL is not a reason to start an emulator.
+The app is for students on Android. Phase 1 covers login, register, activate, forgot-password, and session. Phase 2 adds the home tabs, course and library browse, purchase, and content access from `mobile-catalog`. Admins are not a mobile audience. Course categories and book categories are not browsed here; a course may show only its own placement path. English is the language on first launch. User-facing chrome stays in both catalogs.
+
+## Testing: agent vs Shahriar
+
+**Manual QA** is Shahriar on his physical Android phone (Phase 1 auth exit and Phase 2 `mobile-catalog` phone exit). The agent does not perform manual QA and does not substitute an emulator or automation on a device.
+
+**Agent (scriptable):** `flutter test`, `dart analyze` / `flutter analyze`, and other non-device commands. Widget tests mock HTTP; do not boot `api` for them.
+
+**Agent must not:** install Android system images, create an AVD, launch an emulator, or run `flutter run` on a device to verify exit checks.
+
+For Shahriar's phone run, hand over `flutter run --dart-define=API_BASE_URL=http://<lan-ip>:8080`. Keep `http://10.0.2.2:8080` as the in-app dev default. That URL is not a reason to start an emulator.
 
 ```dart
 // BAD — user-facing copy inline

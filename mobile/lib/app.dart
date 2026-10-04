@@ -114,7 +114,13 @@ class _CoachingAppState extends State<CoachingApp> {
           }),
         );
       case _Guest.register:
-        return RegisterScreen(locale: _locale, api: widget.api, onLeave: () => _showLogin());
+        return RegisterScreen(
+          locale: _locale,
+          api: widget.api,
+          tokens: widget.tokens,
+          onSignedIn: _session.markSignedIn,
+          onLeave: () => _showLogin(),
+        );
       case _Guest.activate:
         return ActivateScreen(
           locale: _locale,

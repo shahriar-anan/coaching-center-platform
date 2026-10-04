@@ -5,6 +5,17 @@ import org.springframework.test.context.DynamicPropertySource;
 
 public abstract class PostgresIntegrationTest {
 
+	private static final String FILE_STORAGE_DIR = createStorageDir();
+
+	private static String createStorageDir() {
+		try {
+			return java.nio.file.Files.createTempDirectory("coaching-api-files-").toAbsolutePath().toString();
+		}
+		catch (java.io.IOException exception) {
+			throw new ExceptionInInitializerError(exception);
+		}
+	}
+
 	@DynamicPropertySource
 	static void database(DynamicPropertyRegistry registry) {
 		if (ExternalPostgres.isConfigured()) {
@@ -26,6 +37,10 @@ public abstract class PostgresIntegrationTest {
 		registry.add("MASTER_ADMIN_EMAIL", () -> "master-bootstrap@example.com");
 		registry.add("MASTER_ADMIN_NAME", () -> "Master Admin");
 		registry.add("MASTER_ADMIN_PASSWORD", () -> "bootstrap-password-1");
+		registry.add("FILE_STORAGE_DIR", () -> FILE_STORAGE_DIR);
+		registry.add("MATERIAL_MAX_BYTES", () -> "1024");
+		registry.add("PAYMENT_BKASH_NUMBER", () -> "01700000001");
+		registry.add("PAYMENT_NAGAD_NUMBER", () -> "01800000001");
 	}
 
 }

@@ -20,7 +20,7 @@ The Vitest cases in [web-admin.md](../tests/web-admin.md) are not written. The s
 
 [phase-1-status.md](../../../docs/phases/phase-1/phase-1-status.md) lists `mobile-login-spike` before `web-admin`. This stage was built first because Shahriar asked for the web plan first.
 
-Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation. Do not add a web CI workflow in this stage. Student self-registration, activation, forgot-password, and reset stay on `mobile` (spec Section 10.2).
+Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation in this stage. Course and library management is `web-catalog`. Do not add a web CI workflow in this stage. Student self-registration, activation, forgot-password, and reset stay on `mobile` (spec Section 10.2).
 
 If a field, status code, or cookie behavior is wrong, fix `api` and its tests before changing the client to compensate.
 

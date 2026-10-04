@@ -1,0 +1,20 @@
+CREATE TABLE courses (
+    id                  UUID PRIMARY KEY,
+    title_en            VARCHAR(500) NOT NULL,
+    title_bn            VARCHAR(500) NOT NULL,
+    content_language    VARCHAR(2) NOT NULL,
+    description         TEXT NOT NULL,
+    price               NUMERIC(12, 2) NULL,
+    delivery_mode       VARCHAR(16) NOT NULL,
+    access_type         VARCHAR(16) NOT NULL,
+    status              VARCHAR(16) NOT NULL,
+    closed              BOOLEAN NOT NULL DEFAULT FALSE,
+    opening_number      INTEGER NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ NOT NULL,
+    updated_at          TIMESTAMPTZ NOT NULL,
+    deleted_at          TIMESTAMPTZ NULL,
+    CONSTRAINT courses_content_language_check CHECK (content_language IN ('BN', 'EN')),
+    CONSTRAINT courses_delivery_mode_check CHECK (delivery_mode IN ('ONLINE', 'OFFLINE', 'HYBRID')),
+    CONSTRAINT courses_access_type_check CHECK (access_type IN ('FREEMIUM', 'FULL_FREE')),
+    CONSTRAINT courses_status_check CHECK (status IN ('DRAFT', 'PUBLISHED', 'ARCHIVED'))
+);

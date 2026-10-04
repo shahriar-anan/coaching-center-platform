@@ -9,6 +9,7 @@ import 'package:mobile/api/error_text.dart';
 import 'package:mobile/app.dart';
 import 'package:mobile/i18n/en.dart';
 
+import 'support/catalog_http.dart';
 import 'support/jwt.dart';
 import 'support/memory_token_store.dart';
 
@@ -56,6 +57,10 @@ void main() {
     final requests = await openActivate(
       tester,
       handler: (request) {
+        final catalog = tryCatalogList(request);
+        if (catalog != null) {
+          return catalog;
+        }
         if (request.url.path.endsWith('/auth/activate')) {
           return http.Response('', 204);
         }

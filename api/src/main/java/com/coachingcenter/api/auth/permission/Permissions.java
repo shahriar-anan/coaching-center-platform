@@ -20,6 +20,38 @@ public final class Permissions {
 
 	public static final String AUDIT_READ = "AUDIT_READ";
 
+	public static final String COURSE_READ = "COURSE_READ";
+
+	public static final String COURSE_MANAGE = "COURSE_MANAGE";
+
+	public static final String COURSE_PRICE = "COURSE_PRICE";
+
+	public static final String COURSE_CLOSE = "COURSE_CLOSE";
+
+	public static final String COURSE_DELETE = "COURSE_DELETE";
+
+	public static final String BOOK_READ = "BOOK_READ";
+
+	public static final String BOOK_MANAGE = "BOOK_MANAGE";
+
+	public static final String BOOK_PRICE = "BOOK_PRICE";
+
+	public static final String BOOK_DELETE = "BOOK_DELETE";
+
+	public static final String CATALOG_BROWSE = "CATALOG_BROWSE";
+
+	public static final String CONTENT_READ = "CONTENT_READ";
+
+	public static final String PURCHASE_CREATE = "PURCHASE_CREATE";
+
+	public static final String PAYMENT_VERIFY = "PAYMENT_VERIFY";
+
+	public static final String CASH_RECEIVE = "CASH_RECEIVE";
+
+	public static final String ENROLLMENT_GRANT = "ENROLLMENT_GRANT";
+
+	public static final String ORDER_FULFILL = "ORDER_FULFILL";
+
 	private Permissions() {
 	}
 
