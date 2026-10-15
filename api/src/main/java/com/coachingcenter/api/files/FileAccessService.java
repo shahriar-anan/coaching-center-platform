@@ -10,6 +10,7 @@ import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.catalog.ContentAccessService;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.courses.CourseInstructorRepository;
 import com.coachingcenter.api.courses.CourseRepository;
 import com.coachingcenter.api.courses.Material;
 import com.coachingcenter.api.library.BookRepository;
@@ -25,12 +26,15 @@ public class FileAccessService {
 
 	private final ContentAccessService contentAccess;
 
+	private final CourseInstructorRepository instructors;
+
 	public FileAccessService(PermissionChecker permissions, CourseRepository courses, BookRepository books,
-			ContentAccessService contentAccess) {
+			ContentAccessService contentAccess, CourseInstructorRepository instructors) {
 		this.permissions = permissions;
 		this.courses = courses;
 		this.books = books;
 		this.contentAccess = contentAccess;
+		this.instructors = instructors;
 	}
 
 	public void ensureCanDownload(Material material) {
@@ -67,7 +71,13 @@ public class FileAccessService {
 			.isPresent()) {
 			return true;
 		}
-		return books.findByCoverFileIdAndDeletedAtIsNull(material.getId()).filter(book -> book.isAvailable()).isPresent();
+		if (books.findByCoverFileIdAndDeletedAtIsNull(material.getId()).filter(book -> book.isAvailable()).isPresent()) {
+			return true;
+		}
+		return instructors.findByPhotoFileIdAndDeletedAtIsNull(material.getId())
+			.flatMap(instructor -> courses.findByIdAndDeletedAtIsNull(instructor.getCourseId()))
+			.filter(course -> "PUBLISHED".equals(course.getStatus()) && !course.isClosed())
+			.isPresent();
 	}
 
 	private static ApiException denied() {

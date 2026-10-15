@@ -39,3 +39,7 @@ Free lectures, a free course-level material, a full-free course, and paid conten
 ## Follow-on — File names on the student read
 
 Not part of the stage exit above. The catalog course-read follow-on adds file name, content type, and size to a lecture the student may already open, and lists course-level files on the course detail. It does not change who may open a lecture, a course-level material, or `GET /files/{id}`. See [api-catalog-course-read.md](api-catalog-course-read.md).
+
+## Follow-on — Course depth
+
+Not part of the stage exit above. Section files use the same open-course and enrollment rule as course-level files. Progress is recorded only when that rule already allows the lecture. See [api-course-depth.md](api-course-depth.md).

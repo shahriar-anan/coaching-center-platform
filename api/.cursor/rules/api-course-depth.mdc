@@ -1,0 +1,23 @@
+---
+description: Course depth adds material records, lecture summary, progress, routine, roster, and instructors without changing the course exits.
+globs: api/**/courses/**,api/**/catalog/**,api/**/purchases/**
+alwaysApply: false
+---
+
+# Course depth
+
+Follow [api-course-depth.md](../plans/api-course-depth.md). Do not drop a course-catalog, content-access, or catalog-read exit.
+
+A material has `title`, optional `description`, `kind` (`HANDOUT`, `EXERCISE`, `SLIDE`, `OTHER`), and `position`. `lectureNodeId` still rejects a section. `sectionNodeId` attaches a file to a section. A file is not moved between the course, a section, and a lecture after upload. Lecture files do not have their own free flag. Section files use the course-level free rule.
+
+`courseMaterials` lists course-level files only, excluding the cover. Section files are `sectionMaterials`. Download names stay `original_file_name`.
+
+A lecture may store `description` and `durationMinutes`. A section may not. Notes and `video_ref` stay gated.
+
+Progress is written only by `POST /api/v1/me/courses/{courseId}/progress`, and only when that student may open the lecture. `previousLectureId` and `nextLectureId` are computed. They do not grant access.
+
+A routine exists only on `OFFLINE` or `HYBRID`. Online, or a switch to online while slots exist, returns `409` `ROUTINE_NOT_APPLICABLE`. Overlapping slots on one weekday return `409` `ROUTINE_OVERLAP`.
+
+The roster is `GET /api/v1/courses/{id}/enrollments` under `COURSE_READ`. It is not a batch, and it does not change enrollment.
+
+An instructor is a course profile: `name`, optional `description`, optional photo, and `position`. It is not a user and not a role. Do not add a Teacher login. The photo is an image file, excluded from course, section, and lecture materials, and students can download it only while the course is published and open.

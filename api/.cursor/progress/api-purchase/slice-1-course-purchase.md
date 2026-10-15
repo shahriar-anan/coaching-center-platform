@@ -10,6 +10,10 @@
 
 - `CoursePurchaseIT` — passed (local PostgreSQL via `TEST_DB_*`).
 
+## Open
+
+Re-run after the course-depth follow-on returned `409`. Payment `trx-open-1` is already pending in `coaching_center_test`, so that purchase was not re-checked.
+
 ## Next
 
 - Slice 2 (`BookOrderIT`).

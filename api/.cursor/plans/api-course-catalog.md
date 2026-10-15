@@ -94,3 +94,7 @@ A course with a multi-level tree and lecture content can be created, edited, and
 ## Follow-on — Course categories
 
 Not part of the stage exit above. The plan, rule, and cases are [api-course-categories.md](api-course-categories.md), [api-course-categories.mdc](../rules/api-course-categories.mdc), and [api-course-categories.md](../tests/api-course-categories.md).
+
+## Follow-on — Course depth
+
+Not part of the stage exit above. Materials gain a title, description, kind, and order, and a section can hold files. Lectures gain a description and a duration. Students can store a last lecture and a watched flag. Offline and hybrid courses gain a routine. Admins can list the current opening. A course can list instructors with a name, a description, and a photo. An instructor is not a login. The plan, rule, and cases are [api-course-depth.md](api-course-depth.md), [api-course-depth.mdc](../rules/api-course-depth.mdc), and [api-course-depth.md](../tests/api-course-depth.md). Web and mobile stay unchanged.

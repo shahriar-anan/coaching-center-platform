@@ -39,6 +39,12 @@ public class ContentNode extends BaseEntity {
 	@Column(columnDefinition = "TEXT")
 	private String notes;
 
+	@Column(columnDefinition = "TEXT")
+	private String description;
+
+	@Column(name = "duration_minutes")
+	private Integer durationMinutes;
+
 	public UUID getCourseId() {
 		return courseId;
 	}
@@ -109,6 +115,22 @@ public class ContentNode extends BaseEntity {
 
 	public void setNotes(String notes) {
 		this.notes = notes;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
+	public Integer getDurationMinutes() {
+		return durationMinutes;
+	}
+
+	public void setDurationMinutes(Integer durationMinutes) {
+		this.durationMinutes = durationMinutes;
 	}
 
 }

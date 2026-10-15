@@ -17,7 +17,11 @@ import com.coachingcenter.api.courses.ContentNodeRepository;
 import com.coachingcenter.api.courses.Course;
 import com.coachingcenter.api.courses.CourseCategoryService;
 import com.coachingcenter.api.courses.CourseCategoryService.CategoryPathItem;
+import com.coachingcenter.api.courses.CourseInstructor;
+import com.coachingcenter.api.courses.CourseInstructorRepository;
+import com.coachingcenter.api.courses.CourseInstructorService;
 import com.coachingcenter.api.courses.CourseRepository;
+import com.coachingcenter.api.courses.CourseRoutineService;
 import com.coachingcenter.api.courses.Material;
 import com.coachingcenter.api.courses.MaterialRepository;
 import com.coachingcenter.api.library.Book;
@@ -36,13 +40,20 @@ public class CatalogService {
 
 	private final MaterialRepository materials;
 
+	private final CourseRoutineService routine;
+
+	private final CourseInstructorRepository instructors;
+
 	public CatalogService(CourseRepository courses, BookRepository books, ContentNodeRepository nodes,
-			CourseCategoryService courseCategories, MaterialRepository materials) {
+			CourseCategoryService courseCategories, MaterialRepository materials, CourseRoutineService routine,
+			CourseInstructorRepository instructors) {
 		this.courses = courses;
 		this.books = books;
 		this.nodes = nodes;
 		this.courseCategories = courseCategories;
 		this.materials = materials;
+		this.routine = routine;
+		this.instructors = instructors;
 	}
 
 	@Transactional(readOnly = true)
@@ -64,9 +75,11 @@ public class CatalogService {
 			.toList();
 		List<CategoryPathItem> categoryPath = courseCategories.pathToCategory(course.getCategoryId());
 		List<CourseMaterialSummary> courseMaterials = listCourseMaterials(course);
+		List<SectionMaterialSummary> sectionMaterials = listSectionMaterials(course);
 		return new CourseDetail(course.getId(), course.getTitleEn(), course.getTitleBn(), course.getDescription(),
 				course.getContentLanguage(), course.getPrice(), course.getDeliveryMode(), course.getAccessType(),
-				course.getCoverFileId(), categoryPath, courseMaterials, tree);
+				course.getCoverFileId(), categoryPath, courseMaterials, sectionMaterials, tree, routine.views(course.getId()),
+				instructorViews(course.getId()));
 	}
 
 	@Transactional(readOnly = true)
@@ -94,18 +107,48 @@ public class CatalogService {
 
 	private CatalogNode catalogNode(ContentNode node) {
 		return new CatalogNode(node.getId(), node.getParentId(), node.getNodeType(), node.getTitle(), node.getPosition(),
-				node.isFree());
+				node.isFree(), node.getDescription(), node.getDurationMinutes());
 	}
 
 	private List<CourseMaterialSummary> listCourseMaterials(Course course) {
 		UUID coverFileId = course.getCoverFileId();
-		return materials.findByCourseIdAndDeletedAtIsNullOrderByCreatedAtAsc(course.getId())
+		java.util.Set<UUID> photoIds = instructors.findByCourseIdAndDeletedAtIsNullOrderByPositionAsc(course.getId())
 			.stream()
-			.filter(material -> material.getLectureNodeId() == null)
+			.map(CourseInstructor::getPhotoFileId)
+			.filter(java.util.Objects::nonNull)
+			.collect(java.util.stream.Collectors.toSet());
+		return materials
+			.findByCourseIdAndLectureNodeIdIsNullAndSectionNodeIdIsNullAndDeletedAtIsNullOrderByPositionAsc(course.getId())
+			.stream()
 			.filter(material -> coverFileId == null || !coverFileId.equals(material.getId()))
-			.map(material -> new CourseMaterialSummary(material.getId(), material.getOriginalFileName(),
+			.filter(material -> !photoIds.contains(material.getId()))
+			.map(CatalogService::courseMaterial)
+			.toList();
+	}
+
+	private List<CourseInstructorService.InstructorView> instructorViews(UUID courseId) {
+		return instructors.findByCourseIdAndDeletedAtIsNullOrderByPositionAsc(courseId)
+			.stream()
+			.map(instructor -> new CourseInstructorService.InstructorView(instructor.getId(), instructor.getName(),
+					instructor.getDescription(), instructor.getPhotoFileId(), instructor.getPosition()))
+			.toList();
+	}
+
+	private List<SectionMaterialSummary> listSectionMaterials(Course course) {
+		return materials.findByCourseIdAndDeletedAtIsNull(course.getId())
+			.stream()
+			.filter(material -> material.getSectionNodeId() != null)
+			.sorted(java.util.Comparator.comparing(Material::getSectionNodeId).thenComparingInt(Material::getPosition))
+			.map(material -> new SectionMaterialSummary(material.getId(), material.getSectionNodeId(), material.getTitle(),
+					material.getDescription(), material.getKind(), material.getPosition(), material.getOriginalFileName(),
 					material.getContentType(), material.getByteSize(), material.isFree()))
 			.toList();
+	}
+
+	private static CourseMaterialSummary courseMaterial(Material material) {
+		return new CourseMaterialSummary(material.getId(), material.getOriginalFileName(), material.getContentType(),
+				material.getByteSize(), material.isFree(), material.getTitle(), material.getDescription(),
+				material.getKind(), material.getPosition());
 	}
 
 	private static String normalizeQuery(String query) {
@@ -121,16 +164,22 @@ public class CatalogService {
 	}
 
 	public record CourseMaterialSummary(UUID id, String originalFileName, String contentType, long byteSize,
-			boolean free) {
+			boolean free, String title, String description, String kind, int position) {
+	}
+
+	public record SectionMaterialSummary(UUID id, UUID sectionNodeId, String title, String description, String kind,
+			int position, String originalFileName, String contentType, long byteSize, boolean free) {
 	}
 
 	public record CourseDetail(UUID id, String titleEn, String titleBn, String description, String contentLanguage,
 			BigDecimal price, String deliveryMode, String accessType, UUID coverFileId,
 			List<CategoryPathItem> categoryPath, List<CourseMaterialSummary> courseMaterials,
-			List<CatalogNode> contentTree) {
+			List<SectionMaterialSummary> sectionMaterials, List<CatalogNode> contentTree,
+			List<CourseRoutineService.SlotView> routine, List<CourseInstructorService.InstructorView> instructors) {
 	}
 
-	public record CatalogNode(UUID id, UUID parentId, String nodeType, String title, int position, boolean free) {
+	public record CatalogNode(UUID id, UUID parentId, String nodeType, String title, int position, boolean free,
+			String description, Integer durationMinutes) {
 	}
 
 	public record BookSummary(UUID id, String titleEn, String titleBn, String author, BigDecimal price, UUID coverFileId) {

@@ -1,12 +1,5 @@
 # api-material-description
 
-Follow-on (not started). Materials today expose file metadata only (`originalFileName`, `contentType`, `byteSize`). Admins and students cannot attach a human-readable label separate from the uploaded file name.
+Superseded by [api-course-depth.md](api-course-depth.md) slice 6. Do not implement from this file.
 
-## Goal
-
-Add optional `description` on course materials (course-level and lecture attachments). Surface it in admin material lists and in student catalog read payloads (`courseMaterials`, lecture `materials`).
-
-## Out of scope
-
-- Book cover files (separate entity path).
-- Replacing `originalFileName` with description in download headers.
+Material description is one column on the material record, with title, kind, position, section attachment, and batch upload.

@@ -56,6 +56,12 @@ Progress files are written when the slice finishes. Until then the slice is not 
 | 3 Files and lecture content | `CourseContentIT` |
 | 4 Close and fixed access rules | `CourseCloseIT` |
 | 5 Course categories | Follow-on, not part of the stage exit. `CourseCategoryIT` |
+| 6 Material record | Follow-on, not part of the stage exit. `CourseMaterialRecordIT` |
+| 7 Lecture summary | Follow-on, not part of the stage exit. `LectureSummaryIT` |
+| 8 Progress | Follow-on, not part of the stage exit. `LectureProgressIT` |
+| 9 Routine | Follow-on, not part of the stage exit. `CourseRoutineIT` |
+| 10 Roster | Follow-on, not part of the stage exit. `CourseRosterIT` |
+| 11 Instructors | Follow-on, not part of the stage exit. `CourseInstructorIT` |
 
 ### api-library-catalog
 
@@ -75,8 +81,8 @@ Progress files are written when the slice finishes. Until then the slice is not 
 
 | Slice | Check |
 |---|---|
-| 1 Course purchase | `CoursePurchaseIT` |
-| 2 Book order | `BookOrderIT` |
+| 1 Course purchase | `CoursePurchaseIT`. Re-check open: local `coaching_center_test` already has pending `trx-open-1`, so the rerun returned `409`. |
+| 2 Book order | `BookOrderIT`. Re-check open: local `coaching_center_test` already has pending `book-trx-1`, so the rerun returned `409`. |
 
 ### api-payment-access
 

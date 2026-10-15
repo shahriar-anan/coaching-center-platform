@@ -131,6 +131,7 @@ public class ContentNodeService {
 			}
 			node.setNotes(body.get("notes").asText());
 		}
+		applySummary(node, body);
 		return view(node);
 	}
 
@@ -177,6 +178,7 @@ public class ContentNodeService {
 						"Section still has a lecture.");
 			}
 			deleteEmptySections(courseId, nodeId);
+			materials.deleteForSection(courseId, nodeId);
 		}
 		else {
 			materials.deleteForLecture(courseId, nodeId);
@@ -188,6 +190,36 @@ public class ContentNodeService {
 	public List<NodeView> list(UUID courseId) {
 		requireCourse(courseId);
 		return nodes.findByCourseIdAndDeletedAtIsNullOrderByPositionAsc(courseId).stream().map(this::view).toList();
+	}
+
+	private static void applySummary(ContentNode node, JsonNode body) {
+		boolean summary = (body.has("description")) || (body.has("durationMinutes"));
+		if (!summary) {
+			return;
+		}
+		if (!"LECTURE".equals(node.getNodeType())) {
+			throw validationFailed();
+		}
+		if (body.has("description")) {
+			if (body.get("description").isNull()) {
+				node.setDescription(null);
+			}
+			else {
+				node.setDescription(body.get("description").asText());
+			}
+		}
+		if (body.has("durationMinutes")) {
+			if (body.get("durationMinutes").isNull()) {
+				node.setDurationMinutes(null);
+			}
+			else {
+				int minutes = body.get("durationMinutes").asInt();
+				if (minutes < 1) {
+					throw validationFailed();
+				}
+				node.setDurationMinutes(minutes);
+			}
+		}
 	}
 
 	private int nextPosition(UUID courseId, UUID parentId) {
@@ -221,6 +253,7 @@ public class ContentNodeService {
 		for (ContentNode child : loadSiblings(courseId, sectionId)) {
 			if ("SECTION".equals(child.getNodeType())) {
 				deleteEmptySections(courseId, child.getId());
+				materials.deleteForSection(courseId, child.getId());
 				child.setDeletedAt(Instant.now());
 			}
 		}
@@ -279,7 +312,8 @@ public class ContentNodeService {
 
 	private NodeView view(ContentNode node) {
 		return new NodeView(node.getId(), node.getParentId(), node.getNodeType(), node.getTitle(), node.getPosition(),
-				node.isFree(), node.getVideoProvider(), node.getVideoRef(), node.getNotes());
+				node.isFree(), node.getVideoProvider(), node.getVideoRef(), node.getNotes(), node.getDescription(),
+				node.getDurationMinutes());
 	}
 
 	private static ApiException nodeTypeRejected() {
@@ -295,7 +329,7 @@ public class ContentNodeService {
 	}
 
 	public record NodeView(UUID id, UUID parentId, String nodeType, String title, int position, boolean free,
-			String videoProvider, String videoRef, String notes) {
+			String videoProvider, String videoRef, String notes, String description, Integer durationMinutes) {
 	}
 
 }

@@ -21,6 +21,21 @@ public class Material extends BaseEntity {
 	@Column(name = "lecture_node_id")
 	private UUID lectureNodeId;
 
+	@Column(name = "section_node_id")
+	private UUID sectionNodeId;
+
+	@Column(nullable = false, length = 500)
+	private String title;
+
+	@Column(columnDefinition = "TEXT")
+	private String description;
+
+	@Column(nullable = false, length = 16)
+	private String kind;
+
+	@Column(nullable = false)
+	private int position;
+
 	@Column(name = "stored_file_name", nullable = false, length = 255)
 	private String storedFileName;
 
@@ -58,6 +73,46 @@ public class Material extends BaseEntity {
 
 	public void setLectureNodeId(UUID lectureNodeId) {
 		this.lectureNodeId = lectureNodeId;
+	}
+
+	public UUID getSectionNodeId() {
+		return sectionNodeId;
+	}
+
+	public void setSectionNodeId(UUID sectionNodeId) {
+		this.sectionNodeId = sectionNodeId;
+	}
+
+	public String getTitle() {
+		return title;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
+	public String getKind() {
+		return kind;
+	}
+
+	public void setKind(String kind) {
+		this.kind = kind;
+	}
+
+	public int getPosition() {
+		return position;
+	}
+
+	public void setPosition(int position) {
+		this.position = position;
 	}
 
 	public String getStoredFileName() {

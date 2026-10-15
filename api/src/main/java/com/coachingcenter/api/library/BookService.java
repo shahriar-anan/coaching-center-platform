@@ -153,6 +153,9 @@ public class BookService {
 		material.setOriginalFileName(stored.originalFileName());
 		material.setByteSize(stored.byteSize());
 		material.setContentType(stored.contentType());
+		material.setTitle(stored.originalFileName());
+		material.setKind("OTHER");
+		material.setPosition(0);
 		material.setFree(false);
 		return materials.save(material);
 	}

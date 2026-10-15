@@ -32,11 +32,15 @@ public class CourseService {
 
 	private final CourseCategoryService categories;
 
+	private final CourseRoutineSlotRepository routineSlots;
+
 	private final AuditRecorder audit;
 
-	public CourseService(CourseRepository courses, CourseCategoryService categories, AuditRecorder audit) {
+	public CourseService(CourseRepository courses, CourseCategoryService categories,
+			CourseRoutineSlotRepository routineSlots, AuditRecorder audit) {
 		this.courses = courses;
 		this.categories = categories;
+		this.routineSlots = routineSlots;
 		this.audit = audit;
 	}
 
@@ -97,6 +101,10 @@ public class CourseService {
 		if (body.has("deliveryMode") && !body.get("deliveryMode").isNull()) {
 			String mode = requiredText(body, "deliveryMode");
 			validateDeliveryMode(mode);
+			if ("ONLINE".equals(mode) && routineSlots.existsByCourseIdAndDeletedAtIsNull(course.getId())) {
+				throw conflict(ErrorCode.ROUTINE_NOT_APPLICABLE,
+						"Clear the routine before switching the course to online.");
+			}
 			course.setDeliveryMode(mode);
 		}
 		if (body.has("accessType") && !body.get("accessType").isNull()) {
