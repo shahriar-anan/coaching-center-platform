@@ -1,0 +1,14 @@
+---
+description: Stage rule for api-exam-purchase. Read before implementing Phase 3 Stage 5.
+alwaysApply: false
+---
+
+# api-exam-purchase
+
+Add `EXAM_MODULE` to the existing `payments` payable type. Verify it in the existing payment verify route. `payable_id` is the exam-module purchase id.
+
+Access is lifetime. Do not add `expires_at`, an expiry job, a cancel route, or a refund status.
+
+`OPEN` and `ENROLLED_ONLY` return `EXAM_NOT_FOR_SALE`. A successful verify grants access only while the module is still published and `PURCHASE_REQUIRED`.
+
+`price_paid` stays at the amount copied when the student submitted the transaction reference.

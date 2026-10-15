@@ -1,0 +1,24 @@
+---
+description: Phase 3 exam module is API only. Phone and browser exits do not block it. Read docs/phases/phase-3/phase-3-status.md before starting a stage.
+alwaysApply: true
+---
+
+# Phase 3
+
+The binding spec is `docs/phases/phase-3/phase-3-scope.md`. The step list and exits are in `docs/phases/phase-3/phase-3-status.md`. Do not start a stage until the previous stage's exit passes. A component plan may add detail; it may not drop an exit check, reorder stages, or pull in a later-phase domain.
+
+Phase 2's phone exit and browser exit do not block Phase 3. Start `api-exam-module` once Phase 2's API stages have exited.
+
+## API only
+
+This phase is `api/` plus its `*IT` classes. Do not add exam screens, routes, or clients under `mobile/` or `web/`. Do not open a browser, install an emulator, or run a device check for this phase.
+
+Automated checks only. Run the stage's `*IT` classes against real PostgreSQL (see `api/.cursor/tests/`). There is no manual QA. Do not use H2. Do not add a mobile or web CI workflow.
+
+Before writing a stage, read that stage's plan, test list, and rule in `api/.cursor/`. Also read `api/.cursor/rules/api-exam-invariants.mdc`.
+
+## Stay inside the phase
+
+Reuse Phase 1 delete and permission conventions and the Phase 2 manual payment flow. Do not redesign them. Do not add bilingual fields to courses or books. Do not put an exam node on a course content tree. Do not add a payment gateway, attendance, notices, or batches.
+
+Package: `com.coachingcenter.api.exams`. Schema changes go through the next Flyway version only. The next free version at planning time is `V9`.

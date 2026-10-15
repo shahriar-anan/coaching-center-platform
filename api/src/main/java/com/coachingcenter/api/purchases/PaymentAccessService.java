@@ -15,6 +15,11 @@ import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.courses.Course;
 import com.coachingcenter.api.courses.CourseRepository;
+import com.coachingcenter.api.exams.ExamModule;
+import com.coachingcenter.api.exams.ExamModulePurchase;
+import com.coachingcenter.api.exams.ExamModulePurchaseRepository;
+import com.coachingcenter.api.exams.ExamModulePurchaseService;
+import com.coachingcenter.api.exams.ExamModuleRepository;
 import com.coachingcenter.api.library.Book;
 import com.coachingcenter.api.library.BookRepository;
 import com.coachingcenter.api.users.StudentProfile;
@@ -43,9 +48,14 @@ public class PaymentAccessService {
 
 	private final AuditRecorder audit;
 
+	private final ExamModulePurchaseRepository examPurchases;
+
+	private final ExamModuleRepository examModules;
+
 	public PaymentAccessService(PaymentRepository payments, EnrollmentRepository enrollments,
 			BookOrderRepository orders, CourseRepository courses, BookRepository books, UserRepository users,
-			StudentProfileRepository profiles, AuditRecorder audit) {
+			StudentProfileRepository profiles, AuditRecorder audit, ExamModulePurchaseRepository examPurchases,
+			ExamModuleRepository examModules) {
 		this.payments = payments;
 		this.enrollments = enrollments;
 		this.orders = orders;
@@ -54,6 +64,8 @@ public class PaymentAccessService {
 		this.users = users;
 		this.profiles = profiles;
 		this.audit = audit;
+		this.examPurchases = examPurchases;
+		this.examModules = examModules;
 	}
 
 	@Transactional(readOnly = true)
@@ -87,6 +99,16 @@ public class PaymentAccessService {
 				if (book != null) {
 					titleEn = book.getTitleEn();
 					titleBn = book.getTitleBn();
+				}
+			}
+		}
+		else if ("EXAM_MODULE".equals(payment.getPayableType())) {
+			ExamModulePurchase purchase = examPurchases.findByIdAndDeletedAtIsNull(payment.getPayableId()).orElse(null);
+			if (purchase != null) {
+				ExamModule module = examModules.findByIdAndDeletedAtIsNull(purchase.getModuleId()).orElse(null);
+				if (module != null) {
+					titleEn = module.getTitleEn();
+					titleBn = module.getTitleBn();
 				}
 			}
 		}
@@ -197,6 +219,22 @@ public class PaymentAccessService {
 			audit.record(AuditRecorder.PAYMENT_SUCCESS, AuditRecorder.PAYMENT_ENTITY, payment.getId());
 			return VerifyPaymentResult.from(payment, null, order.getStatus());
 		}
+		if ("EXAM_MODULE".equals(payment.getPayableType())) {
+			ExamModulePurchase purchase = examPurchases.findByIdAndDeletedAtIsNull(payment.getPayableId())
+				.orElseThrow(() -> notFound("Exam purchase not found."));
+			ExamModule module = examModules.findByIdAndDeletedAtIsNull(purchase.getModuleId())
+				.orElseThrow(() -> notFound("Exam module not found."));
+			if (!ExamModulePurchaseService.canActivate(module)) {
+				throw conflict(ErrorCode.EXAM_NOT_FOR_SALE, "This exam module is not for sale.");
+			}
+			payment.setStatus("SUCCESS");
+			payments.save(payment);
+			purchase.setStatus("ACTIVE");
+			purchase.setStartedAt(Instant.now());
+			examPurchases.save(purchase);
+			audit.record(AuditRecorder.PAYMENT_SUCCESS, AuditRecorder.PAYMENT_ENTITY, payment.getId());
+			return VerifyPaymentResult.from(payment, purchase.getStatus(), null);
+		}
 		throw validationFailed();
 	}
 
@@ -217,6 +255,13 @@ public class PaymentAccessService {
 			order.setStatus("PAYMENT_FAILED");
 			orders.save(order);
 			return VerifyPaymentResult.from(payment, null, order.getStatus());
+		}
+		if ("EXAM_MODULE".equals(payment.getPayableType())) {
+			ExamModulePurchase purchase = examPurchases.findByIdAndDeletedAtIsNull(payment.getPayableId())
+				.orElseThrow(() -> notFound("Exam purchase not found."));
+			purchase.setStatus("PAYMENT_FAILED");
+			examPurchases.save(purchase);
+			return VerifyPaymentResult.from(payment, purchase.getStatus(), null);
 		}
 		throw validationFailed();
 	}

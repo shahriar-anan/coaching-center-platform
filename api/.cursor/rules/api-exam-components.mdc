@@ -1,0 +1,16 @@
+---
+description: Stage rule for api-exam-components. Read before implementing Phase 3 Stage 3.
+alwaysApply: false
+---
+
+# api-exam-components
+
+Each component has its own `description_en` and `description_bn`. Those fields are not the module description and are not shared between the MCQ component and the written component.
+
+MCQ lifecycle `ACTIVE` and `ENDED` come from `Instant.now()` against the stored window. Do not add a route that sets those states by hand.
+
+`combinedMaxMarks` is the sum of attached question marks on both components, and it appears only when both component rows exist. Do not store a weight.
+
+A paper stores `passPercent` from 0 through 100. Scheduling an MCQ, and saving a written deadline, requires it. Do not put the percent on a section.
+
+Do not start an attempt or accept an upload in this stage.

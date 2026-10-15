@@ -29,16 +29,20 @@ public class PaymentAccessController {
 
 	private final PaymentAccessService paymentAccess;
 
+	private final CourseRosterService roster;
+
 	private final PermissionChecker permissions;
 
-	public PaymentAccessController(PaymentAccessService paymentAccess, PermissionChecker permissions) {
+	public PaymentAccessController(PaymentAccessService paymentAccess, CourseRosterService roster,
+			PermissionChecker permissions) {
 		this.paymentAccess = paymentAccess;
+		this.roster = roster;
 		this.permissions = permissions;
 	}
 
 	private static final Set<String> PAYMENT_STATUSES = Set.of("PENDING", "SUCCESS", "FAILED");
 
-	private static final Set<String> PAYABLE_TYPES = Set.of("COURSE_ENROLLMENT", "BOOK_ORDER");
+	private static final Set<String> PAYABLE_TYPES = Set.of("COURSE_ENROLLMENT", "BOOK_ORDER", "EXAM_MODULE");
 
 	@GetMapping("/api/v1/payments")
 	public PageResponse<PaymentAccessService.PaymentView> listPayments(
@@ -66,6 +70,13 @@ public class PaymentAccessController {
 	public PaymentAccessService.VerifyPaymentResult verifyPayment(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.PAYMENT_VERIFY);
 		return paymentAccess.verifyPayment(id, body);
+	}
+
+	@GetMapping("/api/v1/courses/{id}/enrollments")
+	public PageResponse<CourseRosterService.RosterItem> enrollments(@PathVariable UUID id,
+			@RequestParam(required = false) Integer opening, @PageableDefault(size = 20) Pageable pageable) {
+		require(Permissions.COURSE_READ);
+		return PageResponse.from(roster.list(id, opening, pageable));
 	}
 
 	@PostMapping("/api/v1/courses/{id}/admissions")

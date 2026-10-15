@@ -1,0 +1,35 @@
+---
+description: Exam-module invariants. Bilingual names only, single-language questions, and Phase 2 payment reuse.
+globs: api/**/exams/**
+alwaysApply: false
+---
+
+# Exam invariants
+
+Read the current stage plan before editing this package. Do not build a later stage's behavior early.
+
+Bilingual Bangla and English, both required:
+
+- Exam module title and root description.
+- Section and paper titles.
+- Each MCQ component's rules text and each written component's rules text, stored separately.
+
+Single-language only. Do not add a second column or JSON field for:
+
+- Question stem, options, correct answer, explanation, and subject tag.
+- Written feedback.
+- Question bank name.
+
+A question row is shared. Attaching it to another paper or to a bank does not copy it and does not detach it. An MCQ attempt and a written submission freeze the question content they will score. Later edits to the live question do not change that freeze.
+
+A student sees `correct` and `explanation` only when that component's score is visible to them. An in-progress attempt omits both. Do not shuffle questions or options. Do not add a second correct option or a zero row for a student who never started.
+
+Pass or fail uses the paper's snapshotted pass percent. Rank and the leaderboard use the unweighted paper score. Question statistics are an admin read.
+
+Deletes and archive use `EXAM_DELETE`, Master Admin only. Price uses `EXAM_PRICE`, Master Admin only. Register grants from `ExamPermissionContributor`. Do not edit the permission checker.
+
+Student timing uses `Instant.now()` on the server. Do not bind a client `now`, `startedAt`, or `submittedAt`.
+
+Answer photos are reduced before they are stored. Keep the reduced JPEG only. The exam upload cap is `EXAM_IMAGE_MAX_BYTES` (15 MiB), separate from the course file cap.
+
+Do not add exam nodes to `content_nodes`. Do not add a cancel, refund, or written-submission reopen route.

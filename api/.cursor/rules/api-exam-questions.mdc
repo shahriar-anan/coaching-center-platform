@@ -1,0 +1,20 @@
+---
+description: Stage rule for api-exam-questions. Read before implementing Phase 3 Stage 2.
+alwaysApply: false
+---
+
+# api-exam-questions
+
+Question stem, options, correct answer, explanation, and subject are one language. Do not add a second column.
+
+```text
+stem, explanation, subject, option.text
+```
+
+Those names stay untranslated. A question is one row shared by every paper that attaches it. Detach removes the link only.
+
+An MCQ question has exactly one correct option. An MCQ component accepts MCQ questions. A written component accepts written questions. A mismatch returns `QUESTION_TYPE_MISMATCH`.
+
+Question order on a component is explicit. A later attempt freezes that order. Do not shuffle it.
+
+This stage's component row is a shell: type only. Do not add rules text, a window, a duration, or a deadline here.

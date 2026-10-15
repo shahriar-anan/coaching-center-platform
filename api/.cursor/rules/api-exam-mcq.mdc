@@ -1,0 +1,16 @@
+---
+description: Stage rule for api-exam-mcq. Read before implementing Phase 3 Stage 6.
+alwaysApply: false
+---
+
+# api-exam-mcq
+
+One attempt per student per MCQ component. A second start returns `ATTEMPT_ALREADY_USED`.
+
+Start only while the server lifecycle is `ACTIVE` and access is granted. Copy `duration_seconds` and the question content onto the attempt. End the attempt at the earlier of that timer and the window `endsAt`. Expire and score with `Instant.now()`. Return `serverNow` and `deadlineAt`. Do not bind a client clock. Do not shuffle.
+
+The frozen correct option: full marks. Every other outcome, including unanswered: 0. No negative marking and no second correct option.
+
+`PUT` answers replaces the whole selection. A question left out of `answers` is cleared. Do not treat the array as a partial patch.
+
+Return `score`, `maxScore`, `passed`, the chosen option, `correct`, and `explanation` to the student only when `immediateResults` is true. Always store them. Hide those fields while the attempt is in progress. Copy `passPercent` at start. Do not return `rank` from this stage. The owner of an in-progress attempt can finish it after access is lost. A student who never started has no result row.

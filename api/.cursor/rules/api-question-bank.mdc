@@ -1,0 +1,18 @@
+---
+description: Stage rule for api-question-bank. Read before implementing Phase 3 Stage 9.
+alwaysApply: false
+---
+
+# api-question-bank
+
+`QUESTION_BANK_MANAGE` is granted only to Master Admin. A System Admin receives `403` on every bank route.
+
+A bank is a named list of question ids. It may mix MCQ and written questions. The name is one language. It does not generate a paper or an attempt.
+
+Adding a question to a bank, or removing it from a bank, does not change `component_questions`. A bank has no attempt route and no price.
+
+```text
+POST /api/v1/question-banks
+```
+
+That route selects existing questions. It does not move them off their papers.

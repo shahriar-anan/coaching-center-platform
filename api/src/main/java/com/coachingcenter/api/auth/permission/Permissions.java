@@ -52,6 +52,18 @@ public final class Permissions {
 
 	public static final String ORDER_FULFILL = "ORDER_FULFILL";
 
+	public static final String EXAM_READ = "EXAM_READ";
+
+	public static final String EXAM_MANAGE = "EXAM_MANAGE";
+
+	public static final String EXAM_PRICE = "EXAM_PRICE";
+
+	public static final String EXAM_DELETE = "EXAM_DELETE";
+
+	public static final String EXAM_EVALUATE = "EXAM_EVALUATE";
+
+	public static final String QUESTION_BANK_MANAGE = "QUESTION_BANK_MANAGE";
+
 	private Permissions() {
 	}
 

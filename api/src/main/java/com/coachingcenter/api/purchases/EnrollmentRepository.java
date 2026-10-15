@@ -5,6 +5,8 @@ import java.util.UUID;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
@@ -15,5 +17,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
 			int openingNumber, String status);
 
 	List<Enrollment> findByStudentIdAndStatusAndDeletedAtIsNull(UUID studentId, String status);
+
+	Page<Enrollment> findByCourseIdAndOpeningNumberAndDeletedAtIsNull(UUID courseId, int openingNumber,
+			Pageable pageable);
 
 }

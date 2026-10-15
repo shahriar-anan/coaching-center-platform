@@ -33,6 +33,10 @@ public class AuditRecorder {
 
 	public static final String BOOK_CATEGORY_DELETE = "BOOK_CATEGORY_DELETE";
 
+	public static final String COURSE_INSTRUCTOR_DELETE = "COURSE_INSTRUCTOR_DELETE";
+
+	public static final String COURSE_INSTRUCTOR_ENTITY = "COURSE_INSTRUCTOR";
+
 	private static final String USER = "USER";
 
 	public static final String COURSE_ENTITY = "COURSE";
@@ -52,6 +56,12 @@ public class AuditRecorder {
 	public static final String PAYMENT_ENTITY = "PAYMENT";
 
 	public static final String BOOK_ORDER_ENTITY = "BOOK_ORDER";
+
+	public static final String EXAM_MODULE_DELETE = "EXAM_MODULE_DELETE";
+
+	public static final String EXAM_MODULE_ARCHIVE = "EXAM_MODULE_ARCHIVE";
+
+	public static final String EXAM_MODULE_ENTITY = "EXAM_MODULE";
 
 	private final AuditLogRepository auditLogs;
 

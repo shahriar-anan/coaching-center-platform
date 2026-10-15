@@ -11,4 +11,9 @@ class FileStoragePropertiesTest {
 		assertThat(FileStorageProperties.DEFAULT_MATERIAL_MAX_BYTES).isEqualTo(104857600L);
 	}
 
+	@Test
+	void defaultExamImageMaxBytesIs15Mb() {
+		assertThat(FileStorageProperties.DEFAULT_EXAM_IMAGE_MAX_BYTES).isEqualTo(15728640L);
+	}
+
 }
