@@ -12,4 +12,4 @@ A stage's plan, required test list, and slice notes live in the app that built t
 |---|---|---|
 | 1 Foundation and identity | [phase-1-scope.md](phase-1/phase-1-scope.md) | [phase-1-status.md](phase-1/phase-1-status.md) — complete |
 | 2 Catalog and acquisition | [phase-2-scope.md](phase-2/phase-2-scope.md) | [phase-2-status.md](phase-2/phase-2-status.md) — in progress |
-| 3 Exam module | [phase-3-scope.md](phase-3/phase-3-scope.md) | [phase-3-status.md](phase-3/phase-3-status.md) — complete |
+| 3 Live exams | [phase-3-scope.md](phase-3/phase-3-scope.md) | [phase-3-status.md](phase-3/phase-3-status.md) — slice 1 passed; slice 2 open on sitting, then evaluation |

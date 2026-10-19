@@ -58,6 +58,18 @@ public class AccountService {
 	}
 
 	@Transactional
+	public CreatedAccount createInstructor(String fullName, String phone, String email, UUID createdBy) {
+		User user = newPendingUser(fullName, phone, email, Role.INSTRUCTOR, createdBy);
+		AdminProfile profile = new AdminProfile();
+		profile.setUserId(user.getId());
+		profile.setFullName(fullName.trim());
+		adminProfiles.save(profile);
+		String code = auth.issueActivationCode(user, createdBy);
+		return new CreatedAccount(user.getId(), profile.getFullName(), user.getPhone(), user.getEmail(), user.getRole(),
+				user.getStatus(), code, null);
+	}
+
+	@Transactional
 	public CreatedAccount createSystemAdmin(String fullName, String phone, String email, UUID createdBy) {
 		User user = newPendingUser(fullName, phone, email, Role.SYSTEM_ADMIN, createdBy);
 		AdminProfile profile = new AdminProfile();

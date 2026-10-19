@@ -63,6 +63,18 @@ public class AuditRecorder {
 
 	public static final String EXAM_MODULE_ENTITY = "EXAM_MODULE";
 
+	public static final String LIVE_EXAM_CATEGORY_DELETE = "LIVE_EXAM_CATEGORY_DELETE";
+
+	public static final String LIVE_EXAM_CATEGORY_ARCHIVE = "LIVE_EXAM_CATEGORY_ARCHIVE";
+
+	public static final String LIVE_EXAM_CATEGORY_ENTITY = "LIVE_EXAM_CATEGORY";
+
+	public static final String LIVE_EXAM_MODULE_DELETE = "LIVE_EXAM_MODULE_DELETE";
+
+	public static final String LIVE_EXAM_MODULE_ARCHIVE = "LIVE_EXAM_MODULE_ARCHIVE";
+
+	public static final String LIVE_EXAM_MODULE_ENTITY = "LIVE_EXAM_MODULE";
+
 	private final AuditLogRepository auditLogs;
 
 	public AuditRecorder(AuditLogRepository auditLogs) {

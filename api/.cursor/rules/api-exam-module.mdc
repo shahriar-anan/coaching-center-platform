@@ -1,16 +1,8 @@
----
-description: Stage rule for api-exam-module. Read before implementing Phase 3 Stage 1.
+﻿---
+description: Superseded. Do not implement. See docs/phases/phase-3/phase-3-status.md.
 alwaysApply: false
 ---
 
-# api-exam-module
+# Superseded
 
-Build the module and its section/paper tree only.
-
-Both Bangla and English are required for the module title, the module description, and every section and paper title. Nodes have titles only.
-
-The tree accepts `SECTION` and `PAPER` only. A paper is a leaf. Reject any other type with `NODE_TYPE_REJECTED`.
-
-`EXAM_PRICE` and `EXAM_DELETE` are Master Admin only. A System Admin price, archive, or delete returns `403`.
-
-Do not add questions, components, an access mode, a course id, or a student catalog route in this stage.
+This rule belonged to the replaced exam plan. Do not implement it. Follow `docs/phases/phase-3/phase-3-status.md` and `api/.cursor/rules/api-exam-invariants.mdc`.

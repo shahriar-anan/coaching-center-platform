@@ -1,0 +1,14 @@
+---
+description: Stage rule for api-live-evaluation. Read before implementing that stage.
+alwaysApply: false
+---
+
+# api-live-evaluation
+
+`INSTRUCTOR` is created like a System Admin: no password on create, activation code, the instructor sets the password. One instructor per module. A System Admin does not evaluate. The Master Admin may evaluate any written paper.
+
+A save needs marks from 0 through the maximum and an evaluated PDF. The comment is optional. The student sees the result on save and never sees the evaluator. A later save replaces the file and recalculates rank.
+
+The MCQ live leaderboard opens five minutes after the window and lists live participants only. A no-submit written row is visible and cannot be marked.
+
+Slice 2: the instructor browses assigned modules only and downloads the answer PDF. A System Admin can read the evaluator name and cannot mark. A comment is shown to the student when one was entered. A written retake is marked and stays off the live board. The submission list shows the deadline post.

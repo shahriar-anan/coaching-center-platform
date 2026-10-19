@@ -1,35 +1,24 @@
 ---
-description: Exam-module invariants. Bilingual names only, single-language questions, and Phase 2 payment reuse.
+description: Live exam invariants. Read before editing the exam package.
 globs: api/**/exams/**
 alwaysApply: false
 ---
 
 # Exam invariants
 
-Read the current stage plan before editing this package. Do not build a later stage's behavior early.
+The binding spec is `docs/phases/phase-3/phase-3-scope.md`. The stages are the `api-live-*` list in `docs/phases/phase-3/phase-3-status.md`. Do not extend `api-exam-module` through `api-question-bank`.
 
-Bilingual Bangla and English, both required:
-
-- Exam module title and root description.
-- Section and paper titles.
-- Each MCQ component's rules text and each written component's rules text, stored separately.
-
-Single-language only. Do not add a second column or JSON field for:
-
-- Question stem, options, correct answer, explanation, and subject tag.
-- Written feedback.
-- Question bank name.
-
-A question row is shared. Attaching it to another paper or to a bank does not copy it and does not detach it. An MCQ attempt and a written submission freeze the question content they will score. Later edits to the live question do not change that freeze.
-
-A student sees `correct` and `explanation` only when that component's score is visible to them. An in-progress attempt omits both. Do not shuffle questions or options. Do not add a second correct option or a zero row for a student who never started.
-
-Pass or fail uses the paper's snapshotted pass percent. Rank and the leaderboard use the unweighted paper score. Question statistics are an admin read.
-
-Deletes and archive use `EXAM_DELETE`, Master Admin only. Price uses `EXAM_PRICE`, Master Admin only. Register grants from `ExamPermissionContributor`. Do not edit the permission checker.
-
-Student timing uses `Instant.now()` on the server. Do not bind a client `now`, `startedAt`, or `submittedAt`.
-
-Answer photos are reduced before they are stored. Keep the reduced JPEG only. The exam upload cap is `EXAM_IMAGE_MAX_BYTES` (15 MiB), separate from the course file cap.
-
-Do not add exam nodes to `content_nodes`. Do not add a cancel, refund, or written-submission reopen route.
+- Category titles, module titles, module descriptions, and exam names, descriptions, and rules are Bangla and English. Question content and comments are one language.
+- A module sits under one exam category. One category may hold many modules. Each exam is MCQ or written.
+- Draft on each change. Final save, then publish. Students see published exams only.
+- Server clock only. Store one live instant. Show it in `Asia/Dhaka`. The end does not archive the exam. Archive hides a module, or a whole category branch, from students. Take and retake stop. A posted result stays readable. An archived category cannot receive a new child, a new module, or a move.
+- Inside one module the later exam starts at least five minutes after the earlier end. Another module never blocks publish. A retake is not a published window.
+- MCQ maximum is the sum of question marks. Written maximum is the number on the exam. Publish requires a pass percent from 0 through 100. Pass when `score × 100` is at least `pass percent × maximum`. A blank MCQ fails even when the pass percent is 0.
+- No shuffle, no negative mark, no partial mark, no second correct option.
+- Take exam creates the participant. The score is immediate. An early submit does not freeze MCQ answers. The MCQ review waits until that sitting ends. The deadline posts the paper without a student submit call. The live leaderboard opens five minutes after the live window.
+- The written question PDF is not a file download. After Take exam the website may show it inline until that sitting's deadline, and only while the student is still marked and the module is still published. Before the tap, and after removal or archive, the bytes are rejected.
+- One retake, only if the student never tapped during the live window, off the live leaderboard. Removing the roster row after Take exam leaves the result readable.
+- Written answer and evaluated PDF: 80 MB ceiling, store the compressed file only, keep the latest file.
+- One instructor per module, or the Master Admin, evaluates. The instructor browses assigned modules only. The marker can download the student's answer PDF. A System Admin does not evaluate and can read who evaluated. The student never sees the evaluator. A written retake is marked and stays off the live board.
+- Roster and delete are Master Admin only.
+- New tables start at Flyway `V24`. Do not bend `V14`–`V23` into this model.

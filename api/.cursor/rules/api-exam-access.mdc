@@ -1,16 +1,8 @@
----
-description: Stage rule for api-exam-access. Read before implementing Phase 3 Stage 4.
+﻿---
+description: Superseded. Do not implement. See docs/phases/phase-3/phase-3-status.md.
 alwaysApply: false
 ---
 
-# api-exam-access
+# Superseded
 
-`OPEN` and `PURCHASE_REQUIRED` have a null course id. `ENROLLED_ONLY` has exactly one course id. A mismatch returns `ACCESS_MODE_LINK_MISMATCH`.
-
-`PURCHASE_REQUIRED` keeps a price. `OPEN` and `ENROLLED_ONLY` do not. Price writes stay `EXAM_PRICE`.
-
-`ENROLLED_ONLY` is true when the linked course is published and not closed, and either the course is `FULL_FREE` or the student has an `ACTIVE` enrollment for the current `opening_number`. A free lecture on a freemium course does not grant the module.
-
-`accessGranted` also requires the module to be published. Draft and archived stay closed. The component clock does not read that status.
-
-A student with access can read the component rules. An MCQ read has no question stem. Do not add a purchase route or a manual grant route. Unpaid `PURCHASE_REQUIRED` stays closed.
+This rule belonged to the replaced exam plan. Do not implement it. Follow `docs/phases/phase-3/phase-3-status.md` and `api/.cursor/rules/api-exam-invariants.mdc`.

@@ -64,6 +64,14 @@ public final class Permissions {
 
 	public static final String QUESTION_BANK_MANAGE = "QUESTION_BANK_MANAGE";
 
+	public static final String LIVE_EXAM_BROWSE = "LIVE_EXAM_BROWSE";
+
+	public static final String LIVE_EXAM_ROSTER = "LIVE_EXAM_ROSTER";
+
+	public static final String LIVE_EXAM_ASSIGN = "LIVE_EXAM_ASSIGN";
+
+	public static final String LIVE_EXAM_EVALUATE = "LIVE_EXAM_EVALUATE";
+
 	private Permissions() {
 	}
 

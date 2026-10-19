@@ -1,14 +1,8 @@
----
-description: Stage rule for api-exam-results. Read before implementing Phase 3 Stage 8.
+﻿---
+description: Superseded. Do not implement. See docs/phases/phase-3/phase-3-status.md.
 alwaysApply: false
 ---
 
-# api-exam-results
+# Superseded
 
-`EXAM_EVALUATE` is granted to Master Admin and System Admin. Written evaluation sets `marks_awarded` on every question snapshotted at submit, from 0 through that question's `max_marks`, plus one feedback string.
-
-A student sees an MCQ `score`, `maxScore`, chosen option, `correct`, and `explanation` when `immediateResults` is true or the component is published. A student sees written marks, feedback, and the written explanation only after that component is published. Publish covers every student who has a result for that component.
-
-`passed` uses the snapshotted pass percent and the paper score. When the student has an MCQ attempt, that attempt's `pass_percent` wins over the written submission's copy. A paper result for a sitting whose scores are all still hidden returns `RESULTS_NOT_PUBLISHED`, not `404`. `combinedScore` is the MCQ score plus the sum of the written per-question marks. Rank uses that score, highest first, with shared ranks skipping the next number. The student leaderboard opens only after every component on the paper is published. Question statistics are admin-only and count submitted MCQ attempts and evaluated written scripts.
-
-A paper with one component has no combined score. A student who did not sit has no zero row and is left off the leaderboard.
+This rule belonged to the replaced exam plan. Do not implement it. Follow `docs/phases/phase-3/phase-3-status.md` and `api/.cursor/rules/api-exam-invariants.mdc`.

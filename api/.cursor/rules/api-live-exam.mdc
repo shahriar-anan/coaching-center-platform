@@ -1,0 +1,12 @@
+---
+description: Stage rule for api-live-exam. Read before implementing that stage.
+alwaysApply: false
+---
+
+# api-live-exam
+
+Each exam is `MCQ` or `WRITTEN`. MCQ questions are one language, one correct option, no shuffle, no negative mark. The MCQ maximum is the sum of question marks. The written maximum is a number on the exam, and the question paper is one PDF.
+
+Publish requires a pass percent from 0 through 100. Inside one module, the later published exam starts at least five minutes after the earlier end. Another module does not block. After the end instant the exam stays `PUBLISHED`.
+
+Question content and the schedule lock at the live instant. Server time only.

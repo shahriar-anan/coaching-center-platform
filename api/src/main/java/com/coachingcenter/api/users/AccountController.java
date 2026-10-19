@@ -40,6 +40,16 @@ public class AccountController {
 		this.permissions = permissions;
 	}
 
+	@PostMapping("/api/v1/instructors")
+	public ResponseEntity<AccountService.CreatedAccount> createInstructor(@RequestBody JsonNode body) {
+		require(Permissions.ADMIN_MANAGE);
+		rejectPassword(body);
+		NameRequest request = nameRequest(body);
+		AccountService.CreatedAccount created = accounts.createInstructor(request.fullName(), request.phone(),
+				request.email(), actor().userId());
+		return ResponseEntity.status(HttpStatus.CREATED).body(created);
+	}
+
 	@PostMapping("/api/v1/admins")
 	public ResponseEntity<AccountService.CreatedAccount> createAdmin(@RequestBody JsonNode body) {
 		require(Permissions.ADMIN_MANAGE);

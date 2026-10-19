@@ -1,18 +1,8 @@
----
-description: Stage rule for api-question-bank. Read before implementing Phase 3 Stage 9.
+﻿---
+description: Superseded. Do not implement. See docs/phases/phase-3/phase-3-status.md.
 alwaysApply: false
 ---
 
-# api-question-bank
+# Superseded
 
-`QUESTION_BANK_MANAGE` is granted only to Master Admin. A System Admin receives `403` on every bank route.
-
-A bank is a named list of question ids. It may mix MCQ and written questions. The name is one language. It does not generate a paper or an attempt.
-
-Adding a question to a bank, or removing it from a bank, does not change `component_questions`. A bank has no attempt route and no price.
-
-```text
-POST /api/v1/question-banks
-```
-
-That route selects existing questions. It does not move them off their papers.
+This rule belonged to the replaced exam plan. Do not implement it. Follow `docs/phases/phase-3/phase-3-status.md` and `api/.cursor/rules/api-exam-invariants.mdc`.

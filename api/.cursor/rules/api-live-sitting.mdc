@@ -1,0 +1,16 @@
+---
+description: Stage rule for api-live-sitting. Read before implementing that stage.
+alwaysApply: false
+---
+
+# api-live-sitting
+
+Take exam creates the participant. The upcoming read does not. A late tap keeps the shared end. Ignore a client clock.
+
+MCQ save replaces the whole selection. At the deadline the server posts what is saved, including a blank paper as zero. The score, maximum, and pass or fail return immediately. The review waits until that sitting ends.
+
+A written answer is one PDF, 80 MB, compressed, latest file only. No stored PDF at the deadline is failed to submit, score zero.
+
+One retake exists only for a student who never tapped during the live window. A live participant cannot start it. The retake is not on the live leaderboard.
+
+Slice 2: an early submit does not freeze answers. The deadline posts without a student submit call. The question PDF is an inline website view only during that sitting, and only while the student is still marked and the module is still published. Roster removal leaves the result readable and stops the question PDF.

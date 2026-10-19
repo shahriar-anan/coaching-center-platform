@@ -1,16 +1,8 @@
----
-description: Stage rule for api-exam-written. Read before implementing Phase 3 Stage 7.
+﻿---
+description: Superseded. Do not implement. See docs/phases/phase-3/phase-3-status.md.
 alwaysApply: false
 ---
 
-# api-exam-written
+# Superseded
 
-Before final submit, the student may add, reorder, and remove images with no count limit. After final submit, every student change returns `SUBMISSION_LOCKED`.
-
-Do not add an admin route that returns a submission to `DRAFT`.
-
-Images only: `image/jpeg`, `image/png`, and `image/webp`. Reject an upload over `EXAM_IMAGE_MAX_BYTES` (15 MiB, under 20 MiB). Store a JPEG whose longest side is at most 1600 pixels at quality 0.72. Discard the original. Do not use the course 100 MB cap.
-
-The deadline is the server clock. A late submit returns `DEADLINE_PASSED` and leaves a draft unsubmitted. The deadline does not submit the draft by itself.
-
-Final submit sets `UNDER_REVIEW` and snapshots each question's stem, explanation, and max marks, plus the paper's pass percent. The student payload omits the explanation until results are visible. An empty component returns `COMPONENT_EMPTY`. The owner of an existing draft can finish it after access is lost. Do not enter marks in this stage.
+This rule belonged to the replaced exam plan. Do not implement it. Follow `docs/phases/phase-3/phase-3-status.md` and `api/.cursor/rules/api-exam-invariants.mdc`.

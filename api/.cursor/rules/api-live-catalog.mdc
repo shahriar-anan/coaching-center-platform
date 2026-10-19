@@ -1,0 +1,12 @@
+---
+description: Stage rule for api-live-catalog. Read before implementing that stage.
+alwaysApply: false
+---
+
+# api-live-catalog
+
+Categories are an unlimited tree with Bangla and English titles. A module has both titles, both descriptions, one category, and status draft or published. Access for this delivery is `MANUAL`.
+
+Each change stores a draft. Publish requires a final save. Students receive published modules only. Delete is Master Admin only.
+
+Do not create exams, a roster, or sittings in this stage. Do not write this model into `exam_modules` or `exam_nodes`.

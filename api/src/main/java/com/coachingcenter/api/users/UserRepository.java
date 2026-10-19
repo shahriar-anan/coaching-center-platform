@@ -36,4 +36,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			""", nativeQuery = true)
 	Page<User> searchStudents(@Param("q") String q, Pageable pageable);
 
+	@Query("""
+			SELECT u FROM User u
+			WHERE u.deletedAt IS NULL AND u.role = 'STUDENT' AND lower(u.email) = lower(:email)
+			""")
+	Optional<User> findStudentByEmail(@Param("email") String email);
+
+	@Query("""
+			SELECT u FROM User u, StudentProfile p
+			WHERE p.userId = u.id AND u.deletedAt IS NULL AND u.role = 'STUDENT'
+			  AND lower(p.fullName) LIKE lower(concat('%', :name, '%'))
+			ORDER BY p.fullName, u.id
+			""")
+	java.util.List<User> findStudentsByName(@Param("name") String name);
+
 }

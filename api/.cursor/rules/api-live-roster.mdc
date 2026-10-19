@@ -1,0 +1,10 @@
+---
+description: Stage rule for api-live-roster. Read before implementing that stage.
+alwaysApply: false
+---
+
+# api-live-roster
+
+Only a Master Admin changes the roster. Email or phone selects one account. A name search returns the matches with phone and email, and one account is marked. A paste is email and phone only. Unknown values are returned and not marked.
+
+A marked student sees published exams in that module. Drafts stay hidden. A System Admin mark returns `403`.
