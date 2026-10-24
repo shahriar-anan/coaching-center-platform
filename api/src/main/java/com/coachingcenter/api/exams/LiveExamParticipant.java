@@ -71,6 +71,9 @@ public class LiveExamParticipant extends BaseEntity {
 	@Column(name = "evaluated_at")
 	private Instant evaluatedAt;
 
+	@Column(name = "published_at")
+	private Instant publishedAt;
+
 	@Column(name = "evaluated_stored_file_name", length = 255)
 	private String evaluatedStoredFileName;
 
@@ -209,6 +212,14 @@ public class LiveExamParticipant extends BaseEntity {
 
 	public void setEvaluatedAt(Instant evaluatedAt) {
 		this.evaluatedAt = evaluatedAt;
+	}
+
+	public Instant getPublishedAt() {
+		return publishedAt;
+	}
+
+	public void setPublishedAt(Instant publishedAt) {
+		this.publishedAt = publishedAt;
 	}
 
 	public String getEvaluatedStoredFileName() {

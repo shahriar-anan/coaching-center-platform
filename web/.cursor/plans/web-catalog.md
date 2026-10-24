@@ -8,6 +8,8 @@ Start only after the `mobile-catalog` phone exit. Do not start a later slice unt
 
 **Agent:** run `npm run lint`, `npm run build`, `npm run check:openapi`, and mocked component tests when written (do not boot `api`). **Shahriar:** manual QA in the browser for the stage exit only. The agent must not open a browser or use browser automation.
 
+**Outdated for the exam website (2026-10-23).** This file stays the course-admin plan. These clauses are not a ban on the later student exam site in this same app: student browse and purchase stay on `mobile`; do not add exams; do not add notices; do not add a payment gateway.
+
 The web app is for `MASTER_ADMIN` and `SYSTEM_ADMIN`. Do not add student browse, search, purchase, lecture playback, file download for students, or book ordering. Those stay on `mobile`. Do not add exams, batches, attendance, notices, push, a payment gateway, refunds, cancellation, or Cloudinary.
 
 Reuse the Phase 1 shell from `web-admin`: memory-only access token, cookie refresh, `X-Client-Type: web`, English and Bangla catalogs, and role-aware navigation. A `STUDENT` session still never enters the shell.

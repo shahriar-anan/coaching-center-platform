@@ -151,8 +151,16 @@ class BookOrderIT extends PostgresIntegrationTest {
 
 		String docs = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse()
 			.getContentAsString();
-		assertThat(docs).doesNotContain("/cancel");
-		assertThat(docs).doesNotContain("Cancel");
+		tools.jackson.databind.JsonNode paths = json.readTree(docs).get("paths");
+		assertThat(paths.has("/api/v1/live-exam-orders/{id}/cancel")).isTrue();
+		paths.properties().forEach(path -> {
+			String name = path.getKey();
+			if (name.startsWith("/api/v1/book") || "/api/v1/me/orders".equals(name)) {
+				assertThat(name).doesNotContain("cancel");
+				assertThat(path.getValue().toString()).doesNotContain("cancel");
+				assertThat(path.getValue().toString()).doesNotContain("Cancel");
+			}
+		});
 	}
 
 	private UUID createBook(boolean available) throws Exception {

@@ -1,7 +1,9 @@
 package com.coachingcenter.api.exams;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -17,14 +19,112 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 
 	Optional<LiveExam> findByIdAndDeletedAtIsNull(UUID id);
 
+	Optional<LiveExam> findByTitleEnAndDeletedAtIsNull(String titleEn);
+
 	Page<LiveExam> findByModuleIdAndDeletedAtIsNull(UUID moduleId, Pageable pageable);
 
 	Page<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(UUID moduleId, String status, Pageable pageable);
 
 	List<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(UUID moduleId, String status);
 
+	@Query("""
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED'
+			  AND EXISTS (
+			    SELECT m FROM LiveExamModule m
+			    WHERE m.id = e.moduleId AND m.deletedAt IS NULL AND m.status = 'PUBLISHED'
+			      AND m.categoryId NOT IN :hiddenCategoryIds
+			      AND (
+			        EXISTS (
+			          SELECT r FROM LiveExamRoster r
+			          WHERE r.moduleId = m.id AND r.studentId = :studentId
+			        )
+			        OR EXISTS (
+			          SELECT gm FROM LiveExamGrant gm
+			          WHERE gm.scope = 'MODULE' AND gm.moduleId = m.id AND gm.studentId = :studentId
+			        )
+			        OR EXISTS (
+			          SELECT ge FROM LiveExamGrant ge
+			          WHERE ge.scope = 'EXAM' AND ge.examId = e.id AND ge.studentId = :studentId
+			        )
+			      )
+			  )
+			""")
+	List<LiveExam> findVisibleRoutineCandidates(@Param("studentId") UUID studentId,
+			@Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds);
+
+	@Query(value = """
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId = :moduleId
+			  AND (
+			    EXISTS (
+			      SELECT r FROM LiveExamRoster r
+			      WHERE r.moduleId = e.moduleId AND r.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT gm FROM LiveExamGrant gm
+			      WHERE gm.scope = 'MODULE' AND gm.moduleId = e.moduleId AND gm.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT ge FROM LiveExamGrant ge
+			      WHERE ge.scope = 'EXAM' AND ge.examId = e.id AND ge.studentId = :studentId
+			    )
+			  )
+			""", countQuery = """
+			SELECT count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId = :moduleId
+			  AND (
+			    EXISTS (
+			      SELECT r FROM LiveExamRoster r
+			      WHERE r.moduleId = e.moduleId AND r.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT gm FROM LiveExamGrant gm
+			      WHERE gm.scope = 'MODULE' AND gm.moduleId = e.moduleId AND gm.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT ge FROM LiveExamGrant ge
+			      WHERE ge.scope = 'EXAM' AND ge.examId = e.id AND ge.studentId = :studentId
+			    )
+			  )
+			""")
+	Page<LiveExam> findAccessibleToStudent(@Param("moduleId") UUID moduleId, @Param("studentId") UUID studentId,
+			Pageable pageable);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select e from LiveExam e where e.id = :id and e.deletedAt is null")
 	Optional<LiveExam> lockById(@Param("id") UUID id);
+
+	@Query("""
+			select e from LiveExam e
+			where e.moduleId = :moduleId and e.deletedAt is null and e.status = 'PUBLISHED' and e.liveAt is not null
+			""")
+	List<LiveExam> findDatedPublishedByModuleId(@Param("moduleId") UUID moduleId);
+
+	@Query("""
+			select e from LiveExam e
+			where e.deletedAt is null and e.status = 'PUBLISHED' and e.liveAt > :after and e.liveAt < :before
+			""")
+	List<LiveExam> findPublishedStartingBetween(@Param("after") Instant after, @Param("before") Instant before);
+
+	@Query("""
+			select u.id from User u
+			where u.deletedAt is null and u.role = 'STUDENT' and u.status = 'ACTIVE'
+			  and (
+			    exists (
+			      select r from LiveExamRoster r
+			      where r.moduleId = :moduleId and r.studentId = u.id
+			    )
+			    or exists (
+			      select gm from LiveExamGrant gm
+			      where gm.scope = 'MODULE' and gm.moduleId = :moduleId and gm.studentId = u.id
+			    )
+			    or exists (
+			      select ge from LiveExamGrant ge
+			      where ge.scope = 'EXAM' and ge.examId = :examId and ge.studentId = u.id
+			    )
+			  )
+			""")
+	List<UUID> findActiveStudentsWithAccess(@Param("moduleId") UUID moduleId, @Param("examId") UUID examId);
 
 }

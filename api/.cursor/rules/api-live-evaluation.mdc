@@ -5,6 +5,8 @@ alwaysApply: false
 
 # api-live-evaluation
 
+**Outdated (2026-10-23):** the student sees the written result on save, and rank updates on that save. The save is a draft until the Master Admin publishes.
+
 `INSTRUCTOR` is created like a System Admin: no password on create, activation code, the instructor sets the password. One instructor per module. A System Admin does not evaluate. The Master Admin may evaluate any written paper.
 
 A save needs marks from 0 through the maximum and an evaluated PDF. The comment is optional. The student sees the result on save and never sees the evaluator. A later save replaces the file and recalculates rank.

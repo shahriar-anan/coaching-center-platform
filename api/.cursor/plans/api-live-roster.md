@@ -1,5 +1,7 @@
 # api-live-roster
 
+**Outdated (2026-10-23):** an unmarked student sees none of the module. The roster grant stays, and a Master Admin is still the only role that changes it. Seeing the published catalog does not require a roster row.
+
 Stage 3. Start only after `api-live-exam` exits. Spec Section 5. Tests: `api/.cursor/tests/api-live-roster.md`. Rule: `api/.cursor/rules/api-live-roster.mdc`.
 
 ## Slice 1 — Manual roster

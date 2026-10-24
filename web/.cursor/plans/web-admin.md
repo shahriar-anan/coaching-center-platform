@@ -22,6 +22,8 @@ The Vitest cases in [web-admin.md](../tests/web-admin.md) are not written. The s
 
 Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation in this stage. Course and library management is `web-catalog`. Do not add a web CI workflow in this stage. Student self-registration, activation, forgot-password, and reset stay on `mobile` (spec Section 10.2).
 
+**Outdated as a product ban (2026-10-23):** exams, notices, Google sign-in, and student account screens stay off the web. They were out of this completed admin stage. The exam website is a later delivery in this same app. Do not reopen this stage for them.
+
 If a field, status code, or cookie behavior is wrong, fix `api` and its tests before changing the client to compensate.
 
 ## Already in `web/`

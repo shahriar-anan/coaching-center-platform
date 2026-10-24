@@ -7,23 +7,29 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 
@@ -32,8 +38,10 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(CapturingEmailConfig.class)
+@Import({ CapturingEmailConfig.class, LiveRosterIT.ClockConfig.class })
 class LiveRosterIT extends PostgresIntegrationTest {
+
+	private static final Instant MORNING = Instant.parse("2026-10-20T04:00:00Z");
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -46,6 +54,14 @@ class LiveRosterIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private ObjectMapper json;
+
+	@Autowired
+	private MutableClock clock;
+
+	@BeforeEach
+	void setClock() {
+		clock.set(MORNING);
+	}
 
 	@Test
 	void systemAdminMarkCreatesNoRow() throws Exception {
@@ -197,6 +213,7 @@ class LiveRosterIT extends PostgresIntegrationTest {
 				.content("""
 						{
 						  "examType":"MCQ",
+						  "paperLanguage":"BN",
 						  "titleEn":"%s",
 						  "titleBn":"পরীক্ষা",
 						  "descriptionEn":"d",
@@ -330,6 +347,17 @@ class LiveRosterIT extends PostgresIntegrationTest {
 	}
 
 	private record Student(UUID id, String phone, String email, String token) {
+	}
+
+	@TestConfiguration
+	static class ClockConfig {
+
+		@Bean
+		@Primary
+		MutableClock mutableClock() {
+			return new MutableClock(MORNING);
+		}
+
 	}
 
 }

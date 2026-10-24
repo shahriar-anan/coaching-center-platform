@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.coachingcenter.api.auth.StudentPhoneGuard;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.files.LocalFileStorage;
@@ -53,10 +54,14 @@ public class LiveExamSittingService {
 
 	private final Clock clock;
 
+	private final StudentPhoneGuard phones;
+
+	private final StudentNoticeWriter notices;
+
 	public LiveExamSittingService(LiveExamService exams, LiveExamRepository examRepository,
 			LiveExamQuestionRepository questions, LiveExamOptionRepository options,
 			LiveExamParticipantRepository participants, LiveExamAnswerRepository answers, LocalFileStorage files,
-			PdfCompressor pdfs, Clock clock) {
+			PdfCompressor pdfs, Clock clock, StudentPhoneGuard phones, StudentNoticeWriter notices) {
 		this.exams = exams;
 		this.examRepository = examRepository;
 		this.questions = questions;
@@ -66,6 +71,8 @@ public class LiveExamSittingService {
 		this.files = files;
 		this.pdfs = pdfs;
 		this.clock = clock;
+		this.phones = phones;
+		this.notices = notices;
 	}
 
 	@Transactional
@@ -88,14 +95,16 @@ public class LiveExamSittingService {
 		if (open && LiveExam.WRITTEN.equals(exam.getExamType()) && exam.getQuestionStoredFileName() != null) {
 			questionPdf = true;
 		}
-		return new StudentExam(shell.id(), shell.moduleId(), shell.examType(), shell.titleEn(), shell.titleBn(),
-				shell.descriptionEn(), shell.descriptionBn(), shell.rulesEn(), shell.rulesBn(), shell.liveAt(),
-				shell.endAt(), shell.durationMinutes(), shell.passPercent(), shell.maximum(), shell.status(),
-				shell.finallySaved(), questionPdf, questionViews);
+		return new StudentExam(shell.id(), shell.moduleId(), shell.examType(), shell.paperLanguage(), shell.titleEn(),
+				shell.titleBn(), shell.descriptionEn(), shell.descriptionBn(), shell.rulesEn(), shell.rulesBn(),
+				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shell.passPercent(), shell.maximum(),
+				shell.status(), shell.finallySaved(), shell.price(), questionPdf, questionViews, shell.myStatus(),
+				shell.retakeAvailable());
 	}
 
 	@Transactional
 	public TakeView take(UUID examId, UUID studentId, JsonNode ignored) {
+		phones.require(studentId);
 		exams.get(examId, false, studentId);
 		lockExam(examId);
 		LiveExam exam = requireExam(examId);
@@ -109,7 +118,7 @@ public class LiveExamSittingService {
 			return takeView(existing);
 		}
 		Instant end = end(exam);
-		if (now.isBefore(exam.getLiveAt()) || !now.isBefore(end)) {
+		if (exam.getLiveAt() == null || now.isBefore(exam.getLiveAt()) || !now.isBefore(end)) {
 			throw notOpen();
 		}
 		LiveExamParticipant participant = start(exam, studentId, LiveExamParticipant.LIVE, now, end);
@@ -118,15 +127,20 @@ public class LiveExamSittingService {
 
 	@Transactional
 	public TakeView retake(UUID examId, UUID studentId) {
+		phones.require(studentId);
 		exams.get(examId, false, studentId);
 		lockExam(examId);
 		LiveExam exam = requireExam(examId);
+		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+			throw new ApiException(ErrorCode.RETAKE_NOT_ALLOWED, HttpStatus.CONFLICT,
+					"A written exam has no later attempt.");
+		}
 		if (participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId).isPresent()) {
 			throw new ApiException(ErrorCode.RETAKE_NOT_ALLOWED, HttpStatus.CONFLICT,
 					"A live participant cannot retake, and a retake can be taken once.");
 		}
 		Instant now = clock.instant();
-		if (now.isBefore(end(exam))) {
+		if (exam.getLiveAt() == null || now.isBefore(end(exam))) {
 			throw notOpen();
 		}
 		LiveExamParticipant participant = start(exam, studentId, LiveExamParticipant.RETAKE, now,
@@ -204,9 +218,20 @@ public class LiveExamSittingService {
 		boolean review = !clock.instant().isBefore(participant.getDeadlineAt());
 		List<StudentQuestion> questionViews = review && LiveExam.MCQ.equals(exam.getExamType())
 				? questionViews(examId, participant.getId(), true) : null;
+		Integer score = participant.getScore();
+		Boolean passed = participant.getPassed();
+		String comment = participant.getComment();
 		Boolean evaluatedPdf = participant.getEvaluatedStoredFileName() == null ? null : Boolean.TRUE;
-		return new ReviewedResult(participant.getScore(), maximum(exam), participant.getPassed(), participant.getStatus(),
-				questionViews, participant.getComment(), evaluatedPdf);
+		if (LiveExam.WRITTEN.equals(exam.getExamType())
+				&& !LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())
+				&& participant.getPublishedAt() == null) {
+			score = null;
+			passed = null;
+			comment = null;
+			evaluatedPdf = null;
+		}
+		return new ReviewedResult(score, maximum(exam), passed, participant.getStatus(), questionViews, comment,
+				evaluatedPdf);
 	}
 
 	@Transactional
@@ -293,7 +318,7 @@ public class LiveExamSittingService {
 			return;
 		}
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
-			scoreMcq(participant, exam);
+			scoreMcq(participant, exam, false);
 		}
 	}
 
@@ -310,10 +335,10 @@ public class LiveExamSittingService {
 			}
 			return;
 		}
-		scoreMcq(participant, exam);
+		scoreMcq(participant, exam, true);
 	}
 
-	private void scoreMcq(LiveExamParticipant participant, LiveExam exam) {
+	private void scoreMcq(LiveExamParticipant participant, LiveExam exam, boolean writeNotice) {
 		int score = 0;
 		boolean answered = false;
 		Map<UUID, UUID> correct = correctOptions(exam.getId());
@@ -327,11 +352,21 @@ public class LiveExamSittingService {
 		participant.setScore(score);
 		participant.setPassed(answered && passed(score, exam));
 		participant.setStatus(LiveExamParticipant.SUBMITTED);
+		if (writeNotice) {
+			notices.mcqScore(participant.getStudentId(), exam.getId(), participant.getId());
+		}
 	}
 
 	private PostedResult posted(LiveExamParticipant participant, LiveExam exam) {
-		return new PostedResult(participant.getId(), participant.getScore(), maximum(exam), participant.getPassed(),
-				participant.getStatus());
+		Integer score = participant.getScore();
+		Boolean passed = participant.getPassed();
+		if (LiveExam.WRITTEN.equals(exam.getExamType())
+				&& !LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())
+				&& participant.getPublishedAt() == null) {
+			score = null;
+			passed = null;
+		}
+		return new PostedResult(participant.getId(), score, maximum(exam), passed, participant.getStatus());
 	}
 
 	private boolean passed(int score, LiveExam exam) {
@@ -454,6 +489,9 @@ public class LiveExamSittingService {
 	}
 
 	private static Instant end(LiveExam exam) {
+		if (exam.getLiveAt() == null) {
+			return null;
+		}
 		return exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes()));
 	}
 
@@ -473,10 +511,11 @@ public class LiveExamSittingService {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
 
-	public record StudentExam(UUID id, UUID moduleId, String examType, String titleEn, String titleBn,
-			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt, String endAt,
-			int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved, Boolean questionPdf,
-			List<StudentQuestion> questions) {
+	public record StudentExam(UUID id, UUID moduleId, String examType, String paperLanguage, String titleEn,
+			String titleBn, String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt,
+			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
+			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
+			Boolean retakeAvailable) {
 	}
 
 	public record StudentQuestion(UUID id, String stem, int marks, String explanation, List<StudentOption> options) {

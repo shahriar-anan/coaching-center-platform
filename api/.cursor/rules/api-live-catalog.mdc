@@ -5,6 +5,8 @@ alwaysApply: false
 
 # api-live-catalog
 
+**Outdated (2026-10-23):** access for this delivery is `MANUAL` only. Public catalog reads do not use that limit.
+
 Categories are an unlimited tree with Bangla and English titles. A module has both titles, both descriptions, one category, and status draft or published. Access for this delivery is `MANUAL`.
 
 Each change stores a draft. Publish requires a final save. Students receive published modules only. Delete is Master Admin only.

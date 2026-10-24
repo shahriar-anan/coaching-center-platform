@@ -6,4 +6,8 @@ public interface EmailSender {
 
 	void sendPasswordReset(String to, String code);
 
+	void sendPasswordChanged(String to);
+
+	void sendActivation(String to, String code);
+
 }

@@ -38,12 +38,14 @@ public class LiveExamModuleController {
 	@PostMapping("/api/v1/live-exam-modules")
 	public ResponseEntity<LiveExamModuleService.ModuleView> create(@RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
+		requirePricePermission(body);
 		return ResponseEntity.status(HttpStatus.CREATED).body(modules.create(body));
 	}
 
 	@PatchMapping("/api/v1/live-exam-modules/{id}")
 	public LiveExamModuleService.ModuleView update(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
+		requirePricePermission(body);
 		return modules.update(id, body);
 	}
 
@@ -101,6 +103,12 @@ public class LiveExamModuleController {
 
 	private void require(String permission) {
 		if (!permissions.has(permission)) {
+			throw denied();
+		}
+	}
+
+	private void requirePricePermission(JsonNode body) {
+		if (body.has("price") && !permissions.has(Permissions.EXAM_PRICE)) {
 			throw denied();
 		}
 	}

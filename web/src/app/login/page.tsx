@@ -19,9 +19,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (session.status === "authenticated") {
-      router.replace("/students");
+      router.replace(session.user.role === "STUDENT" ? "/account" : "/students");
     }
-  }, [session.status, router]);
+  }, [session, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -92,8 +92,14 @@ export default function LoginPage() {
             {submitting ? t("common.loading") : t("auth.submit")}
           </button>
         </form>
-        <p className="mt-4 text-sm">
-          <Link href="/activate" className="text-zinc-700 underline">
+        <p className="mt-4 space-y-2 text-sm">
+          <Link href="/register" className="block text-zinc-700 underline">
+            {t("auth.createAccount")}
+          </Link>
+          <Link href="/forgot-password" className="block text-zinc-700 underline">
+            {t("auth.forgotPassword")}
+          </Link>
+          <Link href="/activate" className="block text-zinc-700 underline">
             {t("auth.activateLink")}
           </Link>
         </p>

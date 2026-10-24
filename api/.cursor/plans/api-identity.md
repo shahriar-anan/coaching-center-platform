@@ -8,6 +8,8 @@ Required test cases are in [api-identity.md](../tests/api-identity.md).
 
 Do not start a later slice until the previous slice's checks exist. Do not build courses, batches, enrollments, content, exams, attendance, payments, library, notices, push delivery, file storage, analytics, Google sign-in, SMS OTP, or deployment automation.
 
+**Outdated as a product ban (2026-10-23):** Google sign-in stays out. It was out of this completed stage. It is a later exam-site segment. Do not reopen these slices to add it.
+
 ## Already on the classpath
 
 Spring Boot 4.1.1, Java 21, Maven, Security, JPA, Flyway, validation, actuator, PostgreSQL driver. Do not replace these.
@@ -83,6 +85,8 @@ Endpoints and permissions are spec Sections 8.2 and 8.3.
 If no `MASTER_ADMIN` row exists, create exactly one from environment variables for phone, email, name, and initial password. Store only the password hash.
 
 If one exists, do not create another and do not overwrite the password.
+
+Later: add a seeder that drops the database and populates it again on every run. The `*IT` suite shares one PostgreSQL database, so leftover `MASTER_ADMIN` rows make `BootstrapIT` count more than the one bootstrap account (the `api` workflow on `catalog-acquisition` saw 82). The seeder gives bootstrap an empty database, so the next bootstrap pass does not have to delete those rows table by table.
 
 ## Slice 7 — OpenAPI and audit
 

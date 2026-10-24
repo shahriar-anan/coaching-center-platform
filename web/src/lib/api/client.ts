@@ -159,6 +159,45 @@ export const api = {
     });
   },
 
+  register(body: { fullName: string; phone: string; email: string; password: string }) {
+    return apiRequest<import("@/lib/api/types").MeView>("/api/v1/auth/register", {
+      method: "POST",
+      body,
+      skipAuthRetry: true,
+    });
+  },
+
+  forgotPassword(email: string) {
+    return apiRequest<{ message: string }>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+      skipAuthRetry: true,
+    });
+  },
+
+  resetPassword(code: string, password: string) {
+    return apiRequest<void>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: { code, password },
+      skipAuthRetry: true,
+    });
+  },
+
+  resendVerification(email: string) {
+    return apiRequest<{ message: string }>("/api/v1/auth/verify-email/resend", {
+      method: "POST",
+      body: { email },
+      skipAuthRetry: true,
+    });
+  },
+
+  changePassword(currentPassword: string, newPassword: string) {
+    return apiRequest<void>("/api/v1/auth/change-password", {
+      method: "POST",
+      body: { currentPassword, newPassword },
+    });
+  },
+
   me() {
     return apiRequest<import("@/lib/api/types").MeView>("/api/v1/me");
   },

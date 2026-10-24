@@ -13,4 +13,8 @@ A written answer is one PDF, 80 MB, compressed, latest file only. No stored PDF 
 
 One retake exists only for a student who never tapped during the live window. A live participant cannot start it. The retake is not on the live leaderboard.
 
-Slice 2: an early submit does not freeze answers. The deadline posts without a student submit call. The question PDF is an inline website view only during that sitting, and only while the student is still marked and the module is still published. Roster removal leaves the result readable and stops the question PDF.
+Slice 2: an early submit does not freeze answers. The deadline posts without a student submit call. The question PDF is an inline website view only during that sitting. **Outdated:** the student must still be roster-marked. A purchase grant also allows the bytes. Roster removal leaves the result readable and stops the question PDF.
+
+**Outdated:** the routine includes only roster-marked modules. A purchase grant is included too.
+
+Slice 3: `GET /api/v1/me/exam-routine` lists that student's published exams whose live window has not ended, across every marked module, soonest first. The read does not create a participant. An ended exam leaves the routine and stays on the module exam list for a retake. Archive and roster removal drop the row and leave a posted result readable. This is not the course routine and adds no table.

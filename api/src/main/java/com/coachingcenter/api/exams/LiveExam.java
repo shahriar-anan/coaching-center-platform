@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,6 +21,10 @@ public class LiveExam extends BaseEntity {
 	public static final String DRAFT = "DRAFT";
 
 	public static final String PUBLISHED = "PUBLISHED";
+
+	public static final String BN = "BN";
+
+	public static final String EN = "EN";
 
 	@Column(name = "module_id", nullable = false)
 	private UUID moduleId;
@@ -45,7 +50,10 @@ public class LiveExam extends BaseEntity {
 	@Column(name = "rules_bn", nullable = false, columnDefinition = "TEXT")
 	private String rulesBn;
 
-	@Column(name = "live_at", nullable = false)
+	@Column(name = "paper_language", nullable = false, length = 2)
+	private String paperLanguage;
+
+	@Column(name = "live_at")
 	private Instant liveAt;
 
 	@Column(name = "duration_minutes", nullable = false)
@@ -74,6 +82,9 @@ public class LiveExam extends BaseEntity {
 
 	@Column(name = "finally_saved", nullable = false)
 	private boolean finallySaved;
+
+	@Column(precision = 12, scale = 2)
+	private BigDecimal price;
 
 	public UUID getModuleId() {
 		return moduleId;
@@ -137,6 +148,14 @@ public class LiveExam extends BaseEntity {
 
 	public void setRulesBn(String rulesBn) {
 		this.rulesBn = rulesBn;
+	}
+
+	public String getPaperLanguage() {
+		return paperLanguage;
+	}
+
+	public void setPaperLanguage(String paperLanguage) {
+		this.paperLanguage = paperLanguage;
 	}
 
 	public Instant getLiveAt() {
@@ -217,6 +236,14 @@ public class LiveExam extends BaseEntity {
 
 	public void setFinallySaved(boolean finallySaved) {
 		this.finallySaved = finallySaved;
+	}
+
+	public BigDecimal getPrice() {
+		return price;
+	}
+
+	public void setPrice(BigDecimal price) {
+		this.price = price;
 	}
 
 }

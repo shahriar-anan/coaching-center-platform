@@ -4,15 +4,19 @@
 
 **Depends on:** Phase 1 identity and Phase 2's manual-payment and category patterns, which stay as they are. This phase does not redesign them.
 
+**Outdated:** this phase is API-only, and exam screens must not be built. The API stage is finished. The student website and basic operate screens are in the later execution order.
+
 **This phase is the API.** Student and admin screens are a later delivery. They are listed in Section 12 so the API can serve them. Do not build those screens in an API stage.
 
 The PRD is not a source for these rules.
+
+**Outdated (2026-10-23).** The paragraphs marked outdated below are not the forward requirement. The text is left in place as the record of what this phase shipped. Still in force: one retake only when the student never tapped Take exam during the live window, immediate MCQ scores, MCQ as structured text, written as one PDF, one instructor per module, bilingual catalog titles and descriptions, and the Master Admin roster as a grant. Outdated as the forward rule: API-only with no screens, roster as the only way to see a module, `MANUAL` as the only access mode, no payment gateway, no notices, and the student seeing a written mark as soon as the instructor saves.
 
 ---
 
 ## 1. What this phase is
 
-A Master Admin or a System Admin organizes exams in a category tree, publishes exam modules, and puts MCQ exams and written exams inside a module. The Master Admin marks which students may see a module. At a published live time the exam starts for every eligible student at once. When that window ends the exam stays published. A student who never tapped Take exam during that window may take it once later, on a personal timer, off the live leaderboard.
+A Master Admin or a System Admin organizes exams in a category tree, publishes exam modules, and puts MCQ exams and written exams inside a module. **Outdated:** the Master Admin roster is the only way a student may see a module. A public catalog read does not require a roster row. The roster remains a grant to take the exam. The Master Admin marks which students may see a module. At a published live time the exam starts for every eligible student at once. When that window ends the exam stays published. A student who never tapped Take exam during that window may take it once later, on a personal timer, off the live leaderboard.
 
 MCQ scores are automatic. Written papers are marked by one instructor assigned to the module, or by the Master Admin.
 
@@ -41,6 +45,8 @@ Archive keeps the record for Master Admin and System Admin. It can archive a cat
 A module is placed under one category, at any depth, including directly under a top-level category. The same category may hold more than one module.
 
 A module has a Bangla title, an English title, a Bangla description, and an English description. Creating or editing it stores a draft on each change. A final save is a separate step. Publish comes after that final save. Students see a published module only.
+
+**Outdated:** `MANUAL` is the only access mode, and a module has no purchase. Per-exam purchase and full-module purchase are in the later execution order. The roster grant stays.
 
 The current client uses access mode `MANUAL` only. `OPEN`, `ENROLLED_ONLY`, and `PURCHASE_REQUIRED` remain in the product for a later LMS and are not the path for this delivery. A `MANUAL` module has no course link and no purchase.
 
@@ -79,6 +85,8 @@ Questions are entered one by one. Each has a stem, two or more options, one corr
 
 ### 4.3 Written question paper
 
+**Outdated:** the roster mark is the only access check for the question PDF. A purchase grant also allows the sitting.
+
 One PDF, uploaded by a Master Admin or a System Admin. It locks at the live instant. It is not a file download. After Take exam, and until that sitting's deadline, the website may show it inline to that participant, and only while the student is still marked and the module is still published. The response is inline, is not cached, and may be framed only by the website. Before the tap, after the deadline, after the roster row is removed, and after the module is archived or unpublished, the bytes are rejected.
 
 ---
@@ -89,7 +97,7 @@ Only a Master Admin changes the roster. A System Admin receives `403`.
 
 The admin searches registered students by email, phone, or name. Email and phone each match one account. A name may match several. The result shows phone and email, and the admin marks one account. A pasted list accepts email and phone only. Each exact match is marked. A value with no account is shown back and left unmarked.
 
-A marked student can see and take every published exam in that module. A student who is not marked does not see the module.
+A marked student can see and take every published exam in that module. **Outdated:** a student who is not marked does not see the module. Seeing the published catalog does not require a roster row. Taking the exam still requires a roster grant or a purchase grant. A student who is not marked does not see the module.
 
 Tapping Take exam creates the participant row. Removing a student after that tap does not delete the participant row or its result.
 
@@ -121,6 +129,16 @@ The student writes on paper, scans one PDF, and uploads it during the sitting.
 - If the deadline arrives with no fully stored PDF, the status is failed to submit. The score is zero, the student fails, and a live participant is on the live leaderboard. The instructor can see that row and does not mark it.
 - After the deadline the sheet is locked.
 
+### 6.3 Exam routine
+
+The routine is the student's timetable of live windows that have not ended. It is not a stored schedule, not text in the exam rules or description, and not the weekly course routine.
+
+One read returns the published exams across every module that student is marked on, soonest live instant first. A row carries the exam, its type, both exam titles, the module and both module titles, the category path from the root, the live instant, the end, and the duration. It does not carry the description, the rules, the questions, or the question PDF.
+
+An exam stays on the routine while its end is still ahead of the server clock, including an exam that has already started. When the end is reached it leaves the routine. It stays on the module's exam list, and an eligible student can still open it and retake it. A retake is not a row on the routine.
+
+Reading the routine does not create a participant. A student who is not marked does not see that module. An archived module, or a module under an archived category, is absent. The course routine is unchanged.
+
 ---
 
 ## 7. Evaluation
@@ -137,13 +155,13 @@ A System Admin does not evaluate. A System Admin can read who saved the latest e
 
 The marker enters the marks obtained, from 0 through the exam maximum, and may enter a comment. The comment is optional. The marker uploads the evaluated PDF under the same 80 MB compressed-PDF rule.
 
-Saving requires the marks and the evaluated PDF. The student then sees the marks, pass or fail, the comment when one was entered, and the evaluated PDF. The student does not see who evaluated the paper. The admin panel shows the Master Admin or the assigned instructor who saved the latest evaluation.
+Saving requires the marks and the evaluated PDF. **Outdated:** the student sees the written result on save. The save is a draft until the Master Admin publishes. The student does not see the marks, the comment, or the evaluated PDF before that. The student then sees the marks, pass or fail, the comment when one was entered, and the evaluated PDF. The student does not see who evaluated the paper. The admin panel shows the Master Admin or the assigned instructor who saved the latest evaluation.
 
 A later save by that instructor, or by the Master Admin, replaces the marks, the comment, and the evaluated PDF. The previous evaluated file is deleted. Pass or fail and the live leaderboard are recalculated.
 
 The one retake is marked the same way and stays off the live leaderboard.
 
-A written live leaderboard includes a no-submit zero from the deadline. A submitted PDF stays off that board until a mark is saved, then the rank updates.
+A written live leaderboard includes a no-submit zero from the deadline. **Outdated:** a submitted PDF joins the board when the mark is saved. It joins when the Master Admin publishes. A submitted PDF stays off that board until a mark is saved, then the rank updates.
 
 ---
 
@@ -166,27 +184,34 @@ A student who never tapped Take exam during the live window is left off the live
 | Evaluate a written paper | yes, any module | no | assigned module only | no |
 | See evaluator name | yes | yes | yes | no |
 | Take a published exam | no | no | no | when marked on the module |
+| Read the exam routine | no | no | no | marked modules, windows that have not ended |
+
+**Outdated:** the last two rows treat a roster mark as the only grant. A purchase grant also allows take and the routine. A public catalog read is separate and does not require either grant.
 
 ---
 
 ## 10. What stays out
 
+**Outdated:** notices and a payment gateway are in the list below. Website inbox notices and SSLCommerz purchase are in the later execution order. The rest of the list stays out.
+
 Shuffling, negative marking, partial credit, a second correct option, extra live attempts, a second retake, a weighted score, a question bank, photo answer pages, a paper that is both MCQ and written, batches, notices, a payment gateway, and proctoring.
 
-Do not put an exam node on a course content tree.
+Do not put an exam node on a course content tree. Do not add a second exam schedule, a weekly exam slot, or a room on the exam. The course routine stays the weekly class timetable.
 
 ---
 
 ## 11. Schema
 
-The previous exam tables (`exam_modules` through `question_banks`, Flyway `V14`–`V23`) stay in place. Do not bend them into this model. New tables start at Flyway `V24`. Package: `com.coachingcenter.api.exams`.
+The previous exam tables (`exam_modules` through `question_banks`, Flyway `V14`–`V23`) stay in place. Do not bend them into this model. New tables start at Flyway `V24`. Package: `com.coachingcenter.api.exams`. The exam routine adds no table.
 
 ---
 
 ## 12. Surfaces the API must be able to serve
 
-These are not built in this phase.
+**Outdated:** these screens stay unbuilt. The student website is in the later execution order.
 
-**Student site:** home, login, the list of published exams in marked modules, an MCQ sitting, a written PDF upload, the score, the answer review after the sitting ends, and the live leaderboard when it is open.
+These screens are not built in this phase.
+
+**Student site:** home, login, the exam routine across marked modules, the list of published exams in a module, an MCQ sitting, a written PDF upload, the score, the answer review after the sitting ends, and the live leaderboard when it is open. The routine screen is not built in this phase. The read that feeds it is.
 
 **Admin panel:** category tree, module and exam draft / final save / publish, roster search and paste, instructor accounts and the one assignment per module, and written evaluation with the evaluator visible only there.

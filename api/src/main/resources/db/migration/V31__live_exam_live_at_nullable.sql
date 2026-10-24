@@ -1,0 +1,1 @@
+ALTER TABLE live_exams ALTER COLUMN live_at DROP NOT NULL;

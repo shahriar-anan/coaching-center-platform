@@ -5,6 +5,8 @@ alwaysApply: false
 
 # api-live-roster
 
+**Outdated (2026-10-23):** a student sees a module only when marked. The roster grant and the Master Admin-only edit stay.
+
 Only a Master Admin changes the roster. Email or phone selects one account. A name search returns the matches with phone and email, and one account is marked. A paste is email and phone only. Unknown values are returned and not marked.
 
 A marked student sees published exams in that module. Drafts stay hidden. A System Admin mark returns `403`.

@@ -1,5 +1,7 @@
 # api-live-catalog
 
+**Outdated (2026-10-23):** access mode for this delivery is `MANUAL` only. Public catalog reads and purchase are later work. The rest of this stage record stands, including bilingual titles, draft then publish, and students not seeing drafts.
+
 Stage 1 of the live exam plan. Spec: `docs/phases/phase-3/phase-3-scope.md` Sections 2 and 3. Tests: `api/.cursor/tests/api-live-catalog.md`. Rule: `api/.cursor/rules/api-live-catalog.mdc`.
 
 Do not build exams, the roster, sittings, or evaluation in this stage. Do not add rows to the previous `exam_modules` or `exam_nodes` tables for this model.

@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.coachingcenter.api.common.persistence.BaseEntity;
@@ -46,6 +47,9 @@ public class LiveExamModule extends BaseEntity {
 
 	@Column(nullable = false)
 	private int position;
+
+	@Column(precision = 12, scale = 2)
+	private BigDecimal price;
 
 	public UUID getCategoryId() {
 		return categoryId;
@@ -117,6 +121,14 @@ public class LiveExamModule extends BaseEntity {
 
 	public void setPosition(int position) {
 		this.position = position;
+	}
+
+	public BigDecimal getPrice() {
+		return price;
+	}
+
+	public void setPrice(BigDecimal price) {
+		this.price = price;
 	}
 
 }

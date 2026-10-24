@@ -39,7 +39,9 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	public ResponseEntity<ApiError> apiException(ApiException exception, HttpServletRequest request) {
-		return body(exception.status(), exception.code(), exception.getMessage(), null, request);
+		ApiError error = ApiError.of(exception.code(), exception.getMessage(), RequestIds.current(request),
+				exception.orderId(), exception.tranId());
+		return ResponseEntity.status(exception.status()).body(error);
 	}
 
 	@ExceptionHandler(MasterAdminProtectedException.class)

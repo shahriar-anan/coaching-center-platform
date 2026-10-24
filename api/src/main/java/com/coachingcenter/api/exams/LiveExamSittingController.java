@@ -2,6 +2,8 @@ package com.coachingcenter.api.exams;
 
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,6 +23,7 @@ import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.web.PageResponse;
 
 import tools.jackson.databind.JsonNode;
 
@@ -29,15 +32,24 @@ public class LiveExamSittingController {
 
 	private final LiveExamSittingService sittings;
 
+	private final LiveExamService exams;
+
 	private final PermissionChecker permissions;
 
 	private final AppProperties appProperties;
 
-	public LiveExamSittingController(LiveExamSittingService sittings, PermissionChecker permissions,
+	public LiveExamSittingController(LiveExamSittingService sittings, LiveExamService exams, PermissionChecker permissions,
 			AppProperties appProperties) {
 		this.sittings = sittings;
+		this.exams = exams;
 		this.permissions = permissions;
 		this.appProperties = appProperties;
+	}
+
+	@GetMapping("/api/v1/me/exam-routine")
+	public PageResponse<LiveExamService.RoutineView> routine(@PageableDefault(size = 20) Pageable pageable) {
+		requireStudent();
+		return PageResponse.from(exams.routine(actorId(), pageable));
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/take")

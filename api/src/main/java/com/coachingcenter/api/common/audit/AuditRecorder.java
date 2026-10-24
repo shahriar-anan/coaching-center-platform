@@ -19,6 +19,10 @@ public class AuditRecorder {
 
 	public static final String PASSWORD_RESET = "PASSWORD_RESET";
 
+	public static final String GOOGLE_ACCOUNT_CREATED = "GOOGLE_ACCOUNT_CREATED";
+
+	public static final String GOOGLE_ACCOUNT_LINKED = "GOOGLE_ACCOUNT_LINKED";
+
 	public static final String COURSE_DELETE = "COURSE_DELETE";
 
 	public static final String COURSE_ARCHIVE = "COURSE_ARCHIVE";
@@ -74,6 +78,14 @@ public class AuditRecorder {
 	public static final String LIVE_EXAM_MODULE_ARCHIVE = "LIVE_EXAM_MODULE_ARCHIVE";
 
 	public static final String LIVE_EXAM_MODULE_ENTITY = "LIVE_EXAM_MODULE";
+
+	public static final String LIVE_EXAM_DELETE = "LIVE_EXAM_DELETE";
+
+	public static final String LIVE_EXAM_QUESTION_DELETE = "LIVE_EXAM_QUESTION_DELETE";
+
+	public static final String LIVE_EXAM_ENTITY = "LIVE_EXAM";
+
+	public static final String LIVE_EXAM_INSTRUCTOR_UNASSIGN = "LIVE_EXAM_INSTRUCTOR_UNASSIGN";
 
 	private final AuditLogRepository auditLogs;
 

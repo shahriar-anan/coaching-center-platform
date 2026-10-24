@@ -18,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.coachingcenter.api.auth.Role;
 import com.coachingcenter.api.auth.permission.CurrentActor;
+import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.files.LocalFileStorage;
@@ -55,11 +56,15 @@ public class LiveExamEvaluationService {
 
 	private final Clock clock;
 
+	private final AuditRecorder audit;
+
+	private final StudentNoticeWriter notices;
+
 	public LiveExamEvaluationService(LiveExamRepository exams, LiveExamModuleRepository modules,
 			LiveExamParticipantRepository participants, LiveExamInstructorRepository instructors,
 			LiveExamQuestionRepository questions, LiveExamService examViews, LiveExamSittingService sittings,
 			UserRepository users, StudentProfileRepository students, AdminProfileRepository admins, LocalFileStorage files,
-			PdfCompressor pdfs, Clock clock) {
+			PdfCompressor pdfs, Clock clock, AuditRecorder audit, StudentNoticeWriter notices) {
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
@@ -73,6 +78,8 @@ public class LiveExamEvaluationService {
 		this.files = files;
 		this.pdfs = pdfs;
 		this.clock = clock;
+		this.audit = audit;
+		this.notices = notices;
 	}
 
 	@Transactional
@@ -94,6 +101,18 @@ public class LiveExamEvaluationService {
 		row.setAssignedAt(clock.instant());
 		instructors.save(row);
 		return new Assignment(moduleId, instructorId);
+	}
+
+	@Transactional
+	public void unassign(UUID moduleId) {
+		if (modules.findByIdAndDeletedAtIsNull(moduleId).isEmpty()) {
+			throw notFound();
+		}
+		if (!instructors.existsById(moduleId)) {
+			throw notFound();
+		}
+		instructors.deleteById(moduleId);
+		audit.record(AuditRecorder.LIVE_EXAM_INSTRUCTOR_UNASSIGN, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, moduleId);
 	}
 
 	@Transactional
@@ -172,7 +191,34 @@ public class LiveExamEvaluationService {
 		participant.setEvaluatedOriginalFileName(stored.originalFileName());
 		participant.setEvaluatedByteSize(stored.byteSize());
 		participant.setEvaluatedContentType("application/pdf");
+		participant.setPublishedAt(null);
 		files.commitReplacement(stored.storedFileName(), previous);
+		return view(participant, exam);
+	}
+
+	@Transactional
+	public SubmissionView publish(UUID participantId, CurrentActor actor) {
+		if (actor.role() != Role.MASTER_ADMIN) {
+			throw denied();
+		}
+		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
+		if (participant.getDeletedAt() != null) {
+			throw notFound();
+		}
+		LiveExam exam = requireExam(participant.getExamId());
+		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
+			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is published.");
+		}
+		sittings.settleParticipant(participantId);
+		if (!LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || participant.getAnswerStoredFileName() == null
+				|| participant.getEvaluatedAt() == null || participant.getScore() == null) {
+			throw new ApiException(ErrorCode.EVALUATION_NOT_ALLOWED, HttpStatus.CONFLICT,
+					"A draft mark is required before publish.");
+		}
+		if (participant.getPublishedAt() == null) {
+			participant.setPublishedAt(clock.instant());
+			notices.writtenResult(participant.getStudentId(), exam.getId(), participant.getId(), participant.getPublishedAt());
+		}
 		return view(participant, exam);
 	}
 
@@ -184,6 +230,9 @@ public class LiveExamEvaluationService {
 		}
 		else {
 			examViews.get(examId, false, actor.userId());
+		}
+		if (exam.getLiveAt() == null) {
+			return new Leaderboard(List.of());
 		}
 		Instant openAt = exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes())).plus(Duration.ofMinutes(5));
 		if (clock.instant().isBefore(openAt)) {
@@ -202,9 +251,9 @@ public class LiveExamEvaluationService {
 				}
 			}
 			else if (LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())) {
-				// A missing PDF is already scored zero.
+				// A missing PDF is already scored zero and does not wait for publish.
 			}
-			else if (participant.getEvaluatedAt() == null || participant.getScore() == null) {
+			else if (participant.getPublishedAt() == null || participant.getScore() == null) {
 				continue;
 			}
 			scored.add(new BoardRow(studentName(participant.getStudentId()), participant.getScore(), maximum,
@@ -248,7 +297,7 @@ public class LiveExamEvaluationService {
 	public byte[] evaluatedPdf(UUID examId, UUID studentId) {
 		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
 			.orElseThrow(this::notFound);
-		if (participant.getEvaluatedStoredFileName() == null) {
+		if (participant.getPublishedAt() == null || participant.getEvaluatedStoredFileName() == null) {
 			throw notFound();
 		}
 		try {
@@ -267,7 +316,8 @@ public class LiveExamEvaluationService {
 		return new SubmissionView(participant.getId(), exam.getId(), participant.getStudentId(),
 				studentName(participant.getStudentId()), participant.getStatus(), participant.getScore(), maximum(exam),
 				participant.getPassed(), participant.getKind(), participant.getAnswerStoredFileName() != null,
-				participant.getEvaluatedStoredFileName() == null ? null : Boolean.TRUE, evaluatorName);
+				participant.getEvaluatedStoredFileName() == null ? null : Boolean.TRUE, evaluatorName,
+				participant.getPublishedAt() != null);
 	}
 
 	private void requireMarker(UUID moduleId, CurrentActor actor) {
@@ -338,7 +388,8 @@ public class LiveExamEvaluationService {
 	}
 
 	public record SubmissionView(UUID id, UUID examId, UUID studentId, String studentName, String status, Integer score,
-			int maximum, Boolean passed, String kind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName) {
+			int maximum, Boolean passed, String kind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
+			boolean published) {
 	}
 
 	public record Leaderboard(List<LeaderboardRow> rows) {

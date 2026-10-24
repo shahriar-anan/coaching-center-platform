@@ -42,6 +42,17 @@ public class SecurityConfig {
 						"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/forgot-password",
 						"/api/v1/auth/reset-password", "/api/v1/auth/verify-email", "/api/v1/auth/verify-email/resend")
 				.permitAll()
+				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/auth/google",
+						"/api/v1/auth/google/callback")
+				.permitAll()
+				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/public/**").permitAll()
+				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/live-exam-orders/*/return").permitAll()
+				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/live-exam-orders/*/return",
+						"/api/v1/live-exam-orders/*/ipn")
+				.permitAll()
+				// Remove or leave disabled after go-live. The handler exists only when MAIL_TEST_ENABLED=true.
+				// With no handler, this permitted path is a 404.
+				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/admin/mail-test").permitAll()
 				.anyRequest()
 				.authenticated());
 		return http.build();

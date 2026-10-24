@@ -76,6 +76,34 @@ class EmailVerificationIT extends PostgresIntegrationTest {
 			.andExpect(status().isNoContent());
 	}
 
+	@Test
+	void issuedCodesAreEightCharacterTokensRatherThanNumericOtps() throws Exception {
+		String email = "shape-" + java.util.UUID.randomUUID() + "@example.com";
+		String phone = uniquePhone();
+		mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"fullName":"Shape User","phone":"%s","email":"%s","password":"password1"}
+					""".formatted(phone, email)))
+			.andExpect(status().isCreated());
+		assertToken(emails.latestVerification(email));
+
+		mockMvc.perform(post("/api/v1/auth/forgot-password").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"email\":\"" + email + "\"}"))
+			.andExpect(status().isOk());
+		String reset = emails.latestReset(email);
+		assertToken(reset);
+		mockMvc.perform(post("/api/v1/auth/reset-password").contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"code":"%s","password":"password2"}
+					""".formatted(reset)))
+			.andExpect(status().isNoContent());
+	}
+
+	private static void assertToken(String code) {
+		assertThat(code).matches("[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}");
+		assertThat(code).doesNotMatch("\\d{4,8}");
+	}
+
 	private static String json(MvcResult result, String field) throws Exception {
 		String body = result.getResponse().getContentAsString();
 		String marker = "\"" + field + "\":\"";

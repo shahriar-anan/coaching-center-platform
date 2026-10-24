@@ -1,8 +1,10 @@
 package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -73,6 +75,9 @@ class LiveSittingIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private LiveExamSittingService sittings;
+
+	@Autowired
+	private LiveExamDeadlineJob deadlineJob;
 
 	@BeforeEach
 	void setClock() {
@@ -428,6 +433,276 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theDeadlineJobPostsMcqSittingsWithoutAnyRead() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		UUID blankId = seed("STUDENT");
+		String saved = token(holder.studentId());
+		String blank = token(blankId);
+		mark(master, holder.moduleId(), holder.studentId());
+		mark(master, holder.moduleId(), blankId);
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		for (String student : new String[] { saved, blank }) {
+			mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + student)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+				.andExpect(status().isOk());
+		}
+		save(saved, holder.examId(), holder.questions().subList(0, 2));
+
+		deadlineJob.settleDue();
+		assertThat(submittedAt(holder.examId(), holder.studentId())).isNull();
+		assertThat(submittedAt(holder.examId(), blankId)).isNull();
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		deadlineJob.settleDue();
+
+		assertThat(sittingStatus(holder.examId(), holder.studentId())).isEqualTo("SUBMITTED");
+		assertThat(sittingScore(holder.examId(), holder.studentId())).isEqualTo(5);
+		assertThat(sittingStatus(holder.examId(), blankId)).isEqualTo("SUBMITTED");
+		assertThat(sittingScore(holder.examId(), blankId)).isZero();
+		assertThat(passed(holder.examId(), blankId)).isFalse();
+		Object firstPost = submittedAt(holder.examId(), holder.studentId());
+		assertThat(firstPost).isNotNull();
+
+		clock.set(Instant.parse("2026-10-20T06:55:00Z"));
+		deadlineJob.settleDue();
+		assertThat(submittedAt(holder.examId(), holder.studentId())).isEqualTo(firstPost);
+		assertThat(sittingScore(holder.examId(), holder.studentId())).isEqualTo(5);
+	}
+
+	@Test
+	void theDeadlineJobMarksAWrittenSittingWithoutAPdfAsFailedToSubmit() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Job written");
+		UUID exam = createWritten(staff, module);
+		UUID storedId = seed("STUDENT");
+		UUID missingId = seed("STUDENT");
+		mark(master, module, storedId);
+		mark(master, module, missingId);
+		String stored = token(storedId);
+		String missing = token(missingId);
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		for (String student : new String[] { stored, missing }) {
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+				.andExpect(status().isOk());
+		}
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "answer.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + stored))
+			.andExpect(status().isNoContent());
+
+		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		deadlineJob.settleDue();
+
+		assertThat(sittingStatus(exam, missingId)).isEqualTo("FAILED_TO_SUBMIT");
+		assertThat(sittingScore(exam, missingId)).isZero();
+		assertThat(sittingStatus(exam, storedId)).isEqualTo("SUBMITTED");
+		assertThat(new JdbcTemplate(dataSource).queryForObject(
+				"select score from live_exam_participants where exam_id = ? and student_id = ?", Integer.class, exam, storedId))
+			.isNull();
+	}
+
+	@Test
+	void theDeadlineJobSkipsADeletedSitting() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		new JdbcTemplate(dataSource).update(
+				"update live_exam_participants set deleted_at = now() where exam_id = ? and student_id = ?", holder.examId(),
+				holder.studentId());
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		deadlineJob.settleDue();
+
+		assertThat(submittedAt(holder.examId(), holder.studentId())).isNull();
+	}
+
+	@Test
+	void anMcqStatusFollowsTheSittingAndTheListTheDetailAndTheRoutineAgree() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		UUID otherId = seed("STUDENT");
+		String student = token(holder.studentId());
+		String other = token(otherId);
+		mark(master, holder.moduleId(), holder.studentId());
+		mark(master, holder.moduleId(), otherId);
+
+		assertThat(myStatus(student, holder.moduleId(), holder.examId())).isEqualTo("UPCOMING");
+		assertThat(detailStatus(student, holder.examId())).isEqualTo("UPCOMING");
+		assertThat(routineStatus(student, holder.examId())).isEqualTo("UPCOMING");
+
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		assertThat(myStatus(student, holder.moduleId(), holder.examId())).isEqualTo("OPEN");
+		assertThat(detailStatus(student, holder.examId())).isEqualTo("OPEN");
+		assertThat(routineStatus(student, holder.examId())).isEqualTo("OPEN");
+
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		assertThat(myStatus(student, holder.moduleId(), holder.examId())).isEqualTo("IN_PROGRESS");
+		assertThat(routineStatus(student, holder.examId())).isEqualTo("IN_PROGRESS");
+		assertThat(myStatus(other, holder.moduleId(), holder.examId())).isEqualTo("OPEN");
+
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+		assertThat(myStatus(student, holder.moduleId(), holder.examId())).isEqualTo("SUBMITTED");
+		assertThat(detailStatus(student, holder.examId())).isEqualTo("SUBMITTED");
+		assertThat(myStatus(other, holder.moduleId(), holder.examId())).isEqualTo("OPEN");
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		assertThat(myStatus(student, holder.moduleId(), holder.examId())).isEqualTo("RESULT_READY");
+		assertThat(detailStatus(student, holder.examId())).isEqualTo("RESULT_READY");
+		assertThat(myStatus(other, holder.moduleId(), holder.examId())).isEqualTo("MISSED");
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + holder.moduleId() + "/exams")
+			.header("Authorization", "Bearer " + other))
+			.andExpect(jsonPath("$.content[0].retakeAvailable").value(true));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + holder.moduleId() + "/exams")
+			.header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.content[0].retakeAvailable").value(false));
+	}
+
+	@Test
+	void aWrittenStatusWaitsForThePublishAndAMissedWrittenOffersNoLaterAttempt() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Status written");
+		UUID exam = createWritten(staff, module);
+		UUID writerId = seed("STUDENT");
+		UUID missedId = seed("STUDENT");
+		String writer = token(writerId);
+		String missed = token(missedId);
+		mark(master, module, writerId);
+		mark(master, module, missedId);
+
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		MvcResult taken = mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take")
+			.header("Authorization", "Bearer " + writer)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk())
+			.andReturn();
+		UUID participant = UUID.fromString(json.readTree(taken.getResponse().getContentAsString()).get("id").asText());
+		assertThat(myStatus(writer, module, exam)).isEqualTo("IN_PROGRESS");
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "answer.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + writer))
+			.andExpect(status().isNoContent());
+		assertThat(myStatus(writer, module, exam)).isEqualTo("SUBMITTED");
+
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		assertThat(myStatus(writer, module, exam)).isEqualTo("AWAITING_RESULT");
+		assertThat(myStatus(missed, module, exam)).isEqualTo("MISSED");
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + missed))
+			.andExpect(jsonPath("$.content[0].retakeAvailable").value(false));
+
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation")
+			.file(new MockMultipartFile("file", "mark.pdf", "application/pdf", compressiblePdf()))
+			.param("marks", "5")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		assertThat(myStatus(writer, module, exam)).isEqualTo("AWAITING_RESULT");
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		assertThat(myStatus(writer, module, exam)).isEqualTo("RESULT_READY");
+		assertThat(detailStatus(writer, exam)).isEqualTo("RESULT_READY");
+	}
+
+	@Test
+	void aWrittenPaperWithNoPdfShowsFailedToSubmitAndStaffAndAnUndatedExamGetNoStatus() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Status failed");
+		UUID exam = createWritten(staff, module);
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		mark(master, module, studentId);
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		assertThat(myStatus(student, module, exam)).isEqualTo("FAILED_TO_SUBMIT");
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content[0].myStatus").doesNotExist())
+			.andExpect(jsonPath("$.content[0].retakeAvailable").doesNotExist());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
+			.andExpect(jsonPath("$.myStatus").doesNotExist());
+		mockMvc.perform(get("/api/v1/public/live-exams/" + exam))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.myStatus").doesNotExist());
+
+		clock.set(TEN_AM);
+		UUID undatedModule = publishModule(staff, "Status undated");
+		MvcResult created = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + undatedModule + "/exams").header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Open quiz","titleBn":"কুইজ",
+						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+						  "durationMinutes":40,"passPercent":50
+						}
+						"""))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID undated = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		addQuestion(staff, undated, "Two plus two", 2);
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mark(master, undatedModule, studentId);
+		assertThat(myStatus(student, undatedModule, undated)).isEqualTo("NOT_ANNOUNCED");
+	}
+
+	private String myStatus(String token, UUID moduleId, UUID examId) throws Exception {
+		JsonNode content = json.readTree(mockMvc.perform(get("/api/v1/live-exam-modules/" + moduleId + "/exams")
+			.header("Authorization", "Bearer " + token)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString()).get("content");
+		for (JsonNode row : content) {
+			if (row.get("id").asText().equals(examId.toString())) {
+				return row.get("myStatus").asText();
+			}
+		}
+		throw new AssertionError("Exam not listed " + examId);
+	}
+
+	private String detailStatus(String token, UUID examId) throws Exception {
+		return json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + examId).header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("myStatus").asText();
+	}
+
+	private String routineStatus(String token, UUID examId) throws Exception {
+		JsonNode content = json.readTree(mockMvc.perform(get("/api/v1/me/exam-routine").param("size", "100")
+			.header("Authorization", "Bearer " + token)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString()).get("content");
+		for (JsonNode row : content) {
+			if (row.get("id").asText().equals(examId.toString())) {
+				return row.get("myStatus").asText();
+			}
+		}
+		throw new AssertionError("Exam not on the routine " + examId);
+	}
+
+	@Test
 	void aWrittenSubmitBeforeTheDeadlineDoesNotScoreOrLockTheSheet() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
@@ -526,7 +801,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{
-						  "examType":"MCQ","titleEn":"Open pass","titleBn":"খোলা",
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Open pass","titleBn":"খোলা",
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"2026-10-20T12:00:00+06:00","durationMinutes":40,"passPercent":0
 						}
@@ -692,19 +967,18 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.questionPdf").doesNotExist());
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + sitter))
 			.andExpect(status().isNotFound());
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake").header("Authorization", "Bearer " + retake))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
 		clock.set(Instant.parse("2026-10-20T07:26:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake").header("Authorization", "Bearer " + retake))
-			.andExpect(status().isOk());
-		byte[] retaken = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf")
-			.header("Authorization", "Bearer " + retake))
-			.andExpect(status().isOk())
-			.andExpect(header().string("Content-Disposition", "inline"))
-			.andReturn()
-			.getResponse()
-			.getContentAsByteArray();
-		assertThat(retaken).startsWith("%PDF".getBytes());
-		clock.set(Instant.parse("2026-10-20T08:06:00Z"));
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
+		assertThat(participantCount(exam, retakeId)).isZero();
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + retake))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + retake))
 			.andExpect(status().isNotFound());
 	}
 
@@ -828,6 +1102,287 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.kind").value("RETAKE"));
 	}
 
+	@Test
+	void theRoutineListsOpenExamsAcrossMarkedModules() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID science = createCategory(staff, "Science");
+		UUID physics = createCategory(staff, "Physics", science);
+		UUID arts = createCategory(staff, "Arts");
+		UUID thermo = publishModuleIn(staff, physics, "Thermo");
+		UUID literature = publishModuleIn(staff, arts, "Literature");
+		UUID quiz = publishMcqIn(staff, thermo, "2026-10-20T12:00:00+06:00");
+		UUID paper = publishWrittenAt(staff, literature, "2026-10-20T12:10:00+06:00");
+		UUID studentId = seed("STUDENT");
+		mark(master, thermo, studentId);
+		mark(master, literature, studentId);
+		String student = token(studentId);
+
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(2))
+			.andExpect(jsonPath("$.content[0].id").value(quiz.toString()))
+			.andExpect(jsonPath("$.content[0].examType").value("MCQ"))
+			.andExpect(jsonPath("$.content[0].titleEn").value("Noon quiz"))
+			.andExpect(jsonPath("$.content[0].titleBn").value("কুইজ"))
+			.andExpect(jsonPath("$.content[0].moduleId").value(thermo.toString()))
+			.andExpect(jsonPath("$.content[0].moduleTitleEn").value("Thermo"))
+			.andExpect(jsonPath("$.content[0].moduleTitleBn").value("মডিউল"))
+			.andExpect(jsonPath("$.content[0].categories.length()").value(2))
+			.andExpect(jsonPath("$.content[0].categories[0].id").value(science.toString()))
+			.andExpect(jsonPath("$.content[0].categories[0].titleEn").value("Science"))
+			.andExpect(jsonPath("$.content[0].categories[0].titleBn").value("বিভাগ"))
+			.andExpect(jsonPath("$.content[0].categories[1].id").value(physics.toString()))
+			.andExpect(jsonPath("$.content[0].categories[1].titleEn").value("Physics"))
+			.andExpect(jsonPath("$.content[0].liveAt").value("2026-10-20T12:00:00+06:00"))
+			.andExpect(jsonPath("$.content[0].endAt").value("2026-10-20T12:40:00+06:00"))
+			.andExpect(jsonPath("$.content[0].durationMinutes").value(40))
+			.andExpect(jsonPath("$.content[0].descriptionEn").doesNotExist())
+			.andExpect(jsonPath("$.content[0].rulesEn").doesNotExist())
+			.andExpect(jsonPath("$.content[0].questions").doesNotExist())
+			.andExpect(jsonPath("$.content[0].questionPdf").doesNotExist())
+			.andExpect(jsonPath("$.content[1].id").value(paper.toString()))
+			.andExpect(jsonPath("$.content[1].examType").value("WRITTEN"))
+			.andExpect(jsonPath("$.content[1].moduleTitleEn").value("Literature"))
+			.andExpect(jsonPath("$.content[1].categories.length()").value(1))
+			.andExpect(jsonPath("$.content[1].categories[0].titleEn").value("Arts"))
+			.andExpect(jsonPath("$.content[1].liveAt").value("2026-10-20T12:10:00+06:00"))
+			.andExpect(jsonPath("$.content[1].endAt").value("2026-10-20T12:50:00+06:00"))
+			.andExpect(jsonPath("$.content[1].questionPdf").doesNotExist());
+		assertThat(participantCount(quiz, studentId)).isZero();
+		UUID oneModule = seed("STUDENT");
+		mark(master, thermo, oneModule);
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + token(oneModule)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(quiz.toString()));
+
+		UUID sameTimeModule = publishModuleIn(staff, arts, "Same time");
+		UUID first = publishMcqIn(staff, literature, "2026-10-20T13:00:00+06:00");
+		UUID second = publishMcqIn(staff, sameTimeModule, "2026-10-20T13:00:00+06:00");
+		mark(master, sameTimeModule, studentId);
+		java.util.List<UUID> expected = java.util.List.of(first, second).stream().sorted().toList();
+		MvcResult tied = mockMvc.perform(get("/api/v1/me/exam-routine").param("page", "0").param("size", "20")
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andReturn();
+		JsonNode rows = json.readTree(tied.getResponse().getContentAsString()).get("content");
+		java.util.List<UUID> tiedIds = new java.util.ArrayList<>();
+		for (JsonNode row : rows) {
+			if ("2026-10-20T13:00:00+06:00".equals(row.get("liveAt").asText())) {
+				tiedIds.add(UUID.fromString(row.get("id").asText()));
+			}
+		}
+		assertThat(tiedIds).containsExactlyElementsOf(expected);
+	}
+
+	@Test
+	void theRoutineHidesDraftsAnUnmarkedStudentAndStaff() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		String instructor = token(seed("INSTRUCTOR"));
+		UUID category = createCategory(staff, "Open");
+		UUID published = publishModuleIn(staff, category, "Published");
+		UUID draftModule = draftModule(staff, category, "Draft module");
+		publishMcqIn(staff, draftModule, "2026-10-20T12:00:00+06:00");
+		UUID draftExam = createMcq(staff, published, "2026-10-20T12:00:00+06:00", false);
+		createMcq(staff, published, "2026-10-20T13:00:00+06:00", true);
+		UUID live = publishMcqIn(staff, published, "2026-10-20T14:00:00+06:00");
+		UUID marked = seed("STUDENT");
+		UUID unmarked = seed("STUDENT");
+		mark(master, published, marked);
+		mark(master, draftModule, marked);
+		String student = token(marked);
+
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(live.toString()));
+		assertThat(draftExam).isNotNull();
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + token(unmarked)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content").isEmpty());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + master))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + instructor))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/me/exam-routine")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void theRoutineDropsAnEndedExamAndLeavesTheRetake() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Window");
+		UUID early = publishMcqIn(staff, module, "2026-10-20T12:00:00+06:00");
+		UUID later = publishWrittenAt(staff, module, "2026-10-20T12:45:00+06:00");
+		UUID studentId = seed("STUDENT");
+		UUID absentId = seed("STUDENT");
+		mark(master, module, studentId);
+		mark(master, module, absentId);
+		String student = token(studentId);
+		String absent = token(absentId);
+
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(2))
+			.andExpect(jsonPath("$.content[0].id").value(early.toString()))
+			.andExpect(jsonPath("$.content[1].id").value(later.toString()));
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(get("/api/v1/me/exam-routine").param("now", "2099-01-01T00:00:00Z").param("size", "1")
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(later.toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(2));
+		assertThat(participantCount(early, absentId)).isZero();
+		mockMvc.perform(post("/api/v1/live-exams/" + early + "/retake").header("Authorization", "Bearer " + absent))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("RETAKE"));
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + absent))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(later.toString()));
+
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + later + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.content[0].id").value(later.toString()));
+		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.content").isEmpty());
+		mockMvc.perform(get("/api/v1/live-exams/" + later + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+	}
+
+	@Test
+	void rosterRemovalAndArchiveDropTheRoutineRowAndLeaveTheResult() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID science = createCategory(staff, "Science");
+		UUID physics = createCategory(staff, "Physics", science);
+		UUID arts = createCategory(staff, "Arts");
+		UUID hidden = publishModuleIn(staff, physics, "Hidden");
+		UUID open = publishModuleIn(staff, arts, "Open");
+		UUID hiddenExam = publishMcqIn(staff, hidden, "2026-10-20T12:00:00+06:00");
+		UUID openExam = publishMcqIn(staff, open, "2026-10-20T12:45:00+06:00");
+		UUID studentId = seed("STUDENT");
+		mark(master, hidden, studentId);
+		mark(master, open, studentId);
+		String student = token(studentId);
+
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + hiddenExam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(get("/api/v1/live-exams/" + hiddenExam + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(0));
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + hidden + "/roster/" + studentId)
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(openExam.toString()));
+		mockMvc.perform(get("/api/v1/live-exams/" + hiddenExam + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(0));
+
+		mark(master, hidden, studentId);
+		clock.set(TEN_AM);
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.content.length()").value(2));
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + science + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(openExam.toString()));
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + open + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.content").isEmpty());
+		mockMvc.perform(get("/api/v1/live-exams/" + hiddenExam + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+	}
+
+	@Test
+	void anUndatedExamStaysOffTheRoutineUntilItHasAWindow() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Undated");
+		MvcResult created = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Open quiz","titleBn":"কুইজ",
+						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+						  "durationMinutes":40,"passPercent":50
+						}
+						"""))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID undated = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		addQuestion(staff, undated, "Two plus two", 2);
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		UUID dated = publishMcqIn(staff, module, "2026-10-20T12:00:00+06:00");
+		UUID studentId = seed("STUDENT");
+		mark(master, module, studentId);
+		String student = token(studentId);
+
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(dated.toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + student)
+			.param("size", "20"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(2));
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/retake").header("Authorization", "Bearer " + student))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + undated).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"liveAt\":\"2026-10-20T12:45:00+06:00\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"));
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(dated.toString()));
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("LIVE"));
+	}
+
 	private UUID createCategory(String token, String title) throws Exception {
 		return createCategory(token, title, null);
 	}
@@ -860,13 +1415,71 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		return module;
 	}
 
+	private UUID draftModule(String token, UUID categoryId, String title) throws Exception {
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + token)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"categoryId":"%s","titleEn":"%s","titleBn":"মডিউল","descriptionEn":"d","descriptionBn":"বি"}
+					""".formatted(categoryId, title)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		return UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+	}
+
+	private UUID createMcq(String staff, UUID module, String liveAt, boolean finalSave) throws Exception {
+		MvcResult created = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+						  "liveAt":"%s","durationMinutes":40,"passPercent":50
+						}
+						""".formatted(liveAt)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		addQuestion(staff, exam, "Two plus two", 2);
+		if (finalSave) {
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
+				.andExpect(status().isOk());
+		}
+		return exam;
+	}
+
+	private UUID publishWrittenAt(String staff, UUID module, String liveAt) throws Exception {
+		MvcResult created = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"WRITTEN","paperLanguage":"BN","titleEn":"Noon paper","titleBn":"খাতা",
+						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+						  "liveAt":"%s","durationMinutes":40,"passPercent":50,"maximum":10
+						}
+						""".formatted(liveAt)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		MockMultipartFile paper = new MockMultipartFile("file", "paper.pdf", "application/pdf", tinyPdf());
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/question-pdf").file(paper)
+			.header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		return exam;
+	}
+
 	private UUID publishMcqIn(String staff, UUID module, String liveAt) throws Exception {
 		MvcResult created = mockMvc
 			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{
-						  "examType":"MCQ","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"%s","durationMinutes":40,"passPercent":50
 						}
@@ -890,7 +1503,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{
-						  "examType":"MCQ","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"2026-10-20T12:00:00+06:00","durationMinutes":40,"passPercent":50
 						}
@@ -914,7 +1527,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{
-						  "examType":"WRITTEN","titleEn":"Noon paper","titleBn":"খাতা",
+						  "examType":"WRITTEN","paperLanguage":"BN","titleEn":"Noon paper","titleBn":"খাতা",
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"2026-10-20T12:45:00+06:00","durationMinutes":40,"passPercent":50,"maximum":10
 						}
@@ -1017,6 +1630,18 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				join live_exam_participants p on p.id = a.participant_id
 				where p.exam_id = ? and p.student_id = ?
 				""", Integer.class, examId, studentId);
+	}
+
+	private Object submittedAt(UUID examId, UUID studentId) {
+		return new JdbcTemplate(dataSource).queryForObject(
+				"select submitted_at from live_exam_participants where exam_id = ? and student_id = ?", Object.class, examId,
+				studentId);
+	}
+
+	private Boolean passed(UUID examId, UUID studentId) {
+		return new JdbcTemplate(dataSource).queryForObject(
+				"select passed from live_exam_participants where exam_id = ? and student_id = ?", Boolean.class, examId,
+				studentId);
 	}
 
 	private String sittingStatus(UUID examId, UUID studentId) {

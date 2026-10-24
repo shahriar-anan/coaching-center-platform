@@ -1,6 +1,8 @@
 package com.coachingcenter.api.exams;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -9,12 +11,17 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -23,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.files.LocalFileStorage;
@@ -36,6 +44,8 @@ public class LiveExamService {
 
 	private static final Duration GAP = Duration.ofMinutes(5);
 
+	private static final UUID NO_HIDDEN_CATEGORY = new UUID(0L, 0L);
+
 	private static final DateTimeFormatter DHAKA_TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
 	private final LiveExamRepository exams;
@@ -46,25 +56,42 @@ public class LiveExamService {
 
 	private final LiveExamModuleRepository modules;
 
-	private final LiveExamRosterRepository roster;
+	private final LiveExamCategoryRepository categories;
+
+	private final LiveExamAccess access;
 
 	private final LiveExamCatalogVisibility visibility;
 
 	private final LocalFileStorage files;
 
+	private final ExamMailService examMail;
+
+	private final AfterCommit afterCommit;
+
 	private final Clock clock;
 
+	private final AuditRecorder audit;
+
+	private final LiveExamParticipantRepository participants;
+
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
-			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamRosterRepository roster,
-			LiveExamCatalogVisibility visibility, LocalFileStorage files, Clock clock) {
+			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
+			LiveExamAccess access, LiveExamCatalogVisibility visibility, LocalFileStorage files, ExamMailService examMail,
+			AfterCommit afterCommit, Clock clock, AuditRecorder audit,
+			LiveExamParticipantRepository participants) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
 		this.modules = modules;
-		this.roster = roster;
+		this.categories = categories;
+		this.access = access;
 		this.visibility = visibility;
 		this.files = files;
+		this.examMail = examMail;
+		this.afterCommit = afterCommit;
 		this.clock = clock;
+		this.audit = audit;
+		this.participants = participants;
 	}
 
 	@Transactional
@@ -85,7 +112,8 @@ public class LiveExamService {
 		exam.setDescriptionBn(requiredText(body, "descriptionBn"));
 		exam.setRulesEn(requiredText(body, "rulesEn"));
 		exam.setRulesBn(requiredText(body, "rulesBn"));
-		exam.setLiveAt(readInstant(body, "liveAt"));
+		exam.setPaperLanguage(readPaperLanguage(body));
+		exam.setLiveAt(readOptionalInstant(body, "liveAt"));
 		exam.setDurationMinutes(readDuration(body));
 		exam.setPassPercent(readPassPercent(body, false));
 		if (LiveExam.WRITTEN.equals(examType)) {
@@ -93,6 +121,9 @@ public class LiveExamService {
 		}
 		exam.setStatus(LiveExam.DRAFT);
 		exam.setFinallySaved(false);
+		if (body.has("price")) {
+			exam.setPrice(readPrice(body.get("price")));
+		}
 		return view(exams.save(exam), true);
 	}
 
@@ -102,7 +133,13 @@ public class LiveExamService {
 		boolean schedule = body.has("liveAt") || body.has("durationMinutes");
 		boolean scoring = body.has("passPercent")
 				|| (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum"));
-		boolean locked = !clock.instant().isBefore(exam.getLiveAt());
+		boolean locked = exam.getLiveAt() != null && !clock.instant().isBefore(exam.getLiveAt());
+		if (body.has("paperLanguage") && !body.get("paperLanguage").isNull()) {
+			if (locked) {
+				throw lockedContent();
+			}
+			exam.setPaperLanguage(readPaperLanguage(body));
+		}
 		if (locked && (schedule || scoring)) {
 			throw lockedContent();
 		}
@@ -125,8 +162,13 @@ public class LiveExamService {
 		if (body.has("rulesBn") && !body.get("rulesBn").isNull()) {
 			exam.setRulesBn(requiredText(body, "rulesBn"));
 		}
-		if (body.has("liveAt") && !body.get("liveAt").isNull()) {
-			exam.setLiveAt(readInstant(body, "liveAt"));
+		if (body.has("liveAt")) {
+			if (body.get("liveAt").isNull()) {
+				exam.setLiveAt(null);
+			}
+			else {
+				exam.setLiveAt(readInstant(body, "liveAt"));
+			}
 		}
 		if (body.has("durationMinutes") && !body.get("durationMinutes").isNull()) {
 			exam.setDurationMinutes(readDuration(body));
@@ -136,6 +178,9 @@ public class LiveExamService {
 		}
 		if (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum")) {
 			exam.setWrittenMaximum(readMaximum(body, true));
+		}
+		if (body.has("price")) {
+			exam.setPrice(readPrice(body.get("price")));
 		}
 		if (!locked) {
 			exam.setStatus(LiveExam.DRAFT);
@@ -166,6 +211,26 @@ public class LiveExamService {
 				: question.getPosition();
 		applyQuestion(question, body, position);
 		return questionView(question, replaceOptions(question.getId(), body.get("options")));
+	}
+
+	@Transactional
+	public void deleteQuestion(UUID examId, UUID questionId) {
+		LiveExam exam = requireMcq(examId);
+		markDraft(exam);
+		LiveExamQuestion question = questions.findByIdAndExamIdAndDeletedAtIsNull(questionId, examId)
+			.orElseThrow(this::notFound);
+		Instant now = clock.instant();
+		for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId)) {
+			option.setDeletedAt(now);
+		}
+		question.setDeletedAt(now);
+		int position = 0;
+		for (LiveExamQuestion remaining : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId)) {
+			if (!remaining.getId().equals(questionId)) {
+				remaining.setPosition(position++);
+			}
+		}
+		audit.record(AuditRecorder.LIVE_EXAM_QUESTION_DELETE, AuditRecorder.LIVE_EXAM_ENTITY, examId);
 	}
 
 	@Transactional
@@ -226,12 +291,16 @@ public class LiveExamService {
 			throw new ApiException(ErrorCode.WRITTEN_PAPER_REQUIRED, HttpStatus.CONFLICT,
 					"A written exam needs a maximum and a question PDF.");
 		}
-		if (!clock.instant().isBefore(end(exam))) {
-			throw new ApiException(ErrorCode.EXAM_WINDOW_ENDED, HttpStatus.CONFLICT, "The exam window has already ended.");
+		if (exam.getLiveAt() != null) {
+			if (!clock.instant().isBefore(end(exam))) {
+				throw new ApiException(ErrorCode.EXAM_WINDOW_ENDED, HttpStatus.CONFLICT, "The exam window has already ended.");
+			}
+			rejectWindowConflict(exam);
 		}
 		visibility.requireOpen(requireModule(exam.getModuleId()).getCategoryId());
-		rejectWindowConflict(exam);
 		exam.setStatus(LiveExam.PUBLISHED);
+		UUID examId = exam.getId();
+		afterCommit.run(() -> examMail.onExamPublished(examId));
 		return view(exam, true);
 	}
 
@@ -240,31 +309,90 @@ public class LiveExamService {
 		LiveExamModule module = requireModule(moduleId);
 		Pageable ordered = ordered(pageable);
 		if (student && (!LiveExamModule.PUBLISHED.equals(module.getStatus())
-				|| visibility.branchHidden(module.getCategoryId())
-				|| !roster.existsByModuleIdAndStudentId(moduleId, studentId))) {
+				|| visibility.branchHidden(module.getCategoryId()))) {
 			return Page.empty(ordered);
 		}
 		Page<LiveExam> page = student
-				? exams.findByModuleIdAndStatusAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED, ordered)
+				? exams.findAccessibleToStudent(moduleId, studentId, ordered)
 				: exams.findByModuleIdAndDeletedAtIsNull(moduleId, ordered);
-		return page.map(exam -> view(exam, !student));
+		if (!student) {
+			return page.map(exam -> view(exam, true));
+		}
+		Map<UUID, LiveExamParticipant> mine = participantsByExam(studentId,
+				page.getContent().stream().map(LiveExam::getId).toList());
+		return page.map(exam -> studentView(exam, mine.get(exam.getId())));
+	}
+
+	@Transactional(readOnly = true)
+	public Page<RoutineView> routine(UUID studentId, Pageable pageable) {
+		Set<UUID> hidden = visibility.hiddenCategoryIds();
+		if (hidden.isEmpty()) {
+			hidden = Set.of(NO_HIDDEN_CATEGORY);
+		}
+		Instant now = clock.instant();
+		List<LiveExam> open = new ArrayList<>();
+		for (LiveExam exam : exams.findVisibleRoutineCandidates(studentId, hidden)) {
+			if (exam.getLiveAt() != null && end(exam).isAfter(now)) {
+				open.add(exam);
+			}
+		}
+		open.sort(Comparator.comparing(LiveExam::getLiveAt).thenComparing(LiveExam::getId));
+		Map<UUID, LiveExamCategory> byId = new HashMap<>();
+		for (LiveExamCategory category : categories.findAll()) {
+			byId.put(category.getId(), category);
+		}
+		int page = pageable.getPageNumber();
+		int size = pageable.getPageSize();
+		int from = Math.min(page * size, open.size());
+		int to = Math.min(from + size, open.size());
+		List<RoutineView> content = new ArrayList<>();
+		List<LiveExam> shown = open.subList(from, to);
+		Map<UUID, LiveExamParticipant> mine = participantsByExam(studentId, shown.stream().map(LiveExam::getId).toList());
+		for (LiveExam exam : shown) {
+			content.add(routineView(exam, byId, LiveExamStudentStatus.of(exam, mine.get(exam.getId()), now)));
+		}
+		return new PageImpl<>(content, PageRequest.of(page, size), open.size());
 	}
 
 	@Transactional(readOnly = true)
 	public ExamView get(UUID id, boolean staff, UUID studentId) {
 		LiveExam exam = require(id);
 		if (!staff && (!LiveExam.PUBLISHED.equals(exam.getStatus()) || !visibleModule(exam)
-				|| !roster.existsByModuleIdAndStudentId(exam.getModuleId(), studentId))) {
+				|| !access.hasExam(studentId, exam))) {
 			throw notFound();
 		}
-		return view(exam, staff);
+		if (staff) {
+			return view(exam, true);
+		}
+		return studentView(exam, participantsByExam(studentId, List.of(exam.getId())).get(exam.getId()));
+	}
+
+	private ExamView studentView(LiveExam exam, LiveExamParticipant participant) {
+		ExamView plain = view(exam, false);
+		LiveExamStudentStatus.Result status = LiveExamStudentStatus.of(exam, participant, clock.instant());
+		return new ExamView(plain.id(), plain.moduleId(), plain.examType(), plain.paperLanguage(), plain.titleEn(),
+				plain.titleBn(), plain.descriptionEn(), plain.descriptionBn(), plain.rulesEn(), plain.rulesBn(),
+				plain.liveAt(), plain.endAt(), plain.durationMinutes(), plain.passPercent(), plain.maximum(),
+				plain.status(), plain.finallySaved(), plain.price(), plain.questionPdf(), plain.questions(),
+				status.status(), status.retakeAvailable());
+	}
+
+	private Map<UUID, LiveExamParticipant> participantsByExam(UUID studentId, List<UUID> examIds) {
+		Map<UUID, LiveExamParticipant> byExam = new HashMap<>();
+		if (!examIds.isEmpty()) {
+			for (LiveExamParticipant participant : participants.findByStudentIdAndExamIdInAndDeletedAtIsNull(studentId,
+					examIds)) {
+				byExam.put(participant.getExamId(), participant);
+			}
+		}
+		return byExam;
 	}
 
 	private void rejectWindowConflict(LiveExam exam) {
 		Instant start = exam.getLiveAt();
 		Instant end = end(exam);
 		for (LiveExam other : exams.findByModuleIdAndStatusAndDeletedAtIsNull(exam.getModuleId(), LiveExam.PUBLISHED)) {
-			if (other.getId().equals(exam.getId())) {
+			if (other.getId().equals(exam.getId()) || other.getLiveAt() == null) {
 				continue;
 			}
 			Instant otherStart = other.getLiveAt();
@@ -281,7 +409,7 @@ public class LiveExamService {
 	}
 
 	private void markDraft(LiveExam exam) {
-		if (!clock.instant().isBefore(exam.getLiveAt())) {
+		if (exam.getLiveAt() != null && !clock.instant().isBefore(exam.getLiveAt())) {
 			throw lockedContent();
 		}
 		exam.setStatus(LiveExam.DRAFT);
@@ -349,10 +477,11 @@ public class LiveExamService {
 		if (staff) {
 			questionPdf = exam.getQuestionStoredFileName() != null;
 		}
-		return new ExamView(exam.getId(), exam.getModuleId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
-				exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(),
-				format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(), exam.getPassPercent(),
-				maximum(exam), exam.getStatus(), exam.isFinallySaved(), questionPdf, questionViews);
+		return new ExamView(exam.getId(), exam.getModuleId(), exam.getExamType(), exam.getPaperLanguage(),
+				exam.getTitleEn(), exam.getTitleBn(), exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(),
+				exam.getRulesBn(), format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(),
+				exam.getPassPercent(), maximum(exam), exam.getStatus(), exam.isFinallySaved(), exam.getPrice(),
+				questionPdf, questionViews, null, null);
 	}
 
 	private List<QuestionView> loadQuestions(UUID examId) {
@@ -391,11 +520,42 @@ public class LiveExamService {
 		return sum;
 	}
 
+	private RoutineView routineView(LiveExam exam, Map<UUID, LiveExamCategory> categoriesById,
+			LiveExamStudentStatus.Result status) {
+		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(exam.getModuleId()).orElseThrow(this::notFound);
+		return new RoutineView(exam.getId(), module.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
+				module.getTitleEn(), module.getTitleBn(), categoryPath(module.getCategoryId(), categoriesById),
+				format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(), status.status(),
+				status.retakeAvailable());
+	}
+
+	private static List<CategoryName> categoryPath(UUID categoryId, Map<UUID, LiveExamCategory> categoriesById) {
+		List<CategoryName> path = new ArrayList<>();
+		Set<UUID> seen = new HashSet<>();
+		UUID id = categoryId;
+		while (id != null && seen.add(id)) {
+			LiveExamCategory category = categoriesById.get(id);
+			if (category == null) {
+				break;
+			}
+			path.add(new CategoryName(category.getId(), category.getTitleEn(), category.getTitleBn()));
+			id = category.getParentId();
+		}
+		Collections.reverse(path);
+		return path;
+	}
+
 	private static Instant end(LiveExam exam) {
+		if (exam.getLiveAt() == null) {
+			return null;
+		}
 		return exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes()));
 	}
 
 	private static String format(Instant instant) {
+		if (instant == null) {
+			return null;
+		}
 		return DHAKA_TIME.format(instant.atZone(DHAKA));
 	}
 
@@ -430,13 +590,21 @@ public class LiveExamService {
 		if (pageable.getSort().isSorted()) {
 			return pageable;
 		}
-		return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Order.asc("liveAt")));
+		return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+				Sort.by(Sort.Order.asc("liveAt").with(Sort.NullHandling.NULLS_LAST)));
 	}
 
 	private static void rejectMaximumOnMcq(String examType, JsonNode body) {
 		if (LiveExam.MCQ.equals(examType) && body.has("maximum") && !body.get("maximum").isNull()) {
 			throw validationFailed();
 		}
+	}
+
+	private static Instant readOptionalInstant(JsonNode body, String field) {
+		if (!body.has(field) || body.get(field).isNull()) {
+			return null;
+		}
+		return readInstant(body, field);
 	}
 
 	private static Instant readInstant(JsonNode body, String field) {
@@ -494,12 +662,42 @@ public class LiveExamService {
 		return node.intValue();
 	}
 
+	private static BigDecimal readPrice(JsonNode node) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		BigDecimal price;
+		if (node.isNumber()) {
+			price = node.decimalValue();
+		}
+		else {
+			try {
+				price = new BigDecimal(node.asText().trim());
+			}
+			catch (NumberFormatException exception) {
+				throw validationFailed();
+			}
+		}
+		if (price.compareTo(BigDecimal.ZERO) <= 0 || price.scale() > 2) {
+			throw validationFailed();
+		}
+		return price.setScale(2, RoundingMode.UNNECESSARY);
+	}
+
 	private static int readMarks(JsonNode body) {
 		JsonNode node = body.get("marks");
 		if (node == null || !node.isIntegralNumber() || node.intValue() <= 0) {
 			throw validationFailed();
 		}
 		return node.intValue();
+	}
+
+	private static String readPaperLanguage(JsonNode body) {
+		String language = requiredText(body, "paperLanguage");
+		if (!LiveExam.BN.equals(language) && !LiveExam.EN.equals(language)) {
+			throw validationFailed();
+		}
+		return language;
 	}
 
 	private static String requiredText(JsonNode body, String field) {
@@ -523,10 +721,19 @@ public class LiveExamService {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
 
-	public record ExamView(UUID id, UUID moduleId, String examType, String titleEn, String titleBn, String descriptionEn,
-			String descriptionBn, String rulesEn, String rulesBn, String liveAt, String endAt, int durationMinutes,
-			Integer passPercent, int maximum, String status, boolean finallySaved, Boolean questionPdf,
-			List<QuestionView> questions) {
+	public record RoutineView(UUID id, UUID moduleId, String examType, String titleEn, String titleBn,
+			String moduleTitleEn, String moduleTitleBn, List<CategoryName> categories, String liveAt, String endAt,
+			int durationMinutes, String myStatus, Boolean retakeAvailable) {
+	}
+
+	public record CategoryName(UUID id, String titleEn, String titleBn) {
+	}
+
+	public record ExamView(UUID id, UUID moduleId, String examType, String paperLanguage, String titleEn, String titleBn,
+			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt, String endAt,
+			int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved, BigDecimal price,
+			Boolean questionPdf, List<QuestionView> questions, String myStatus,
+			Boolean retakeAvailable) {
 	}
 
 	public record QuestionView(UUID id, String stem, int marks, String explanation, int position, List<OptionView> options) {

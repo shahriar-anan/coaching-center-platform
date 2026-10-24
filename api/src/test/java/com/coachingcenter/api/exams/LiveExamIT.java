@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -123,6 +124,158 @@ class LiveExamIT extends PostgresIntegrationTest {
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_ENDED"));
 		assertThat(exam(staff, exam).get("status").asText()).isEqualTo("DRAFT");
+	}
+
+	@Test
+	void onlyTheMasterAdminDeletesAnUnsatUnboughtExamAndEveryReadForgetsIt() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		UUID module = publishModule(staff, "Delete exam");
+		new JdbcTemplate(dataSource).update(
+				"insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())", module, studentId);
+		UUID exam = createExam(staff, module, "MCQ", "Doomed", "বাতিল", "2026-10-20T12:00:00+06:00", 40, 50, null);
+		addQuestion(staff, exam, "One", 1, null, "a", "b");
+		finalSave(staff, exam);
+		publish(staff, exam);
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam)).andExpect(status().isUnauthorized());
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		assertThat(jdbc.queryForObject("select deleted_at is not null from live_exams where id = ?", Boolean.class, exam))
+			.isTrue();
+		assertThat(jdbc.queryForObject(
+				"select count(*) from audit_log where action = 'LIVE_EXAM_DELETE' and entity_id = ?", Integer.class, exam))
+			.isEqualTo(1);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/public/live-exams/" + exam)).andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+		assertThat(ids(exams(staff, module))).doesNotContain(exam);
+	}
+
+	@Test
+	void anExamThatWasSatOrBoughtCannotBeDeleted() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID studentId = seed("STUDENT");
+		UUID module = publishModule(staff, "Keep exam");
+		UUID sat = createExam(staff, module, "MCQ", "Sat", "বসা", "2026-10-20T12:00:00+06:00", 40, 50, null);
+		addQuestion(staff, sat, "One", 1, null, "a", "b");
+		finalSave(staff, sat);
+		publish(staff, sat);
+		UUID bought = createExam(staff, module, "MCQ", "Bought", "কেনা", "2026-10-20T14:00:00+06:00", 40, 50, null);
+		addQuestion(staff, bought, "One", 1, null, "a", "b");
+		finalSave(staff, bought);
+		publish(staff, bought);
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("""
+				insert into live_exam_participants (id, exam_id, student_id, kind, started_at, deadline_at, status,
+				  created_at, updated_at)
+				values (?, ?, ?, 'LIVE', now(), now(), 'IN_PROGRESS', now(), now())
+				""", UUID.randomUUID(), sat, studentId);
+		jdbc.update("""
+				insert into live_exam_orders (id, student_id, scope, module_id, exam_id, amount, currency, method, tran_id,
+				  status, created_at, updated_at)
+				values (?, ?, 'EXAM', ?, ?, 10.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
+				""", UUID.randomUUID(), studentId, module, bought, UUID.randomUUID().toString().replace("-", "").substring(0, 30));
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + sat).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_HAS_PARTICIPANTS"));
+		mockMvc.perform(delete("/api/v1/live-exams/" + bought).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_HAS_PURCHASES"));
+		assertThat(jdbc.queryForObject("select count(*) from live_exams where id in (?, ?) and deleted_at is null",
+				Integer.class, sat, bought)).isEqualTo(2);
+	}
+
+	@Test
+	void deletingAQuestionClosesTheGapLowersTheMaximumAndReturnsTheExamToDraft() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String student = token(seed("STUDENT"));
+		UUID module = publishModule(staff, "Delete question");
+		UUID exam = createExam(staff, module, "MCQ", "Fewer", "কম", "2026-10-20T12:00:00+06:00", 40, 50, null);
+		UUID first = addQuestion(staff, exam, "First", 2, null, "a", "b");
+		UUID second = addQuestion(staff, exam, "Second", 3, null, "a", "b");
+		UUID third = addQuestion(staff, exam, "Third", 5, null, "a", "b");
+		finalSave(staff, exam);
+		publish(staff, exam);
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNoContent());
+
+		JsonNode view = exam(staff, exam);
+		assertThat(view.get("status").asText()).isEqualTo("DRAFT");
+		assertThat(view.get("finallySaved").asBoolean()).isFalse();
+		assertThat(view.get("maximum").asInt()).isEqualTo(7);
+		assertThat(view.get("questions")).hasSize(2);
+		assertThat(view.get("questions").get(0).get("id").asText()).isEqualTo(first.toString());
+		assertThat(view.get("questions").get(0).get("position").asInt()).isZero();
+		assertThat(view.get("questions").get(1).get("id").asText()).isEqualTo(third.toString());
+		assertThat(view.get("questions").get(1).get("position").asInt()).isEqualTo(1);
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		assertThat(jdbc.queryForObject(
+				"select count(*) from live_exam_options where question_id = ? and deleted_at is null", Integer.class, second))
+			.isZero();
+		assertThat(jdbc.queryForObject(
+				"select count(*) from audit_log where action = 'LIVE_EXAM_QUESTION_DELETE' and entity_id = ?",
+				Integer.class, exam)).isEqualTo(1);
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + UUID.randomUUID())
+			.header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void aQuestionDeleteIsLockedAfterTheStartRefusedOnWrittenAndCannotEmptyAPublishedExam() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID module = publishModule(staff, "Question rules");
+		UUID mcq = createExam(staff, module, "MCQ", "Locked", "তালা", "2026-10-20T12:00:00+06:00", 40, 50, null);
+		UUID only = addQuestion(staff, mcq, "Only", 1, null, "a", "b");
+		finalSave(staff, mcq);
+		publish(staff, mcq);
+		UUID written = createExam(staff, module, "WRITTEN", "Paper", "খাতা", "2026-10-20T14:00:00+06:00", 40, 50, 10);
+		uploadPdf(staff, written);
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + written + "/questions/" + UUID.randomUUID())
+			.header("Authorization", "Bearer " + staff))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_TYPE_MISMATCH"));
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + mcq + "/questions/" + only).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNoContent());
+		finalSave(staff, mcq);
+		mockMvc.perform(post("/api/v1/live-exams/" + mcq + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("QUESTIONS_REQUIRED"));
+
+		UUID late = createExam(staff, module, "MCQ", "Late", "দেরি", "2026-10-20T16:00:00+06:00", 40, 50, null);
+		UUID lateQuestion = addQuestion(staff, late, "One", 1, null, "a", "b");
+		finalSave(staff, late);
+		publish(staff, late);
+		clock.set(Instant.parse("2026-10-20T10:30:00Z"));
+		mockMvc.perform(delete("/api/v1/live-exams/" + late + "/questions/" + lateQuestion)
+			.header("Authorization", "Bearer " + staff))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
 	}
 
 	@Test
@@ -262,6 +415,120 @@ class LiveExamIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 	}
 
+	@Test
+	void anUndatedExamPublishesAndADatedPublishStillKeepsTheGap() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID module = publishModule(staff, "Routine");
+		UUID otherModule = publishModule(staff, "Other routine");
+		UUID omitted = postExam(staff, module, null);
+		assertThat(exam(staff, omitted).has("liveAt")).isFalse();
+		assertThat(exam(staff, omitted).has("endAt")).isFalse();
+		addQuestion(staff, omitted, "Stem", 2, null, "A", "B");
+		finalSave(staff, omitted);
+		publish(staff, omitted);
+
+		UUID explicit = postExam(staff, module, "null");
+		addQuestion(staff, explicit, "Stem", 2, null, "A", "B");
+		finalSave(staff, explicit);
+		publish(staff, explicit);
+
+		JsonNode published = json.readTree(mockMvc.perform(get("/api/v1/public/live-exams/" + omitted))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+		assertThat(published.has("liveAt")).isFalse();
+		assertThat(published.has("endAt")).isFalse();
+		assertThat(published.has("questions")).isFalse();
+
+		UUID morning = createExam(staff, module, "MCQ", "Morning", "সকাল", "2026-10-20T12:00:00+06:00", 40, 50, null);
+		addQuestion(staff, morning, "Stem", 2, null, "A", "B");
+		finalSave(staff, morning);
+		publish(staff, morning);
+		UUID crowded = createExam(staff, module, "MCQ", "Too soon", "কাছাকাছি", "2026-10-20T12:44:00+06:00", 20, 50, null);
+		addQuestion(staff, crowded, "Stem", 2, null, "A", "B");
+		finalSave(staff, crowded);
+		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
+			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Morning")));
+		mockMvc.perform(patch("/api/v1/live-exams/" + crowded).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"liveAt\":\"2026-10-20T12:45:00+06:00\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"))
+			.andExpect(jsonPath("$.finallySaved").value(false));
+		finalSave(staff, crowded);
+		publish(staff, crowded);
+
+		UUID elsewhere = createExam(staff, otherModule, "MCQ", "Same clock", "একই সময়", "2026-10-20T12:00:00+06:00", 40,
+				50, null);
+		addQuestion(staff, elsewhere, "Stem", 2, null, "A", "B");
+		finalSave(staff, elsewhere);
+		publish(staff, elsewhere);
+
+		JsonNode list = json.readTree(mockMvc.perform(get("/api/v1/public/live-exam-modules/" + module + "/exams")
+			.param("size", "20"))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString())
+			.get("content");
+		assertThat(indexOf(list, morning)).isLessThan(indexOf(list, crowded));
+		assertThat(indexOf(list, crowded)).isLessThan(indexOf(list, omitted));
+		assertThat(indexOf(list, crowded)).isLessThan(indexOf(list, explicit));
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + omitted).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"liveAt\":\"2026-10-20T15:00:00+06:00\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"))
+			.andExpect(jsonPath("$.finallySaved").value(false))
+			.andExpect(jsonPath("$.liveAt").value("2026-10-20T15:00:00+06:00"));
+		mockMvc.perform(patch("/api/v1/live-exams/" + crowded).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"liveAt\":null}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"));
+		assertThat(exam(staff, crowded).has("liveAt")).isFalse();
+
+		clock.set(Instant.parse("2026-10-20T06:00:00Z"));
+		mockMvc.perform(patch("/api/v1/live-exams/" + morning).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"liveAt\":\"2026-10-20T16:00:00+06:00\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
+		assertThat(exam(staff, morning).get("liveAt").asText()).isEqualTo("2026-10-20T12:00:00+06:00");
+		assertThat(exam(staff, morning).get("status").asText()).isEqualTo("PUBLISHED");
+	}
+
+	private UUID postExam(String token, UUID moduleId, String liveAtJson) throws Exception {
+		String liveAt = liveAtJson == null ? "" : ",\"liveAt\":" + liveAtJson;
+		MvcResult result = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + moduleId + "/exams").header("Authorization", "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Open paper","titleBn":"খাতা",
+						  "descriptionEn":"English description","descriptionBn":"বাংলা বিবরণ",
+						  "rulesEn":"English rules","rulesBn":"বাংলা নিয়ম",
+						  "durationMinutes":40,"passPercent":50%s
+						}
+						""".formatted(liveAt)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+	}
+
+	private static int indexOf(JsonNode content, UUID id) {
+		for (int index = 0; index < content.size(); index++) {
+			if (id.toString().equals(content.get(index).get("id").asText())) {
+				return index;
+			}
+		}
+		throw new AssertionError("Missing " + id);
+	}
+
 	private UUID publishModule(String token, String title) throws Exception {
 		UUID category = createCategory(token, title + " cat", "বিভাগ");
 		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + token)
@@ -300,6 +567,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 				.content("""
 						{
 						  "examType":"%s",
+						  "paperLanguage":"BN",
 						  "titleEn":"%s",
 						  "titleBn":"%s",
 						  "descriptionEn":"English description",

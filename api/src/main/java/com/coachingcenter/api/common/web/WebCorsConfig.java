@@ -20,6 +20,16 @@ public class WebCorsConfig implements WebMvcConfigurer {
 	@Override
 	public void addCorsMappings(CorsRegistry registry) {
 		List<String> origins = appProperties.cors().allowedOrigins();
+		// A browser return is a navigation from the payment host, and an IPN is a server post.
+		// The website allowlist must not reject either. These patterns are registered first.
+		registry.addMapping("/api/v1/live-exam-orders/*/return")
+			.allowedOriginPatterns("*")
+			.allowedMethods("GET", "POST")
+			.allowCredentials(false);
+		registry.addMapping("/api/v1/live-exam-orders/*/ipn")
+			.allowedOriginPatterns("*")
+			.allowedMethods("POST")
+			.allowCredentials(false);
 		registry.addMapping("/api/**")
 			.allowedOrigins(origins.toArray(String[]::new))
 			.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")

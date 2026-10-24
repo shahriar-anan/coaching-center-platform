@@ -9,7 +9,7 @@ Shared setup:
 - Real PostgreSQL — either Testcontainers-managed (CI) or an already-running local instance (local dev), selected via env vars. Never H2.
 - A test `EmailSender` that keeps the reset or verification code in memory and does not log it.
 - A test profile that tightens login lockout below 5 failures / 15 minutes so the lockout case does not wait out the production window.
-- Bootstrap one Master Admin from test environment variables.
+- Bootstrap one Master Admin from test environment variables. Later, a seeder drops the database and populates it again on every run, so this account is created in an empty database. See the later note on slice 6 in [api-identity.md](../plans/api-identity.md).
 
 ## AuthLoginIT
 

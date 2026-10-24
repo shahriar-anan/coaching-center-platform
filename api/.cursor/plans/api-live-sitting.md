@@ -21,7 +21,7 @@ Do not build instructor marking in this stage. MCQ scoring on post is in this st
 
 A late tap still ends at the shared end. A blank MCQ posts as zero with the score and without the review. A missing written PDF is failed to submit. The student who never tapped can take one retake, and a live participant cannot.
 
-Slice 1 of this exit has passed. Slice 2 below is the open work.
+Slice 1 of this exit has passed. Slice 2 has passed. Slice 3 has passed.
 
 ## Slice 2 — Deadline post, question PDF, result after removal
 
@@ -34,3 +34,20 @@ Slice 1 of this exit has passed. Slice 2 below is the open work.
 ## Slice 2 exit
 
 An early submit still allows an answer change, and the deadline posts that later selection without a submit call. The question PDF bytes are available only to the participant during the sitting. The result remains readable after the roster row is removed.
+
+## Slice 3 — Exam routine
+
+Spec Section 6.3. No new table, no new permission, and no Flyway change. Do not change the course routine, `V12`, or `CourseRoutineIT`. Do not change the per-module exam list: an ended exam stays on that list.
+
+- `GET /api/v1/me/exam-routine` under `LIVE_EXAM_BROWSE`, which only a student has. Master Admin, System Admin, and Instructor receive `403`. An anonymous call receives `401`.
+- The page lists published exams across every published module that student is marked on, where the category branch is still open and the end is still ahead of the server clock. Order is `liveAt` ascending, then exam id. The shared page envelope applies. No rows is an empty page.
+- A row has the exam id, the type, both exam titles, the module id, both module titles, the category path from the root with both titles, `liveAt`, `endAt`, and the duration. It omits the description, the rules, the questions, and the question PDF. Times use the same Asia/Dhaka text as the exam card.
+- A draft exam, a final-saved unpublished exam, and a published exam in a draft module are absent. An exam that has started and not ended is present. At the end instant it drops off. A client `now` does not move that cutoff.
+- Two modules may overlap. Both exams appear. The five-minute gap stays a publish rule inside one module.
+- Reading the routine does not create a participant. After the end, the exam remains on the module exam list and can still be opened and retaken. A retake in progress is not a routine row.
+- Removing the roster row, archiving the module, or archiving the category or an ancestor drops that exam from the routine. A posted result stays readable.
+- Record `GET /api/v1/me/exam-routine` in the OpenAPI inventory so `AuditLogIT` stays green.
+
+## Slice 3 exit
+
+A marked student receives one timetable of live windows that have not ended, across every open module they can sit. An ended exam leaves that timetable and stays available for a retake. The course routine and the module exam list are unchanged.

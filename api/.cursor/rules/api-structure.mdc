@@ -5,7 +5,7 @@ alwaysApply: true
 
 # API structure
 
-Phase 1 `api-identity` is complete. Do not add identity scope or reopen its slices. Its plan remains `api/.cursor/plans/api-identity.md`.
+Phase 1 `api-identity` is complete. Do not reopen its slices. Its plan remains `api/.cursor/plans/api-identity.md`. **Outdated:** "do not add identity scope" as a ban on Google sign-in. Google sign-in is later exam-site work, not a reopening of those slices.
 
 Phase 2 catalog work follows `docs/phases/phase-2/phase-2-status.md`. Read the current stage plan in `api/.cursor/plans/` before writing that stage. Do not start a later stage, and do not start a later slice, until the previous slice's checks exist.
 

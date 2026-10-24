@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 @Table(name = "users")
 public class User extends BaseEntity {
 
-	@Column(nullable = false, length = 16)
+	@Column(length = 16)
 	private String phone;
 
 	@Column(nullable = false, length = 320)
@@ -36,6 +36,9 @@ public class User extends BaseEntity {
 
 	@Column(name = "created_by")
 	private UUID createdBy;
+
+	@Column(name = "google_sub", length = 255)
+	private String googleSub;
 
 	public String getPhone() {
 		return phone;
@@ -99,6 +102,14 @@ public class User extends BaseEntity {
 
 	public void setCreatedBy(UUID createdBy) {
 		this.createdBy = createdBy;
+	}
+
+	public String getGoogleSub() {
+		return googleSub;
+	}
+
+	public void setGoogleSub(String googleSub) {
+		this.googleSub = googleSub;
 	}
 
 }

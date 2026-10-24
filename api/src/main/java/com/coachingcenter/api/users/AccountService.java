@@ -1,6 +1,8 @@
 package com.coachingcenter.api.users;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -17,6 +19,7 @@ import com.coachingcenter.api.auth.permission.MasterAdminGuard;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.exams.LiveExamInstructorModules;
 
 @Service
 public class AccountService {
@@ -33,15 +36,18 @@ public class AccountService {
 
 	private final AuditRecorder audit;
 
+	private final LiveExamInstructorModules assignments;
+
 	public AccountService(UserRepository users, StudentProfileRepository studentProfiles,
 			AdminProfileRepository adminProfiles, AuthService auth, MasterAdminGuard masterAdminGuard,
-			AuditRecorder audit) {
+			AuditRecorder audit, LiveExamInstructorModules assignments) {
 		this.users = users;
 		this.studentProfiles = studentProfiles;
 		this.adminProfiles = adminProfiles;
 		this.auth = auth;
 		this.masterAdminGuard = masterAdminGuard;
 		this.audit = audit;
+		this.assignments = assignments;
 	}
 
 	@Transactional
@@ -90,6 +96,27 @@ public class AccountService {
 	@Transactional(readOnly = true)
 	public Page<AccountView> listAdmins(Pageable pageable) {
 		return users.findByRoleAndDeletedAtIsNull(Role.SYSTEM_ADMIN.name(), pageable).map(this::view);
+	}
+
+	@Transactional(readOnly = true)
+	public Page<InstructorView> listInstructors(String query, String status, String assigned, Pageable pageable) {
+		String q = query == null ? "" : query.trim();
+		String state = status == null ? "" : status.trim();
+		if (!state.isEmpty() && !List.of("ACTIVE", "PENDING_ACTIVATION", "INACTIVE").contains(state)) {
+			throw validationFailed();
+		}
+		String held = assigned == null ? "" : assigned.trim().toLowerCase();
+		if (!held.isEmpty() && !held.equals("true") && !held.equals("false")) {
+			throw validationFailed();
+		}
+		Page<User> page = users.searchInstructors(q, state, held, pageable);
+		Map<UUID, List<LiveExamInstructorModules.ModuleRef>> modules = assignments
+			.modulesFor(page.getContent().stream().map(User::getId).toList());
+		return page.map(user -> {
+			AdminProfile profile = adminProfiles.findById(user.getId()).orElse(null);
+			return new InstructorView(user.getId(), profile == null ? null : profile.getFullName(), user.getPhone(),
+					user.getEmail(), user.getStatus(), user.getCreatedAt(), modules.getOrDefault(user.getId(), List.of()));
+		});
 	}
 
 	@Transactional(readOnly = true)
@@ -202,6 +229,10 @@ public class AccountService {
 				studentCode);
 	}
 
+	private ApiException validationFailed() {
+		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request is invalid.");
+	}
+
 	private ApiException notFound() {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
@@ -212,6 +243,10 @@ public class AccountService {
 
 	public record CreatedAccount(UUID id, String fullName, String phone, String email, String role, String status,
 			String activationCode, String studentCode) {
+	}
+
+	public record InstructorView(UUID id, String fullName, String phone, String email, String status,
+			java.time.Instant createdAt, List<LiveExamInstructorModules.ModuleRef> modules) {
 	}
 
 	public record AccountView(UUID id, String fullName, String phone, String email, String role, String status,

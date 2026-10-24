@@ -38,9 +38,18 @@ public abstract class PostgresIntegrationTest {
 		registry.add("MASTER_ADMIN_NAME", () -> "Master Admin");
 		registry.add("MASTER_ADMIN_PASSWORD", () -> "bootstrap-password-1");
 		registry.add("FILE_STORAGE_DIR", () -> FILE_STORAGE_DIR);
+		// Tests call the deadline and reminder jobs directly; a background tick would read another context's clock.
+		registry.add("app.exam-jobs.scheduled", () -> "false");
 		registry.add("MATERIAL_MAX_BYTES", () -> "1024");
 		registry.add("PAYMENT_BKASH_NUMBER", () -> "01700000001");
 		registry.add("PAYMENT_NAGAD_NUMBER", () -> "01800000001");
+		registry.add("SSLCZ_STORE_ID", () -> "");
+		registry.add("SSLCZ_STORE_PASSWORD", () -> "");
+		registry.add("SSLCZ_BASE_URL", () -> "");
+		registry.add("SSLCZ_CALLBACK_BASE_URL", () -> "");
+		registry.add("app.seed.enabled", () -> "false");
+		registry.add("spring.datasource.hikari.maximum-pool-size", () -> "2");
+		registry.add("spring.datasource.hikari.minimum-idle", () -> "0");
 	}
 
 }

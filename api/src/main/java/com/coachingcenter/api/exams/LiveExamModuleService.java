@@ -1,5 +1,7 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -25,18 +27,24 @@ public class LiveExamModuleService {
 
 	private final LiveExamModuleRepository modules;
 
-	private final LiveExamRosterRepository roster;
-
 	private final LiveExamCatalogVisibility visibility;
+
+	private final LiveExamAccess access;
 
 	private final AuditRecorder audit;
 
-	public LiveExamModuleService(LiveExamModuleRepository modules, LiveExamRosterRepository roster,
-			LiveExamCatalogVisibility visibility, AuditRecorder audit) {
+	private final ExamMailService examMail;
+
+	private final AfterCommit afterCommit;
+
+	public LiveExamModuleService(LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility,
+			LiveExamAccess access, AuditRecorder audit, ExamMailService examMail, AfterCommit afterCommit) {
 		this.modules = modules;
-		this.roster = roster;
 		this.visibility = visibility;
+		this.access = access;
 		this.audit = audit;
+		this.examMail = examMail;
+		this.afterCommit = afterCommit;
 	}
 
 	@Transactional
@@ -54,6 +62,9 @@ public class LiveExamModuleService {
 		module.setStatus(LiveExamModule.DRAFT);
 		module.setFinallySaved(false);
 		module.setPosition(readPosition(body, categoryId, null));
+		if (body.has("price")) {
+			module.setPrice(readPrice(body.get("price")));
+		}
 		return view(modules.save(module));
 	}
 
@@ -86,6 +97,9 @@ public class LiveExamModuleService {
 		else if (categoryChanged) {
 			module.setPosition(nextPosition(module.getCategoryId(), id));
 		}
+		if (body.has("price")) {
+			module.setPrice(readPrice(body.get("price")));
+		}
 		module.setStatus(LiveExamModule.DRAFT);
 		module.setFinallySaved(false);
 		return view(module);
@@ -107,6 +121,8 @@ public class LiveExamModuleService {
 		}
 		visibility.requireOpen(module.getCategoryId());
 		module.setStatus(LiveExamModule.PUBLISHED);
+		UUID moduleId = module.getId();
+		afterCommit.run(() -> examMail.onModulePublished(moduleId));
 		return view(module);
 	}
 
@@ -142,7 +158,7 @@ public class LiveExamModuleService {
 	public ModuleView getPublished(UUID id, UUID studentId) {
 		LiveExamModule module = require(id);
 		if (!LiveExamModule.PUBLISHED.equals(module.getStatus()) || visibility.branchHidden(module.getCategoryId())
-				|| !roster.existsByModuleIdAndStudentId(id, studentId)) {
+				|| !access.hasModule(studentId, id)) {
 			throw notFound();
 		}
 		return view(module);
@@ -223,7 +239,7 @@ public class LiveExamModuleService {
 	}
 
 	private static void rejectLockedFields(JsonNode body) {
-		if (body.has("price") || body.has("courseId")) {
+		if (body.has("courseId")) {
 			throw validationFailed();
 		}
 		if (body.has("accessMode")) {
@@ -250,10 +266,32 @@ public class LiveExamModuleService {
 		return node.asText().trim();
 	}
 
+	private static BigDecimal readPrice(JsonNode node) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		BigDecimal price;
+		if (node.isNumber()) {
+			price = node.decimalValue();
+		}
+		else {
+			try {
+				price = new BigDecimal(node.asText().trim());
+			}
+			catch (NumberFormatException exception) {
+				throw validationFailed();
+			}
+		}
+		if (price.compareTo(BigDecimal.ZERO) <= 0 || price.scale() > 2) {
+			throw validationFailed();
+		}
+		return price.setScale(2, RoundingMode.UNNECESSARY);
+	}
+
 	private ModuleView view(LiveExamModule module) {
 		return new ModuleView(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
 				module.getDescriptionEn(), module.getDescriptionBn(), module.getAccessMode(), module.getStatus(),
-				module.isFinallySaved(), module.getPosition());
+				module.isFinallySaved(), module.getPosition(), module.getPrice());
 	}
 
 	private static ApiException validationFailed() {
@@ -265,7 +303,8 @@ public class LiveExamModuleService {
 	}
 
 	public record ModuleView(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
-			String descriptionBn, String accessMode, String status, boolean finallySaved, int position) {
+			String descriptionBn, String accessMode, String status, boolean finallySaved, int position,
+			BigDecimal price) {
 	}
 
 }

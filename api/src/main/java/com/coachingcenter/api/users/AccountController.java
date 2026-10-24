@@ -50,6 +50,20 @@ public class AccountController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);
 	}
 
+	@GetMapping("/api/v1/instructors")
+	public PageResponse<AccountService.InstructorView> listInstructors(@RequestParam(required = false) String q,
+			@RequestParam(required = false) String status, @RequestParam(required = false) String assigned,
+			@PageableDefault(size = 20) Pageable pageable) {
+		require(Permissions.ADMIN_MANAGE);
+		return PageResponse.from(accounts.listInstructors(q, status, assigned, capped(pageable)));
+	}
+
+	@PostMapping("/api/v1/instructors/{id}/activation-code")
+	public ActivationCodeResponse reissueInstructorCode(@PathVariable UUID id) {
+		require(Permissions.ADMIN_MANAGE);
+		return new ActivationCodeResponse(accounts.reissueActivationCode(id, Role.INSTRUCTOR, actor().userId()));
+	}
+
 	@PostMapping("/api/v1/admins")
 	public ResponseEntity<AccountService.CreatedAccount> createAdmin(@RequestBody JsonNode body) {
 		require(Permissions.ADMIN_MANAGE);
@@ -142,6 +156,10 @@ public class AccountController {
 		require(Permissions.STUDENT_DELETE);
 		accounts.delete(id, Role.STUDENT);
 		return ResponseEntity.noContent().build();
+	}
+
+	private static Pageable capped(Pageable pageable) {
+		return org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), Math.min(pageable.getPageSize(), 100));
 	}
 
 	private void require(String permission) {

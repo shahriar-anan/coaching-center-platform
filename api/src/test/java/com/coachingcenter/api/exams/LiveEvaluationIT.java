@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,6 +57,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private DataSource dataSource;
+
+	@Autowired
+	private LiveExamDeadlineJob deadlineJob;
+
+	@Autowired
+	private StudentReminderJob reminders;
 
 	@Autowired
 	private PasswordEncoder passwords;
@@ -230,6 +237,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + instructor.token()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EVALUATION_NOT_ALLOWED"));
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + failedId + "/publish")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EVALUATION_NOT_ALLOWED"));
 
 		String board = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
 			.header("Authorization", "Bearer " + missing.token()))
@@ -240,6 +251,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		assertThat(board).contains("No PDF");
 		assertThat(board).doesNotContain("Has PDF");
 		assertThat(json.readTree(board).get("rows").get(0).get("score").asInt()).isZero();
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + missing.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(0))
+			.andExpect(jsonPath("$.evaluatedPdf").doesNotExist());
 	}
 
 	@Test
@@ -270,8 +285,37 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + instructor.token()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.evaluatorName").value("Nadia Rahman"))
-			.andExpect(jsonPath("$.score").value(7));
+			.andExpect(jsonPath("$.score").value(7))
+			.andExpect(jsonPath("$.published").value(false));
 		String firstFile = evaluatedFile(higherId);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result")
+			.header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").doesNotExist())
+			.andExpect(jsonPath("$.passed").doesNotExist())
+			.andExpect(jsonPath("$.evaluatedPdf").doesNotExist())
+			.andExpect(jsonPath("$.comment").doesNotExist())
+			.andExpect(jsonPath("$.maximum").value(10))
+			.andExpect(jsonPath("$.evaluatorName").doesNotExist());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/evaluated-pdf")
+			.header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isNotFound());
+
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + lowerId + "/evaluation").file(sheet("peer.pdf"))
+			.param("marks", "6")
+			.header("Authorization", "Bearer " + instructor.token()))
+			.andExpect(status().isOk());
+		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		String hidden = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
+			.header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(hidden).doesNotContain("Higher Paper", "Lower Paper");
+
+		publishResult(master, higherId);
+		publishResult(master, lowerId);
 		String studentView = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result")
 			.header("Authorization", "Bearer " + higher.token()))
 			.andExpect(status().isOk())
@@ -292,20 +336,40 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsByteArray();
 		assertThat(pdf).startsWith("%PDF".getBytes());
+		JsonNode publishedBoard = json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
+			.header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+		assertThat(rank(publishedBoard, "Higher Paper")).isEqualTo(1);
+		assertThat(rank(publishedBoard, "Lower Paper")).isEqualTo(2);
 
-		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + lowerId + "/evaluation").file(sheet("peer.pdf"))
-			.param("marks", "6")
-			.header("Authorization", "Bearer " + instructor.token()))
-			.andExpect(status().isOk());
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + higherId + "/evaluation").file(sheet("second.pdf"))
 			.param("marks", "4")
 			.header("Authorization", "Bearer " + instructor.token()))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(4));
+			.andExpect(jsonPath("$.score").value(4))
+			.andExpect(jsonPath("$.published").value(false));
 		assertThat(java.nio.file.Path.of(files.storageDir(), firstFile)).doesNotExist();
 		assertThat(evaluatedFile(higherId)).isNotEqualTo(firstFile);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").doesNotExist())
+			.andExpect(jsonPath("$.passed").doesNotExist());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/evaluated-pdf")
+			.header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isNotFound());
+		String redrafted = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
+			.header("Authorization", "Bearer " + higher.token()))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(redrafted).doesNotContain("Higher Paper");
+		assertThat(redrafted).contains("Lower Paper");
 
+		publishResult(master, higherId);
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + higher.token()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(4))
@@ -461,7 +525,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant).header("Authorization", "Bearer " + system))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.evaluatorName").value("Visible Marker"))
-			.andExpect(jsonPath("$.score").value(7));
+			.andExpect(jsonPath("$.score").value(7))
+			.andExpect(jsonPath("$.published").value(false));
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("again.pdf"))
 			.param("marks", "4")
 			.header("Authorization", "Bearer " + system))
@@ -490,6 +555,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.param("comment", "Noted")
 			.header("Authorization", "Bearer " + marker.token()))
 			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result")
+			.header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").doesNotExist())
+			.andExpect(jsonPath("$.comment").doesNotExist());
+		publishResult(master, participant);
 		String withComment = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result")
 			.header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk())
@@ -506,10 +577,17 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.param("comment", "   ")
 			.header("Authorization", "Bearer " + marker.token()))
 			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result")
+			.header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.comment").doesNotExist())
+			.andExpect(jsonPath("$.score").doesNotExist());
+		publishResult(master, participant);
 		String blank = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result")
 			.header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.comment").doesNotExist())
+			.andExpect(jsonPath("$.score").value(7))
 			.andExpect(jsonPath("$.evaluatorName").doesNotExist())
 			.andReturn()
 			.getResponse()
@@ -518,53 +596,85 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aWrittenRetakeCanBeMarkedAndStaysOffTheLiveBoard() throws Exception {
+	void aWrittenExamRejectsALaterAttempt() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Retake mark");
-		Instructor marker = instructor(master, "Retake Marker");
-		assign(master, module, marker.id());
 		UUID exam = writtenExam(staff, module);
 		Student missed = seedStudent("Missed Live");
 		Student later = seedStudent("Later Retake");
+		Student stranger = seedStudent("No Roster");
 		mark(master, module, missed.id());
 		mark(master, module, later.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		take(missed, exam);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake").header("Authorization", "Bearer " + later.token()))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake").header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(status().isNotFound());
+
 		clock.set(Instant.parse("2026-10-20T06:41:00Z"));
-		UUID retakeId = takeRetake(later, exam);
-		upload(later, exam);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake").header("Authorization", "Bearer " + later.token()))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake").header("Authorization", "Bearer " + missed.token()))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + later.token()))
+			.andExpect(status().isNotFound());
+
 		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
-
-		String before = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
+		String board = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
 			.header("Authorization", "Bearer " + missed.token()))
 			.andExpect(status().isOk())
 			.andReturn()
 			.getResponse()
 			.getContentAsString();
-		assertThat(before).contains("Missed Live");
-		assertThat(before).doesNotContain("Later Retake");
-		assertThat(json.readTree(before).get("rows").get(0).get("score").asInt()).isZero();
+		assertThat(board).contains("Missed Live");
+		assertThat(board).doesNotContain("Later Retake");
+		assertThat(json.readTree(board).get("rows")).hasSize(1);
+		assertThat(json.readTree(board).get("rows").get(0).get("score").asInt()).isZero();
+	}
 
-		clock.set(Instant.parse("2026-10-20T07:21:00Z"));
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + later.token()))
+	@Test
+	void anUndatedExamHasNoLeaderboard() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Undated board");
+		MvcResult created = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Open quiz","titleBn":"কুইজ",
+						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+						  "durationMinutes":40,"passPercent":50
+						}
+						"""))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"stem":"Ten","marks":10,"options":[{"text":"Yes","correct":true},{"text":"No","correct":false}]}
+					"""))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		Student student = seedStudent("Board Student");
+		mark(master, module, student.id());
+
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("SUBMITTED"))
-			.andExpect(jsonPath("$.score").doesNotExist());
-		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + retakeId + "/evaluation").file(sheet("mark.pdf"))
-			.param("marks", "8")
-			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(jsonPath("$.rows").isEmpty());
+		clock.set(Instant.parse("2099-01-01T00:00:00Z"));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(8));
-		String after = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
-			.header("Authorization", "Bearer " + missed.token()))
-			.andExpect(status().isOk())
-			.andReturn()
-			.getResponse()
-			.getContentAsString();
-		assertThat(after).contains("Missed Live");
-		assertThat(after).doesNotContain("Later Retake");
-		assertThat(json.readTree(after).get("rows")).hasSize(1);
+			.andExpect(jsonPath("$.rows").isEmpty());
 	}
 
 	@Test
@@ -640,6 +750,738 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("EVALUATION_NOT_ALLOWED"));
 	}
 
+	@Test
+	void aMasterAdminSaveStaysDraftUntilThatAdminPublishes() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Master draft");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Master Student");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("master.pdf"))
+			.param("marks", "6")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(6))
+			.andExpect(jsonPath("$.published").value(false));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").doesNotExist());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").doesNotExist())
+			.andExpect(jsonPath("$.passed").doesNotExist())
+			.andExpect(jsonPath("$.status").value("SUBMITTED"));
+		publishResult(master, participant);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(6))
+			.andExpect(jsonPath("$.evaluatorName").doesNotExist());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(6));
+	}
+
+	@Test
+	void participationCountsEveryStateWithoutWaitingForADeadlineRead() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID writtenModule = publishModule(system, "Count written");
+		UUID mcqModule = publishModule(system, "Count mcq");
+		Instructor marker = instructor(master, "Count Marker");
+		assign(master, writtenModule, marker.id());
+		UUID written = writtenExam(system, writtenModule);
+		Paper paper = mcq(system, mcqModule);
+		Student submitted = seedStudent("Submitted");
+		Student missed = seedStudent("Missed");
+		Student drafted = seedStudent("Drafted");
+		Student published = seedStudent("Published");
+		Student idle = seedStudent("Idle");
+		Student mcqOne = seedStudent("Mcq one");
+		Student mcqTwo = seedStudent("Mcq two");
+		for (Student student : new Student[] { submitted, missed, drafted, published, idle }) {
+			mark(master, writtenModule, student.id());
+		}
+		mark(master, mcqModule, mcqOne.id());
+		mark(master, mcqModule, mcqTwo.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID draftedParticipant = take(drafted, written);
+		UUID publishedParticipant = take(published, written);
+		take(submitted, written);
+		take(missed, written);
+		take(idle, written);
+		upload(submitted, written);
+		upload(drafted, written);
+		upload(published, written);
+		take(mcqOne, paper.examId());
+		take(mcqTwo, paper.examId());
+		saveCorrect(mcqOne, paper);
+
+		JsonNode live = participation(master, "moduleId", writtenModule.toString());
+		assertThat(live.get("totalElements").asInt()).isEqualTo(1);
+		JsonNode liveRow = live.get("content").get(0);
+		assertThat(liveRow.get("examId").asText()).isEqualTo(written.toString());
+		assertThat(liveRow.get("sitting").asInt()).isEqualTo(5);
+		assertThat(liveRow.get("submitted").asInt()).isZero();
+		assertThat(liveRow.get("failedToSubmit").asInt()).isZero();
+
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		JsonNode after = participation(master, "moduleId", writtenModule.toString()).get("content").get(0);
+		assertThat(after.get("sitting").asInt()).isZero();
+		assertThat(after.get("submitted").asInt()).isEqualTo(3);
+		assertThat(after.get("failedToSubmit").asInt()).isEqualTo(2);
+		assertThat(after.get("awaitingMarking").asInt()).isEqualTo(3);
+		assertThat(after.get("draftsAwaitingPublish").asInt()).isZero();
+		assertThat(after.get("published").asInt()).isZero();
+		assertThat(after.get("liveAt").asText()).isEqualTo("2026-10-20T12:00:00+06:00");
+		assertThat(after.get("endAt").asText()).isEqualTo("2026-10-20T12:40:00+06:00");
+
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + draftedParticipant + "/evaluation").file(sheet("d.pdf"))
+			.param("marks", "6")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + publishedParticipant + "/evaluation").file(sheet("p.pdf"))
+			.param("marks", "7")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		publishResult(master, publishedParticipant);
+
+		JsonNode marked = participation(master, "moduleId", writtenModule.toString()).get("content").get(0);
+		assertThat(marked.get("awaitingMarking").asInt()).isEqualTo(1);
+		assertThat(marked.get("draftsAwaitingPublish").asInt()).isEqualTo(1);
+		assertThat(marked.get("published").asInt()).isEqualTo(1);
+		assertThat(marked.get("submitted").asInt()).isEqualTo(3);
+		assertThat(marked.get("failedToSubmit").asInt()).isEqualTo(2);
+
+		JsonNode mcqRow = participation(master, "moduleId", mcqModule.toString()).get("content").get(0);
+		assertThat(mcqRow.get("examId").asText()).isEqualTo(paper.examId().toString());
+		assertThat(mcqRow.get("examType").asText()).isEqualTo("MCQ");
+		assertThat(mcqRow.get("submitted").asInt()).isEqualTo(2);
+		assertThat(mcqRow.get("failedToSubmit").asInt()).isZero();
+		assertThat(mcqRow.has("awaitingMarking")).isFalse();
+		assertThat(mcqRow.has("draftsAwaitingPublish")).isFalse();
+		assertThat(mcqRow.has("published")).isFalse();
+		assertThat(new JdbcTemplate(dataSource).queryForObject(
+				"select count(*) from live_exam_participants where exam_id = ? and submitted_at is not null", Integer.class,
+				paper.examId())).isZero();
+	}
+
+	@Test
+	void participationFiltersSortsPagesAndScopesAnInstructor() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID mine = publishModule(system, "Scope mine");
+		UUID other = publishModule(system, "Scope other");
+		Instructor marker = instructor(master, "Scope Marker");
+		assign(master, mine, marker.id());
+		UUID mineExam = writtenExam(system, mine);
+		UUID otherExam = writtenExam(system, other);
+
+		JsonNode asMarker = participation(marker.token());
+		assertThat(examIds(asMarker)).contains(mineExam).doesNotContain(otherExam);
+		mockMvc.perform(get("/api/v1/live-exam-participation").param("moduleId", other.toString())
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isNotFound());
+		assertThat(examIds(participation(system, "moduleId", mine.toString()))).containsExactly(mineExam);
+		assertThat(examIds(participation(system, "moduleId", other.toString()))).containsExactly(otherExam);
+		assertThat(examIds(participation(master, "moduleId", other.toString()))).containsExactly(otherExam);
+
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "type", "MCQ"))).isEmpty();
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "type", "WRITTEN"))).containsExactly(mineExam);
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "q", "noon"))).containsExactly(mineExam);
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "q", "nothing like it"))).isEmpty();
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "from", "2026-10-20T00:00:00Z",
+				"to", "2026-10-21T00:00:00Z"))).containsExactly(mineExam);
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "from", "2026-10-21T00:00:00Z"))).isEmpty();
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "sort", "title"))).containsExactly(mineExam);
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "sort", "sitting"))).containsExactly(mineExam);
+
+		JsonNode firstPage = participation(system, "size", "1", "page", "0");
+		assertThat(firstPage.get("content")).hasSize(1);
+		assertThat(firstPage.get("size").asInt()).isEqualTo(1);
+		assertThat(firstPage.get("totalElements").asLong()).isGreaterThanOrEqualTo(2);
+
+		mockMvc.perform(get("/api/v1/live-exam-participation").param("type", "ORAL")
+			.header("Authorization", "Bearer " + master)).andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/live-exam-participation").param("sort", "random")
+			.header("Authorization", "Bearer " + master)).andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/live-exam-participation").param("from", "yesterday")
+			.header("Authorization", "Bearer " + master)).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void participationHidesDraftAndDeletedExamsAndRefusesStudents() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(system, "Hidden rows");
+		UUID kept = writtenExam(system, module);
+		UUID removedModule = publishModule(system, "Hidden removed");
+		UUID removed = mcq(system, removedModule).examId();
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("update live_exams set deleted_at = now() where id = ?", removed);
+		UUID draft = UUID.randomUUID();
+		jdbc.update("""
+				insert into live_exams (id, module_id, exam_type, paper_language, title_en, title_bn, description_en,
+				  description_bn, rules_en, rules_bn, live_at, duration_minutes, status, finally_saved, created_at, updated_at)
+				values (?, ?, 'MCQ', 'BN', 'Draft only', 'খসড়া', 'd', 'd', 'r', 'r', now(), 10, 'DRAFT', false, now(), now())
+				""", draft, module);
+
+		assertThat(examIds(participation(master, "moduleId", module.toString()))).containsExactly(kept);
+
+		Student student = seedStudent("Not staff");
+		mockMvc.perform(get("/api/v1/live-exam-participation").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(get("/api/v1/live-exam-participation/summary").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/live-exam-participation")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void theSummaryCountsOnlyTheCallersScope() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID mine = publishModule(system, "Summary mine");
+		UUID other = publishModule(system, "Summary other");
+		Instructor marker = instructor(master, "Summary Marker");
+		Instructor stranger = instructor(master, "Summary Stranger");
+		assign(master, mine, marker.id());
+		assign(master, other, stranger.id());
+		UUID mineExam = writtenExam(system, mine);
+		UUID otherExam = writtenExam(system, other);
+		Student one = seedStudent("Summary one");
+		Student two = seedStudent("Summary two");
+		Student three = seedStudent("Summary three");
+		mark(master, mine, one.id());
+		mark(master, mine, two.id());
+		mark(master, other, three.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		take(one, mineExam);
+		take(two, mineExam);
+		take(three, otherExam);
+		upload(one, mineExam);
+		upload(two, mineExam);
+		upload(three, otherExam);
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		UUID twoParticipant = new JdbcTemplate(dataSource).queryForObject(
+				"select id from live_exam_participants where exam_id = ? and student_id = ?", UUID.class, mineExam, two.id());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + twoParticipant + "/evaluation").file(sheet("s.pdf"))
+			.param("marks", "5")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/v1/live-exam-participation/summary").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.awaitingMarking").value(1))
+			.andExpect(jsonPath("$.draftsAwaitingPublish").value(1));
+		mockMvc.perform(get("/api/v1/live-exam-participation/summary").header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(jsonPath("$.awaitingMarking").value(1))
+			.andExpect(jsonPath("$.draftsAwaitingPublish").value(0));
+		JsonNode all = json.readTree(mockMvc.perform(get("/api/v1/live-exam-participation/summary")
+			.header("Authorization", "Bearer " + master)).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString());
+		assertThat(all.get("awaitingMarking").asInt()).isGreaterThanOrEqualTo(2);
+		assertThat(all.get("draftsAwaitingPublish").asInt()).isGreaterThanOrEqualTo(1);
+	}
+
+	private JsonNode participation(String token, String... params) throws Exception {
+		var request = get("/api/v1/live-exam-participation").header("Authorization", "Bearer " + token);
+		for (int index = 0; index < params.length; index += 2) {
+			request = request.param(params[index], params[index + 1]);
+		}
+		return json.readTree(mockMvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+	}
+
+	private static java.util.List<UUID> examIds(JsonNode page) {
+		java.util.List<UUID> ids = new java.util.ArrayList<>();
+		for (JsonNode row : page.get("content")) {
+			ids.add(UUID.fromString(row.get("examId").asText()));
+		}
+		return ids;
+	}
+
+	@Test
+	void anMcqScoreWritesOneNoticeAndTheDeadlineJobAddsOneForTheStudentWhoNeverSubmitted() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Notice mcq");
+		Paper paper = mcq(staff, module);
+		Student submits = seedStudent("Submits");
+		Student silent = seedStudent("Silent");
+		mark(master, module, submits.id());
+		mark(master, module, silent.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		take(submits, paper.examId());
+		take(silent, paper.examId());
+		saveCorrect(submits, paper);
+
+		assertThat(noticeCount("MCQ_SCORE", submits.id())).isZero();
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit").header("Authorization", "Bearer " + submits.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit").header("Authorization", "Bearer " + submits.token()))
+			.andExpect(status().isOk());
+		assertThat(noticeCount("MCQ_SCORE", submits.id())).isEqualTo(1);
+		assertThat(noticeCount("MCQ_SCORE", silent.id())).isZero();
+
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		deadlineJob.settleDue();
+		deadlineJob.settleDue();
+		assertThat(noticeCount("MCQ_SCORE", submits.id())).isEqualTo(1);
+		assertThat(noticeCount("MCQ_SCORE", silent.id())).isEqualTo(1);
+
+		JsonNode mine = notices(submits.token());
+		assertThat(mine.get("totalElements").asInt()).isEqualTo(1);
+		JsonNode notice = mine.get("content").get(0);
+		assertThat(notice.get("kind").asText()).isEqualTo("MCQ_SCORE");
+		assertThat(notice.get("score").asInt()).isEqualTo(10);
+		assertThat(notice.get("maximum").asInt()).isEqualTo(10);
+		assertThat(notice.get("passed").asBoolean()).isTrue();
+		assertThat(notice.get("exam").get("id").asText()).isEqualTo(paper.examId().toString());
+		assertThat(notice.has("readAt")).isFalse();
+		JsonNode silentNotice = notices(silent.token()).get("content").get(0);
+		assertThat(silentNotice.get("score").asInt()).isZero();
+		assertThat(silentNotice.get("passed").asBoolean()).isFalse();
+	}
+
+	@Test
+	void aWrittenNoticeAppearsOnlyOnPublishAndAResaveHidesItsMarksUntilThePublishAgain() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Notice written");
+		Instructor marker = instructor(master, "Notice Marker");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Notice Writer");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("one.pdf"))
+			.param("marks", "6")
+			.param("comment", "Private comment")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		assertThat(noticeCount("WRITTEN_RESULT", student.id())).isZero();
+		assertThat(notices(student.token()).get("totalElements").asInt()).isZero();
+
+		publishResult(master, participant);
+		publishResult(master, participant);
+		assertThat(noticeCount("WRITTEN_RESULT", student.id())).isEqualTo(1);
+		JsonNode first = notices(student.token()).get("content").get(0);
+		assertThat(first.get("kind").asText()).isEqualTo("WRITTEN_RESULT");
+		assertThat(first.get("score").asInt()).isEqualTo(6);
+		assertThat(first.get("maximum").asInt()).isEqualTo(10);
+		String body = notices(student.token()).toString();
+		assertThat(body).doesNotContain("Private comment", "Notice Marker", "evaluat", "phone");
+
+		clock.set(Instant.parse("2026-10-20T07:00:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("two.pdf"))
+			.param("marks", "8")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		JsonNode hidden = notices(student.token()).get("content").get(0);
+		assertThat(hidden.has("score")).isFalse();
+		assertThat(hidden.has("maximum")).isFalse();
+		assertThat(noticeCount("WRITTEN_RESULT", student.id())).isEqualTo(1);
+
+		clock.set(Instant.parse("2026-10-20T07:05:00Z"));
+		publishResult(master, participant);
+		assertThat(noticeCount("WRITTEN_RESULT", student.id())).isEqualTo(2);
+		JsonNode both = notices(student.token());
+		assertThat(both.get("content").get(0).get("score").asInt()).isEqualTo(8);
+		assertThat(both.get("content").get(1).get("score").asInt()).isEqualTo(8);
+	}
+
+	@Test
+	void aFailedToSubmitWrittenPaperWritesNoNotice() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Notice failed");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Notice Empty");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		take(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		deadlineJob.settleDue();
+		assertThat(new JdbcTemplate(dataSource).queryForObject(
+				"select status from live_exam_participants where exam_id = ? and student_id = ?", String.class, exam,
+				student.id())).isEqualTo("FAILED_TO_SUBMIT");
+		assertThat(notices(student.token()).get("totalElements").asInt()).isZero();
+	}
+
+	@Test
+	void theReminderGoesOncePerStudentWithAccessInsideTheTwoDayLeadAndNeverWithoutAGrant() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Reminder module");
+		UUID exam = writtenExam(staff, module);
+		UUID otherExam = null;
+		Student rostered = seedStudent("Rostered");
+		Student bought = seedStudent("Bought");
+		Student stranger = seedStudent("Stranger");
+		mark(master, module, rostered.id());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		UUID order = UUID.randomUUID();
+		jdbc.update("""
+				insert into live_exam_orders (id, student_id, scope, module_id, exam_id, amount, currency, method, tran_id,
+				  status, created_at, updated_at)
+				values (?, ?, 'EXAM', ?, ?, 10.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
+				""", order, bought.id(), module, exam, UUID.randomUUID().toString().replace("-", "").substring(0, 30));
+		jdbc.update("""
+				insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at)
+				values (?, ?, 'EXAM', ?, ?, ?, now())
+				""", UUID.randomUUID(), bought.id(), module, exam, order);
+
+		clock.set(Instant.parse("2026-10-17T05:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", rostered.id())).isZero();
+
+		clock.set(Instant.parse("2026-10-18T07:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", rostered.id())).isEqualTo(1);
+		assertThat(noticeCount("EXAM_REMINDER", bought.id())).isEqualTo(1);
+		assertThat(noticeCount("EXAM_REMINDER", stranger.id())).isZero();
+		clock.set(Instant.parse("2026-10-19T07:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", rostered.id())).isEqualTo(1);
+		assertThat(noticeCount("EXAM_REMINDER", bought.id())).isEqualTo(1);
+
+		JsonNode reminder = notices(rostered.token()).get("content").get(0);
+		assertThat(reminder.get("kind").asText()).isEqualTo("EXAM_REMINDER");
+		assertThat(reminder.get("exam").get("liveAt").asText()).isEqualTo("2026-10-20T12:00:00+06:00");
+		assertThat(reminder.has("score")).isFalse();
+		assertThat(otherExam).isNull();
+
+		Student late = seedStudent("Late access");
+		mark(master, module, late.id());
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", late.id())).isEqualTo(1);
+
+		clock.set(Instant.parse("2026-10-20T06:00:00Z"));
+		Student after = seedStudent("After start");
+		mark(master, module, after.id());
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", after.id())).isZero();
+	}
+
+	@Test
+	void noReminderForADraftAnUnpublishedModuleOrAnUndatedExam() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Reminder gates");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Gated");
+		mark(master, module, student.id());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		clock.set(Instant.parse("2026-10-19T07:00:00Z"));
+
+		jdbc.update("update live_exams set status = 'DRAFT' where id = ?", exam);
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isZero();
+		jdbc.update("update live_exams set status = 'PUBLISHED' where id = ?", exam);
+		jdbc.update("update live_exam_modules set status = 'DRAFT' where id = ?", module);
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isZero();
+		jdbc.update("update live_exam_modules set status = 'PUBLISHED' where id = ?", module);
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isEqualTo(1);
+	}
+
+	@Test
+	void theInboxPagesMarksReadAndKeepsOneStudentsNoticesFromAnother() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Inbox module");
+		UUID exam = writtenExam(staff, module);
+		Student one = seedStudent("Inbox one");
+		Student two = seedStudent("Inbox two");
+		mark(master, module, one.id());
+		mark(master, module, two.id());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		UUID first = notice(jdbc, one.id(), exam, "2026-10-19T01:00:00Z");
+		UUID second = notice(jdbc, one.id(), exam, "2026-10-19T02:00:00Z");
+		UUID third = notice(jdbc, one.id(), exam, "2026-10-19T03:00:00Z");
+		UUID foreign = notice(jdbc, two.id(), exam, "2026-10-19T04:00:00Z");
+
+		JsonNode page = json.readTree(mockMvc.perform(get("/api/v1/me/notices").param("size", "2")
+			.header("Authorization", "Bearer " + one.token())).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString());
+		assertThat(page.get("totalElements").asInt()).isEqualTo(3);
+		assertThat(page.get("totalPages").asInt()).isEqualTo(2);
+		assertThat(page.get("content").get(0).get("id").asText()).isEqualTo(third.toString());
+		assertThat(page.get("content").get(1).get("id").asText()).isEqualTo(second.toString());
+		mockMvc.perform(get("/api/v1/me/notices/unread-count").header("Authorization", "Bearer " + one.token()))
+			.andExpect(jsonPath("$.count").value(3));
+
+		mockMvc.perform(post("/api/v1/me/notices/" + foreign + "/read").header("Authorization", "Bearer " + one.token()))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v1/me/notices/" + UUID.randomUUID() + "/read")
+			.header("Authorization", "Bearer " + one.token()))
+			.andExpect(status().isNotFound());
+		assertThat(jdbc.queryForObject("select read_at is null from student_notices where id = ?", Boolean.class, foreign))
+			.isTrue();
+
+		mockMvc.perform(post("/api/v1/me/notices/" + first + "/read").header("Authorization", "Bearer " + one.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.readAt").exists());
+		Instant readAt = readAt(first);
+		clock.set(clock.instant().plusSeconds(600));
+		mockMvc.perform(post("/api/v1/me/notices/" + first + "/read").header("Authorization", "Bearer " + one.token()))
+			.andExpect(status().isOk());
+		assertThat(readAt(first)).isEqualTo(readAt);
+		mockMvc.perform(get("/api/v1/me/notices/unread-count").header("Authorization", "Bearer " + one.token()))
+			.andExpect(jsonPath("$.count").value(2));
+
+		mockMvc.perform(post("/api/v1/me/notices/read-all").header("Authorization", "Bearer " + one.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.updated").value(2));
+		mockMvc.perform(post("/api/v1/me/notices/read-all").header("Authorization", "Bearer " + one.token()))
+			.andExpect(jsonPath("$.updated").value(0));
+		mockMvc.perform(get("/api/v1/me/notices/unread-count").header("Authorization", "Bearer " + two.token()))
+			.andExpect(jsonPath("$.count").value(1));
+
+		jdbc.update("update live_exams set deleted_at = now() where id = ?", exam);
+		mockMvc.perform(get("/api/v1/me/notices/unread-count").header("Authorization", "Bearer " + two.token()))
+			.andExpect(jsonPath("$.count").value(0));
+		mockMvc.perform(get("/api/v1/me/notices").header("Authorization", "Bearer " + one.token()))
+			.andExpect(jsonPath("$.totalElements").value(0));
+	}
+
+	@Test
+	void onlyAStudentReadsTheInbox() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Admin"));
+		Instructor marker = instructor(master, "Inbox Marker");
+		for (String token : new String[] { master, system, marker.token() }) {
+			mockMvc.perform(get("/api/v1/me/notices").header("Authorization", "Bearer " + token))
+				.andExpect(status().isForbidden());
+			mockMvc.perform(get("/api/v1/me/notices/unread-count").header("Authorization", "Bearer " + token))
+				.andExpect(status().isForbidden());
+			mockMvc.perform(post("/api/v1/me/notices/read-all").header("Authorization", "Bearer " + token))
+				.andExpect(status().isForbidden());
+			mockMvc.perform(post("/api/v1/me/notices/" + UUID.randomUUID() + "/read").header("Authorization", "Bearer " + token))
+				.andExpect(status().isForbidden());
+		}
+		mockMvc.perform(get("/api/v1/me/notices")).andExpect(status().isUnauthorized());
+	}
+
+	private UUID notice(JdbcTemplate jdbc, UUID studentId, UUID examId, String createdAt) {
+		UUID id = UUID.randomUUID();
+		jdbc.update("""
+				insert into student_notices (id, user_id, kind, message_key, exam_id, created_at)
+				values (?, ?, 'EXAM_REMINDER', ?, ?, ?::timestamptz)
+				""", id, studentId, id.toString(), examId, createdAt);
+		return id;
+	}
+
+	private Instant readAt(UUID noticeId) {
+		return new JdbcTemplate(dataSource).queryForObject("select read_at from student_notices where id = ?",
+				java.sql.Timestamp.class, noticeId).toInstant();
+	}
+
+	private int noticeCount(String kind, UUID studentId) {
+		return new JdbcTemplate(dataSource).queryForObject(
+				"select count(*) from student_notices where kind = ? and user_id = ?", Integer.class, kind, studentId);
+	}
+
+	private JsonNode notices(String token) throws Exception {
+		return json.readTree(mockMvc.perform(get("/api/v1/me/notices").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+	}
+
+	@Test
+	void unassigningTheInstructorLetsAnotherTakeOverAndKeepsTheDraft() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Unassign");
+		Instructor first = instructor(master, "First Marker");
+		Instructor second = instructor(master, "Second Marker");
+		assign(master, module, first.id());
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Unassign Student");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "6")
+			.header("Authorization", "Bearer " + first.token()))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"instructorId\":\"" + second.id() + "\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("INSTRUCTOR_ALREADY_ASSIGNED"));
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		assertThat(new JdbcTemplate(dataSource).queryForObject("select count(*) from live_exam_instructors where module_id = ?", Integer.class, module))
+			.isZero();
+		assertThat(new JdbcTemplate(dataSource).queryForObject(
+				"select count(*) from audit_log where action = 'LIVE_EXAM_INSTRUCTOR_UNASSIGN' and entity_id = ?",
+				Integer.class, module)).isEqualTo(1);
+
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions")
+			.header("Authorization", "Bearer " + first.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("again.pdf"))
+			.param("marks", "7")
+			.header("Authorization", "Bearer " + first.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].score").value(6))
+			.andExpect(jsonPath("$[0].evaluatorName").value("First Marker"));
+
+		assign(master, module, second.id());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions")
+			.header("Authorization", "Bearer " + second.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].score").value(6));
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("again.pdf"))
+			.param("marks", "8")
+			.header("Authorization", "Bearer " + second.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(8))
+			.andExpect(jsonPath("$.evaluatorName").value("Second Marker"));
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.published").value(true));
+	}
+
+	@Test
+	void unassignNeedsAnAssignmentAnExistingModuleAndTheMasterAdmin() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Admin"));
+		UUID module = publishModule(system, "Unassign guard");
+		Instructor marker = instructor(master, "Guard Marker");
+
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + UUID.randomUUID() + "/instructor")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+
+		assign(master, module, marker.id());
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor"))
+			.andExpect(status().isUnauthorized());
+		assertThat(new JdbcTemplate(dataSource).queryForObject("select count(*) from live_exam_instructors where module_id = ?", Integer.class, module))
+			.isEqualTo(1);
+	}
+
+	@Test
+	void anInstructorAndASystemAdminCannotPublish() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Admin"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Publish gate");
+		Instructor marker = instructor(master, "Publish Marker");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Publish Student");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "7")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish")
+			.header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant).header("Authorization", "Bearer " + system))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.evaluatorName").value("Publish Marker"))
+			.andExpect(jsonPath("$.score").value(7))
+			.andExpect(jsonPath("$.published").value(false));
+	}
+
+	@Test
+	void publishRejectsAnUnmarkedPaperAndAnMcq() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Reject publish");
+		UUID written = writtenExam(staff, module);
+		Student writer = seedStudent("Unmarked Writer");
+		mark(master, module, writer.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(writer, written);
+		upload(writer, written);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + written + "/submit").header("Authorization", "Bearer " + writer.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EVALUATION_NOT_ALLOWED"));
+
+		clock.set(TEN_AM);
+		UUID quizModule = publishModule(staff, "Reject quiz");
+		Paper paper = mcq(staff, quizModule);
+		Student quiz = seedStudent("Quiz Taker");
+		mark(master, quizModule, quiz.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID mcqParticipant = take(quiz, paper.examId());
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + mcqParticipant + "/publish")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_TYPE_MISMATCH"));
+	}
+
+	@Test
+	void aSecondPublishLeavesThePublishedTime() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Second publish");
+		Instructor marker = instructor(master, "Second Marker");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Second Student");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "9")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		publishResult(master, participant);
+		Instant first = publishedAt(participant);
+		clock.set(Instant.parse("2026-10-20T07:00:00Z"));
+		publishResult(master, participant);
+		assertThat(publishedAt(participant)).isEqualTo(first);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(9));
+	}
+
 	private String statusOf(JsonNode rows, String name) {
 		for (JsonNode row : rows) {
 			if (name.equals(row.get("studentName").asText())) {
@@ -647,14 +1489,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			}
 		}
 		throw new AssertionError("Missing " + name);
-	}
-
-	private UUID takeRetake(Student student, UUID examId) throws Exception {
-		MvcResult taken = mockMvc.perform(post("/api/v1/live-exams/" + examId + "/retake")
-			.header("Authorization", "Bearer " + student.token()))
-			.andExpect(status().isOk())
-			.andReturn();
-		return UUID.fromString(json.readTree(taken.getResponse().getContentAsString()).get("id").asText());
 	}
 
 	private int rank(JsonNode board, String name) {
@@ -702,7 +1536,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{
-						  "examType":"WRITTEN","titleEn":"Noon paper","titleBn":"খাতা",
+						  "examType":"WRITTEN","paperLanguage":"BN","titleEn":"Noon paper","titleBn":"খাতা",
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"2026-10-20T12:00:00+06:00","durationMinutes":40,"passPercent":50,"maximum":10
 						}
@@ -727,7 +1561,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{
-						  "examType":"MCQ","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"2026-10-20T12:00:00+06:00","durationMinutes":40,"passPercent":50
 						}
@@ -813,6 +1647,19 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 					{"studentId":"%s"}
 					""".formatted(studentId)))
 			.andExpect(status().isCreated());
+	}
+
+	private void publishResult(String master, UUID participantId) throws Exception {
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participantId + "/publish")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.published").value(true));
+	}
+
+	private Instant publishedAt(UUID participantId) {
+		return new JdbcTemplate(dataSource).queryForObject(
+				"select published_at from live_exam_participants where id = ?",
+				(result, row) -> result.getTimestamp(1).toInstant(), participantId);
 	}
 
 	private String evaluatedFile(UUID participantId) {
@@ -908,6 +1755,181 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	private record Paper(UUID examId, UUID questionId, UUID correctOptionId) {
+	}
+
+	@Test
+	void aRetakeMcqScoreWritesItsOwnNotice() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Retake notice");
+		Paper paper = mcq(staff, module);
+		Student initial = seedStudent("Initial scorer");
+		Student retaker = seedStudent("Retake scorer");
+		mark(master, module, initial.id());
+		mark(master, module, retaker.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		take(initial, paper.examId());
+		saveCorrect(initial, paper);
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit")
+			.header("Authorization", "Bearer " + initial.token()))
+			.andExpect(status().isOk());
+		assertThat(noticeCount("MCQ_SCORE", initial.id())).isEqualTo(1);
+
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/retake")
+			.header("Authorization", "Bearer " + retaker.token()))
+			.andExpect(status().isOk());
+		saveCorrect(retaker, paper);
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit")
+			.header("Authorization", "Bearer " + retaker.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(10));
+		assertThat(noticeCount("MCQ_SCORE", retaker.id())).isEqualTo(1);
+	}
+
+	@Test
+	void changedLiveAtAndRepublishWritesNewReminder() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Reminder change");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Reminder moved");
+		mark(master, module, student.id());
+
+		clock.set(Instant.parse("2026-10-17T07:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isZero();
+
+		new JdbcTemplate(dataSource).update(
+			"update live_exams set live_at = ?::timestamptz where id = ?",
+			"2026-10-19T12:00:00+06:00", exam);
+		clock.set(Instant.parse("2026-10-18T07:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isEqualTo(1);
+
+		new JdbcTemplate(dataSource).update(
+			"update live_exams set live_at = ?::timestamptz where id = ?",
+			"2026-10-20T12:00:00+06:00", exam);
+		clock.set(Instant.parse("2026-10-19T07:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isEqualTo(2);
+	}
+
+	@Test
+	void noReminderForArchivedCategoryAndNoticeHiddenWhenModuleDeleted() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Archived category");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Archive watcher");
+		mark(master, module, student.id());
+		UUID categoryId = new JdbcTemplate(dataSource).queryForObject(
+			"select category_id from live_exam_modules where id = ?", UUID.class, module);
+
+		new JdbcTemplate(dataSource).update(
+			"update live_exam_categories set archived_at = now() where id = ?", categoryId);
+		clock.set(Instant.parse("2026-10-19T07:00:00Z"));
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isZero();
+
+		new JdbcTemplate(dataSource).update(
+			"update live_exam_categories set archived_at = null where id = ?", categoryId);
+		reminders.scan();
+		assertThat(noticeCount("EXAM_REMINDER", student.id())).isEqualTo(1);
+		assertThat(notices(student.token()).get("totalElements").asInt()).isEqualTo(1);
+
+		new JdbcTemplate(dataSource).update(
+			"update live_exam_modules set deleted_at = now() where id = ?", module);
+		JsonNode visible = json.readTree(mockMvc.perform(get("/api/v1/me/notices")
+			.header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+		assertThat(visible.get("totalElements").asInt()).isZero();
+	}
+
+	@Test
+	void participationCountsRetakesAndArchivedModuleRows() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Count retakes");
+		Paper paper = mcq(staff, module);
+		Student initial = seedStudent("Initial taker");
+		Student retaker = seedStudent("Retake counter");
+		mark(master, module, initial.id());
+		mark(master, module, retaker.id());
+
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		take(initial, paper.examId());
+		take(retaker, paper.examId());
+		saveCorrect(initial, paper);
+		saveCorrect(retaker, paper);
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit")
+			.header("Authorization", "Bearer " + initial.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit")
+			.header("Authorization", "Bearer " + retaker.token()))
+			.andExpect(status().isOk());
+
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		Student lateStudent = seedStudent("Late taker");
+		mark(master, module, lateStudent.id());
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/retake")
+			.header("Authorization", "Bearer " + lateStudent.token()))
+			.andExpect(status().isOk());
+		saveCorrect(lateStudent, paper);
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit")
+			.header("Authorization", "Bearer " + lateStudent.token()))
+			.andExpect(status().isOk());
+
+		JsonNode part = participation(staff, "moduleId", module.toString()).get("content").get(0);
+		assertThat(part.get("submitted").asInt()).isEqualTo(3);
+		assertThat(part.get("retakes").asInt()).isEqualTo(1);
+
+		UUID categoryId = new JdbcTemplate(dataSource).queryForObject(
+			"select category_id from live_exam_modules where id = ?", UUID.class, module);
+		new JdbcTemplate(dataSource).update(
+			"update live_exam_categories set archived_at = now() where id = ?", categoryId);
+
+		JsonNode archived = participation(staff, "moduleId", module.toString()).get("content").get(0);
+		assertThat(archived.get("submitted").asInt()).isEqualTo(3);
+		assertThat(archived.get("retakes").asInt()).isEqualTo(1);
+	}
+
+	@Test
+	void deletedExamKeepsTheModuleGrantAndOrder() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Delete module");
+		Paper paper = mcq(staff, module);
+		Student student = seedStudent("Delete student");
+		mark(master, module, student.id());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+		UUID order = UUID.randomUUID();
+		jdbc.update("""
+			insert into live_exam_orders (id, student_id, scope, module_id, exam_id, amount, currency, method, tran_id,
+			  status, created_at, updated_at)
+			values (?, ?, 'MODULE', ?, null, 10.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
+			""", order, student.id(), module, UUID.randomUUID().toString().replace("-", "").substring(0, 30));
+		jdbc.update("""
+			insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at)
+			values (?, ?, 'MODULE', ?, null, ?, now())
+			""", UUID.randomUUID(), student.id(), module, order);
+
+		mockMvc.perform(delete("/api/v1/live-exams/" + paper.examId()).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+
+		assertThat(jdbc.queryForObject(
+			"select count(*) from live_exam_grants where student_id = ? and scope = 'MODULE' and module_id = ?",
+			Integer.class, student.id(), module)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select status from live_exam_orders where id = ?", String.class, order))
+			.isEqualTo("SUCCEEDED");
+		mockMvc.perform(get("/api/v1/live-exams/" + paper.examId()).header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk());
 	}
 
 	@TestConfiguration

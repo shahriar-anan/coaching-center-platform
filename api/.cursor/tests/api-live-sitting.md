@@ -14,7 +14,7 @@ Shared setup: a marked student, a published MCQ exam with three questions, and a
 - A student who never tapped can start one retake after 12:40. The retake deadline is the tap plus 40 minutes. A second retake is rejected. The live participant's retake start is rejected.
 - A written PDF of acceptable size is stored as a compressed PDF. A second upload deletes the first stored file. A file over 80 MB stores nothing. No completed file at the deadline is failed to submit, score 0, and fail.
 
-Slice 1 of these cases passed. Slice 2 is open.
+Slice 1 of these cases passed. Slice 2 has passed. Slice 3 has passed.
 
 ## Slice 2
 
@@ -25,3 +25,18 @@ Slice 1 of these cases passed. Slice 2 is open.
 - After Take exam the participant downloads the question PDF bytes. Before the tap the download is rejected. Another student is rejected. During a retake the same download returns the locked file, and after that retake deadline it is rejected.
 - Removing the roster row after Take exam leaves the participant row, and the student still receives the result.
 - Archiving an ancestor category hides the exam by id, the exam list, take, retake, the question PDF, and the leaderboard. The posted result stays readable. A past exam in a category that was not archived can still be retaken.
+
+## Slice 3
+
+`LiveSittingIT`. PostgreSQL only. Do not change `CourseRoutineIT`.
+
+- A student marked on two published modules receives `GET /api/v1/me/exam-routine` ordered by `liveAt`, then exam id. One row is an MCQ under a child category, so the path is the root and then that child. The other is a written exam in a different module whose window overlaps the first. Each row has the exam id, the type, both exam titles, the module id, both module titles, that category path with both titles, `liveAt`, `endAt`, and the duration. The row has no description, rules, stem, option, correct flag, explanation, or question PDF.
+- A draft exam, a final-saved unpublished exam, and a published exam whose module is still a draft are absent.
+- A student marked on only one of the two modules receives only that module's exam. A student marked on neither receives an empty page.
+- A Master Admin, a System Admin, and an Instructor receive `403`. An anonymous call receives `401`.
+- Before the end, an exam that has not started and an exam that has already started are both present. When the server clock reaches the end, that exam is absent. A `now` query does not keep it on the routine. Page size 1 returns the soonest remaining exam, and the ended exam is not that row.
+- After the end, the same exam is still on `GET /api/v1/live-exam-modules/{moduleId}/exams`. A student who never tapped can still open it and start the one retake. The routine read before that tap creates no participant.
+- A student who already tapped still sees the exam until the shared end. After the end the routine omits it and the result stays readable. A retake whose personal timer is still running stays off the routine.
+- Removing the roster row after Take exam drops the exam from the routine, and the result stays readable.
+- Archiving the module, its category, or an ancestor drops that branch and leaves the other module's exam on the routine. The posted result stays readable.
+- `GET /api/v1/me/exam-routine` is in the OpenAPI inventory.

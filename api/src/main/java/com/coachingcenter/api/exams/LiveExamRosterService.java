@@ -30,14 +30,20 @@ public class LiveExamRosterService {
 
 	private final StudentProfileRepository profiles;
 
+	private final ExamMailService examMail;
+
+	private final AfterCommit afterCommit;
+
 	private final Clock clock;
 
 	public LiveExamRosterService(LiveExamRosterRepository roster, LiveExamModuleRepository modules, UserRepository users,
-			StudentProfileRepository profiles, Clock clock) {
+			StudentProfileRepository profiles, ExamMailService examMail, AfterCommit afterCommit, Clock clock) {
 		this.roster = roster;
 		this.modules = modules;
 		this.users = users;
 		this.profiles = profiles;
+		this.examMail = examMail;
+		this.afterCommit = afterCommit;
 		this.clock = clock;
 	}
 
@@ -76,6 +82,7 @@ public class LiveExamRosterService {
 			row.setStudentId(studentId);
 			row.setCreatedAt(clock.instant());
 			roster.save(row);
+			afterCommit.run(() -> examMail.onRosterAdded(moduleId, studentId));
 		}
 		return match(student);
 	}

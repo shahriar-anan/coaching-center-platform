@@ -23,6 +23,13 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 
 	Page<LiveExamModule> findByCategoryIdAndDeletedAtIsNull(UUID categoryId, Pageable pageable);
 
+	Page<LiveExamModule> findByStatusAndDeletedAtIsNull(String status, Pageable pageable);
+
+	Page<LiveExamModule> findByCategoryIdAndStatusAndDeletedAtIsNull(UUID categoryId, String status, Pageable pageable);
+
+	Page<LiveExamModule> findByStatusAndDeletedAtIsNullAndCategoryIdNotIn(String status, Set<UUID> categoryIds,
+			Pageable pageable);
+
 	@Query(value = """
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL
@@ -44,17 +51,29 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED'
 			  AND m.categoryId NOT IN :hiddenCategoryIds
-			  AND EXISTS (
-			    SELECT r FROM LiveExamRoster r
-			    WHERE r.moduleId = m.id AND r.studentId = :studentId
+			  AND (
+			    EXISTS (
+			      SELECT r FROM LiveExamRoster r
+			      WHERE r.moduleId = m.id AND r.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT g FROM LiveExamGrant g
+			      WHERE g.moduleId = m.id AND g.studentId = :studentId
+			    )
 			  )
 			""", countQuery = """
 			SELECT count(m) FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED'
 			  AND m.categoryId NOT IN :hiddenCategoryIds
-			  AND EXISTS (
-			    SELECT r FROM LiveExamRoster r
-			    WHERE r.moduleId = m.id AND r.studentId = :studentId
+			  AND (
+			    EXISTS (
+			      SELECT r FROM LiveExamRoster r
+			      WHERE r.moduleId = m.id AND r.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT g FROM LiveExamGrant g
+			      WHERE g.moduleId = m.id AND g.studentId = :studentId
+			    )
 			  )
 			""")
 	Page<LiveExamModule> findVisibleToStudent(@Param("studentId") UUID studentId,
@@ -64,17 +83,29 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId = :categoryId
 			  AND m.categoryId NOT IN :hiddenCategoryIds
-			  AND EXISTS (
-			    SELECT r FROM LiveExamRoster r
-			    WHERE r.moduleId = m.id AND r.studentId = :studentId
+			  AND (
+			    EXISTS (
+			      SELECT r FROM LiveExamRoster r
+			      WHERE r.moduleId = m.id AND r.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT g FROM LiveExamGrant g
+			      WHERE g.moduleId = m.id AND g.studentId = :studentId
+			    )
 			  )
 			""", countQuery = """
 			SELECT count(m) FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId = :categoryId
 			  AND m.categoryId NOT IN :hiddenCategoryIds
-			  AND EXISTS (
-			    SELECT r FROM LiveExamRoster r
-			    WHERE r.moduleId = m.id AND r.studentId = :studentId
+			  AND (
+			    EXISTS (
+			      SELECT r FROM LiveExamRoster r
+			      WHERE r.moduleId = m.id AND r.studentId = :studentId
+			    )
+			    OR EXISTS (
+			      SELECT g FROM LiveExamGrant g
+			      WHERE g.moduleId = m.id AND g.studentId = :studentId
+			    )
 			  )
 			""")
 	Page<LiveExamModule> findVisibleToStudentInCategory(@Param("studentId") UUID studentId,

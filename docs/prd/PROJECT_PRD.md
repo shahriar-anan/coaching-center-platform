@@ -5,6 +5,16 @@
 **Status:** Draft. Assumptions reviewed and answered by the product owner; items still marked ⚠ need a decision (see Section 14.3)
 **Last updated:** 2026-09-24
 
+**Outdated for the exam module (2026-10-23).** Do not use the following as the exam requirement. Course and library behavior in this PRD is not marked.
+
+- The student exam client is the Flutter app (Sections 1, 3.1, and 5). The exam client is the website. The mobile app is out of scope for this delivery.
+- A web student experience is out of MVP (Section 3.2).
+- Written answers are photo uploads (Section 3.1).
+- bKash and Nagad are the payment method (Section 0 and the course purchase flow). Exam payment is SSLCommerz.
+- Google login is optional or stretch (Section 0).
+- Exam alerts are push notifications (Sections 1 and 3.1). They are website inbox rows.
+- Shared-VPS rules in Section 10, including `client_vps_deployment_context.md`. The exam site targets a new dedicated server.
+
 ---
 
 ## 0. What changed
@@ -424,6 +434,8 @@ Prefer soft delete/archiving so historical academic and financial records are ne
 | Video | YouTube IFrame player (unlisted videos) behind a `VideoProvider` interface; protected provider is a future upgrade |
 | API docs | OpenAPI / Swagger |
 | Deployment | systemd + Nginx + PostgreSQL on the client's VPS (see `client_vps_deployment_context.md`) |
+
+**Outdated for the exam site:** the shared-VPS constraint below. The exam site uses a new dedicated server. Course deployment notes are unchanged.
 
 Deployment path: local development → staging subdomain on the VPS → client testing → production cutover, with the old system retained temporarily for rollback. Do not modify existing Nginx sites or MariaDB databases on the shared VPS.
 

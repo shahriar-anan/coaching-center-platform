@@ -1,6 +1,8 @@
 # Phase 3 status
 
-Status: complete. Slice 2 of `api-live-sitting` and `api-live-evaluation` passed. An archived category hides its whole branch from students, including an exam opened by id, and a posted result stays readable.
+**Outdated as a stop on further exam work (2026-10-23).** The stage exits below are the record of the API that shipped. Do not follow "Phase 3 stays `api/`" or "there is no browser exit" as a ban on later work. Public catalog reads, purchase, the written-result publish step, Google sign-in, website notifications, and the student website come after this record. Sitting rules, immediate MCQ scores, one instructor per module, and the roster grant are not outdated.
+
+Status: complete. Slice 3 of `api-live-sitting` passed. A marked student receives one routine of published exams whose live window has not ended. An ended exam leaves the routine and stays open for a retake. An archived category hides its whole branch from students, including an exam opened by id, and a posted result stays readable.
 
 The binding spec is [phase-3-scope.md](phase-3-scope.md). This file is the step list. A stage plan adds order and tests. It does not drop an exit, reorder these stages, or pull screens into an API stage.
 
@@ -29,6 +31,7 @@ Do not start a stage until the previous stage's exit passes. Write `api/.cursor/
 - `api-live-roster`: only a Master Admin marks students, by email, phone, name, or a paste of email and phone. A marked student sees the published exams. A System Admin receives `403`.
 - `api-live-sitting` slice 1: Take exam creates the participant. MCQ answers can change until the deadline and are posted then, including a blank paper as zero. The score is immediate. The answer review waits until the sitting ends. A written PDF replaces the previous file, rejects over 80 MB, and a missing PDF is failed to submit. One retake exists only for a student who never tapped during the live window, and it stays off the live leaderboard.
 - `api-live-sitting` slice 2: an early submit does not freeze MCQ answers. The deadline posts the paper without a student submit call. The participant can download the written question PDF only during that sitting. Removing the roster row after Take exam leaves the result readable.
+- `api-live-sitting` slice 3: one student read lists published exams across every marked module whose live window has not ended, soonest first. Reading it does not create a participant. An ended exam leaves the routine and stays open for a retake. The course routine is unchanged.
 - `api-live-evaluation` slice 1: one instructor per module, created like a System Admin. That instructor or the Master Admin saves a written total, an optional comment, and an evaluated PDF. The student sees them on save and never sees the evaluator. A later save recalculates pass or fail and rank. The MCQ live leaderboard opens five minutes after the window.
 - `api-live-evaluation` slice 2: the instructor browses assigned modules only and can download the answer PDF. A System Admin can read the evaluator name and cannot save a mark. A comment is visible to the student when one was entered. A written retake is marked and stays off the live board. The submission list shows the deadline post without a student submit call.
 

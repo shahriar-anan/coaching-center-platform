@@ -25,10 +25,16 @@ class SchemaIT extends PostgresIntegrationTest {
 	private DataSource dataSource;
 
 	@Test
+	void examOutboundMailStoresTheQueueAndNotTheBody() throws Exception {
+		assertThat(columns("exam_outbound_mail")).containsExactlyInAnyOrder("id", "kind", "message_key", "user_id",
+				"attempt_count", "status", "created_at", "updated_at");
+	}
+
+	@Test
 	void identityTablesMatchThePhaseSchema() throws Exception {
 		assertThat(columns("users")).containsExactlyInAnyOrder("id", "phone", "email", "email_verified_at",
 				"password_hash", "role", "status", "last_login_at", "created_by", "created_at", "updated_at",
-				"deleted_at");
+				"deleted_at", "google_sub");
 		assertThat(columns("student_profiles")).containsExactlyInAnyOrder("user_id", "full_name", "student_code");
 		assertThat(columns("admin_profiles")).containsExactlyInAnyOrder("user_id", "full_name");
 		assertThat(columns("refresh_tokens")).containsExactlyInAnyOrder("id", "user_id", "token_hash", "family_id",

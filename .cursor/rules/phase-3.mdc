@@ -5,18 +5,24 @@ alwaysApply: true
 
 # Phase 3
 
-The binding spec is `docs/phases/phase-3/phase-3-scope.md`. The step list is `docs/phases/phase-3/phase-3-status.md`. The stages are `api-live-catalog`, `api-live-exam`, `api-live-roster`, `api-live-sitting`, and `api-live-evaluation`. Do not start a stage until the previous stage's exit passes.
+The live-exam API stages are complete. Their record is `docs/phases/phase-3/phase-3-status.md`.
+
+**Outdated — do not follow:**
+
+- This phase is `api/` only. Do not add exam screens under `mobile/` or `web/`.
+- Do not add a payment gateway.
+- Do not add notices.
+
+Public catalog reads, per-exam and full-module purchase, a Master Admin publish step for written results, Google sign-in, website notifications, and the student website are later work. Plan that work from `docs/exam-site/README.md`. The outdated lines in `docs/phases/phase-3/phase-3-scope.md` name the same conflicts.
+
+**Still in force:**
 
 The earlier stages `api-exam-module` through `api-question-bank` are superseded. Do not extend them. Do not treat their exits as proof of the live-exam rules.
 
-## API only
+Do not open a browser, install an emulator, or run a device check for the mobile app. Automated API checks use real PostgreSQL. Do not use H2. Do not add a mobile or web CI workflow.
 
-This phase is `api/` plus its `*IT` classes. Do not add exam screens under `mobile/` or `web/`. Do not open a browser, install an emulator, or run a device check. Automated checks only, against real PostgreSQL. Do not use H2. Do not add a mobile or web CI workflow.
-
-Before writing a stage, read that stage's plan, test list, and rule in `api/.cursor/`. Also read `api/.cursor/rules/api-exam-invariants.mdc`.
-
-## Stay inside the phase
-
-Reuse Phase 1 delete and activation conventions. A new `INSTRUCTOR` role uses the System Admin create-and-activate path. Do not redesign passwords. Do not put an exam node on a course content tree. Do not add a payment gateway, attendance, notices, or batches.
+Reuse Phase 1 delete and activation conventions. A new `INSTRUCTOR` role uses the System Admin create-and-activate path. Do not redesign passwords. Do not put an exam node on a course content tree. Do not add attendance or batches.
 
 New exam tables start at Flyway `V24`. Do not alter `V14`–`V23` to impersonate this model. Package: `com.coachingcenter.api.exams`.
+
+Before writing exam API code, read `api/.cursor/rules/api-exam-invariants.mdc`. The outdated lines in that file are marked.

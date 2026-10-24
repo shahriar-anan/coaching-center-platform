@@ -4,6 +4,9 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -13,6 +16,7 @@ import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.error.MasterAdminProtectedException;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
 import com.coachingcenter.api.users.User;
@@ -20,6 +24,8 @@ import com.coachingcenter.api.users.UserRepository;
 
 @Service
 public class AuthService {
+
+	private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
 	private static final String ACTIVE = "ACTIVE";
 
@@ -105,9 +111,17 @@ public class AuthService {
 
 	@Transactional
 	public String issueActivationCode(User user, UUID createdBy) {
+		if (user.getDeletedAt() != null) {
+			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
+		}
+		if (!PENDING.equals(user.getStatus())) {
+			throw new ApiException(ErrorCode.ACTIVATION_NOT_PENDING, HttpStatus.CONFLICT,
+					"Only a pending account can receive an activation code.");
+		}
 		String code = issueCode(user, ACTIVATION, createdBy,
 				Instant.now().plusSeconds(properties.auth().activationCodeDays() * 24L * 60L * 60L));
 		audit.record(AuditRecorder.ACTIVATION_CODE_ISSUED, user.getId());
+		sendQuietly(() -> email.sendActivation(user.getEmail(), code));
 		return code;
 	}
 
@@ -174,6 +188,44 @@ public class AuthService {
 	}
 
 	@Transactional
+	public IssuedTokens issueWebSession(UUID userId, String ip, String userAgent) {
+		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
+		if (!Role.STUDENT.name().equals(user.getRole())) {
+			throw new ApiException(ErrorCode.GOOGLE_ROLE_NOT_ALLOWED, HttpStatus.FORBIDDEN,
+					"Google sign-in is for students.");
+		}
+		if (!ACTIVE.equals(user.getStatus())) {
+			throw new ApiException(ErrorCode.GOOGLE_ACCOUNT_INACTIVE, HttpStatus.FORBIDDEN,
+					"This account cannot sign in.");
+		}
+		user.setLastLoginAt(Instant.now());
+		return issueTokens(user, ClientType.WEB, ip, userAgent, UUID.randomUUID());
+	}
+
+	@Transactional
+	public void setPhone(UUID userId, String phone) {
+		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
+		if (user.getPhone() != null && !user.getPhone().isBlank()) {
+			throw new ApiException(ErrorCode.PHONE_ALREADY_SET, HttpStatus.CONFLICT, "Phone number is already set.");
+		}
+		String normalizedPhone = PhoneNumbers.normalize(phone);
+		if (users.findByPhoneAndDeletedAtIsNull(normalizedPhone).isPresent()) {
+			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
+		}
+		user.setPhone(normalizedPhone);
+		try {
+			users.saveAndFlush(user);
+		}
+		catch (DataIntegrityViolationException exception) {
+			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
+		}
+	}
+
+	public String allocateStudentCode() {
+		return nextStudentCode();
+	}
+
+	@Transactional
 	public void changePassword(UUID userId, String currentPassword, String newPassword) {
 		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
 		if (user.getPasswordHash() == null || !passwords.matches(currentPassword, user.getPasswordHash())) {
@@ -181,26 +233,47 @@ public class AuthService {
 					"Current password is incorrect.");
 		}
 		user.setPasswordHash(passwords.encode(newPassword));
+		sendQuietly(() -> email.sendPasswordChanged(user.getEmail()));
 	}
 
 	@Transactional
 	public void forgotPassword(String emailAddress) {
-		users.findByEmailAndDeletedAtIsNull(normalizeEmail(emailAddress)).ifPresent(user -> {
+		String normalized = normalizeEmail(emailAddress);
+		users.findByEmailAndDeletedAtIsNull(normalized).ifPresentOrElse(user -> {
+			if (!ACTIVE.equals(user.getStatus()) || Role.MASTER_ADMIN.name().equals(user.getRole())) {
+				hasher.sha256(normalized);
+				return;
+			}
 			String raw = issueCode(user, PASSWORD_RESET, null,
 					Instant.now().plusSeconds(properties.auth().resetCodeMinutes() * 60L));
-			email.sendPasswordReset(user.getEmail(), raw);
-		});
+			sendQuietly(() -> email.sendPasswordReset(user.getEmail(), raw));
+		}, () -> hasher.sha256(normalized));
+	}
+
+	public void padResetResponse(long startedNanos) {
+		int floorMillis = properties.auth().resetResponseFloorMillis();
+		if (floorMillis <= 0) {
+			return;
+		}
+		long remaining = java.time.Duration.ofMillis(floorMillis).toNanos() - (System.nanoTime() - startedNanos);
+		if (remaining > 0) {
+			java.util.concurrent.locks.LockSupport.parkNanos(remaining);
+		}
 	}
 
 	@Transactional
 	public void resetPassword(String code, String newPassword) {
 		OneTimeCode match = codes.findFirstByPurposeAndCodeHashOrderByCreatedAtDesc(PASSWORD_RESET, hasher.sha256(code))
 			.orElseThrow(this::invalidCode);
-		acceptCode(match);
 		User user = users.findByIdAndDeletedAtIsNull(match.getUserId()).orElseThrow(this::invalidCode);
+		if (Role.MASTER_ADMIN.name().equals(user.getRole())) {
+			throw new MasterAdminProtectedException();
+		}
+		acceptCode(match);
 		user.setPasswordHash(passwords.encode(newPassword));
 		refreshTokens.revokeAllForUser(user.getId(), Instant.now());
 		audit.record(AuditRecorder.PASSWORD_RESET, user.getId());
+		sendQuietly(() -> email.sendPasswordChanged(user.getEmail()));
 	}
 
 	@Transactional
@@ -218,9 +291,8 @@ public class AuthService {
 			if (user.getEmailVerifiedAt() != null) {
 				return;
 			}
-			String raw = issueCode(user, EMAIL_VERIFY, null,
+			issueCode(user, EMAIL_VERIFY, null,
 					Instant.now().plusSeconds(properties.auth().emailCodeMinutes() * 60L));
-			email.sendEmailVerification(user.getEmail(), raw);
 		});
 	}
 
@@ -230,7 +302,8 @@ public class AuthService {
 		StudentProfile profile = profiles.findById(userId).orElse(null);
 		return new MeView(user.getId(), user.getPhone(), user.getEmail(), user.getEmailVerifiedAt(), user.getRole(),
 				user.getStatus(), profile == null ? null : profile.getFullName(),
-				profile == null ? null : profile.getStudentCode());
+				profile == null ? null : profile.getStudentCode(),
+				user.getPhone() == null || user.getPhone().isBlank());
 	}
 
 	private IssuedTokens issueTokens(User user, ClientType clientType, String ip, String userAgent, UUID familyId) {
@@ -264,9 +337,18 @@ public class AuthService {
 		code.setCreatedAt(Instant.now());
 		codes.save(code);
 		if (EMAIL_VERIFY.equals(purpose)) {
-			email.sendEmailVerification(user.getEmail(), raw);
+			sendQuietly(() -> email.sendEmailVerification(user.getEmail(), raw));
 		}
 		return raw;
+	}
+
+	private void sendQuietly(Runnable send) {
+		try {
+			send.run();
+		}
+		catch (RuntimeException exception) {
+			log.warn("Email send failed error={}", exception.getClass().getSimpleName());
+		}
 	}
 
 	private void acceptCode(OneTimeCode code) {
@@ -350,7 +432,7 @@ public class AuthService {
 	}
 
 	public record MeView(UUID id, String phone, String email, Instant emailVerifiedAt, String role, String status,
-			String fullName, String studentCode) {
+			String fullName, String studentCode, boolean phoneRequired) {
 	}
 
 }

@@ -22,9 +22,9 @@ export default function ActivatePage() {
 
   useEffect(() => {
     if (session.status === "authenticated") {
-      router.replace("/students");
+      router.replace(session.user.role === "STUDENT" ? "/purchase/result" : "/students");
     }
-  }, [session.status, router]);
+  }, [session, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

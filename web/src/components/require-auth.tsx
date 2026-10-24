@@ -13,8 +13,10 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (session.status === "anonymous") {
       router.replace("/login");
+    } else if (session.status === "authenticated" && session.user.role === "STUDENT") {
+      router.replace("/purchase/result");
     }
-  }, [session.status, router]);
+  }, [session, router]);
 
   if (session.status === "loading") {
     return (
@@ -22,7 +24,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (session.status !== "authenticated") {
+  if (session.status !== "authenticated" || session.user.role === "STUDENT") {
     return null;
   }
 

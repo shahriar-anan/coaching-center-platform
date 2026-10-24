@@ -8,17 +8,18 @@ alwaysApply: false
 
 The binding spec is `docs/phases/phase-3/phase-3-scope.md`. The stages are the `api-live-*` list in `docs/phases/phase-3/phase-3-status.md`. Do not extend `api-exam-module` through `api-question-bank`.
 
-- Category titles, module titles, module descriptions, and exam names, descriptions, and rules are Bangla and English. Question content and comments are one language.
+- Category titles, module titles, module descriptions, and exam names, descriptions, and rules are Bangla and English. Question content and comments are one language. Each live exam stores `paperLanguage` of `BN` or `EN` for the question-page typeface. The site language does not replace the question body.
 - A module sits under one exam category. One category may hold many modules. Each exam is MCQ or written.
 - Draft on each change. Final save, then publish. Students see published exams only.
 - Server clock only. Store one live instant. Show it in `Asia/Dhaka`. The end does not archive the exam. Archive hides a module, or a whole category branch, from students. Take and retake stop. A posted result stays readable. An archived category cannot receive a new child, a new module, or a move.
 - Inside one module the later exam starts at least five minutes after the earlier end. Another module never blocks publish. A retake is not a published window.
 - MCQ maximum is the sum of question marks. Written maximum is the number on the exam. Publish requires a pass percent from 0 through 100. Pass when `score × 100` is at least `pass percent × maximum`. A blank MCQ fails even when the pass percent is 0.
 - No shuffle, no negative mark, no partial mark, no second correct option.
-- Take exam creates the participant. The score is immediate. An early submit does not freeze MCQ answers. The MCQ review waits until that sitting ends. The deadline posts the paper without a student submit call. The live leaderboard opens five minutes after the live window.
-- The written question PDF is not a file download. After Take exam the website may show it inline until that sitting's deadline, and only while the student is still marked and the module is still published. Before the tap, and after removal or archive, the bytes are rejected.
-- One retake, only if the student never tapped during the live window, off the live leaderboard. Removing the roster row after Take exam leaves the result readable.
+- The exam routine is one student read of published exams whose live window has not ended. It is not stored, it is not the rules or description, and it is not the course routine. Reading it does not create a participant. An ended exam leaves the routine. An MCQ can still be opened for one later attempt. A written exam cannot. A roster mark or a purchase grant includes the exam. A module grant covers exams published later in that module. An exam grant covers that exam only.
+- Take exam creates the participant. The MCQ score is immediate. An early submit does not freeze MCQ answers. The MCQ review waits until that sitting ends. The deadline posts the paper without a student submit call. The live leaderboard opens five minutes after the live window.
+- The written question PDF is not a file download. After Take exam the website may show it inline until that sitting's deadline. Before the tap, and after archive, the bytes are rejected. A roster mark or a purchase grant allows the bytes during the sitting.
+- One MCQ later attempt, only if the student never tapped during the live window, off the live leaderboard. A written exam has no later attempt. Removing the roster row after Take exam leaves the result readable.
 - Written answer and evaluated PDF: 80 MB ceiling, store the compressed file only, keep the latest file.
-- One instructor per module, or the Master Admin, evaluates. The instructor browses assigned modules only. The marker can download the student's answer PDF. A System Admin does not evaluate and can read who evaluated. The student never sees the evaluator. A written retake is marked and stays off the live board.
+- One instructor per module, or the Master Admin, evaluates. The instructor browses assigned modules only. The marker can download the student's answer PDF. A System Admin does not evaluate and can read who evaluated. The student never sees the evaluator. **Outdated:** a written retake is marked and stays off the live board. A written exam has no later attempt. **Outdated:** the student sees the written mark on save, and the written board updates on save. The save is a draft until the Master Admin publishes.
 - Roster and delete are Master Admin only.
 - New tables start at Flyway `V24`. Do not bend `V14`–`V23` into this model.

@@ -1,0 +1,111 @@
+
+```html
+<!DOCTYPE html>
+<html lang="bn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>এক্সাম পোর্টাল</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f4ee;--card:#fff;--tx:#14213d;--mut:#5d6578;--pri:#14213d;--acc:#c8962e;--bd:#e3dfd3;--on:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1424;--card:#172038;--tx:#eef0f6;--mut:#a3abc0;--pri:#c8962e;--acc:#e0b254;--bd:#26304d;--on:#0e1424}}
+:root[data-theme="dark"]{--bg:#0e1424;--card:#172038;--tx:#eef0f6;--mut:#a3abc0;--pri:#c8962e;--acc:#e0b254;--bd:#26304d;--on:#0e1424}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Hind Siliguri","Noto Sans Bengali","SolaimanLipi",system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;padding:4px 0 12px}
+.logo{font-weight:700;font-size:18px;color:var(--tx)}.logo b{color:var(--acc)}
+.crumbs{font-size:14px;color:var(--mut);margin:4px 0 14px;display:flex;flex-wrap:wrap;gap:6px}
+.crumbs a{color:var(--acc);cursor:pointer;text-decoration:none}
+.hero{text-align:center;padding:42px 12px 30px}
+.hero h1{font-size:clamp(64px,22vw,110px);margin:0;line-height:1.05;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--tx));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--mut);margin:6px 0 0}
+h2{font-size:20px;margin:6px 0 14px}
+.grid{display:grid;gap:12px}
+.two{grid-template-columns:1fr 1fr}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px;cursor:pointer;text-align:left;color:var(--tx);font:inherit;width:100%;transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-2px);border-color:var(--acc)}
+.big{padding:28px 14px;text-align:center}
+.big .ic{font-size:34px}.big .t{font-size:22px;font-weight:700;margin-top:4px}
+.big small,.card small{color:var(--mut);display:block}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.t2{font-weight:700;font-size:17px}
+.chev{color:var(--acc);font-size:20px}
+.tag{display:inline-block;font-size:12px;padding:2px 10px;border-radius:99px;background:var(--acc);color:var(--on);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 8px;border-bottom:1px solid var(--bd);text-align:left}
+th{color:var(--mut);font-weight:600}
+.scroll{overflow-x:auto}
+.sec{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:14px}
+.sec h3{margin:0 0 10px;font-size:17px}
+.btn{background:var(--acc);color:var(--on);border:0;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;width:100%;margin-top:8px}
+.btn.o{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+.drop{border:2px dashed var(--bd);border-radius:14px;padding:22px;text-align:center;color:var(--mut)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stat div{background:var(--bg);border-radius:12px;padding:10px}.stat b{display:block;font-size:20px;color:var(--acc)}
+.stat span{font-size:12px;color:var(--mut)}
+ul{padding-left:20px;margin:6px 0;color:var(--mut)}
+.theme{background:var(--card);border:1px solid var(--bd);border-radius:99px;padding:6px 12px;cursor:pointer;color:var(--tx);font:inherit}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.sc{background:var(--card);border:1px solid var(--bd);border-top:4px solid var(--acc);border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;color:var(--tx);font:inherit}
+.sc .i{font-size:24px}.sc .n{font-weight:700;font-size:15px}.sc small{display:block;color:var(--mut);font-size:12px}
+.sc.p{border-top-color:#e8590c}.sc.r{border-top-color:#2f9e44}
+.pill{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:700;background:#e8590c;color:#fff;animation:pl 1.6s infinite}
+.pill.g{background:#2f9e44;animation:none}
+@keyframes pl{50%{opacity:.55}}
+.fade{animation:f .25s}@keyframes f{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+</style></head><body>
+<div class="wrap">
+<header><div class="logo">⚖️ এক্সাম<b>পোর্টাল</b></div><div><button class="theme" id="lg">EN</button> <button class="theme" id="th">🌓</button></div></header>
+<div id="crumbs" class="crumbs"></div>
+<main id="app" class="fade"></main>
+</div>
+<script>
+var BATCH=["১৯তম বিজেএস","২০তম বিজেএস"];
+var EX=[["সিপিসি","দেওয়ানি কার্যবিধি"],["সিআরপিসি","ফৌজদারি কার্যবিধি"],["পেনাল কোড","দণ্ডবিধি"],["ইভিডেন্স","সাক্ষ্য আইন"]];
+var SL={cpc:0,crpc:1,penal:2,evid:3};var K=["cpc","crpc","penal","evid"];
+var LANG="bn";try{LANG=localStorage.getItem("lang")||"bn"}catch(e){}
+var D={"এক্সাম পোর্টাল":"Exam Portal","এক্সাম":"Exam","পোর্টাল":"Portal","আপনার প্রস্তুতি, আপনার পরীক্ষা — এক জায়গায়":"Your preparation, your exams — all in one place","এমসিকিউ এক্সাম":"MCQ Exam","এমসিকিউ":"MCQ","দ্রুত অনুশীলন":"Quick practice","রিটেন এক্সাম":"Written Exam","রিটেন":"Written","লিখিত পরীক্ষা":"Written test","বিজেএস এক্সাম":"BJS Exam","জুডিশিয়াল সার্ভিস পরীক্ষা":"Judicial Service exam","বার কাউন্সিল এক্সাম":"Bar Council Exam","বার কাউন্সিল":"Bar Council","আইনজীবী নথিভুক্তি পরীক্ষা":"Advocate enrolment exam","শীঘ্রই আসছে":"Coming soon","এই ক্যাটাগরির পরীক্ষা এখানে যুক্ত হবে।":"Exams in this category will be added here.","১৯তম বিজেএস":"19th BJS","২০তম বিজেএস":"20th BJS","তম বিজেএস":"th BJS","তম":"th","বিজেএস":"BJS","পরীক্ষাসমূহ দেখুন":"View exams","পরীক্ষাসমূহ":"Exams","সিপিসি":"CPC","দেওয়ানি কার্যবিধি":"Civil Procedure","সিআরপিসি":"CrPC","ফৌজদারি কার্যবিধি":"Criminal Procedure","পেনাল কোড":"Penal Code","দণ্ডবিধি":"Penal Code (Dandabidhi)","ইভিডেন্স":"Evidence","সাক্ষ্য আইন":"Evidence Act","প্রশ্ন":"Questions","সময়":"Time","৪০ মি.":"40 min","নেগেটিভ মার্ক":"Negative mark","পরীক্ষা শুরু করুন":"Start exam","হোম":"Home","পরীক্ষার রুটিন":"Exam Routine","তারিখ":"Date","নম্বর":"Marks","— (অ্যাডমিন সেট করবেন)":"— (set by admin)","প্রশ্নপত্র ও নির্দেশনা":"Question Paper & Instructions","প্রশ্নপত্র পরীক্ষার সময় আনলক হবে":"Question paper unlocks at exam time","উত্তর হাতে লিখে খাতার ছবি/পিডিএফ আপলোড":"Write answers by hand, upload photo/PDF of your script","প্রশ্নপত্র দেখুন":"View question paper","খাতা জমা দিন":"Submit script","খাতা জমা":"Script Submission","খাতার ছবি বা পিডিএফ এখানে আপলোড করুন":"Upload your script photo or PDF here","ফলাফল ও ফিডব্যাক":"Result & Feedback","প্রাপ্ত নম্বর":"Marks obtained","মেধাক্রম":"Rank","অপেক্ষমাণ":"Pending","খাতা মূল্যায়ন":"Script evaluation","প্রশ্ন":"Questions"};
+D["রুটিন"]="Routine";D["খাতা"]="Script";D["রেজাল্ট"]="Result";D["তারিখ ঘোষণা হবে"]="Date to be announced";D["শীঘ্রই"]="Soon";
+function sv(i){document.getElementById(i).scrollIntoView({behavior:"smooth"})}
+D["পরীক্ষার তালিকা"]="Exam List";D["দেওয়া হয়েছে"]="Attended";D["খাতা অপেক্ষমাণ"]="Script pending";D["বাকি"]="Upcoming";D["পরীক্ষা"]="Exam";D["সময়"]="Time";
+
+var DK=Object.keys(D).sort(function(a,b){return b.length-a.length});
+function tr(s){if(LANG!="en")return s;DK.forEach(function(k){s=s.split(k).join(D[k])});var m="০১২৩৪৫৬৭৮৯";return s.replace(/[০-৯]/g,function(d){return m.indexOf(d)})}
+var app=document.getElementById("app"),cr=document.getElementById("crumbs");
+function card(t,s,h,ic){return '<button class="card" onclick="go(\''+h+'\')"><div class="row"><div><div class="t2">'+(ic||'')+' '+t+'</div>'+(s?'<small>'+s+'</small>':'')+'</div><span class="chev">›</span></div></button>'}
+function go(h){location.hash=h}
+function render(){
+var h=(location.hash||"#").slice(1),p=h.split("-"),o="",c=[["হোম","#"]];
+if(!h){
+o='<div class="hero"><h1>এক্সাম</h1><p>আপনার প্রস্তুতি, আপনার পরীক্ষা — এক জায়গায়</p></div><div class="grid two"><button class="card big" onclick="go(\'mcq\')"><div class="ic">✅</div><div class="t">এমসিকিউ</div><small>দ্রুত অনুশীলন</small></button><button class="card big" onclick="go(\'w\')"><div class="ic">✍️</div><div class="t">রিটেন</div><small>লিখিত পরীক্ষা</small></button></div>';
+}else if(h=="mcq"){
+c.push(["এমসিকিউ",""]);o='<h2>এমসিকিউ এক্সাম</h2><div class="grid">'+EX.map(function(e,i){return card(e[0],e[1],"mcq-"+K[i],"📝")}).join("")+'</div>';
+}else if(p[0]=="mcq"){
+var i=K.indexOf(p[1]);c.push(["এমসিকিউ","#mcq"],[EX[i][0],""]);
+o='<h2>'+EX[i][0]+' — এমসিকিউ</h2><div class="sec"><div class="stat"><div><b>৫০</b><span>প্রশ্ন</span></div><div><b>৪০ মি.</b><span>সময়</span></div><div><b>০.২৫</b><span>নেগেটিভ মার্ক</span></div></div><button class="btn">পরীক্ষা শুরু করুন</button></div>';
+}else if(h=="w"){
+c.push(["রিটেন",""]);o='<h2>রিটেন এক্সাম</h2><div class="grid">'+card("বিজেএস এক্সাম","জুডিশিয়াল সার্ভিস পরীক্ষা","w-bjs","⚖️")+card("বার কাউন্সিল এক্সাম","আইনজীবী নথিভুক্তি পরীক্ষা","w-bar","🏛️")+'</div>';
+}else if(h=="w-bar"){
+c.push(["রিটেন","#w"],["বার কাউন্সিল",""]);o='<h2>বার কাউন্সিল এক্সাম</h2><div class="sec"><span class="tag">শীঘ্রই আসছে</span><p style="color:var(--mut)">এই ক্যাটাগরির পরীক্ষা এখানে যুক্ত হবে।</p></div>';
+}else if(h=="w-bjs"){
+c.push(["রিটেন","#w"],["বিজেএস",""]);o='<h2>বিজেএস এক্সাম</h2><div class="grid">'+BATCH.map(function(b,i){return card(b,"পরীক্ষাসমূহ দেখুন","w-bjs-"+(19+i),"📚")}).join("")+'</div>';
+}else if(p.length==3){
+var b=p[2];c.push(["রিটেন","#w"],["বিজেএস","#w-bjs"],[b+"তম",""]);
+var ST=[["দেওয়া হয়েছে","g"],["খাতা অপেক্ষমাণ",""],["বাকি","x"],["বাকি","x"]];o='<h2>'+BATCH[b-19]+'</h2><div class="strip"><button class="sc" onclick="sv(\'s1\')"><div class="i">📅</div><div class="n">রুটিন</div><small>তারিখ ঘোষণা হবে</small></button><button class="sc p" onclick="sv(\'s2\')"><div class="i">📝</div><div class="n">খাতা</div><span class="pill">অপেক্ষমাণ</span></button><button class="sc r" onclick="sv(\'s2\')"><div class="i">📊</div><div class="n">রেজাল্ট</div><span class="pill g">শীঘ্রই</span></button></div><div class="sec" id="s1"><h3>📅 পরীক্ষার রুটিন</h3><div class="scroll"><table><tr><th>পরীক্ষা</th><th>তারিখ</th><th>সময়</th></tr>'+EX.map(function(e){return '<tr><td>'+e[0]+'</td><td>—</td><td>—</td></tr>'}).join("")+'</table></div></div><div class="sec" id="s2"><h3>📚 পরীক্ষার তালিকা</h3><div class="grid">'+EX.map(function(e,i){var s=ST[i];return '<button class="card" onclick="go(\'w-bjs-'+b+'-'+K[i]+'\')"><div class="row"><div><div class="t2">📖 '+e[0]+'</div><small>'+e[1]+'</small></div><span class="pill '+s[1]+'"'+(s[1]=="x"?' style="background:var(--mut);animation:none"':'')+'>'+s[0]+'</span></div></button>'}).join("")+'</div></div>';
+}else{
+var b=p[2],i=K.indexOf(p[3]),e=EX[i];
+c.push(["রিটেন","#w"],["বিজেএস","#w-bjs"],[b+"তম","#w-bjs-"+b],[e[0],""]);
+o='<h2>'+e[0]+' <span class="tag">'+b+'তম বিজেএস</span></h2>'+'<div class="strip" style="grid-template-columns:1fr 1fr"><button class="sc p" onclick="sv(\'s3\')"><div class="i">📝</div><div class="n">খাতা</div><span class="pill">অপেক্ষমাণ</span></button><button class="sc r" onclick="sv(\'s4\')"><div class="i">📊</div><div class="n">রেজাল্ট</div><span class="pill g">শীঘ্রই</span></button></div>'+
+'<div class="sec"><h3>📄 প্রশ্নপত্র ও নির্দেশনা</h3><ul><li>প্রশ্নপত্র পরীক্ষার সময় আনলক হবে</li><li>উত্তর হাতে লিখে খাতার ছবি/পিডিএফ আপলোড</li></ul><button class="btn o">প্রশ্নপত্র দেখুন</button></div>'+
+'<div class="sec" id="s3"><h3>📝 খাতা জমা</h3><div class="drop">খাতার ছবি বা পিডিএফ এখানে আপলোড করুন</div><button class="btn">খাতা জমা দিন</button></div>'+
+'<div class="sec" id="s4"><h3>📊 ফলাফল ও ফিডব্যাক</h3><div class="stat"><div><b>—</b><span>প্রাপ্ত নম্বর</span></div><div><b>—</b><span>মেধাক্রম</span></div><div><b>অপেক্ষমাণ</b><span>খাতা মূল্যায়ন</span></div></div></div>';
+}
+cr.innerHTML=c.map(function(x,i){return x[1]!==""?'<a onclick="go(\''+x[1].slice(1)+'\')">'+x[0]+'</a> ›':'<span>'+x[0]+'</span>'}).join(" ");
+if(c.length==1)cr.innerHTML="";
+app.innerHTML=tr(o);cr.innerHTML=tr(cr.innerHTML);app.classList.remove("fade");void app.offsetWidth;app.classList.add("fade");window.scrollTo(0,0)}
+window.addEventListener("hashchange",render);render();
+var lb=document.getElementById("lg");function sl(){lb.textContent=LANG=="en"?"বাংলা":"EN";document.documentElement.lang=LANG;document.title=tr("এক্সাম পোর্টাল")}
+lb.onclick=function(){LANG=LANG=="en"?"bn":"en";try{localStorage.setItem("lang",LANG)}catch(e){}sl();render()};sl();
+document.getElementById("th").onclick=function(){var r=document.documentElement,d=r.getAttribute("data-theme")=="dark";r.setAttribute("data-theme",d?"light":"dark")};
+</script></body></html>
+```

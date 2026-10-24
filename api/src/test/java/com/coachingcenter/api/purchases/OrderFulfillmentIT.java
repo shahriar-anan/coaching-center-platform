@@ -150,7 +150,20 @@ class OrderFulfillmentIT extends PostgresIntegrationTest {
 		String docs = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse()
 			.getContentAsString();
 		assertThat(docs).doesNotContain("CANCELLED");
-		assertThat(docs).doesNotContain("/cancel");
+		assertBookPathsHaveNoCancel(docs);
+	}
+
+	private void assertBookPathsHaveNoCancel(String docs) {
+		tools.jackson.databind.JsonNode paths = json.readTree(docs).get("paths");
+		assertThat(paths.has("/api/v1/live-exam-orders/{id}/cancel")).isTrue();
+		paths.properties().forEach(path -> {
+			String name = path.getKey();
+			if (name.startsWith("/api/v1/book") || "/api/v1/me/orders".equals(name)) {
+				assertThat(name).doesNotContain("cancel");
+				assertThat(path.getValue().toString()).doesNotContain("cancel");
+				assertThat(path.getValue().toString()).doesNotContain("CANCELLED");
+			}
+		});
 	}
 
 	private UUID placeOrder(String fulfillment, String trx) throws Exception {

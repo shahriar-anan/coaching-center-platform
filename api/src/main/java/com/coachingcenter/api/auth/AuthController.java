@@ -33,13 +33,17 @@ public class AuthController {
 
 	private final AppProperties properties;
 
-	public AuthController(AuthService auth, AppProperties properties) {
+	private final MailSendLimiter mailSends;
+
+	public AuthController(AuthService auth, AppProperties properties, MailSendLimiter mailSends) {
 		this.auth = auth;
 		this.properties = properties;
+		this.mailSends = mailSends;
 	}
 
 	@PostMapping("/auth/register")
-	public ResponseEntity<AuthService.MeView> register(@Valid @RequestBody RegisterRequest request) {
+	public ResponseEntity<AuthService.MeView> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
+		mailSends.acquire(request.email(), MailSendLimiter.clientAddress(http), false);
 		var user = auth.register(request.fullName(), request.phone(), request.email(), request.password());
 		return ResponseEntity.status(HttpStatus.CREATED).body(auth.me(user.getId()));
 	}
@@ -86,8 +90,11 @@ public class AuthController {
 	}
 
 	@PostMapping("/auth/forgot-password")
-	public MessageResponse forgotPassword(@Valid @RequestBody EmailRequest request) {
+	public MessageResponse forgotPassword(@Valid @RequestBody EmailRequest request, HttpServletRequest http) {
+		long started = System.nanoTime();
+		mailSends.acquire(request.email(), MailSendLimiter.clientAddress(http), false);
 		auth.forgotPassword(request.email());
+		auth.padResetResponse(started);
 		return MessageResponse.generic();
 	}
 
@@ -104,7 +111,8 @@ public class AuthController {
 	}
 
 	@PostMapping("/auth/verify-email/resend")
-	public MessageResponse resendEmailVerification(@Valid @RequestBody EmailRequest request) {
+	public MessageResponse resendEmailVerification(@Valid @RequestBody EmailRequest request, HttpServletRequest http) {
+		mailSends.acquire(request.email(), MailSendLimiter.clientAddress(http), true);
 		auth.resendEmailVerification(request.email());
 		return MessageResponse.generic();
 	}
@@ -123,24 +131,18 @@ public class AuthController {
 		return ResponseEntity.ok(body);
 	}
 
+	@PostMapping("/me/phone")
+	public AuthService.MeView setPhone(@Valid @RequestBody PhoneRequest request) {
+		auth.setPhone(currentUser().userId(), request.phone());
+		return auth.me(currentUser().userId());
+	}
+
 	private ResponseCookie refreshCookie(String rawToken) {
-		return ResponseCookie.from(REFRESH_COOKIE, rawToken)
-			.httpOnly(true)
-			.secure(true)
-			.sameSite("Strict")
-			.path("/api/v1/auth")
-			.maxAge(properties.auth().refreshTokenDays() * 24L * 60L * 60L)
-			.build();
+		return RefreshCookies.issue(rawToken, properties.auth().refreshTokenDays() * 24L * 60L * 60L);
 	}
 
 	private ResponseCookie clearedCookie() {
-		return ResponseCookie.from(REFRESH_COOKIE, "")
-			.httpOnly(true)
-			.secure(true)
-			.sameSite("Strict")
-			.path("/api/v1/auth")
-			.maxAge(0)
-			.build();
+		return RefreshCookies.clear();
 	}
 
 	private String presentedRefresh(ClientType client, RefreshRequest request, HttpServletRequest http) {
@@ -193,6 +195,9 @@ public class AuthController {
 	}
 
 	public record CodeRequest(@NotBlank String code) {
+	}
+
+	public record PhoneRequest(@NotBlank String phone) {
 	}
 
 	public record TokenResponse(String accessToken, int expiresInSeconds, String refreshToken) {

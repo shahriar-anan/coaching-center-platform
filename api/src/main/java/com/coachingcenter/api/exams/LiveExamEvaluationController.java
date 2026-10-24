@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +47,13 @@ public class LiveExamEvaluationController {
 			.body(evaluations.assign(moduleId, UUID.fromString(instructorId.asText())));
 	}
 
+	@DeleteMapping("/api/v1/live-exam-modules/{moduleId}/instructor")
+	public ResponseEntity<Void> unassign(@PathVariable UUID moduleId) {
+		require(Permissions.LIVE_EXAM_ASSIGN);
+		evaluations.unassign(moduleId);
+		return ResponseEntity.noContent().build();
+	}
+
 	@GetMapping("/api/v1/live-exam-modules/{moduleId}/submissions")
 	public List<LiveExamEvaluationService.SubmissionView> list(@PathVariable UUID moduleId) {
 		requireReader();
@@ -69,6 +77,12 @@ public class LiveExamEvaluationController {
 			@RequestParam(value = "comment", required = false) String comment, @RequestParam("file") MultipartFile file) {
 		require(Permissions.LIVE_EXAM_EVALUATE);
 		return evaluations.evaluate(id, actor(), marks, comment, file);
+	}
+
+	@PostMapping("/api/v1/live-exam-participants/{id}/publish")
+	public LiveExamEvaluationService.SubmissionView publish(@PathVariable UUID id) {
+		require(Permissions.LIVE_EXAM_PUBLISH);
+		return evaluations.publish(id, actor());
 	}
 
 	@GetMapping("/api/v1/live-exams/{id}/leaderboard")

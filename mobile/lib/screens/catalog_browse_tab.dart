@@ -4,7 +4,10 @@ import '../api/api_exception.dart';
 import '../api/catalog_models.dart';
 import '../i18n/messages.dart';
 
-typedef CatalogLoader<T> = Future<CatalogPage<T>> Function({String q, String? categoryId});
+typedef CatalogLoader<T> = Future<CatalogPage<T>> Function({
+  String q,
+  String? categoryId,
+});
 
 class CatalogBrowseTab<T> extends StatefulWidget {
   const CatalogBrowseTab({
@@ -100,7 +103,7 @@ class _CatalogBrowseTabState<T> extends State<CatalogBrowseTab<T>> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: DropdownButtonFormField<String?>(
                     key: widget.categoryFilterKey,
-                    value: _categoryId,
+                    initialValue: _categoryId,
                     decoration: InputDecoration(
                       labelText: widget.messages.t('catalog.categoryFilter'),
                       border: const OutlineInputBorder(),
@@ -167,7 +170,9 @@ class _CatalogBrowseTabState<T> extends State<CatalogBrowseTab<T>> {
           leading: widget.leadingOf?.call(item),
           title: Text(widget.titleOf(item)),
           subtitle: Text(widget.subtitleOf(item)),
-          onTap: widget.onItemTap == null ? null : () => widget.onItemTap!(item),
+          onTap: widget.onItemTap == null
+              ? null
+              : () => widget.onItemTap!(item),
         );
       },
     );

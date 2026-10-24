@@ -12,6 +12,8 @@ When a slice's checks finish, write `web/.cursor/progress/<stage>/slice-<number>
 
 Build only spec Section 10.1: login, System Admin activation, protected routes, role-aware navigation, admin accounts, student list and create, re-issue on a pending student, cookie-backed refresh, an OpenAPI-derived client, and Bangla plus English catalogs. Student registration, student activation, and password reset belong to `mobile`.
 
+**Outdated as a product ban (2026-10-23):** student registration belongs only to `mobile`. The exam website has its own account pages. This admin scope stays the admin shell.
+
 Before screen code, read `web/node_modules/next/dist/docs/`. This app is Next.js 16. Use `src/proxy.ts` exporting `proxy`. Do not add `middleware.ts`.
 
 ```tsx

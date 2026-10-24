@@ -7,6 +7,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,9 +32,13 @@ public class LiveExamController {
 
 	private final LiveExamSittingService sittings;
 
+	private final LiveExamRemoval removal;
+
 	private final PermissionChecker permissions;
 
-	public LiveExamController(LiveExamService exams, LiveExamSittingService sittings, PermissionChecker permissions) {
+	public LiveExamController(LiveExamService exams, LiveExamSittingService sittings, LiveExamRemoval removal,
+			PermissionChecker permissions) {
+		this.removal = removal;
 		this.exams = exams;
 		this.sittings = sittings;
 		this.permissions = permissions;
@@ -42,6 +47,7 @@ public class LiveExamController {
 	@PostMapping("/api/v1/live-exam-modules/{moduleId}/exams")
 	public ResponseEntity<LiveExamService.ExamView> create(@PathVariable UUID moduleId, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
+		requirePricePermission(body);
 		return ResponseEntity.status(HttpStatus.CREATED).body(exams.create(moduleId, body));
 	}
 
@@ -71,6 +77,7 @@ public class LiveExamController {
 	@PatchMapping("/api/v1/live-exams/{id}")
 	public LiveExamService.ExamView update(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
+		requirePricePermission(body);
 		return exams.update(id, body);
 	}
 
@@ -84,6 +91,20 @@ public class LiveExamController {
 	public LiveExamService.ExamView publish(@PathVariable UUID id) {
 		require(Permissions.EXAM_MANAGE);
 		return exams.publish(id);
+	}
+
+	@DeleteMapping("/api/v1/live-exams/{id}")
+	public ResponseEntity<Void> delete(@PathVariable UUID id) {
+		require(Permissions.EXAM_DELETE);
+		removal.delete(id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/api/v1/live-exams/{id}/questions/{questionId}")
+	public ResponseEntity<Void> deleteQuestion(@PathVariable UUID id, @PathVariable UUID questionId) {
+		require(Permissions.EXAM_MANAGE);
+		exams.deleteQuestion(id, questionId);
+		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/questions")
@@ -107,6 +128,12 @@ public class LiveExamController {
 
 	private void require(String permission) {
 		if (!permissions.has(permission)) {
+			throw denied();
+		}
+	}
+
+	private void requirePricePermission(JsonNode body) {
+		if (body.has("price") && !permissions.has(Permissions.EXAM_PRICE)) {
 			throw denied();
 		}
 	}

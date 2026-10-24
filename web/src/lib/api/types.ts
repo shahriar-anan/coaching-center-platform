@@ -10,6 +10,8 @@ export interface ApiErrorBody {
   fieldErrors?: { field: string; message: string }[];
   timestamp: string;
   requestId: string;
+  orderId?: string;
+  tranId?: string;
 }
 
 export interface TokenResponse {

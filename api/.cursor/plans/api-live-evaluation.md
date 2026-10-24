@@ -1,5 +1,7 @@
 # api-live-evaluation
 
+**Outdated (2026-10-23):** the student sees the written mark, comment, and evaluated PDF on save, and a submitted PDF joins the live board when the mark is saved. That save is a draft until the Master Admin publishes. One instructor per module, immediate MCQ scores, and the MCQ board timing stay.
+
 Stage 5. Start only after `api-live-sitting` exits. Spec Sections 7 and 8. Tests: `api/.cursor/tests/api-live-evaluation.md`. Rule: `api/.cursor/rules/api-live-evaluation.mdc`.
 
 Adding `INSTRUCTOR` reuses the System Admin create-and-activate path. The new role constant may live next to the existing role enum. Do not redesign activation or passwords.

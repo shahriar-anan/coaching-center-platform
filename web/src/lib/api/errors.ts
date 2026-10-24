@@ -4,6 +4,8 @@ export class ApiError extends Error {
   readonly code: string;
   readonly requestId: string;
   readonly fieldErrors?: ApiErrorBody["fieldErrors"];
+  readonly orderId?: string;
+  readonly tranId?: string;
 
   constructor(body: ApiErrorBody) {
     super(body.message);
@@ -11,6 +13,8 @@ export class ApiError extends Error {
     this.code = body.code;
     this.requestId = body.requestId;
     this.fieldErrors = body.fieldErrors;
+    this.orderId = body.orderId;
+    this.tranId = body.tranId;
   }
 }
 
@@ -28,6 +32,8 @@ export function errorMessageKey(code: string): string {
     RESOURCE_NOT_FOUND: "errors.notFound",
     MASTER_ADMIN_PROTECTED: "errors.masterAdminProtected",
     INVALID_CODE: "errors.invalidCode",
+    CURRENT_PASSWORD_INVALID: "errors.currentPasswordInvalid",
+    EMAIL_RATE_LIMITED: "errors.emailRateLimited",
     CODE_EXPIRED: "errors.codeExpired",
     CODE_ALREADY_USED: "errors.codeAlreadyUsed",
     CODE_ATTEMPTS_EXCEEDED: "errors.codeAttemptsExceeded",

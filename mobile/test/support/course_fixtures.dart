@@ -40,7 +40,9 @@ http.Response courseDetailResponse({
   return http.Response(
     jsonEncode({
       'id': id,
-      'titleEn': accessType == 'FULL_FREE' ? 'Full Free Course' : 'Freemium Course',
+      'titleEn': accessType == 'FULL_FREE'
+          ? 'Full Free Course'
+          : 'Freemium Course',
       'titleBn': 'কোর্স',
       'description': 'Course description',
       'contentLanguage': 'EN',
@@ -49,8 +51,8 @@ http.Response courseDetailResponse({
       'accessType': accessType,
       'coverFileId': coverFileId,
       'contentTree': tree,
-      if (categoryPath != null) 'categoryPath': categoryPath,
-      if (courseMaterials != null) 'courseMaterials': courseMaterials,
+      'categoryPath': ?categoryPath,
+      'courseMaterials': ?courseMaterials,
     }),
     200,
     headers: {'content-type': 'application/json'},
@@ -62,11 +64,7 @@ http.Response myCoursesList({List<String> courseIds = const []}) {
     jsonEncode(
       courseIds
           .map(
-            (id) => {
-              'courseId': id,
-              'titleEn': 'Course',
-              'titleBn': 'কোর্স',
-            },
+            (id) => {'courseId': id, 'titleEn': 'Course', 'titleBn': 'কোর্স'},
           )
           .toList(),
     ),
@@ -77,7 +75,14 @@ http.Response myCoursesList({List<String> courseIds = const []}) {
 
 List<Map<String, dynamic>> mixedSectionSiblingTree() {
   return [
-    {'id': 'section-1', 'parentId': null, 'nodeType': 'SECTION', 'title': 'Section one', 'position': 0, 'free': false},
+    {
+      'id': 'section-1',
+      'parentId': null,
+      'nodeType': 'SECTION',
+      'title': 'Section one',
+      'position': 0,
+      'free': false,
+    },
     {
       'id': 'section-nested',
       'parentId': 'section-1',
@@ -99,7 +104,14 @@ List<Map<String, dynamic>> mixedSectionSiblingTree() {
 
 List<Map<String, dynamic>> nestedOutlineTree() {
   return [
-    {'id': 'section-1', 'parentId': null, 'nodeType': 'SECTION', 'title': 'Section one', 'position': 0, 'free': false},
+    {
+      'id': 'section-1',
+      'parentId': null,
+      'nodeType': 'SECTION',
+      'title': 'Section one',
+      'position': 0,
+      'free': false,
+    },
     {
       'id': 'section-nested',
       'parentId': 'section-1',
@@ -129,7 +141,14 @@ List<Map<String, dynamic>> nestedOutlineTree() {
 
 List<Map<String, dynamic>> freemiumTree() {
   return [
-    {'id': 'section-1', 'parentId': null, 'nodeType': 'SECTION', 'title': 'Section one', 'position': 0, 'free': false},
+    {
+      'id': 'section-1',
+      'parentId': null,
+      'nodeType': 'SECTION',
+      'title': 'Section one',
+      'position': 0,
+      'free': false,
+    },
     {
       'id': freeLectureId,
       'parentId': 'section-1',
@@ -155,7 +174,8 @@ http.Response lectureContentResponse({
   String notes = 'Lecture notes',
   List<Map<String, dynamic>>? materials,
 }) {
-  final materialEntries = materials ??
+  final materialEntries =
+      materials ??
       [
         {
           'id': materialId,
@@ -238,7 +258,10 @@ http.Response purchaseCreated({
   );
 }
 
-http.Response purchaseHistoryList({required String courseId, required String transactionRef}) {
+http.Response purchaseHistoryList({
+  required String courseId,
+  required String transactionRef,
+}) {
   return http.Response(
     jsonEncode([
       {
@@ -258,7 +281,12 @@ http.Response purchaseHistoryList({required String courseId, required String tra
 
 http.Response apiConflict(String code, {String message = 'Conflict'}) {
   return http.Response(
-    jsonEncode({'code': code, 'message': message, 'timestamp': '2026-10-02T00:00:00Z', 'requestId': 'req-1'}),
+    jsonEncode({
+      'code': code,
+      'message': message,
+      'timestamp': '2026-10-02T00:00:00Z',
+      'requestId': 'req-1',
+    }),
     409,
     headers: {'content-type': 'application/json'},
   );

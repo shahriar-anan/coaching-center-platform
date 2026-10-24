@@ -72,6 +72,8 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_EVALUATE = "LIVE_EXAM_EVALUATE";
 
+	public static final String LIVE_EXAM_PUBLISH = "LIVE_EXAM_PUBLISH";
+
 	private Permissions() {
 	}
 

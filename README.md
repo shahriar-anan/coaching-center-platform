@@ -73,6 +73,8 @@ Each app is run from its own directory. Fill in the steps below as they are sett
 
 Requires Java 21, Maven (or the included wrapper), and PostgreSQL. Configuration comes from environment variables, including `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and `JWT_SECRET`.
 
+The dev profile logs verification and password-reset mail instead of sending it. Staging and production send through Brevo SMTP. Set `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` (or `BREVO_API_KEY` when `MAIL_PASSWORD` is unset), `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, and optionally `MAIL_REPLY_TO`. Placeholder names are in `api/.env.example`. `MAIL_TEST_ENABLED=true` opens an admin-only delivery check on the production profile. Leave it false, and remove that check, before production go-live. The `staging` profile enables the same check without the flag.
+
 ```bash
 cd api
 ./mvnw spring-boot:run
