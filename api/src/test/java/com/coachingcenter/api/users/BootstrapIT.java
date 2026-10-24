@@ -33,28 +33,11 @@ class BootstrapIT extends PostgresIntegrationTest {
 		try (var connection = java.sql.DriverManager.getConnection(url, System.getenv("TEST_DB_USER"),
 				System.getenv("TEST_DB_PASSWORD"))) {
 			try (var statement = connection.createStatement()) {
+				// Soft delete: other suites leave Master Admins that courses, profiles, and orders still reference.
 				statement.executeUpdate("""
-						UPDATE users SET created_by = NULL
-						WHERE created_by IN (SELECT id FROM users WHERE role = 'MASTER_ADMIN')
+						UPDATE users SET deleted_at = now(), updated_at = now()
+						WHERE role = 'MASTER_ADMIN' AND deleted_at IS NULL
 						""");
-				statement.executeUpdate("""
-						UPDATE refresh_tokens SET replaced_by = NULL
-						WHERE user_id IN (SELECT id FROM users WHERE role = 'MASTER_ADMIN')
-						""");
-				statement.executeUpdate("""
-						DELETE FROM refresh_tokens
-						WHERE user_id IN (SELECT id FROM users WHERE role = 'MASTER_ADMIN')
-						""");
-				statement.executeUpdate("""
-						DELETE FROM one_time_codes
-						WHERE user_id IN (SELECT id FROM users WHERE role = 'MASTER_ADMIN')
-						   OR created_by IN (SELECT id FROM users WHERE role = 'MASTER_ADMIN')
-						""");
-				statement.executeUpdate("""
-						DELETE FROM admin_profiles
-						WHERE user_id IN (SELECT id FROM users WHERE role = 'MASTER_ADMIN')
-						""");
-				statement.executeUpdate("DELETE FROM users WHERE role = 'MASTER_ADMIN'");
 			}
 		}
 	}
@@ -71,6 +54,8 @@ class BootstrapIT extends PostgresIntegrationTest {
 	@Test
 	void createsOneMasterAdminAndDoesNotOverwriteAnExistingPassword() throws Exception {
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		// The context may be cached from an earlier class, so its startup run happened before the cleanup.
+		bootstrap.run(null);
 		Integer count = jdbc.queryForObject(
 				"select count(*) from users where role = 'MASTER_ADMIN' and deleted_at is null", Integer.class);
 		assertThat(count).isEqualTo(1);
@@ -91,13 +76,19 @@ class BootstrapIT extends PostgresIntegrationTest {
 
 		jdbc.update("update users set password_hash = ? where role = 'MASTER_ADMIN' and deleted_at is null",
 				"replaced-hash");
-		bootstrap.run(null);
-		String after = jdbc.queryForObject(
-				"select password_hash from users where role = 'MASTER_ADMIN' and deleted_at is null", String.class);
-		Integer stillOne = jdbc.queryForObject(
-				"select count(*) from users where role = 'MASTER_ADMIN' and deleted_at is null", Integer.class);
-		assertThat(after).isEqualTo("replaced-hash");
-		assertThat(stillOne).isEqualTo(1);
+		try {
+			bootstrap.run(null);
+			String after = jdbc.queryForObject(
+					"select password_hash from users where role = 'MASTER_ADMIN' and deleted_at is null", String.class);
+			Integer stillOne = jdbc.queryForObject(
+					"select count(*) from users where role = 'MASTER_ADMIN' and deleted_at is null", Integer.class);
+			assertThat(after).isEqualTo("replaced-hash");
+			assertThat(stillOne).isEqualTo(1);
+		}
+		finally {
+			// Later classes sign in as this Master Admin with the bootstrap password.
+			jdbc.update("update users set password_hash = ? where role = 'MASTER_ADMIN' and deleted_at is null", hash);
+		}
 	}
 
 }

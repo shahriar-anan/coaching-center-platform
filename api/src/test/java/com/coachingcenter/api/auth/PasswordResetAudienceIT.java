@@ -72,7 +72,8 @@ class PasswordResetAudienceIT extends PostgresIntegrationTest {
 
 	@Test
 	void resetOfAMasterAdminCodeIsRefused() throws Exception {
-		UUID masterId = jdbc.queryForObject("select id from users where email = ?", UUID.class, "master-bootstrap@example.com");
+		UUID masterId = jdbc.queryForObject("select id from users where email = ? and deleted_at is null", UUID.class,
+				"master-bootstrap@example.com");
 		jdbc.update("""
 				insert into one_time_codes (id, user_id, purpose, code_hash, expires_at, used_at, failed_attempts, created_at)
 				values (?, ?, 'PASSWORD_RESET', ?, ?, null, 0, now())

@@ -22,6 +22,7 @@ From the 24 October audit. Re-check in slice 1 before trusting it.
 
 ## Hard stops
 
+- **Test scope (V1):** `BookOrderIT` and `CoursePurchaseIT` cover course and book payments, which are out of this delivery ([../README.md](../README.md), "Leave these alone"). They do not block the deploy. `BootstrapIT` covers the Master Admin bootstrap, which runs on every API start on the box. It blocks.
 - No DNS change, no `symamlaw.com` certificate, no Nginx `server_name` for `symamlaw.com`. That is section 5 of `todays-goals.md`, later.
 - The `staging` profile only. No live SSLCommerz store, and never `securepay.sslcommerz.com`. The code refuses a live host on `staging`.
 - Never print, `cat`, `grep` or echo a value from `/etc/coaching-api.env`. Check names only (slice 3). Do not read `/root/master-admin-bootstrap.txt`. Do not paste a secret into chat, Git, or a markdown file.
@@ -34,16 +35,16 @@ From the 24 October audit. Re-check in slice 1 before trusting it.
 
 ## Decisions to confirm before slice 0
 
-Each row has a proposed default. Shahriar confirms or changes it.
+Shahriar confirmed V1–V6 on 25 October 2026. V7 is picked on the day.
 
 | # | Question | Proposed default |
 |---|---|---|
-| V1 | The three failing classes in the last saved test run (`BookOrderIT`, `CoursePurchaseIT`, `BootstrapIT`, 03:01 on 25 October) | Run the full suite again. If they still fail, fix them before deploying. Do not ship a red suite. |
+| V1 | The three failing classes in the last saved test run (`BookOrderIT`, `CoursePurchaseIT`, `BootstrapIT`, 03:01 on 25 October) | Confirmed. Run the full suite. The saved failures look like leftover rows in the shared test database (409 on create, a foreign key in `BootstrapIT`'s cleanup), so a clean run may pass. If `BookOrderIT` or `CoursePurchaseIT` still fail, log them in the report and deploy anyway: course and book payments are out of this delivery. Every other class, `BootstrapIT` included, must pass. |
 | V2 | About 200 files are uncommitted on `catalog-acquisition` | Commit them on the branch before the build, so the jar matches a commit. Push only if Shahriar asks. |
 | V3 | How Next.js runs on the box | `output: "standalone"` in `web/next.config.ts`. Build on the PC, copy `.next/standalone`, `.next/static` and `public`, and run it with `node server.js` under a systemd unit `coaching-web.service` as user `deploy`. Use systemd, not PM2: the API already runs that way and nothing extra needs installing. |
 | V4 | Node on the box | Node 22 LTS from the NodeSource apt repo. Ubuntu's own `nodejs` is too old for Next 16. |
 | V5 | Nginx body limit is `90m`. Spring accepts 100 MB. | Raise it to `105m`, so an upload between 90 and 100 MB gets the API's JSON error rather than Nginx's HTML 413. |
-| V6 | Where the nightly backup goes off the server | Shahriar names it: an object store through `rclone` (Backblaze B2 or Cloudflare R2), or another box over SSH. Until then the dump stays on the box, and slice 9 is not done. |
+| V6 | Where the nightly backup goes off the server | Confirmed: Backblaze B2 through `rclone`, with an `rclone crypt` remote so files are encrypted before they leave the box. Private bucket, application key limited to that bucket. Shahriar creates the account, bucket and key, and keeps the crypt password in the password manager: without it the backups cannot be read. He types the key and password into `rclone config` on the box himself, the same way as the env file. Until then the dump stays on the box, and slice 9 is not done. |
 | V7 | Reboot window | After the payment check passes, at a time Shahriar picks. The reboot also proves both services start on their own. |
 
 ## Slice order
@@ -66,13 +67,13 @@ Each slice ends with its exit check passing and a line in [../reports/vps-stagin
 
 ### 0. Local gate
 
-1. From `api/`, run `mvn test` against local PostgreSQL with `TEST_DB_URL`, `TEST_DB_USER` and `TEST_DB_PASSWORD` set. This PC has no Docker. Every class must pass (V1).
+1. From `api/`, run `mvn test` against local PostgreSQL with `TEST_DB_URL`, `TEST_DB_USER` and `TEST_DB_PASSWORD` set. This PC has no Docker. Every class passes except, at most, `BookOrderIT` and `CoursePurchaseIT` (V1).
 2. Commit (V2).
 3. `mvn -DskipTests package`. The suite just passed on the same commit. Record the SHA-256 of `api/target/api-0.0.1-SNAPSHOT.jar` and the commit hash.
 4. Web: apply V3 (one line in `next.config.ts`). Read `web/node_modules/next/dist/docs/` on standalone output first, as `web/AGENTS.md` requires. Build with `NEXT_PUBLIC_API_BASE_URL=https://srv2089893.hstgr.cloud`. The value is baked in at build time and is not secret, so set it in the shell for this build and do not change `web/.env.local`. Run `npm run lint` and `npm test` first.
-5. Check the standalone folder for native modules built for Windows (for example `sharp`, or anything under `node_modules/@img`). If one is there, stop and tell Shahriar. A Windows binary will not load on Linux.
+5. Check the standalone folder for native modules built for Windows (for example `sharp`, or anything under `node_modules/@img`). A Windows binary will not load on Linux. The build bundles `@img/sharp-win32-x64`. Shahriar approved this swap on 25 October 2026: in an empty scratch folder, `npm install --os=linux --cpu=x64 --libc=glibc sharp@<version in standalone/node_modules/sharp>`, copy its `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` into `.next/standalone/node_modules/@img/`, and delete `@img/sharp-win32-x64`. Do not run `npm install` inside the standalone folder: it would install every dependency in its `package.json`. Repeat after every web build.
 
-**Exit:** suite green, commit hash and jar SHA recorded, `web/.next/standalone/server.js` exists, and the native-module check is clean.
+**Exit:** suite green apart from the V1 exception, commit hash and jar SHA recorded, `web/.next/standalone/server.js` exists, and `find .next/standalone -name '*.node'` lists only Linux files.
 
 ### 1. Server check, read only
 
@@ -166,7 +167,7 @@ Follows [auth-and-mail.md](auth-and-mail.md) section 4, steps 3–6.
 
 **Exit:** both services enabled and active, Nginx config valid, pages served over HTTPS, and no request goes to `localhost`.
 
-**Redeploying the website later:** build on the PC, copy into a new folder, swap, then `systemctl restart coaching-web`.
+**Redeploying the website later:** build on the PC, swap the `sharp` binary (slice 0 step 5), copy into a new folder, swap folders, then `systemctl restart coaching-web`.
 
 ### 7. Staging seed
 
@@ -193,10 +194,11 @@ Follows [../reports/sslcommerz-sandbox-runbook.md](../reports/sslcommerz-sandbox
 
 ### 9. Nightly off-server backup, reboot
 
-1. Script `/usr/local/sbin/coaching-backup` (root, `700`): `pg_dump -Fc coaching` plus a tar of `/var/lib/coaching-api/files`, both under `/var/backups/coaching/` with a date in the name. Keep 14 days on the box, then send them to the V6 target.
-2. A systemd timer `coaching-backup.timer` at 03:00 Asia/Dhaka, `Persistent=true`.
-3. Run it once by hand. Restore that dump into a scratch database (`createdb coaching_restore_check`, `pg_restore`, count the `users` rows, `dropdb`). An untested backup does not count.
-4. Reboot (V7). Afterwards `coaching-api`, `coaching-web`, `nginx`, `postgresql` and `coaching-backup.timer` are active without anyone starting them, `/var/run/reboot-required` is gone, and the slice 4 and 6 public checks still pass.
+1. Install `rclone` from the Ubuntu archive. Shahriar runs `sudo rclone config` and creates a `b2` remote, then a `crypt` remote over `b2:<bucket>/coaching`. The config lives at `/root/.config/rclone/rclone.conf`, mode `600`. The agent never opens it.
+2. Script `/usr/local/sbin/coaching-backup` (root, `700`): `pg_dump -Fc coaching` plus a tar of `/var/lib/coaching-api/files`, both under `/var/backups/coaching/` with a date in the name. Keep 14 days on the box. `rclone copy` the new files to the crypt remote. On B2, a bucket lifecycle rule keeps 30 days.
+3. A systemd timer `coaching-backup.timer` at 03:00 Asia/Dhaka, `Persistent=true`.
+4. Run it once by hand. Check that `rclone ls` on the crypt remote lists the new files. Restore that dump into a scratch database (`createdb coaching_restore_check`, `pg_restore`, count the `users` rows, `dropdb`). An untested backup does not count.
+5. Reboot (V7). Afterwards `coaching-api`, `coaching-web`, `nginx`, `postgresql` and `coaching-backup.timer` are active without anyone starting them, `/var/run/reboot-required` is gone, and the slice 4 and 6 public checks still pass.
 
 **Exit:** the timer is listed, one off-server copy exists, the restore check passed, and everything came back after the reboot.
 
