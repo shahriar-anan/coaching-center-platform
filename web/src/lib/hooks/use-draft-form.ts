@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
+import { readStored, removeStored, subscribe, writeStored } from "@/lib/hooks/local-store";
 
 export type DraftForm<T> = {
   value: T;
@@ -16,31 +17,6 @@ const DRAFT = "draft:";
 /** Edits typed while a draft is waiting. The offered draft is never overwritten. */
 const EDIT = "draft-edit:";
 
-function readDraft<T>(storageKey: string): T | null {
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    return raw === null ? null : (JSON.parse(raw) as T);
-  } catch {
-    return null;
-  }
-}
-
-function writeDraft<T>(storageKey: string, value: T): void {
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify(value));
-  } catch {
-    // Blocked storage: the form still works, only the reload safety net is lost.
-  }
-}
-
-function removeDraft(storageKey: string): void {
-  try {
-    window.localStorage.removeItem(storageKey);
-  } catch {
-    // Nothing stored, nothing to remove.
-  }
-}
-
 /**
  * A long form's unsent draft, kept per record.
  *
@@ -51,42 +27,46 @@ function removeDraft(storageKey: string): void {
  */
 export function useDraftForm<T>(key: string, initial: T): DraftForm<T> {
   const [value, setLocal] = useState<T>(initial);
-  const [saved, setSaved] = useState<T | null>(null);
-  const [hasDraft, setHasDraft] = useState(false);
-
-  // Read storage after mount, so the server and the first client render match.
-  useEffect(() => {
-    const edit = readDraft<T>(EDIT + key);
-    const stored = edit ?? readDraft<T>(DRAFT + key);
-    if (stored !== null) {
-      setSaved(stored);
-      setHasDraft(true);
-    }
-  }, [key]);
+  // Set once the user restores, clears, or types with no draft waiting.
+  const [dismissed, setDismissed] = useState(false);
+  const stored = useSyncExternalStore(
+    subscribe,
+    () => readStored(EDIT + key) ?? readStored(DRAFT + key),
+    () => null,
+  );
+  const hasDraft = !dismissed && stored !== null;
 
   const setValue = useCallback(
     (next: T) => {
       setLocal(next);
-      writeDraft(hasDraft ? EDIT + key : DRAFT + key, next);
+      const raw = JSON.stringify(next);
+      if (hasDraft) {
+        writeStored(EDIT + key, raw);
+      } else {
+        setDismissed(true);
+        writeStored(DRAFT + key, raw);
+      }
     },
     [key, hasDraft],
   );
 
   const restore = useCallback(() => {
-    if (saved !== null) {
-      setLocal(saved);
-      writeDraft(DRAFT + key, saved);
-      removeDraft(EDIT + key);
+    if (stored !== null) {
+      try {
+        setLocal(JSON.parse(stored) as T);
+        writeStored(DRAFT + key, stored);
+      } catch {
+        // A damaged draft stays in storage; the form keeps its current value.
+      }
     }
-    setSaved(null);
-    setHasDraft(false);
-  }, [key, saved]);
+    removeStored(EDIT + key);
+    setDismissed(true);
+  }, [key, stored]);
 
   const clear = useCallback(() => {
-    removeDraft(DRAFT + key);
-    removeDraft(EDIT + key);
-    setSaved(null);
-    setHasDraft(false);
+    removeStored(DRAFT + key);
+    removeStored(EDIT + key);
+    setDismissed(true);
   }, [key]);
 
   return { value, setValue, hasDraft, restore, clear };
