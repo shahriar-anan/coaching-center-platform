@@ -166,6 +166,23 @@ const common = {
     leave: "চলে যান",
   },
   unreadNotices: "{count}টি অপঠিত নোটিশ",
+  purchase: {
+    shared: {
+      noPrice: "দাম এখনো নির্ধারণ হয়নি।",
+      accessGranted: "অ্যাক্সেস আছে",
+      via: {
+        MODULE: "মডিউল",
+        EXAM: "এই পরীক্ষা",
+        ROSTER: "রোস্টার",
+        MANUAL: "প্রশাসক দিয়েছেন",
+      },
+      selectExam: "এই পরীক্ষাটি বেছে নিন",
+      selectedCount: "{count}টি পরীক্ষা বেছে নেওয়া হয়েছে",
+      selectedTotal: "মোট {total}",
+      configOff: "পেমেন্ট এখন চালু নেই। কিছুক্ষণ পরে আবার চেষ্টা করুন।",
+      examCount: "{count}টি পরীক্ষা",
+    },
+  },
 } satisfies MessageTree;
 
 export default common;

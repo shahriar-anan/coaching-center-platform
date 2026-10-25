@@ -166,6 +166,23 @@ const common = {
     leave: "Leave",
   },
   unreadNotices: "{count} unread notices",
+  purchase: {
+    shared: {
+      noPrice: "Price not set yet.",
+      accessGranted: "You have access",
+      via: {
+        MODULE: "Module",
+        EXAM: "This exam",
+        ROSTER: "Roster",
+        MANUAL: "Given by admin",
+      },
+      selectExam: "Select this exam",
+      selectedCount: "{count} exams selected",
+      selectedTotal: "Total {total}",
+      configOff: "Payments are off right now. Please try again later.",
+      examCount: "{count} exams",
+    },
+  },
 } satisfies MessageTree;
 
 export default common;
