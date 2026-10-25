@@ -73,4 +73,31 @@ Results hub tabs and empty state, flag markers in the grid and submit dialog, ti
 
 ## Report
 
-(Agent fills this in.)
+**Done (P0):**
+- Sitting entry: `?start=live` and `?start=retake` take or retake the exam, then replace the URL. A reload resumes the open sitting. The phone-missing, closed and not-found cases go back to the exam page or show the message.
+- MCQ paper: all questions on one page, sticky bar with the countdown and save state, jump grid, autosave (one request in flight, 400 ms debounce, latest selection wins, backoff 1/2/4 s), per-device backup merged with the server's saved selection, deadline moves to the result without a refresh, later attempt labelled as practice, submit dialog with counts.
+- Written sitting: question PDF inline with the watermark (name and code), no download; answer upload with progress, `%PDF` check, 80 MB limit, replace until the deadline; deadline moves to the result.
+- Result: MCQ score, pass, and review after the deadline; written failed-to-submit, awaiting marks, published (comment and marked script in the viewer, no download).
+- Leaderboard: closed until five minutes after the window, with the opening time; undated; table with shared ranks.
+- `/results` hub: two tabs (results, being marked), summary strip, marks and pass for visible rows only, empty states.
+- Route pages: `sit`, `result`, `leaderboard`, `results`, each guarded by `RequireStudent` inside `Suspense`.
+
+**P1 done:** flag for review (local only), time warnings at 10, 5 and 1 minute, connection banner while offline, results summary strip, later-attempt banner.
+
+**P2 done:** none.
+
+**Skipped:**
+- Text size control (P2).
+- Own row highlighted on the leaderboard, and the student's merit rank on the result page. Both need a "this is you" flag from the API (see contract issues).
+- Written upload has no unit test for the replace state or the deadline transition. The offline flush and take/retake redirects have no tests yet.
+- Visual checks at 320 px and 1440 px, light and dark, and keyboard use were not run. The brief leaves the browser pass to the integrator.
+
+**Contract issues:**
+1. `GET /api/v1/live-exams/{id}` does not return the open sitting's `deadlineAt` or `startedAt`. The page keeps the take response in session storage for this tab as a workaround.
+2. Leaderboard rows have no "this is you" flag. Needed for the own-row highlight and the result page's rank.
+3. The result response has no `kind` (LIVE or RETAKE), so the result page cannot label the later attempt.
+
+**Notes for other agents:**
+- `pdf-viewer-impl.tsx` holds the viewer body with the props unchanged (`load`, `watermark`, `allowDownload`, `fileName`, plus optional `label`). `pdf-document.tsx` re-exports it.
+- `public/pdf.worker.min.mjs` has an `eslint-disable` comment on its first line, because the vendored code fails the project's lint rules. Its version test still matches.
+- `RequireStudent` (WS0) reads `useSearchParams`, so any route that uses it must sit inside a `Suspense` boundary, or the build fails on prerendering.

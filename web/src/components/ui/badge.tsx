@@ -1,3 +1,5 @@
+"use client";
+
 import { formatNumber } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 
