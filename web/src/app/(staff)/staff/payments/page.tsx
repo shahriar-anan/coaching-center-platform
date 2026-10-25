@@ -1,0 +1,88 @@
+"use client";
+
+import { Field } from "@/components/ui/field";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Pagination } from "@/components/ui/pagination";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { Select } from "@/components/ui/select";
+import { PaymentsTable } from "@/components/staff/ops/payments-table";
+import { PAYMENT_STATUS_FILTERS } from "@/components/staff/ops/ops-copy";
+import { RequireStaff } from "@/lib/auth/guards";
+import { useStaffPayments } from "@/lib/api/exam/staff-ops";
+import { useListParams } from "@/lib/url/list-params";
+import { useLocale } from "@/i18n/locale-context";
+
+export default function StaffPaymentsPage() {
+  return (
+    <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
+      <PaymentsList />
+    </RequireStaff>
+  );
+}
+
+function PaymentsList() {
+  const { t } = useLocale();
+  const [params, setParams] = useListParams({ page: 0, size: 20, q: "", tranId: "", status: "" });
+  const payments = useStaffPayments(params);
+
+  return (
+    <div className="grid gap-5">
+      <PageHeader
+        title={t("staffOps.payments.title")}
+        breadcrumbs={[{ label: t("common.nav.home"), href: "/staff" }, { label: t("staffOps.payments.title") }]}
+      />
+      <p className="text-sm text-muted">{t("staffOps.payments.readOnly")}</p>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label={t("staffOps.payments.searchLabel")}>
+          <SearchInput
+            id="payments-q"
+            value={params.q}
+            onChange={(q) => setParams({ q })}
+            placeholder={t("staffOps.payments.searchPlaceholder")}
+          />
+        </Field>
+        <Field label={t("staffOps.payments.tranIdLabel")}>
+          <SearchInput
+            id="payments-tran"
+            value={params.tranId}
+            onChange={(tranId) => setParams({ tranId })}
+            placeholder={t("staffOps.payments.tranIdPlaceholder")}
+          />
+        </Field>
+        <Field label={t("staffOps.payments.statusLabel")}>
+          <Select value={params.status} onChange={(event) => setParams({ status: event.target.value })}>
+            {PAYMENT_STATUS_FILTERS.map((option) => (
+              <option key={option.key} value={option.value}>
+                {t(`staffOps.payments.status.${option.key}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      {payments.isError ? (
+        <ErrorState onRetry={() => payments.refetch()} />
+      ) : (
+        <>
+          <PaymentsTable
+            rows={payments.data?.content ?? []}
+            loading={payments.isPending}
+            empty={
+              <EmptyState title={t("staffOps.payments.empty")} body={t("staffOps.payments.emptyBody")} />
+            }
+          />
+          {payments.data ? (
+            <Pagination
+              page={payments.data.page}
+              totalPages={payments.data.totalPages}
+              onPage={(page) => setParams({ page })}
+            />
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
