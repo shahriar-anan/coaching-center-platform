@@ -5,6 +5,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useSaveExam, type ExamInput, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import type { PaperLanguage } from "@/lib/api/exam/types";
+import { useRole } from "@/lib/auth/guards";
 import { Button } from "@/components/ui/button";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Field } from "@/components/ui/field";
@@ -14,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
+import { parsePrice } from "@/components/staff/catalog/module-details";
 import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
 import { useUnsavedWarning } from "@/components/staff/catalog/use-unsaved-warning";
 
@@ -28,6 +30,7 @@ type FormState = {
   durationMinutes: string;
   passPercent: string;
   maximum: string;
+  price: string;
   dated: boolean;
   liveAt: string | null;
 };
@@ -46,6 +49,7 @@ function initialState(exam: StaffExam): FormState {
     durationMinutes: String(exam.durationMinutes),
     passPercent: exam.passPercent == null ? "" : String(exam.passPercent),
     maximum: String(exam.maximum),
+    price: exam.price == null ? "" : String(exam.price),
     dated: exam.liveAt !== null,
     liveAt: exam.liveAt,
   };
@@ -58,9 +62,12 @@ function initialState(exam: StaffExam): FormState {
  */
 export function ExamMetaForm({ exam, locked }: { exam: StaffExam; locked: boolean }) {
   const { t } = useLocale();
-  const { formatDateTime } = useFormat();
+  const { formatDateTime, formatMoney } = useFormat();
   const { toast } = useToast();
+  const role = useRole();
   const save = useSaveExam(exam.id);
+  // Only Master Admin sets the price. System Admin sees it as text and never sends the field (the API would refuse it).
+  const canSetPrice = role.canEditPrice;
   const [form, setForm] = useState<FormState>(() => initialState(exam));
   const [baseline, setBaseline] = useState<FormState>(() => initialState(exam));
   const [errors, setErrors] = useState<Errors>({});
@@ -108,6 +115,10 @@ export function ExamMetaForm({ exam, locked }: { exam: StaffExam; locked: boolea
         next.maximum = t("staffCatalog.examMeta.maximumInvalid");
       }
     }
+    const price = canSetPrice ? parsePrice(form.price) : null;
+    if (price && !price.ok) {
+      next.price = t("staffCatalog.examMeta.priceInvalid");
+    }
     setErrors(next);
     if (Object.keys(next).length > 0) {
       return null;
@@ -126,6 +137,9 @@ export function ExamMetaForm({ exam, locked }: { exam: StaffExam; locked: boolea
     };
     if (isWritten) {
       body.maximum = Number(form.maximum);
+    }
+    if (price?.ok) {
+      body.price = price.value;
     }
     return body;
   }
@@ -155,6 +169,7 @@ export function ExamMetaForm({ exam, locked }: { exam: StaffExam; locked: boolea
         durationMinutes: fieldErrorFor(error, "durationMinutes") ?? undefined,
         passPercent: fieldErrorFor(error, "passPercent") ?? undefined,
         maximum: fieldErrorFor(error, "maximum") ?? undefined,
+        price: fieldErrorFor(error, "price") ?? undefined,
       });
     }
   }
@@ -210,6 +225,17 @@ export function ExamMetaForm({ exam, locked }: { exam: StaffExam; locked: boolea
             <NumberInput inputMode="numeric" min={1} step={1} value={form.maximum} onChange={(e) => set("maximum", e.target.value)} className="max-w-40" />
           </Field>
         ) : null}
+        {canSetPrice ? (
+          <Field label={t("staffCatalog.examMeta.price")} hint={t("staffCatalog.examMeta.priceHint")} error={errors.price}>
+            <NumberInput inputMode="decimal" min={0} step="0.01" value={form.price} onChange={(e) => set("price", e.target.value)} className="max-w-48" />
+          </Field>
+        ) : (
+          <div className="grid gap-1">
+            <span className="text-meta font-medium text-muted">{t("staffCatalog.examMeta.price")}</span>
+            <p className="text-body">{formatMoney(exam.price) ?? t("staffCatalog.examMeta.noPrice")}</p>
+            <p className="text-meta text-muted">{t("staffCatalog.examMeta.priceReadOnly")}</p>
+          </div>
+        )}
         <div id="exam-start" className="grid gap-3">
           <Switch
             id="exam-undated"

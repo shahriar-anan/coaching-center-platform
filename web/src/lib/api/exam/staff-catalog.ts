@@ -123,6 +123,7 @@ export type ExamInput = Partial<
     | "passPercent"
     | "maximum"
     | "liveAt"
+    | "price"
   >
 >;
 
