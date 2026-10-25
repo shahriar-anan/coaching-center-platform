@@ -66,6 +66,8 @@ const catalog = {
   },
   upcoming: {
     title: "আসন্ন পরীক্ষা",
+    live: "চালু আছে",
+    moduleOnly: "শুধু মডিউলে কেনা যাবে",
   },
   summaryTitle: "কী পাবেন",
   summaryNext: "পরবর্তী পরীক্ষা {date}",

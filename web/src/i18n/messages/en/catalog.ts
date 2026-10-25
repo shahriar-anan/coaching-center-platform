@@ -68,6 +68,8 @@ const catalog: typeof bn = {
   },
   upcoming: {
     title: "Upcoming exams",
+    live: "Live now",
+    moduleOnly: "Only in a module",
   },
   summaryTitle: "What you get",
   summaryNext: "Next exam {date}",

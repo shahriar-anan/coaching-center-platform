@@ -153,7 +153,12 @@ export function usePublicModuleExams(moduleId: string | undefined, examType: Exa
 }
 
 /** An exam in the "upcoming" strip, with its module's titles (G12). */
-export type UpcomingExam = PublicExam & { moduleTitleEn?: string; moduleTitleBn?: string | null };
+/** `moduleOnly` (S-027, A1): true when the exam has no price of its own and is sold only in its module. */
+export type UpcomingExam = PublicExam & {
+  moduleTitleEn?: string;
+  moduleTitleBn?: string | null;
+  moduleOnly?: boolean;
+};
 
 /**
  * Published modules matching `q` (G12). Only runs once there is text. An older
