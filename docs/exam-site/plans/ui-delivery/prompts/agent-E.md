@@ -36,6 +36,7 @@ When the integrator says WS0 is merged: run `git merge catalog-acquisition` in y
 - All copy in your message files, in both languages, written by `bangla-copy.md`.
 - Never write a host name or absolute URL. Links to the student site go through `siteHref()` from `lib/config`; API calls go through `apiRequest` and `apiUpload`.
 - Before `npm run build`, create `F:\coaching-center-platform\.heavy.lock` containing `E`. If it already exists, wait a minute and check again. Delete it when your build ends. `npm test` and `npm run lint` need no lock.
+- Run web tests in one process: `npx vitest run --pool=forks --poolOptions.forks.singleFork=true` (optionally with your test folder). The default worker pool runs out of memory on this PC.
 - Do not run `next dev`, do not run the API, do not open a browser.
 - If `web/node_modules` is missing or incomplete, run `npm ci` in `web/` (the integrator may still be installing it; wait if `npm ci` is already running).
 - Priorities: finish every P0 page with all its states first, then *(P1)* items, then *(P2)*.

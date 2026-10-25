@@ -77,7 +77,7 @@ beforeEach(() => {
 it("filters course and book payments and confirms from the detail dialog", async () => {
   const user = userEvent.setup();
   render(
-    <LocaleProvider>
+    <LocaleProvider initialLocale="en">
       <PaymentsPage />
     </LocaleProvider>,
   );

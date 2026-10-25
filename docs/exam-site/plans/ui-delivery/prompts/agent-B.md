@@ -51,7 +51,7 @@ Wait until the integrator says WS0 and WS1 are merged. Then, in the same folder:
 git switch -c ui/ws6b-staff-ops catalog-acquisition
 ```
 
-Run `npm ci` in `web/`. Read `ws0-foundation.md` (Contracts and section 9), `bangla-copy.md`, and the WS6b rows of `ws6-staff-ops.md`. Build only the WS6b routes and files listed there, under the web rules in the README: copy in your `staffOps` namespace by `bangla-copy.md`, links to other surfaces through `lib/config`, no hosts in code, the heavy lock for `npm run build` (write `B`), no `next dev`, no browser. Whenever the integrator merges another branch, run `git merge catalog-acquisition` and run your checks again. Report with the same format, naming `ui/ws6b-staff-ops`, with `lint`, `test` and `build` results.
+Run `npm ci` in `web/`, and run web tests with `npx vitest run --pool=forks --poolOptions.forks.singleFork=true`. Read `ws0-foundation.md` (Contracts and section 9), `bangla-copy.md`, and the WS6b rows of `ws6-staff-ops.md`. Build only the WS6b routes and files listed there, under the web rules in the README: copy in your `staffOps` namespace by `bangla-copy.md`, links to other surfaces through `lib/config`, no hosts in code, the heavy lock for `npm run build` (write `B`), no `next dev`, no browser. Whenever the integrator merges another branch, run `git merge catalog-acquisition` and run your checks again. Report with the same format, naming `ui/ws6b-staff-ops`, with `lint`, `test` and `build` results.
 
 ## When you are stuck
 

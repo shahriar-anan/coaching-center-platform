@@ -22,7 +22,7 @@ Students sit real, timed exams on these pages. Correctness under bad conditions 
 Agent A (WS0) is building the shared components, shells and helpers right now. Until the integrator merges WS0:
 
 - Write your API hooks (`web/src/lib/api/exam/sitting.ts`) with local types and query keys prefixed `["sitting", ...]`.
-- Replace the `PdfViewer` stub's insides in `web/src/components/pdf/` once WS0's stub exists; until then, build it in your folder against the exact props in the WS0 Contracts. Copy `pdf.worker.min.mjs` to `web/public/` so it works in the standalone build.
+- The viewer body goes in `web/src/components/pdf/pdf-viewer-impl.tsx` (and siblings such as `pdf-document.tsx`). WS0 owns `pdf-viewer.tsx`, the lazy wrapper everyone imports: do not put code there. If you already did, move it into `pdf-viewer-impl.tsx` when you merge WS0. Copy `pdf.worker.min.mjs` to `web/public/` so it works in the standalone build.
 - Write your page components and tests in your own folders, importing shared pieces by the exact paths and names in the WS0 Contracts. Where an import does not exist yet, put a minimal local stand-in in your own folder (for example `web/src/components/student/sitting/_tmp/`), and delete it after the merge.
 - Write your copy in your own message files (`sitting`, `result`) in both languages.
 
@@ -35,6 +35,7 @@ When the integrator says WS0 is merged: run `git merge catalog-acquisition` in y
 - Never write a host name or absolute URL. API calls go through `apiRequest`, `apiUpload` and `apiBlob`.
 - Countdowns use the server deadline and `serverNow()`, never the phone's clock alone.
 - Before `npm run build`, create `F:\coaching-center-platform\.heavy.lock` containing `D`. If it already exists, wait a minute and check again. Delete it when your build ends. `npm test` and `npm run lint` need no lock.
+- Run web tests in one process: `npx vitest run --pool=forks --poolOptions.forks.singleFork=true` (optionally with your test folder). The default worker pool runs out of memory on this PC.
 - Do not run `next dev`, do not run the API, do not open a browser.
 - If `web/node_modules` is missing or incomplete, run `npm ci` in `web/` (the integrator may still be installing it; wait if `npm ci` is already running).
 - Priorities: finish every P0 page with all its states first, then *(P1)* items, then *(P2)*.
