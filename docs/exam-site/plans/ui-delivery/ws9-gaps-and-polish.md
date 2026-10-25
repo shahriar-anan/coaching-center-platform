@@ -461,3 +461,11 @@ Branch `ui/w9-api`, worktree `F:\cc-wt\w9-api`. Checks: full suite from clean, a
 - No Flyway migration. No business rule changed.
 
 **Contract changes for the integrator:** the `details` error field, the new `SubmissionView` and `ModuleView` fields above, the `{ summary, rows }` results shape, and `PATCH /api/v1/me`.
+
+### Addendum 5 — STU, WS9 follow-up
+
+- **STU-FU-1 Bangla pass** (`auth`, `account`, `legal`, `help`, `contact`): the logout title now uses the glossary term লগআউট; the contact phone number is in Latin digits, as the copy guide asks for phone numbers. Everything else in those files matched the forbidden-term list and the glossary.
+- **STU-FU-2 320 px and dark mode, by reading the code:** one finding, fixed. The MCQ option text now wraps inside its row (`min-w-0`, `break-words`), so a long option no longer pushes the row wider than a 320 px screen. No fixed widths overflow (the paper column is a `max-w-[760px]` cap). The dialog scrim uses `bg-black/40` on purpose: it darkens both themes equally, and FND has no scrim token. Not checked without a device: the sitting top bar at 320 px, long bilingual titles in the dialogs, and the dark-mode contrast of the gold on the paper.
+- **STU-FU-3:** the sitting score figure uses `text-section` (20 px, the mockup's stat size) in place of `text-2xl`.
+- **STU-FU-4 (decision, pending user confirmation):** the sitting jump grid stays at 44 px, the README's touch target. Accepted by STU; pending user confirmation.
+- **Not touched, per the follow-up's list:** `components/student/catalog/**`, `purchase/**`, `notice-bell.tsx`, the notices page, `result/**`, `home/**`, the listed `lib/api/exam` files, and the messages `catalog`, `purchase`, `notices`, `result`, `sitting`. ST-2 and ST-4 are not STU's.
