@@ -32,6 +32,44 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 
 	@Query(value = """
 			SELECT m FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED'
+			  AND m.categoryId NOT IN :hiddenCategoryIds
+			  AND EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  )
+			""", countQuery = """
+			SELECT count(m) FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED'
+			  AND m.categoryId NOT IN :hiddenCategoryIds
+			  AND EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  )
+			""")
+	Page<LiveExamModule> findPublishedWithExamType(@Param("examType") String examType,
+			@Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds, Pageable pageable);
+
+	@Query(value = """
+			SELECT m FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId = :categoryId
+			  AND EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  )
+			""", countQuery = """
+			SELECT count(m) FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId = :categoryId
+			  AND EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  )
+			""")
+	Page<LiveExamModule> findPublishedInCategoryWithExamType(@Param("categoryId") UUID categoryId,
+			@Param("examType") String examType, Pageable pageable);
+
+	@Query(value = """
+			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL
 			  AND EXISTS (
 			    SELECT i FROM LiveExamInstructor i
@@ -47,6 +85,7 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			""")
 	Page<LiveExamModule> findAssignedToInstructor(@Param("instructorId") UUID instructorId, Pageable pageable);
 
+	/** {@code examType} is {@link LiveExamTypeFilter#ANY} for every type. */
 	@Query(value = """
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED'
@@ -61,6 +100,10 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			      WHERE g.moduleId = m.id AND g.studentId = :studentId
 			    )
 			  )
+			  AND (:examType = '' OR EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  ))
 			""", countQuery = """
 			SELECT count(m) FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED'
@@ -75,10 +118,16 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			      WHERE g.moduleId = m.id AND g.studentId = :studentId
 			    )
 			  )
+			  AND (:examType = '' OR EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  ))
 			""")
 	Page<LiveExamModule> findVisibleToStudent(@Param("studentId") UUID studentId,
-			@Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds, Pageable pageable);
+			@Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds, @Param("examType") String examType,
+			Pageable pageable);
 
+	/** {@code examType} is {@link LiveExamTypeFilter#ANY} for every type. */
 	@Query(value = """
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId = :categoryId
@@ -93,6 +142,10 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			      WHERE g.moduleId = m.id AND g.studentId = :studentId
 			    )
 			  )
+			  AND (:examType = '' OR EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  ))
 			""", countQuery = """
 			SELECT count(m) FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId = :categoryId
@@ -107,9 +160,13 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			      WHERE g.moduleId = m.id AND g.studentId = :studentId
 			    )
 			  )
+			  AND (:examType = '' OR EXISTS (
+			    SELECT e FROM LiveExam e
+			    WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType
+			  ))
 			""")
 	Page<LiveExamModule> findVisibleToStudentInCategory(@Param("studentId") UUID studentId,
 			@Param("categoryId") UUID categoryId, @Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds,
-			Pageable pageable);
+			@Param("examType") String examType, Pageable pageable);
 
 }

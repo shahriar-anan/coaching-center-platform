@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +32,8 @@ public class LiveExamPublicService {
 
 	private static final ZoneId DHAKA = ZoneId.of("Asia/Dhaka");
 
+	private static final UUID NO_HIDDEN_CATEGORY = new UUID(0L, 0L);
+
 	private final LiveExamCategoryRepository categories;
 
 	private final LiveExamModuleRepository modules;
@@ -47,15 +50,32 @@ public class LiveExamPublicService {
 		this.visibility = visibility;
 	}
 
+	/**
+	 * The category tree. With an {@code examType} (as {@link LiveExamTypeFilter} parsed it) a module stays only when it
+	 * has a published exam of that type, and a category stays when its branch keeps a module or has no module at all
+	 * (shown as coming soon in both doors).
+	 */
 	@Transactional(readOnly = true)
-	public List<PublicCategory> categories() {
+	public List<PublicCategory> categories(String examType) {
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
-		Map<UUID, List<PublicModule>> modulesByCategory = new HashMap<>();
+		List<LiveExamModule> visible = new ArrayList<>();
 		for (LiveExamModule module : modules.findByDeletedAtIsNull()) {
-			if (!LiveExamModule.PUBLISHED.equals(module.getStatus()) || hidden.contains(module.getCategoryId())) {
+			if (LiveExamModule.PUBLISHED.equals(module.getStatus()) && !hidden.contains(module.getCategoryId())) {
+				visible.add(module);
+			}
+		}
+		Map<UUID, Counts> counts = counts(visible.stream().map(LiveExamModule::getId).toList());
+		boolean filtered = !LiveExamTypeFilter.ANY.equals(examType);
+		Map<UUID, List<PublicModule>> modulesByCategory = new HashMap<>();
+		Set<UUID> categoriesWithModules = new HashSet<>();
+		for (LiveExamModule module : visible) {
+			categoriesWithModules.add(module.getCategoryId());
+			Counts count = counts.getOrDefault(module.getId(), Counts.NONE);
+			if (filtered && count.of(examType) == 0) {
 				continue;
 			}
-			modulesByCategory.computeIfAbsent(module.getCategoryId(), ignored -> new ArrayList<>()).add(moduleView(module));
+			modulesByCategory.computeIfAbsent(module.getCategoryId(), ignored -> new ArrayList<>())
+				.add(moduleView(module, count));
 		}
 		for (List<PublicModule> placed : modulesByCategory.values()) {
 			placed.sort(Comparator.comparingInt(PublicModule::position).thenComparing(PublicModule::id));
@@ -82,19 +102,27 @@ public class LiveExamPublicService {
 				}
 			}
 		}
+		if (filtered) {
+			roots = prune(roots, categoriesWithModules);
+		}
 		sort(roots);
 		return roots;
 	}
 
 	@Transactional(readOnly = true)
-	public Page<PublicModule> modules(UUID categoryId, Pageable pageable) {
+	public Page<PublicModule> modules(UUID categoryId, String examType, Pageable pageable) {
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		Pageable ordered = orderedModules(pageable);
 		if (categoryId != null && hidden.contains(categoryId)) {
 			return Page.empty(ordered);
 		}
 		Page<LiveExamModule> page;
-		if (categoryId != null) {
+		if (!LiveExamTypeFilter.ANY.equals(examType)) {
+			page = categoryId != null ? modules.findPublishedInCategoryWithExamType(categoryId, examType, ordered)
+					: modules.findPublishedWithExamType(examType, hidden.isEmpty() ? Set.of(NO_HIDDEN_CATEGORY) : hidden,
+							ordered);
+		}
+		else if (categoryId != null) {
 			page = modules.findByCategoryIdAndStatusAndDeletedAtIsNull(categoryId, LiveExamModule.PUBLISHED, ordered);
 		}
 		else if (hidden.isEmpty()) {
@@ -103,20 +131,25 @@ public class LiveExamPublicService {
 		else {
 			page = modules.findByStatusAndDeletedAtIsNullAndCategoryIdNotIn(LiveExamModule.PUBLISHED, hidden, ordered);
 		}
-		return page.map(this::moduleView);
+		Map<UUID, Counts> counts = counts(page.getContent().stream().map(LiveExamModule::getId).toList());
+		return page.map(module -> moduleView(module, counts.getOrDefault(module.getId(), Counts.NONE)));
 	}
 
 	@Transactional(readOnly = true)
 	public PublicModule module(UUID id) {
-		return moduleView(requireModule(id));
+		LiveExamModule module = requireModule(id);
+		return moduleView(module, counts(List.of(module.getId())).getOrDefault(module.getId(), Counts.NONE));
 	}
 
 	@Transactional(readOnly = true)
-	public Page<PublicExam> exams(UUID moduleId, Pageable pageable) {
+	public Page<PublicExam> exams(UUID moduleId, String examType, Pageable pageable) {
 		requireModule(moduleId);
-		return exams
-			.findByModuleIdAndStatusAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED, orderedExams(pageable))
-			.map(this::examView);
+		Pageable ordered = orderedExams(pageable);
+		Page<LiveExam> page = LiveExamTypeFilter.ANY.equals(examType)
+				? exams.findByModuleIdAndStatusAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED, ordered)
+				: exams.findByModuleIdAndStatusAndExamTypeAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED, examType,
+						ordered);
+		return page.map(this::examView);
 	}
 
 	@Transactional(readOnly = true)
@@ -137,9 +170,66 @@ public class LiveExamPublicService {
 		return module;
 	}
 
-	private PublicModule moduleView(LiveExamModule module) {
+	private Map<UUID, Counts> counts(List<UUID> moduleIds) {
+		Map<UUID, Counts> byModule = new HashMap<>();
+		if (moduleIds.isEmpty()) {
+			return byModule;
+		}
+		for (Object[] row : exams.countPublishedByModuleAndType(moduleIds)) {
+			UUID moduleId = (UUID) row[0];
+			int total = ((Number) row[2]).intValue();
+			Counts current = byModule.getOrDefault(moduleId, Counts.NONE);
+			byModule.put(moduleId, LiveExam.MCQ.equals(row[1]) ? new Counts(total, current.written())
+					: new Counts(current.mcq(), total));
+		}
+		return byModule;
+	}
+
+	/**
+	 * Keeps a category whose branch still holds a module after the filter, or whose branch never had a module. A
+	 * category whose modules are all of the other type drops out with its branch.
+	 */
+	private static List<PublicCategory> prune(List<PublicCategory> nodes, Set<UUID> categoriesWithModules) {
+		List<PublicCategory> kept = new ArrayList<>();
+		for (PublicCategory node : nodes) {
+			if (keptModules(node) || !hadModules(node, categoriesWithModules)) {
+				List<PublicCategory> children = prune(node.children(), categoriesWithModules);
+				node.children().clear();
+				node.children().addAll(children);
+				kept.add(node);
+			}
+		}
+		return kept;
+	}
+
+	private static boolean keptModules(PublicCategory node) {
+		if (!node.modules().isEmpty()) {
+			return true;
+		}
+		for (PublicCategory child : node.children()) {
+			if (keptModules(child)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean hadModules(PublicCategory node, Set<UUID> categoriesWithModules) {
+		if (categoriesWithModules.contains(node.id())) {
+			return true;
+		}
+		for (PublicCategory child : node.children()) {
+			if (hadModules(child, categoriesWithModules)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static PublicModule moduleView(LiveExamModule module, Counts counts) {
 		return new PublicModule(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
-				module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice());
+				module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
+				counts.mcq(), counts.written());
 	}
 
 	private PublicExam examView(LiveExam exam) {
@@ -195,7 +285,17 @@ public class LiveExamPublicService {
 	}
 
 	public record PublicModule(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
-			String descriptionBn, int position, BigDecimal price) {
+			String descriptionBn, int position, BigDecimal price, int mcqCount, int writtenCount) {
+	}
+
+	private record Counts(int mcq, int written) {
+
+		static final Counts NONE = new Counts(0, 0);
+
+		int of(String examType) {
+			return LiveExam.MCQ.equals(examType) ? mcq : written;
+		}
+
 	}
 
 	public record PublicExam(UUID id, UUID moduleId, String examType, String titleEn, String titleBn,

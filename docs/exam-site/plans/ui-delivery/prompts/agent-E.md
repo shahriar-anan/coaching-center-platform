@@ -9,6 +9,9 @@ You are **agent E** in a team of five agents building the exam website in parall
 
 The client's Master Admin will run his exams on these screens. They follow the admin-prompt look (calm, dense, blue on grey, desktop first, usable on a phone), not the student look.
 
+**Write only inside your working folder above.** Every path you create or edit must be inside it (use paths relative to it). Never write under `F:aching-center-platform` — that is the integrator's checkout — except the `.heavy.lock` file. Check with `git rev-parse --show-toplevel` before your first edit.
+
+
 ## Read first, in this order
 
 1. `docs/exam-site/plans/ui-delivery/README.md` — the whole plan, the route ownership table, LMS practices, and "Rules for every agent".

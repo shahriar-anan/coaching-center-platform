@@ -395,7 +395,7 @@ public class LiveExamSittingService {
 			List<StudentOption> optionViews = new ArrayList<>();
 			for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(question.getId())) {
 				optionViews.add(new StudentOption(option.getId(), option.getOptionText(),
-						review ? option.isCorrect() : null, review ? option.getId().equals(selected.get(question.getId())) : null));
+						review ? option.isCorrect() : null, option.getId().equals(selected.get(question.getId()))));
 			}
 			views.add(new StudentQuestion(question.getId(), question.getStem(), question.getMarks(),
 					review ? question.getExplanation() : null, optionViews));

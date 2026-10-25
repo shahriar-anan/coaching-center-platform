@@ -53,12 +53,13 @@ public class LiveExamController {
 
 	@GetMapping("/api/v1/live-exam-modules/{moduleId}/exams")
 	public PageResponse<LiveExamService.ExamView> list(@PathVariable UUID moduleId,
-			@PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
+		String type = LiveExamTypeFilter.parse(examType);
 		if (permissions.has(Permissions.EXAM_READ)) {
 			return PageResponse.from(exams.list(moduleId, pageable, false, null));
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
-			return PageResponse.from(exams.list(moduleId, pageable, true, actorId()));
+			return PageResponse.from(exams.list(moduleId, pageable, true, actorId(), type));
 		}
 		throw denied();
 	}
