@@ -688,3 +688,36 @@ Branch `ui/stu-pur`, worktree `F:\cc-wt\stu-pur`, rebased on `catalog-acquisitio
 - The tests in `tests/pur-stu/` mock fetch with the API-ACCESS shapes. No probe request is made for a non-owner.
 - `bundleOrders` stays off until the integrator confirms A4.
 - **Copy guide conflict.** `bangla-copy.md` lists "মূল্য এখনো ঠিক হয়নি" as the use for "Price not set", and "শুধু এই পরীক্ষাটি চালু হবে।" and "এই মডিউলের সব পরীক্ষা চালু হবে…" as what to write instead of the brief's "খুলবে" lines. This branch follows the brief for these lines, and for the sheet button it follows WS3's "পেমেন্টে যান" over the guide's "পেমেন্ট করুন". The owner of the copy guide should decide, and the two sources should be brought in line.
+## Report — MRK
+
+Branch `ui/w9-marking`, worktree `F:\cc-wt\w9-mrk`. Checks: `npm run lint` 0 errors (2 warnings in files MRK does not own); `npx tsc --noEmit` clean; `npx vitest run` on `tests/ws9-mrk` (7 files) and `tests/ws6a` (people page): 53 passed. `npm run build`: see the ready message.
+
+| Item | Status | Note |
+|---|---|---|
+| U1 instructor home | done | Summary strip (waiting, drafts, published), "মূল্যায়ন শুরু করুন" to the oldest waiting paper (G11 `AWAITING`, `submittedAt,asc`, size 1), 10 most recent papers, assigned modules grouped by category path (G10) with each exam's waiting count and a link to its papers. Empty state with the Master Admin sentence. |
+| U2 submissions browser | done | `/staff/submissions`: tree category → module → exam (SplitBrowser) with waiting counts; filter (default বাকি for instructors, সব for admins), sort, search and selection all in the URL. A category selection reads each module's first page of the feed (100 rows); a notice shows when a module has more. `/staff/submissions/m/[moduleId]` redirects to the browser with the module chosen. |
+| U3 marking screen | done | The answer script and the question paper are two tabs (`PaperViews`), beside the form on desktop and above it on phones, with the answer first. The question paper loads only when its tab opens. SectionNav for মার্ক, মন্তব্য, মার্কড PDF. Keyboard popover (J/K). End-of-list line with a link back. |
+| UF4 comment snippets | done | Per device, up to 20, insert with one click, delete each. Stored with the local-store helpers that `useListPrefs` uses (its record type does not hold a list). |
+| UF5 today's line | done | "আজ N টি খাতা মূল্যায়ন করেছেন" from the feed's drafts and published rows, Dhaka day. Hidden when either list is longer than one page, so a partial count is never shown. Limit: the feed names the marker only by name, so two teachers with the same name would be counted together. |
+| C3 bulk publish (Master Admin only) | done | "সব খসড়া প্রকাশ করুন (N)" for the exam selected in the filter, with a confirm dialog naming the exam and the count, calling `publish-results`. Row ticks and "নির্বাচিতগুলো প্রকাশ করুন" call the single publish per row, with progress, a stop button and a confirm. Not rendered for instructors (tested). |
+| G1 saved comment and marked PDF | partly done | Marks and comment prefill from the saved paper (`comment`, `score`). The stored marked PDF name shows, with a file drop to replace it. The save rule is said at the top of the form, above the marks (moved there this pass). Not built: "দেখুন". No staff endpoint returns the stored marked PDF (`/live-exams/{id}/evaluated-pdf` is the student's own). API gap for the integrator. |
+| G2 titles and maximum | done | Titles and maximum come from the paper read. `?m=` only sets the queue's order. |
+| G8 question paper | done | Collapsible panel, loaded on open. 404 (`RESOURCE_NOT_FOUND`) or `ACCESS_DENIED` shows "এই প্রশ্নপত্র দেখার অনুমতি নেই।" with no code or stack. |
+| G11 cross-module feed | done | Browser and instructor home use `/live-exam-submissions` with the module and exam filters. Open sittings are not listed; the copy says a script appears after its deadline. |
+| P5 staff page details | done | Page header with breadcrumbs, the FND Table (sticky header, numbers right-aligned, pills, loading and empty in the body), filter bar (search, filters, reset). |
+| Marked PDF size | done | The form accepts 80 MiB, the server's limit (`current-api.md`), and says so in the helper text. Replaces the 20 MB this file's old form used. |
+| Moved form | done | `components/staff/people/submission-form.tsx` is now `components/staff/marking/submission-form.tsx`. No import is left in `people/`. Its tests moved to `tests/ws9-mrk/submission-form.test.tsx`; the block was removed from `tests/ws6a/people.test.tsx` (a file MRK does not own; OPS should check the merge). |
+| Bangla pass | done | Every `staffMarking` string was written to `bangla-copy.md` (glossary terms, Bengali digits through the formatters, buttons as verbs). A parity test checks that bn and en have the same keys. |
+| Unused keys | done | Every leaf key in `staffMarking` is referenced from `src`. |
+| Skipped | none | |
+
+**For the integrator:**
+- `components/staff/people/people-copy.ts` (OPS) still exports the submission helpers (`SUBMISSION_FILTERS`, `matchesSubmissionFilter`, `matchesName`, `isDraft`, `nextToMark`, `neighbour`). Nothing in `src` uses them now; only `tests/ws6a/people-copy.test.ts` does. OPS should remove them with that test. MRK's `marking/marking-queue.ts` holds its own copies.
+- `messages/{en,bn}/staffPeople.ts` (OPS) still has the `submissions` and `submission` keys. Nothing in MRK's code uses them. OPS should remove them.
+- API gap for G1 "দেখুন": a staff read of a participant's stored marked PDF, for example `GET /api/v1/live-exam-participants/{id}/evaluated-pdf`. Not built; MRK does not own the API.
+- Shared reads used read-only: `lib/api/exam/staff-home.ts` (participation rows, owned by AUT), and the staff module list through its own hook in `staff-marking.ts`. `staff-catalog.ts` is not touched.
+- `tests/ws5/home.test.tsx` (outside MRK's list): two assertions now expect the instructor empty heading that U1 shows ("আপনাকে এখনো কোনো মডিউল দেওয়া হয়নি"). Without this change the test fails after U1. Check it at the merge.
+
+**API additions used:** none new. Uses `GET /api/v1/live-exam-submissions`, `GET /api/v1/live-exam-participants/{id}` (with `comment`, `evaluatedFileName`, titles), `POST .../evaluation`, `POST .../publish`, `POST /api/v1/live-exams/{id}/publish-results`, `GET /api/v1/live-exams/{id}/question-pdf`, `GET /api/v1/live-exam-modules` (with `categoryPath` and `instructor`).
+
+**Contract changes:** none.

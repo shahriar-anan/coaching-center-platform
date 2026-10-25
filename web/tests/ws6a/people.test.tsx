@@ -1,18 +1,13 @@
 import { Suspense } from "react";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import StudentsPage from "@/app/(staff)/staff/students/page";
 import StudentDetailPage from "@/app/(staff)/staff/students/[id]/page";
 import InstructorsPage from "@/app/(staff)/staff/instructors/page";
 import ParticipationPage from "@/app/(staff)/staff/participation/page";
-import { SubmissionForm } from "@/components/staff/people/submission-form";
-import type { SubmissionRow } from "@/lib/api/exam/staff-people";
 import { fixtures, renderWithProviders } from "../helpers";
 import { mockApi } from "../helpers/mock-api";
-
-// The PDF viewer loads pdf.js; the form tests only need to know it is not there for the wrong roles.
-vi.mock("@/components/pdf/pdf-viewer", () => ({ PdfViewer: () => null }));
 
 /** A promise React reads at once, as Next does for route params, so `use()` does not suspend in a test. */
 function resolved<T>(value: T): Promise<T> {
@@ -202,63 +197,3 @@ describe("participation", () => {
   });
 });
 
-const written: SubmissionRow = {
-  id: "p1",
-  examId: "e5",
-  studentId: STUDENT_ID,
-  studentName: "Rahim Uddin",
-  status: "SUBMITTED",
-  score: null,
-  maximum: 50,
-  passed: null,
-  kind: "LIVE",
-  answerPdf: true,
-  evaluatedPdf: null,
-  evaluatorName: null,
-  published: false,
-};
-
-describe("submission form by role", () => {
-  it("gives an instructor the draft form and no publish button", () => {
-    renderWithProviders(<SubmissionForm row={written} examTitle="Evidence" canMark canPublish={false} />, {
-      user: fixtures.instructor,
-    });
-    expect(screen.getByRole("button", { name: "খসড়া নম্বর সেভ করুন" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ফলাফল প্রকাশ করুন" })).toBeNull();
-    expect(screen.getByText(/শিক্ষার্থী এখনো এটি দেখতে পাবে না/)).toBeInTheDocument();
-  });
-
-  it("gives System Admin read-only facts with the examiner's name, and no form", () => {
-    renderWithProviders(
-      <SubmissionForm row={{ ...written, evaluatorName: "Teacher Karim" }} examTitle="Evidence" canMark={false} canPublish={false} />,
-      { user: fixtures.systemAdmin },
-    );
-    expect(screen.queryByRole("button", { name: "খসড়া নম্বর সেভ করুন" })).toBeNull();
-    expect(screen.getByText("Teacher Karim")).toBeInTheDocument();
-  });
-
-  it("keeps Master Admin's publish disabled until a draft mark exists", () => {
-    const { unmount } = renderWithProviders(
-      <SubmissionForm row={written} examTitle="Evidence" canMark canPublish />,
-      { user: fixtures.masterAdmin },
-    );
-    expect(screen.getByRole("button", { name: "ফলাফল প্রকাশ করুন" })).toBeDisabled();
-    unmount();
-
-    renderWithProviders(
-      <SubmissionForm row={{ ...written, evaluatedPdf: true }} examTitle="Evidence" canMark canPublish />,
-      { user: fixtures.masterAdmin },
-    );
-    expect(screen.getByRole("button", { name: "ফলাফল প্রকাশ করুন" })).toBeEnabled();
-  });
-
-  it("shows the no-answer line and no form when the paper has no answer", () => {
-    renderWithProviders(
-      <SubmissionForm row={{ ...written, answerPdf: false, status: "FAILED_TO_SUBMIT" }} examTitle="Evidence" canMark canPublish />,
-      { user: fixtures.masterAdmin },
-    );
-    expect(screen.getByText("জমা হয়নি · নম্বর দেওয়া যাবে না")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "খসড়া নম্বর সেভ করুন" })).toBeNull();
-    expect(within(document.body).queryByRole("button", { name: "ফলাফল প্রকাশ করুন" })).toBeNull();
-  });
-});
