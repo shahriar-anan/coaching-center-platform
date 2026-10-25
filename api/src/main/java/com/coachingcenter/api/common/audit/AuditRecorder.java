@@ -109,6 +109,10 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_ORDER_ENTITY = "LIVE_EXAM_ORDER";
 
+	public static final String ANNOUNCEMENT_SENT = "ANNOUNCEMENT_SENT";
+
+	public static final String ANNOUNCEMENT_ENTITY = "ANNOUNCEMENT";
+
 	public static final String LIVE_EXAM_GRANT_ENTITY = "LIVE_EXAM_GRANT";
 
 	private final AuditLogRepository auditLogs;

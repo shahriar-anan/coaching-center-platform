@@ -423,6 +423,107 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.isOne();
 	}
 
+	@Test
+	void masterAdminSendsAnnouncementsToAModuleOrToEveryStudentOnce() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID rostered = seed("STUDENT", "Rostered Reader");
+		UUID granted = seed("STUDENT", "Granted Reader");
+		UUID outside = seed("STUDENT", "Outside Reader");
+		UUID module = module(system, "Announced");
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + rostered + "\"}"))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body(granted, "MODULE", module, null, "Granted for the announcement test")))
+			.andExpect(status().isCreated());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+		MvcResult moduleSent = mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("Module news", "মডিউলের খবর", "Read this", "", "MODULE", module)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.audience").value("MODULE"))
+			.andExpect(jsonPath("$.recipients").value(2))
+			.andReturn();
+		UUID moduleAnnouncement = UUID.fromString(json.readTree(moduleSent.getResponse().getContentAsString()).get("id").asText());
+		assertThat(jdbc.queryForObject("select count(*) from student_notices where announcement_id = ? and kind = 'ANNOUNCEMENT'"
+				+ " and exam_id is null and module_id = ? and user_id in (?, ?)", Integer.class, moduleAnnouncement, module, rostered,
+				granted)).isEqualTo(2);
+		assertThat(jdbc.queryForObject("select count(*) from student_notices where announcement_id = ? and user_id = ?",
+				Integer.class, moduleAnnouncement, outside)).isZero();
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ANNOUNCEMENT_SENT' and entity_id = ?",
+				Integer.class, moduleAnnouncement)).isEqualTo(1);
+
+		int active = jdbc.queryForObject("select count(*) from users where role = 'STUDENT' and status = 'ACTIVE'"
+				+ " and deleted_at is null", Integer.class);
+		MvcResult allSent = mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("School closed", "", "", "স্কুল বন্ধ", "ALL", null)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.audience").value("ALL"))
+			.andExpect(jsonPath("$.recipients").value(active))
+			.andReturn();
+		UUID allAnnouncement = UUID.fromString(json.readTree(allSent.getResponse().getContentAsString()).get("id").asText());
+		assertThat(jdbc.queryForObject("select count(*) from student_notices where announcement_id = ? and module_id is null",
+				Integer.class, allAnnouncement)).isEqualTo(active);
+		assertThat(jdbc.queryForObject("select count(distinct user_id) from student_notices where announcement_id = ?",
+				Integer.class, allAnnouncement)).isEqualTo(active);
+	}
+
+	@Test
+	void announcementsAreMasterAdminOnlyAndBadInputIsRefused() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		String teacher = token(seed("INSTRUCTOR", "Teacher"));
+		String learner = token(seed("STUDENT", "Listener"));
+		UUID module = module(system, "Refused news");
+		String allJson = announcementJson("Hello", "", "", "", "ALL", null);
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON).content(allJson)).andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + teacher)
+			.contentType(MediaType.APPLICATION_JSON).content(allJson)).andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + learner)
+			.contentType(MediaType.APPLICATION_JSON).content(allJson)).andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("", " ", "", "", "ALL", null)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("Hello", "", "", "", "MODULE", null)))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("Hello", "", "", "", "ALL", module)))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("Hello", "", "", "", "ROSTER", null)))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("Hello", "", "", "", "MODULE", UUID.randomUUID())))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("a".repeat(501), "", "", "", "ALL", null)))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(announcementJson("", "", "", "b".repeat(5001), "ALL", null)))
+			.andExpect(status().isBadRequest());
+	}
+
+	private static String announcementJson(String titleEn, String titleBn, String bodyEn, String bodyBn, String audience,
+			UUID module) {
+		return """
+				{"titleEn":"%s","titleBn":"%s","bodyEn":"%s","bodyBn":"%s","audience":"%s","moduleId":%s}
+				""".formatted(titleEn, titleBn, bodyEn, bodyBn, audience, quoted(module));
+	}
+
 	private void publish(String token, UUID module) throws Exception {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
