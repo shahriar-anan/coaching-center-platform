@@ -10,6 +10,7 @@ Written 25 October 2026 from the code on branch `catalog-acquisition`. Shahriar 
 | A4 | [a4-student-status.md](a4-student-status.md): own status per exam | none | 3 h |
 | A5 | [a5-authoring-deletes.md](a5-authoring-deletes.md): delete exam, delete MCQ question | none | 3 h |
 | A6 | [a6-instructor-unassign.md](a6-instructor-unassign.md): remove the module instructor | none | 1–2 h |
+| A7 | [a7-staff-payments.md](a7-staff-payments.md): staff list of exam payments, payment channel (added 25 October 2026 after the VPS deploy) | `V37` | 3 h |
 
 ## Slice order
 

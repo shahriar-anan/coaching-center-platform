@@ -33,8 +33,6 @@ import jakarta.mail.internet.MimeMessage;
 @Profile({ "staging", "prod" })
 public class SmtpEmailSender implements EmailSender, DisposableBean {
 
-	static final String TEST_CODE = "123456";
-
 	private static final Logger log = LoggerFactory.getLogger(SmtpEmailSender.class);
 
 	private static final String VERIFY_SUBJECT = "Verify your email";
@@ -92,12 +90,6 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	public DeliveryResult sendPlainNow(String to, String subject, String text) {
 		return deliverNow(to, subject, text, "");
-	}
-
-	public DeliveryResult sendPasswordResetTest(String to) {
-		String text = "This is a mail delivery test. The dummy code is " + TEST_CODE
-				+ ". It is not a real password-reset code.";
-		return deliverNow(to, "Mail delivery test", text, TEST_CODE);
 	}
 
 	@Override

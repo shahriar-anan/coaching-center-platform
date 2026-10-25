@@ -17,7 +17,11 @@ public interface LiveExamPaymentGateway {
 	record Started(String redirectUrl) {
 	}
 
-	record Verification(Outcome outcome, String tranId, BigDecimal amount, String currency, String valId) {
+	/**
+	 * {@code paymentChannel} is the payer's channel as the gateway names it (for example {@code BKASH-BKash}), or null.
+	 */
+	record Verification(Outcome outcome, String tranId, BigDecimal amount, String currency, String valId,
+			String paymentChannel) {
 
 		public enum Outcome {
 
@@ -26,15 +30,20 @@ public interface LiveExamPaymentGateway {
 		}
 
 		public static Verification valid(String tranId, BigDecimal amount, String currency, String valId) {
-			return new Verification(Outcome.VALID, tranId, amount, currency, valId);
+			return valid(tranId, amount, currency, valId, null);
+		}
+
+		public static Verification valid(String tranId, BigDecimal amount, String currency, String valId,
+				String paymentChannel) {
+			return new Verification(Outcome.VALID, tranId, amount, currency, valId, paymentChannel);
 		}
 
 		public static Verification invalid() {
-			return new Verification(Outcome.INVALID, null, null, null, null);
+			return new Verification(Outcome.INVALID, null, null, null, null, null);
 		}
 
 		public static Verification unreachable() {
-			return new Verification(Outcome.UNREACHABLE, null, null, null, null);
+			return new Verification(Outcome.UNREACHABLE, null, null, null, null, null);
 		}
 
 	}

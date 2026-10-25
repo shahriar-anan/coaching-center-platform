@@ -71,7 +71,7 @@ Each slice ends with its exit check passing and a line in [../reports/vps-stagin
 
 1. From `api/`, run `mvn test` against local PostgreSQL with `TEST_DB_URL`, `TEST_DB_USER` and `TEST_DB_PASSWORD` set. This PC has no Docker. Every class passes except, at most, `BookOrderIT` and `CoursePurchaseIT` (V1).
 2. Commit (V2).
-3. `mvn -DskipTests package`. The suite just passed on the same commit. Record the SHA-256 of `api/target/api-0.0.1-SNAPSHOT.jar` and the commit hash.
+3. `mvn -DskipTests clean package`. The suite just passed on the same commit. Always `clean`: a deleted source file leaves its `.class` in `target/`, and a plain `package` would ship it (seen on 25 October 2026 with the removed mail-test controller). Record the SHA-256 of `api/target/api-0.0.1-SNAPSHOT.jar` and the commit hash.
 4. Web: apply V3 (one line in `next.config.ts`). Read `web/node_modules/next/dist/docs/` on standalone output first, as `web/AGENTS.md` requires. Build with `NEXT_PUBLIC_API_BASE_URL=https://srv2089893.hstgr.cloud`. The value is baked in at build time and is not secret, so set it in the shell for this build and do not change `web/.env.local`. Run `npm run lint` and `npm test` first.
 5. Check the standalone folder for native modules built for Windows (for example `sharp`, or anything under `node_modules/@img`). A Windows binary will not load on Linux. The build bundles `@img/sharp-win32-x64`. Shahriar approved this swap on 25 October 2026: in an empty scratch folder, `npm install --os=linux --cpu=x64 --libc=glibc sharp@<version in standalone/node_modules/sharp>`, copy its `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` into `.next/standalone/node_modules/@img/`, and delete `@img/sharp-win32-x64`. Do not run `npm install` inside the standalone folder: it would install every dependency in its `package.json`. Repeat after every web build.
 
@@ -121,7 +121,7 @@ The agent shows this table. Shahriar edits `/etc/coaching-api.env` on the box (`
 | `MAIL_FROM_ADDRESS` | `no-reply@symamlaw.com` | |
 | `MAIL_FROM_NAME` | `SYMAM LAW` | |
 | `MAIL_REPLY_TO` | leave out | |
-| `MAIL_TEST_ENABLED` | `false` | `true` only during slice 5 if the admin test mail is used, then back to `false`. |
+| `MAIL_TEST_ENABLED` | `false` | The endpoint behind it was removed on 25 October 2026. The line is unused and can be deleted. |
 | `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD` | sandbox pair | The pair that returns store name Demo. Never the live pair. |
 | `SSLCZ_BASE_URL` | `https://sandbox.sslcommerz.com` | |
 | `SSLCZ_CALLBACK_BASE_URL` | `https://srv2089893.hstgr.cloud` | No path, no trailing slash. |

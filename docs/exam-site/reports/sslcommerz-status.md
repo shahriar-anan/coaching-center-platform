@@ -4,16 +4,16 @@
 
 ## Status
 
-The checkout API is written and covered by tests that never call SSLCommerz. One session request to the sandbox host succeeded. No card payment has been made, and the new server has no SSLCommerz settings.
+**Updated 25 October 2026.** Sandbox payments now work end to end on the new server. The evidence is in [vps-staging-deploy.md](vps-staging-deploy.md), slice 8. The sections below "Which sandbox" are the 24 October record.
 
 | | |
 |---|---|
-| API code | Implemented. Flyway `V32`. On the new server the schema is at version 33, which includes this. |
-| Automated tests | `LiveExamPurchaseIT` passes against a fake gateway. |
-| Sandbox session | One request on 24 October 2026 returned a payment-page URL. No payment was completed. |
-| Sandbox payment through this API | Not done. |
+| API code | Implemented. Flyway `V32`. `V37` stores the payment channel. The server schema is at `37` after the next deploy (`36` today). |
+| Automated tests | `LiveExamPurchaseIT` passes against a fake gateway. `SslCommerzGatewayTest` covers the real gateway class against a local stub. |
+| Sandbox payments through this API | Done on `https://srv2089893.hstgr.cloud`: VISA test card and bKash succeeded with an IPN, plus a failed and a cancelled order. Receipt mail sent. |
+| IPN | Delivered to the per-payment `ipn_url`. No panel IPN URL overrides it on the sandbox store. |
 | Live store | Present in the old site's env. Not copied to the new server. Not used. |
-| New server | `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD`, `SSLCZ_BASE_URL`, and `SSLCZ_CALLBACK_BASE_URL` are absent. Starting an order there returns 503. |
+| New server | `staging` profile with the sandbox store and `SSLCZ_CALLBACK_BASE_URL=https://srv2089893.hstgr.cloud`. |
 
 ## Which sandbox
 
@@ -31,12 +31,11 @@ On 24 October 2026 the commented pair was sent once to `https://sandbox.sslcomme
 - A match writes one grant, `MODULE` or `EXAM`. A repeat notice does not write a second grant.
 - `fail` and `cancel` grant nothing. If validation cannot be reached, the order stays `INITIATED`.
 
-`LiveExamPurchaseIT` replaces the gateway with `FakeLiveExamPaymentGateway`. The fake redirect is `https://gateway.test/{tranId}`. The tests that passed cover price permissions, initiate, a repeated initiate, a verified grant, a repeat notice, an invalid verification, a cancel, an unreachable verification, roster access beside a purchase, and an exam published after a module purchase. They do not cover `SslCommerzGateway`.
+`LiveExamPurchaseIT` replaces the gateway with `FakeLiveExamPaymentGateway`. The fake redirect is `https://gateway.test/{tranId}`. The tests that passed cover price permissions, initiate, a repeated initiate, a verified grant, a repeat notice, an invalid verification, a cancel, an unreachable verification, roster access beside a purchase, an exam published after a module purchase, and the staff order list. `SslCommerzGatewayTest` covers `SslCommerzGateway` itself against a local HTTP stub, including the payment channel.
 
 ## Not done
 
-- A sandbox card payment, a fail, and a cancel against this API.
-- A validation-API call with a real `val_id`.
-- An IPN delivered by SSLCommerz. The merchant panel has not been opened, so it is unknown whether a fixed panel IPN would replace the per-payment `ipn_url`.
-- The browser return still responds with JSON. There is no website result page.
-- Live credentials on the new server, and any live payment.
+- Live credentials on the new server, and any live payment. At launch: one wrong-OTP payment and one good payment on the live store, then a refund of the good one from the merchant panel (`todays-goals.md` section 5). That check also shows whether the live panel overrides the per-payment `ipn_url`.
+- Refunds through the API. Not planned for now.
+
+Done on 25 October 2026, previously listed here: sandbox card, fail and cancel payments, validation with a real `val_id`, an IPN from SSLCommerz, and the website result page.

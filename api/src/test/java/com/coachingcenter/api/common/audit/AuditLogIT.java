@@ -231,6 +231,7 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"GET /api/v1/public/live-exam-modules/{id}/exams",
 			"GET /api/v1/public/live-exams/{id}",
 			"POST /api/v1/live-exam-orders",
+			"GET /api/v1/live-exam-orders",
 			"GET /api/v1/live-exam-orders/status",
 			"GET /api/v1/live-exam-orders/{id}",
 			"POST /api/v1/live-exam-orders/{id}/cancel",

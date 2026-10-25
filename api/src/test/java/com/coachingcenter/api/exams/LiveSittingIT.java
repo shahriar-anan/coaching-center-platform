@@ -13,8 +13,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import javax.sql.DataSource;
 
@@ -527,6 +529,45 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		deadlineJob.settleDue();
 
 		assertThat(submittedAt(holder.examId(), holder.studentId())).isNull();
+	}
+
+	@Test
+	void theDeadlineJobSettlesAtMostOneBatchPerRun() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		Holder holder = publishMcq(staff);
+		int count = LiveExamDeadlineJob.BATCH_SIZE + 1;
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		// The oldest deadlines in the table, so these rows are the ones the job picks first.
+		jdbc.update("""
+				WITH students AS (
+				    INSERT INTO users (id, phone, email, password_hash, role, status, created_at, updated_at)
+				    SELECT gen_random_uuid(), '+8801' || (? + n)::text, 'batch-' || gen_random_uuid() || '@example.com',
+				           'unused', 'STUDENT', 'ACTIVE', now(), now()
+				    FROM generate_series(1, ?) AS n
+				    RETURNING id
+				), profiles AS (
+				    INSERT INTO student_profiles (user_id, full_name, student_code)
+				    SELECT id, 'Batch', 'B' || substr(md5(id::text), 1, 8) FROM students
+				)
+				INSERT INTO live_exam_participants (id, exam_id, student_id, kind, started_at, deadline_at, status,
+				                                    created_at, updated_at)
+				SELECT gen_random_uuid(), ?, id, 'LIVE', ?, ?, 'IN_PROGRESS', now(), now() FROM students
+				""", ThreadLocalRandom.current().nextLong(100_000_000L, 899_000_000L), count, holder.examId(),
+				Timestamp.from(Instant.parse("2000-01-01T00:00:00Z")), Timestamp.from(Instant.parse("2000-01-01T00:30:00Z")));
+		String settledRows = """
+				select count(*) from live_exam_participants
+				where exam_id = ? and deadline_at = '2000-01-01T00:30:00Z' and submitted_at is not null
+				""";
+
+		assertThat(deadlineJob.settleDue()).isEqualTo(LiveExamDeadlineJob.BATCH_SIZE);
+		assertThat(jdbc.queryForObject(settledRows, Integer.class, holder.examId())).isEqualTo(LiveExamDeadlineJob.BATCH_SIZE);
+
+		assertThat(deadlineJob.settleDue()).isGreaterThanOrEqualTo(1);
+		assertThat(jdbc.queryForObject(settledRows, Integer.class, holder.examId())).isEqualTo(count);
+		assertThat(jdbc.queryForObject("""
+				select count(*) from live_exam_participants
+				where exam_id = ? and deadline_at = '2000-01-01T00:30:00Z' and status = 'SUBMITTED' and score = 0
+				""", Integer.class, holder.examId())).isEqualTo(count);
 	}
 
 	@Test

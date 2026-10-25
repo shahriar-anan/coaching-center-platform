@@ -47,7 +47,7 @@ Shahriar agreed these on 2026-10-23. They override the client brief and the Phas
 
 - Exam checkout is SSLCommerz. Credentials stay in environment variables. Never write them into code, docs, or Git.
 - Course and book payments, including the existing manual bKash/Nagad verification, are out of this delivery. Do not change those rows, screens, or credentials, and do not bend them into the exam orders. Exam checkout is SSLCommerz only.
-- The exam site runs on a dedicated Hostinger KVM 2. Shared-VPS rules are outdated. Shahriar bought the box and it was provisioned on 23 October 2026. SSH alias `exam-kvm`, IPv4 `187.52.115.111`, hostname `srv2089893.hstgr.cloud`. The API is running there. The record is [reports/new-vps-provision-audit.md](reports/new-vps-provision-audit.md). `symamlaw.com` DNS still points at the old VPS. A `symamlaw.com` HTTPS name on the new box still blocks payment testing. The read-only investigation of the old VPS is in [Server migration](#server-migration). It is not feature work in this repository.
+- The exam site runs on a dedicated Hostinger KVM 2. Shared-VPS rules are outdated. Shahriar bought the box and it was provisioned on 23 October 2026. SSH alias `exam-kvm`, IPv4 `187.52.115.111`, hostname `srv2089893.hstgr.cloud`. The API is running there. The record is [reports/new-vps-provision-audit.md](reports/new-vps-provision-audit.md). `symamlaw.com` DNS still points at the old VPS. Sandbox payment testing ran on the Hostinger hostname on 25 October 2026, so it no longer waits for a `symamlaw.com` name. The read-only investigation of the old VPS is in [Server migration](#server-migration). It is not feature work in this repository.
 - Password recovery stays the existing email reset, plus Google. Do not add an admin action that sets a student's password. The reset and the registration verification mail use the SMTP account below.
 
 ## Server migration
@@ -57,10 +57,10 @@ Shahriar added this on 2026-10-23 so another agent can investigate the current s
 - The client keeps the existing domain. It is registered at Namecheap. The domain name is not recorded in this repo. Read it from the current server. Do not invent one.
 - That domain is already served by Nginx on the current Hostinger VPS, with SSL certificates for the existing website.
 - The current VPS expires on 5 November 2026. Shahriar has SSH access to it.
-- The replacement Hostinger KVM 2 is bought and provisioned. SSH alias `exam-kvm`, IPv4 `187.52.115.111`, hostname `srv2089893.hstgr.cloud`. Ubuntu 24.04, PostgreSQL on localhost, Java 21, Nginx, and a Let's Encrypt certificate for that Hostinger hostname. The Spring Boot API is running. The Next.js site is not deployed. Do not point public DNS at it until Shahriar says so.
+- The replacement Hostinger KVM 2 is bought and provisioned. SSH alias `exam-kvm`, IPv4 `187.52.115.111`, hostname `srv2089893.hstgr.cloud`. Ubuntu 24.04, PostgreSQL on localhost, Java 21, Nginx, and a Let's Encrypt certificate for that Hostinger hostname. Since 25 October 2026 the current API and the Next.js site run there on the `staging` profile, at `https://srv2089893.hstgr.cloud` ([reports/vps-staging-deploy.md](reports/vps-staging-deploy.md)). Do not point public DNS at it until Shahriar says so.
 - The new server hosts the newly developed website and the Spring Boot API. The Flutter app uses that same API. The exam-site delivery in this folder is still the website. Flutter screens stay out of that delivery.
-- SSLCommerz needs a public HTTPS URL on the Namecheap domain for its callback or IPN. Which hostname that is, and whether the credentials are sandbox or live, stay open until Shahriar says otherwise.
-- Outgoing mail for the new API is Brevo SMTP on the authenticated `symamlaw.com` domain. Host `smtp-relay.brevo.com`, port `587`, STARTTLS required. From `SYMAM LAW <no-reply@symamlaw.com>`. `MAIL_REPLY_TO` is optional. The SMTP username and the SMTP key stay in `MAIL_USERNAME` and `MAIL_PASSWORD` (or `BREVO_API_KEY` when `MAIL_PASSWORD` is unset). Do not copy them into Git. The earlier Gmail SMTP choice is withdrawn. Do not put those Gmail credentials on the new VPS. The old site's Laravel queue stays on the old VPS. In-app notices stay rows the website loads. They are not email. `MAIL_TEST_ENABLED` or the `staging` profile can open one admin delivery check. Turn that off, and remove it, before production go-live.
+- SSLCommerz needs a public HTTPS URL for its callback and IPN. For the client test it is `https://srv2089893.hstgr.cloud` with the sandbox store, and sandbox payments with an IPN passed there on 25 October 2026. The launch hostname and the switch to the live store stay open. On 25 October 2026 Shahriar said the old site keeps `symamlaw.com`, so the exam site's final address is not decided.
+- Outgoing mail for the new API is Brevo SMTP on the authenticated `symamlaw.com` domain. Host `smtp-relay.brevo.com`, port `587`, STARTTLS required. From `SYMAM LAW <no-reply@symamlaw.com>`. `MAIL_REPLY_TO` is optional. The SMTP username and the SMTP key stay in `MAIL_USERNAME` and `MAIL_PASSWORD` (or `BREVO_API_KEY` when `MAIL_PASSWORD` is unset). Do not copy them into Git. The earlier Gmail SMTP choice is withdrawn. Do not put those Gmail credentials on the new VPS. The old site's Laravel queue stays on the old VPS. In-app notices stay rows the website loads. They are not email. The admin mail-test endpoint and `MAIL_TEST_ENABLED` were removed on 25 October 2026. A delivery check is a normal register and forgot-password.
 
 The investigation below is finished. The reports are `domain-ssl-migration-audit.md`, `domain-dns-access-audit.md`, and `reports/current-vps-mail-audit.md`. The "do not purchase" line is the rule for that investigation, not a rule for later work.
 
@@ -93,6 +93,9 @@ Use one of these at handover:
 
 ## Still open
 
-- Status pills for a student who already has access. The window and the participant row are enough to derive them later.
-- Whether the SSLCommerz credentials are sandbox or live. The callback stays on the existing Namecheap domain. Shahriar still confirms the hostname. The new box exists; public DNS does not point at it yet.
+- The exam site's launch address. The old site keeps `symamlaw.com` (Shahriar, 25 October 2026). Then `WEB_ORIGIN`, `SSLCZ_CALLBACK_BASE_URL`, DNS, a certificate, and the live store's registered URL follow.
+- When to switch from the sandbox store to the live store. The client confirms bKash and Nagad are enabled on it.
+- Whether payments SSLCommerz marks risky (`risk_level`) are granted, held, or flagged. The API grants them today. Shahriar is leaving it as it is for now.
 - Whether any data from the client's current exam must be migrated. Do not invent a migration.
+
+Status pills were confirmed on 25 October 2026 and built as A4 (`myStatus`). The sandbox store was chosen for the client test.

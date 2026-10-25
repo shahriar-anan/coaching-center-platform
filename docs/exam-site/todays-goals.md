@@ -61,7 +61,7 @@ Found during the deploy: student pages have no logout button. `logout()` and `PO
 
 ## 5. Before the real launch on `symamlaw.com`
 
-Switch to the `prod` profile. Turn off `MAIL_TEST_ENABLED` and `SEED_ENABLED`. Decide sandbox or live SSLCommerz. Point DNS, issue the certificate, and update `WEB_ORIGIN` and `SSLCZ_CALLBACK_BASE_URL`.
+Switch to the `prod` profile. Turn off `SEED_ENABLED`, and delete the now-unused `MAIL_TEST_ENABLED` line from the server env. Decide sandbox or live SSLCommerz. Point DNS, issue the certificate, and update `WEB_ORIGIN` and `SSLCZ_CALLBACK_BASE_URL`.
 
 Open decisions from the deploy: the final website address (Shahriar said the old site keeps `symamlaw.com`), and what to do with payments SSLCommerz marks risky (`risk_level`), which the API grants today. Nightly off-server backup (S6) before real data. The client confirms bKash and Nagad are enabled on the live store.
 

@@ -19,6 +19,8 @@ public class FakeLiveExamPaymentGateway implements LiveExamPaymentGateway {
 
 	private Mode mode = Mode.VALID;
 
+	private String channel;
+
 	private Lookup.Kind lookupKind = Lookup.Kind.NONE;
 
 	private String lookupValId = "val-1";
@@ -31,6 +33,10 @@ public class FakeLiveExamPaymentGateway implements LiveExamPaymentGateway {
 
 	public void mode(Mode mode) {
 		this.mode = mode;
+	}
+
+	public void channel(String channel) {
+		this.channel = channel;
 	}
 
 	public void lookup(Lookup.Kind kind) {
@@ -48,6 +54,7 @@ public class FakeLiveExamPaymentGateway implements LiveExamPaymentGateway {
 
 	public void reset() {
 		mode = Mode.VALID;
+		channel = null;
 		lookupKind = Lookup.Kind.NONE;
 		lookupValId = "val-1";
 		lookupFailure = null;
@@ -78,7 +85,7 @@ public class FakeLiveExamPaymentGateway implements LiveExamPaymentGateway {
 				|| !"BDT".equals(currency.trim())) {
 			return Verification.invalid();
 		}
-		return Verification.valid(tranId, stored, "BDT", valId);
+		return Verification.valid(tranId, stored, "BDT", valId, channel);
 	}
 
 	@Override

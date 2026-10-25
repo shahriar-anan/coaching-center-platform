@@ -74,6 +74,8 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_PUBLISH = "LIVE_EXAM_PUBLISH";
 
+	public static final String LIVE_EXAM_ORDER_READ = "LIVE_EXAM_ORDER_READ";
+
 	private Permissions() {
 	}
 

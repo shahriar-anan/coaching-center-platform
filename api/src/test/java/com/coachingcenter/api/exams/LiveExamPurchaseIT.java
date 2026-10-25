@@ -234,6 +234,80 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theMasterAdminFindsOrdersWithThePaymentChannelAndTheGrant() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		String phone = jdbc.queryForObject("select phone from users where id = ?", String.class, studentId);
+		String name = "Orders " + UUID.randomUUID().toString().substring(0, 8);
+		jdbc.update("update student_profiles set full_name = ? where user_id = ?", name, studentId);
+		UUID module = publishPricedModule(master, "Orders", "300.00");
+		UUID exam = publishMcq(master, module, "Orders paper", "150.00", "2026-10-20T12:00:00+06:00");
+
+		JsonNode failed = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
+		gateway.mode(FakeLiveExamPaymentGateway.Mode.INVALID);
+		notice(failed.get("tranId").asText(), "success");
+		clock.set(TEN_AM.plusSeconds(60));
+		gateway.channel("BKASH-BKash");
+		JsonNode paid = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
+		payTran(paid.get("tranId").asText());
+
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + master).param("q", phone))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(2))
+			.andExpect(jsonPath("$.content[0].tranId").value(paid.get("tranId").asText()))
+			.andExpect(jsonPath("$.content[0].status").value("SUCCEEDED"))
+			.andExpect(jsonPath("$.content[0].amount").value(150.00))
+			.andExpect(jsonPath("$.content[0].scope").value("EXAM"))
+			.andExpect(jsonPath("$.content[0].examTitleEn").value("Orders paper"))
+			.andExpect(jsonPath("$.content[0].moduleTitleEn").value("Orders"))
+			.andExpect(jsonPath("$.content[0].paymentChannel").value("BKASH-BKash"))
+			.andExpect(jsonPath("$.content[0].valId").value("val-1"))
+			.andExpect(jsonPath("$.content[0].accessGranted").value(true))
+			.andExpect(jsonPath("$.content[0].studentPhone").value(phone))
+			.andExpect(jsonPath("$.content[0].studentName").value(name))
+			.andExpect(jsonPath("$.content[1].tranId").value(failed.get("tranId").asText()))
+			.andExpect(jsonPath("$.content[1].status").value("FAILED"))
+			.andExpect(jsonPath("$.content[1].paymentChannel").doesNotExist())
+			.andExpect(jsonPath("$.content[1].accessGranted").value(false));
+		assertThat(jdbc.queryForObject("select payment_channel from live_exam_orders where tran_id = ?", String.class,
+				paid.get("tranId").asText())).isEqualTo("BKASH-BKash");
+
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + master)
+			.param("q", phone)
+			.param("status", "failed"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].status").value("FAILED"));
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + master)
+			.param("tranId", paid.get("tranId").asText()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].studentId").value(studentId.toString()));
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + master)
+			.param("q", name.toLowerCase())
+			.param("size", "1")
+			.param("page", "1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(2))
+			.andExpect(jsonPath("$.size").value(1))
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].tranId").value(failed.get("tranId").asText()));
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + master).param("status", "PAID"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+		for (String role : new String[] { "SYSTEM_ADMIN", "INSTRUCTOR" }) {
+			mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + token(seed(role))))
+				.andExpect(status().isForbidden());
+		}
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/live-exam-orders")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void anUnreachableNoticeLeavesTheOrderOpen() throws Exception {
 		String master = token(seed("MASTER_ADMIN"));
 		UUID studentId = seed("STUDENT");

@@ -91,7 +91,11 @@ Live exam coverage is the `*IT` classes named from `docs/phases/phase-3/phase-3-
 | `myStatus`, `retakeAvailable` on the student list, detail, and routine | Student | Nine statuses derived from the window and the student's own sitting. |
 | `GET /api/v1/me/notices`, `/unread-count`, `POST /{id}/read`, `POST /read-all` | Student | Reminder, MCQ score, written result. Flyway `V36`. |
 
-Jobs: a one-minute deadline job posts expired sittings (index `V35`). A fifteen-minute job writes the inbox reminder for exams within 48 hours.
+| `GET /api/v1/live-exam-orders?status=&tranId=&q=` | Master Admin (`LIVE_EXAM_ORDER_READ`) | Staff list of exam payments, newest first. Each row has the student's contact, the exam or module, `paymentChannel` from SSLCommerz (for example `BKASH-BKash`), `valId`, and `accessGranted`. Flyway `V37`. Plan: [plans/api-completion/a7-staff-payments.md](plans/api-completion/a7-staff-payments.md). |
+
+Jobs: a one-minute deadline job posts expired sittings (index `V35`), at most 500 per run. A fifteen-minute job writes the inbox reminder for exams within 48 hours.
+
+Removed 25 October 2026: `POST /api/v1/admin/mail-test` and `MAIL_TEST_ENABLED`. A real mail check now uses a normal register and forgot-password.
 
 ## Limitations
 

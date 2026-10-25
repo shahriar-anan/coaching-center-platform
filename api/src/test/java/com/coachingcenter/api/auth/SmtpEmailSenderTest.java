@@ -81,20 +81,6 @@ class SmtpEmailSenderTest {
 	}
 
 	@Test
-	void deliveryTestUsesThePasswordResetTemplate() throws Exception {
-		FakeOutbound mail = new FakeOutbound();
-		SmtpEmailSender.DeliveryResult result = sender(mail, "no-reply@symamlaw.com", "SYMAM LAW", "reply@symamlaw.com")
-			.sendPasswordResetTest("student@example.com");
-
-		assertThat(result.accepted()).isTrue();
-		assertThat(result.providerResponse()).isEqualTo("250 2.0.0 OK");
-		assertThat(mail.last.getSubject()).isEqualTo("Mail delivery test");
-		assertThat(mail.last.getContent().toString()).contains("dummy code is 123456");
-		assertThat(mail.last.getContent().toString()).contains("This is a mail delivery test.");
-		assertThat(mail.last.getContent().toString()).contains("not a real password-reset code");
-	}
-
-	@Test
 	void smtpRequiresStartTlsAndTimesOut() {
 		var sender = SmtpEmailSender.configuredSender(new AppProperties.Email("no-reply@symamlaw.com", "SYMAM LAW", null,
 				"smtp-relay.brevo.com", 587, "smtp-login@brevo.example", "brevo-api-key-should-not-leak"));
@@ -132,9 +118,9 @@ class SmtpEmailSenderTest {
 
 		assertThatCode(() -> sender.sendPasswordReset("student@example.com", "654321")).doesNotThrowAnyException();
 
-		mail.failure = new CodedFailure(
-				"535 5.7.8 rejected 123456 student@example.com brevo-api-key-should-not-leak");
-		SmtpEmailSender.DeliveryResult result = sender.sendPasswordResetTest("student@example.com");
+		mail.failure = new CodedFailure("535 5.7.8 rejected student@example.com brevo-api-key-should-not-leak");
+		SmtpEmailSender.DeliveryResult result = sender.sendPlainNow("student@example.com", "Exam starts soon",
+				"Your exam starts at 10:00.");
 		assertThat(result.accepted()).isFalse();
 		String written = logs.list.stream().map(ILoggingEvent::getFormattedMessage).reduce("", (left, right) -> left + "\n" + right);
 		assertThat(written).contains("recipient=s***@example.com");
@@ -142,11 +128,9 @@ class SmtpEmailSenderTest {
 		assertThat(written).contains("error=CodedFailure");
 		assertThat(written).contains("smtpCode=535");
 		assertThat(written).doesNotContain("654321");
-		assertThat(written).doesNotContain("123456");
 		assertThat(written).doesNotContain("brevo-api-key-should-not-leak");
 		assertThat(written).doesNotContain("student@");
 		assertThat(written).doesNotContain("smtp-login@brevo.example");
-		assertThat(result.providerResponse()).doesNotContain("123456");
 		assertThat(result.providerResponse()).doesNotContain("brevo-api-key-should-not-leak");
 		assertThat(result.providerResponse()).doesNotContain("student@");
 		assertThat(logs.list).allSatisfy(event -> assertThat(event.getThrowableProxy()).isNull());

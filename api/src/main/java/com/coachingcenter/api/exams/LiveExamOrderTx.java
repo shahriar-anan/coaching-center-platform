@@ -85,6 +85,7 @@ class LiveExamOrderTx {
 		}
 		order.setStatus(LiveExamOrder.SUCCEEDED);
 		order.setValId(verification.valId());
+		order.setPaymentChannel(verification.paymentChannel());
 		order.setUpdatedAt(clock.instant());
 		writeGrant(order);
 		UUID orderId = order.getId();

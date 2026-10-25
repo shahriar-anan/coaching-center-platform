@@ -66,6 +66,9 @@ public class LiveExamOrder {
 	@Column(name = "val_id", length = 128)
 	private String valId;
 
+	@Column(name = "payment_channel", length = 64)
+	private String paymentChannel;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -158,6 +161,14 @@ public class LiveExamOrder {
 
 	public void setValId(String valId) {
 		this.valId = valId;
+	}
+
+	public String getPaymentChannel() {
+		return paymentChannel;
+	}
+
+	public void setPaymentChannel(String paymentChannel) {
+		this.paymentChannel = paymentChannel;
 	}
 
 	public Instant getCreatedAt() {

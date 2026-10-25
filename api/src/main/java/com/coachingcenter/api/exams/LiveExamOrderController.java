@@ -6,6 +6,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,7 @@ import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.web.PageResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
 import tools.jackson.databind.JsonNode;
@@ -35,15 +38,18 @@ public class LiveExamOrderController {
 
 	private final LiveExamOrderService orders;
 
+	private final LiveExamOrderAdminService adminOrders;
+
 	private final PermissionChecker permissions;
 
 	private final ObjectMapper json;
 
 	private final AppProperties properties;
 
-	public LiveExamOrderController(LiveExamOrderService orders, PermissionChecker permissions, ObjectMapper json,
-			AppProperties properties) {
+	public LiveExamOrderController(LiveExamOrderService orders, LiveExamOrderAdminService adminOrders,
+			PermissionChecker permissions, ObjectMapper json, AppProperties properties) {
 		this.orders = orders;
+		this.adminOrders = adminOrders;
 		this.permissions = permissions;
 		this.json = json;
 		this.properties = properties;
@@ -54,6 +60,16 @@ public class LiveExamOrderController {
 		requireStudent();
 		LiveExamOrderService.InitiateResult result = orders.initiate(actorId(), body);
 		return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK).body(result.order());
+	}
+
+	@GetMapping("/api/v1/live-exam-orders")
+	public PageResponse<LiveExamOrderAdminService.OrderRow> list(@RequestParam(required = false) String status,
+			@RequestParam(required = false) String tranId, @RequestParam(required = false) String q,
+			@PageableDefault(size = 20) Pageable pageable) {
+		if (!permissions.has(Permissions.LIVE_EXAM_ORDER_READ)) {
+			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
+		}
+		return PageResponse.from(adminOrders.list(status, tranId, q, pageable));
 	}
 
 	@GetMapping("/api/v1/live-exam-orders/status")

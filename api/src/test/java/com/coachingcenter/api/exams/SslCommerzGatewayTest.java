@@ -108,6 +108,23 @@ class SslCommerzGatewayTest {
 	}
 
 	@Test
+	void validationReadsThePaymentChannel() {
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE));
+		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").paymentChannel()).isEqualTo("VISA");
+
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE).replace("\"card_type\":\"VISA\"",
+				"\"card_type\":\"\",\"card_brand\":\"MOBILEBANKING\""));
+		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").paymentChannel()).isEqualTo("MOBILEBANKING");
+
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE).replace("\"card_type\":\"VISA\"",
+				"\"card_type\":\"" + "B".repeat(80) + "\""));
+		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").paymentChannel()).isEqualTo("B".repeat(64));
+
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE).replace(",\"card_type\":\"VISA\"", ""));
+		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").paymentChannel()).isNull();
+	}
+
+	@Test
 	void validationRejectsAFailedStatus() {
 		responseBody.set(payment("FAILED", "500.00", "BDT", STORE));
 		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").outcome())

@@ -39,7 +39,7 @@ public record AppProperties(Jwt jwt, Email email, Cors cors, Auth auth, Bootstra
 
 	}
 
-	public record Mail(boolean testEnabled, int sendsPerEmailPerHour, int sendsPerIpPerHour, int resendCooldownSeconds) {
+	public record Mail(int sendsPerEmailPerHour, int sendsPerIpPerHour, int resendCooldownSeconds) {
 	}
 
 }

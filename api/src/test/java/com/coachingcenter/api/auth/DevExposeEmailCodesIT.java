@@ -29,7 +29,6 @@ import ch.qos.logback.core.read.ListAppender;
 @SpringBootTest(properties = {
 		"spring.profiles.active=staging",
 		"DEV_EXPOSE_EMAIL_CODES=true",
-		"MAIL_TEST_ENABLED=false",
 		"MAIL_HOST=smtp-relay.brevo.com",
 		"MAIL_PORT=587",
 		"MAIL_USERNAME=mail-test-user",

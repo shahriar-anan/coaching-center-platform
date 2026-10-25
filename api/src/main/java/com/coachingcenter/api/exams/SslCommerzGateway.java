@@ -228,7 +228,15 @@ class SslCommerzGateway implements LiveExamPaymentGateway {
 		if (!store.isBlank() && !properties.storeId().trim().equals(store)) {
 			return Verification.invalid();
 		}
-		return Verification.valid(echoed, amount, currency, valId);
+		return Verification.valid(echoed, amount, currency, valId, paymentChannel(node));
+	}
+
+	static String paymentChannel(JsonNode node) {
+		String channel = firstText(node, "card_type", "card_brand").replaceAll("[^\\p{Print}]", "").trim();
+		if (channel.isEmpty()) {
+			return null;
+		}
+		return channel.length() > 64 ? channel.substring(0, 64) : channel;
 	}
 
 	private static List<JsonNode> elements(JsonNode element) {

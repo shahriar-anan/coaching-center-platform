@@ -47,7 +47,7 @@ Account messages on staging and prod are plain text: the verification code, the 
 
 `DevExposeEmailCodesIT` keeps passing: staging with the flag on does not put a code in the response or the log.
 
-`MAIL_TEST_ENABLED=true` opens one admin delivery check that sends a dummy reset. It stays off. Remove it before production go-live. Section 4 is when the real Brevo values go on the server.
+The admin delivery check (`MAIL_TEST_ENABLED`, `POST /api/v1/admin/mail-test`) was removed on 25 October 2026. Section 4 is when the real Brevo values go on the server.
 
 The VPS audited on 24 October 2026 is on `prod` and reads `EMAIL_HOST`, not `MAIL_*`. That jar is not this build.
 
@@ -166,9 +166,9 @@ Brevo does not need a URL on this API. The API connects out to `smtp-relay.brevo
    - `MAIL_FROM_NAME=SYMAM LAW`
    - Leave `MAIL_REPLY_TO` unset
 3. Leave Brevo’s IP lock off until `187.52.115.111` is on the allow list. A lock that omits that address drops every message. A laptop address changes, so it is a poor allow-list entry.
-4. Start the process. Send one verification mail and one password-reset mail to one mailbox Shahriar can open. `MAIL_TEST_ENABLED=true` may send the single admin check. Use the staging profile for the real codes.
+4. Start the process. Send one verification mail and one password-reset mail to one mailbox Shahriar can open. Use the staging profile for the real codes. Done 25 October 2026, after a fix: the SMTP transport had connected with no credentials.
 5. Confirm both messages arrived and the From address is `no-reply@symamlaw.com`. The API log contains no SMTP key, no full recipient when a masked form is enough, and no code on a failure line. The sender already redacts the key and the code from failure text. Keep that.
-6. Turn `MAIL_TEST_ENABLED` off. Remove that flag before production go-live.
+6. Done: the `MAIL_TEST_ENABLED` flag and its endpoint were removed on 25 October 2026.
 
 Do not point this check at the live SSLCommerz store. One API process owns the schedule. A second prod process would send the same exam mail again.
 
