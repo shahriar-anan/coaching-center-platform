@@ -30,6 +30,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { StickyActionBar } from "@/components/student/stand-ins/sticky-action-bar";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -178,7 +179,7 @@ export function ExamPage({ examId }: { examId: string }) {
       </div>
 
       <div className="mb-4 grid gap-3">
-        {primary}
+        {primary ? <StickyActionBar>{primary}</StickyActionBar> : null}
         {isStudent && !owned && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
           <Button variant="secondary" fullWidth onClick={() => setModuleBuying(true)}>
             {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
@@ -278,6 +279,7 @@ export function ExamPage({ examId }: { examId: string }) {
           }}
         />
       ) : null}
+      <div className="h-24 md:hidden" aria-hidden="true" />
     </>
   );
 }

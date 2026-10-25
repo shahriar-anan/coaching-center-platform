@@ -93,7 +93,7 @@ export const McqQuestion = memo(function McqQuestion({
                 aria-checked={picked}
                 disabled={!editable}
                 onClick={() => onPick(question.id, option.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-control border-2 bg-bg px-3 py-2 text-left text-text disabled:cursor-default ${border} ${stemFace} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-control border-2 bg-bg px-3 py-3 text-left text-text disabled:cursor-default ${border} ${stemFace} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
               >
                 <span
                   aria-hidden="true"

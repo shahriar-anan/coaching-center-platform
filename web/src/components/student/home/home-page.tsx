@@ -101,7 +101,7 @@ function Doors() {
 function Hero() {
   const { t } = useLocale();
   return (
-    <div className="px-3 pb-6 pt-8 text-center">
+    <div className="px-3 pb-[30px] pt-[42px] text-center">
       <h1 className="bg-gradient-to-br from-accent to-text bg-clip-text text-display font-extrabold text-transparent">
         {t("home.heroWord")}
       </h1>
@@ -250,7 +250,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
             <p className="mt-1 text-body font-semibold text-accent">{t("home.sitNow")} ›</p>
           </Card>
         ) : (
-          <Card>
+          <Card className="border-s-4 border-s-accent">
             <p className="text-body text-muted">{t("home.startsIn", { title: pickTitle(next, locale) })}</p>
             <p className="text-card font-bold"><Countdown deadline={next.liveAt} /></p>
             <p className="text-body text-muted">{formatDate(next.liveAt, locale, { year: "auto" })} · {formatTime(next.liveAt, locale)}</p>
