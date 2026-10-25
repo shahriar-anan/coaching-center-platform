@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ExamType } from "@/lib/api/exam/catalog";
-import { formatDateTime, formatDuration } from "./_tmp/format";
-import { serverNow } from "./_tmp/clock";
-import { useLocale } from "./_tmp/locale";
-import { Button, Sheet } from "./_tmp/ui";
+import { formatDateTime, formatDuration } from "@/lib/format";
+import { serverNow } from "@/lib/time/clock";
+import { useLocale } from "@/i18n/locale-context";
+import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
 import { examPath } from "./catalog-helpers";
 
 /** The LMS pre-start screen before WS4's sitting takes the exam. */

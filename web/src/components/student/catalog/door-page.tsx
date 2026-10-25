@@ -1,9 +1,15 @@
 "use client";
 
 import { useCategoryTree, type CategoryNode, type PublicModule } from "@/lib/api/exam/catalog";
-import { formatMoney, formatNumber, pickText, pickTitle } from "./_tmp/format";
-import { useLocale } from "./_tmp/locale";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Pill, Skeleton } from "./_tmp/ui";
+import { formatMoney, formatNumber, pickText, pickTitle } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   categoryPath,
   countModules,
@@ -38,7 +44,7 @@ function ModuleCard({ door, module }: { door: Door; module: PublicModule }) {
   const { t, locale } = useLocale();
   const type = doorType(door);
   const count = moduleTypeCount(module, type);
-  const description = firstLine(pickText(module, "description", locale));
+  const description = firstLine(pickText({ ...module }, "description", locale));
   return (
     <Card href={modulePath(door, module.id)}>
       <p className="text-[17px] font-bold">📚 {pickTitle(module, locale)}</p>

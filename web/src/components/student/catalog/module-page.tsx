@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -14,10 +14,15 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
-import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "./_tmp/format";
-import { useLocale } from "./_tmp/locale";
-import { useServerNow } from "./_tmp/clock";
-import { Button, EmptyState, ErrorState, PageHeader, Pill, Skeleton } from "./_tmp/ui";
+import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { useServerNow } from "@/lib/time/clock";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   bySchedule,
   categoryPath,
@@ -97,7 +102,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const type = doorType(door);
   const signedIn = session.status === "authenticated";
   const isStudent = signedIn && session.user.role === "STUDENT";
-  const phoneRequired = isStudent && Boolean((session.user as { phoneRequired?: boolean }).phoneRequired);
+  const phoneRequired = isStudent && Boolean(session.user.phoneRequired);
 
   const tree = useCategoryTree(type);
   const moduleQuery = usePublicModule(moduleId);
@@ -115,7 +120,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   if (moduleQuery.isPending || exams.isPending) {
     return (
       <>
-        <PageHeader title={<span className="sr-only">â€¦</span>} breadcrumbs={baseCrumbs} />
+        <PageHeader title={t("catalog.loading")} breadcrumbs={baseCrumbs} />
         <Skeleton variant="card" count={4} />
       </>
     );
@@ -152,7 +157,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
 
   const data = moduleQuery.data;
   const title = pickTitle(data, locale);
-  const description = pickText(data, "description", locale);
+  const description = pickText({ ...data }, "description", locale);
   const path = tree.data ? findModulePath(tree.data, moduleId) ?? [] : [];
   const breadcrumbs = [
     ...baseCrumbs,
@@ -188,16 +193,16 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       {description ? <p className="mb-4 whitespace-pre-line text-muted">{description}</p> : null}
 
       <div className={`mb-4 grid gap-2.5 ${showOwnStrip ? (door === "written" ? "grid-cols-3" : "grid-cols-2") : "grid-cols-1"}`}>
-        <StripChip icon="ðŸ“…" label={t("catalog.stripRoutine")} target="module-routine" accent="accent">
-          {nextDated?.liveAt ? formatDate(nextDated.liveAt, locale) : t("catalog.dateTbd")}
+        <StripChip icon="📅" label={t("catalog.stripRoutine")} target="module-routine" accent="accent">
+          {nextDated?.liveAt ? formatDate(nextDated.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
         </StripChip>
         {showOwnStrip && door === "written" ? (
-          <StripChip icon="ðŸ“" label={t("catalog.stripScript")} target="module-exams" accent="warn">
+          <StripChip icon="📝" label={t("catalog.stripScript")} target="module-exams" accent="warn">
             <Pill tone={scriptPill.tone}>{t(scriptPill.key)}</Pill>
           </StripChip>
         ) : null}
         {showOwnStrip ? (
-          <StripChip icon="ðŸ“Š" label={t("catalog.stripResult")} target="module-exams" accent="ok">
+          <StripChip icon="📊" label={t("catalog.stripResult")} target="module-exams" accent="ok">
             <Pill tone="ok">{t(resultReady ? "catalog.published" : "catalog.soon")}</Pill>
           </StripChip>
         ) : null}
@@ -206,14 +211,14 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       <section className="mb-3.5 rounded-card border border-border bg-card p-4" aria-label={t("catalog.buyModule")}>
         {moduleOwned ? (
           <>
-            <Pill tone="ok">âœ“ {t("catalog.unlocked")}</Pill>
+            <Pill tone="ok">✓ {t("catalog.unlocked")}</Pill>
             <ProgressBar done={mine.filter((e) => isDone(e.myStatus)).length} total={mine.length} />
           </>
         ) : price === null || price === undefined ? (
           <p className="text-muted">{t("catalog.priceNotSet")}</p>
         ) : (
           <>
-            <p className="text-lg font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) })}</p>
+            <p className="text-lg font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
             <p className="text-sm text-muted">{t("catalog.buyModuleCovers")}</p>
             {!signedIn ? (
               <Button fullWidth className="mt-2" href={loginHref}>
@@ -237,7 +242,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </section>
 
       <section id="module-routine" className="mb-3.5 rounded-card border border-border bg-card p-4">
-        <h2 className="mb-2.5 text-[17px] font-bold">ðŸ“… {t("catalog.routineTitle")}</h2>
+        <h2 className="mb-2.5 text-[17px] font-bold">📅 {t("catalog.routineTitle")}</h2>
         {list.length === 0 ? (
           <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
         ) : (
@@ -255,12 +260,12 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                   <tr key={exam.id}>
                     <td className="border-b border-border px-2 py-2.5">{pickTitle(exam, locale)}</td>
                     <td className="border-b border-border px-2 py-2.5">
-                      {exam.liveAt ? formatDate(exam.liveAt, locale) : t("catalog.dateTbd")}
+                      {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
                     </td>
                     <td className="whitespace-nowrap border-b border-border px-2 py-2.5">
                       {exam.liveAt && exam.endAt
-                        ? `${formatTime(exam.liveAt, locale)} â€“ ${formatTime(exam.endAt, locale)}`
-                        : "â€”"}
+                        ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}`
+                        : "—"}
                     </td>
                   </tr>
                 ))}
@@ -271,7 +276,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </section>
 
       <section id="module-exams" className="mb-3.5 rounded-card border border-border bg-card p-4">
-        <h2 className="mb-2.5 text-[17px] font-bold">ðŸ“š {t("catalog.examListTitle")}</h2>
+        <h2 className="mb-2.5 text-[17px] font-bold">📚 {t("catalog.examListTitle")}</h2>
         {list.length === 0 ? (
           <EmptyState
             title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
@@ -280,7 +285,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
         ) : (
           <ul className="grid gap-3">
             {list.map((exam) => {
-              const subtitle = firstLine(pickText(exam, "description", locale));
+              const subtitle = firstLine(pickText({ ...exam }, "description", locale));
               return (
                 <li key={exam.id}>
                   <Link
@@ -289,7 +294,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                   >
                     <span className="min-w-0">
                       <span className="block text-[17px] font-bold">
-                        {type === "MCQ" ? "ðŸ“" : "ðŸ“–"} {pickTitle(exam, locale)}
+                        {type === "MCQ" ? "📝" : "📖"} {pickTitle(exam, locale)}
                       </span>
                       {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
                     </span>
@@ -303,7 +308,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                       ) : exam.price !== null && exam.price !== undefined ? (
                         <span className="block text-sm">
                           <span className="block font-bold">{formatMoney(exam.price, locale)}</span>
-                          <span className="text-accent">{t("catalog.buy")} â€º</span>
+                          <span className="text-accent">{t("catalog.buy")} ›</span>
                         </span>
                       ) : (
                         <span className="block max-w-28 text-xs text-muted">{t("catalog.priceNotSet")}</span>

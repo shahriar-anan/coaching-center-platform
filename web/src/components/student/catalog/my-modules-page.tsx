@@ -8,10 +8,15 @@ import {
   type RoutineRow,
   type StudentExam,
 } from "@/lib/api/exam/catalog";
-import { formatDate, formatTime, pickTitle } from "./_tmp/format";
-import { useLocale } from "./_tmp/locale";
-import { useServerNow } from "./_tmp/clock";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "./_tmp/ui";
+import { formatDate, formatTime, pickTitle } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { useServerNow } from "@/lib/time/clock";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { doorPath, isDone, modulePath } from "./catalog-helpers";
 import { ProgressBar } from "./module-page";
 import { TypePill } from "./status-pill";
@@ -89,7 +94,7 @@ export function MyModulesPage() {
                           </Link>
                           <TypePill type={row.examType} />
                           <span className="text-muted">
-                            {formatDate(row.liveAt, locale)} · {formatTime(row.liveAt, locale)}
+                            {formatDate(row.liveAt, locale, { year: "auto" })} · {formatTime(row.liveAt, locale)}
                           </span>
                         </p>
                       ))

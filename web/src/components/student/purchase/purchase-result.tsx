@@ -3,11 +3,16 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api/errors";
-import { usePaymentStatus, useInvalidateCatalog, type OrderStatus } from "@/lib/api/exam/purchase";
+import { usePaymentStatus, useInvalidateCatalog, type PaymentState } from "@/lib/api/exam/purchase";
 import { useSession } from "@/lib/auth/session-context";
 import { ORDER_MEMO_PREFIX, type OrderMemo } from "./purchase-sheet";
-import { useLocale } from "@/components/student/catalog/_tmp/locale";
-import { Button, EmptyState, ErrorState, PageHeader, Pill, Skeleton } from "@/components/student/catalog/_tmp/ui";
+import { useLocale } from "@/i18n/locale-context";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
+import { Skeleton } from "@/components/ui/skeleton";
 import { examPath, modulePath } from "@/components/student/catalog/catalog-helpers";
 
 const WAIT_MS = 60_000;
@@ -101,7 +106,7 @@ export function PurchaseResult() {
   const [memo] = useState<OrderMemo | null>(() => (tranId ? readMemo(tranId) : null));
   const invalidate = useInvalidateCatalog();
   const status = usePaymentStatus(tranId, signedIn && Boolean(tranId), startedAt);
-  const current: OrderStatus | undefined = status.data?.status;
+  const current: PaymentState | undefined = status.data?.status;
 
   useEffect(() => {
     if (current === "PAID") {

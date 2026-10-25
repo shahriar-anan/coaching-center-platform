@@ -3,79 +3,28 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import type {
+  CategoryNode,
+  ExamType,
+  MyStatus,
+  PageResponse,
+  PublicExam,
+  PublicModule,
+  StudentExam,
+} from "@/lib/api/exam/types";
 
-// Local types until WS0's lib/api/exam/types.ts lands; shapes follow the API records.
-export type ExamType = "MCQ" | "WRITTEN";
-export type PaperLanguage = "BN" | "EN";
-export type MyStatus =
-  | "NOT_ANNOUNCED"
-  | "UPCOMING"
-  | "OPEN"
-  | "IN_PROGRESS"
-  | "SUBMITTED"
-  | "AWAITING_RESULT"
-  | "RESULT_READY"
-  | "FAILED_TO_SUBMIT"
-  | "MISSED";
+export type {
+  CategoryNode,
+  ExamType,
+  MyStatus,
+  PageResponse,
+  PaperLanguage,
+  PublicExam,
+  PublicModule,
+  StudentExam,
+} from "@/lib/api/exam/types";
 
-export interface PageResponse<T> {
-  content: T[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-}
-
-export interface PublicModule {
-  id: string;
-  categoryId: string;
-  titleEn: string;
-  titleBn: string;
-  descriptionEn: string | null;
-  descriptionBn: string | null;
-  position: number;
-  price: number | null;
-  /** WS1 B; absent on an older API. */
-  mcqCount?: number;
-  writtenCount?: number;
-}
-
-export interface CategoryNode {
-  id: string;
-  parentId: string | null;
-  titleEn: string;
-  titleBn: string;
-  position: number;
-  children: CategoryNode[];
-  modules: PublicModule[];
-}
-
-export interface PublicExam {
-  id: string;
-  moduleId: string;
-  examType: ExamType;
-  titleEn: string;
-  titleBn: string;
-  descriptionEn: string | null;
-  descriptionBn: string | null;
-  rulesEn: string | null;
-  rulesBn: string | null;
-  paperLanguage: PaperLanguage;
-  liveAt: string | null;
-  endAt: string | null;
-  durationMinutes: number;
-  price: number | null;
-}
-
-export interface StudentExam extends PublicExam {
-  passPercent: number | null;
-  maximum: number;
-  status: string;
-  questionPdf: boolean | null;
-  myStatus: MyStatus | null;
-  retakeAvailable: boolean | null;
-}
-
+/** A module the student may sit (roster or module purchase), from the student read. */
 export interface StudentModule {
   id: string;
   categoryId: string;
@@ -88,6 +37,7 @@ export interface StudentModule {
   price: number | null;
 }
 
+/** One row of `GET /api/v1/me/exam-routine`. */
 export interface RoutineRow {
   id: string;
   moduleId: string;
@@ -128,7 +78,11 @@ function typeQuery(examType: ExamType | null, extra: Record<string, string> = {}
   return text ? `?${text}` : "";
 }
 
-/** A 400 means an API without the WS1 type filter: ask again without it. */
+/**
+ * The WS1 type filter is merged, so this only matters against an older API
+ * that answers `400` for an unknown `examType`: ask again without it. The
+ * exam lists are also filtered by type on the client, so either way is right.
+ */
 async function withTypeFallback<T>(
   examType: ExamType | null,
   load: (type: ExamType | null) => Promise<T>,

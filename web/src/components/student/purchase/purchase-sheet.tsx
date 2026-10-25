@@ -9,9 +9,10 @@ import {
   useInvalidateCatalog,
   useStartOrder,
 } from "@/lib/api/exam/purchase";
-import { formatMoney } from "@/components/student/catalog/_tmp/format";
-import { useLocale } from "@/components/student/catalog/_tmp/locale";
-import { Button, Sheet } from "@/components/student/catalog/_tmp/ui";
+import { formatMoney } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
 
 export interface PurchaseItem {
   kind: "exam" | "module";
@@ -164,7 +165,7 @@ export function PurchaseSheet({
         <p>{t(item.kind === "exam" ? "purchase.unlockExam" : "purchase.unlockModule")}</p>
         {item.kind === "exam" && moduleOffer && onSwitchToModule ? (
           <p className="text-sm text-muted">
-            {t("purchase.compare", { price: formatMoney(moduleOffer.price, locale) })}{" "}
+            {t("purchase.compare", { price: formatMoney(moduleOffer.price, locale) ?? "" })}{" "}
             <button type="button" className="font-semibold text-accent underline" onClick={onSwitchToModule}>
               {t("purchase.switchToModule")}
             </button>

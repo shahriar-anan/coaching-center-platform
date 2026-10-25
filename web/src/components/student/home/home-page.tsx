@@ -1,18 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMyModules, useRoutine, type RoutineRow } from "@/lib/api/exam/catalog";
 import { useSession } from "@/lib/auth/session-context";
-import { formatDate, formatTime, pickTitle } from "@/components/student/catalog/_tmp/format";
-import { useLocale } from "@/components/student/catalog/_tmp/locale";
-import { useServerNow } from "@/components/student/catalog/_tmp/clock";
-import { Button, Card, Countdown, EmptyState, ErrorState, Pill, Skeleton } from "@/components/student/catalog/_tmp/ui";
-import { staffHref } from "@/components/student/catalog/_tmp/config";
+import { formatDate, formatTime, pickTitle } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { useServerNow } from "@/lib/time/clock";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Countdown } from "@/components/ui/countdown";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Pill } from "@/components/ui/pill";
+import { Skeleton } from "@/components/ui/skeleton";
+import { staffHref } from "@/lib/config";
 import { examPath, isLive, modulePath } from "@/components/student/catalog/catalog-helpers";
 import { ExamStatusPill, TypePill } from "@/components/student/catalog/status-pill";
 
 const DISMISS_KEY = "exam-portal.home.dismissed";
+/** Set to "1" by WS2 on registration. Shown once, then cleared. */
+const WELCOME_KEY = "exam-portal.welcome";
+
+/** One-time welcome after registration. Storage is only a per-browser convenience. */
+function WelcomeCard({ name }: { name: string }) {
+  const { t } = useLocale();
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(WELCOME_KEY) === "1") {
+        window.localStorage.removeItem(WELCOME_KEY);
+        setShow(true);
+      }
+    } catch {
+      /* storage blocked: no welcome card */
+    }
+  }, []);
+  if (!show) return null;
+  return (
+    <section aria-label={t("home.welcomeTitle", { name })} className="mb-4 grid gap-2 rounded-card border border-ok bg-card p-4">
+      <p className="font-bold">{t("home.welcomeTitle", { name })}</p>
+      <p className="text-sm text-muted">{t("home.welcomeBody")}</p>
+      <div>
+        <Button variant="ghost" className="px-0" onClick={() => setShow(false)}>
+          {t("home.dismiss")}
+        </Button>
+      </div>
+    </section>
+  );
+}
 
 function readDismissed(): string[] {
   try {
@@ -138,7 +174,7 @@ function RoutineLine({ row }: { row: RoutineRow }) {
   return (
     <Card href={examPath(row.id)}>
       <p className="text-sm text-muted">
-        {formatDate(row.liveAt, locale)} · {formatTime(row.liveAt, locale)} – {formatTime(row.endAt, locale)}
+        {formatDate(row.liveAt, locale, { year: "auto" })} · {formatTime(row.liveAt, locale)} – {formatTime(row.endAt, locale)}
       </p>
       <p className="font-bold">{pickTitle(row, locale)}</p>
       <p className="mt-1 flex flex-wrap gap-2 text-sm">
@@ -187,6 +223,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
       <div className="pb-4 pt-2">
         <p className="text-sm text-muted">{name}</p>
       </div>
+      <WelcomeCard name={name} />
       <Nudges phoneRequired={phoneRequired} emailVerified={emailVerified} live={liveRow} />
 
       <Doors />
@@ -209,7 +246,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
           <Card>
             <p className="text-sm text-muted">{t("home.startsIn", { title: pickTitle(next, locale) })}</p>
             <p className="text-lg font-bold"><Countdown deadline={next.liveAt} /></p>
-            <p className="text-sm text-muted">{formatDate(next.liveAt, locale)} · {formatTime(next.liveAt, locale)}</p>
+            <p className="text-sm text-muted">{formatDate(next.liveAt, locale, { year: "auto" })} · {formatTime(next.liveAt, locale)}</p>
           </Card>
         )}
       </section>
@@ -265,7 +302,7 @@ export function HomePage() {
   if (session.status === "anonymous") {
     return <SignedOutHome />;
   }
-  const user = session.user as typeof session.user & { phoneRequired?: boolean; emailVerifiedAt?: string | null };
+  const user = session.user;
   return (
     <SignedInHome
       isStaff={user.role !== "STUDENT"}

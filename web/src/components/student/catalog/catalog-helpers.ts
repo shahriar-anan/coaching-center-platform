@@ -5,7 +5,13 @@ import type {
   PublicModule,
   RoutineRow,
 } from "@/lib/api/exam/catalog";
-import { dhakaDayKey } from "./_tmp/format";
+import { dhakaParts } from "@/lib/format";
+
+/** Calendar day (YYYY-MM-DD) of an instant, as seen in Dhaka. */
+function dhakaDayKey(iso: string): string {
+  const p = dhakaParts(iso);
+  return `${p.year}-${String(p.month + 1).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
 
 export type Door = "mcq" | "written";
 

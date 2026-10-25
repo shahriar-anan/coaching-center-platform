@@ -1,8 +1,8 @@
 "use client";
 
 import type { ExamType, MyStatus } from "@/lib/api/exam/catalog";
-import { useLocale } from "./_tmp/locale";
-import { Pill } from "./_tmp/ui";
+import { useLocale } from "@/i18n/locale-context";
+import { Pill } from "@/components/ui/pill";
 import { statusPill, typeLabelKey } from "./catalog-helpers";
 
 export function ExamStatusPill({

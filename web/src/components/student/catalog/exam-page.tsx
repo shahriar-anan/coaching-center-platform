@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import {
@@ -19,10 +19,16 @@ import {
   formatTime,
   pickText,
   pickTitle,
-} from "./_tmp/format";
-import { useLocale } from "./_tmp/locale";
-import { useServerNow } from "./_tmp/clock";
-import { Button, Card, Countdown, EmptyState, ErrorState, PageHeader, Skeleton } from "./_tmp/ui";
+} from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { useServerNow } from "@/lib/time/clock";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Countdown } from "@/components/ui/countdown";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -51,7 +57,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const now = useServerNow(30_000);
   const signedIn = session.status === "authenticated";
   const isStudent = signedIn && session.user.role === "STUDENT";
-  const phoneRequired = isStudent && Boolean((session.user as { phoneRequired?: boolean }).phoneRequired);
+  const phoneRequired = isStudent && Boolean(session.user.phoneRequired);
   const [buying, setBuying] = useState(false);
   const [moduleBuying, setModuleBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
@@ -66,7 +72,7 @@ export function ExamPage({ examId }: { examId: string }) {
   if (exam.isPending) {
     return (
       <>
-        <PageHeader title={<span className="sr-only">â€¦</span>} />
+        <PageHeader title={t("catalog.loading")} />
         <Skeleton variant="card" count={4} />
       </>
     );
@@ -91,8 +97,8 @@ export function ExamPage({ examId }: { examId: string }) {
   const door: Door = data.examType === "MCQ" ? "mcq" : "written";
   const doorLabel = t(doorLabelKey(door));
   const title = pickTitle(data, locale);
-  const description = pickText(data, "description", locale);
-  const rules = pickText(data, "rules", locale);
+  const description = pickText({ ...data }, "description", locale);
+  const rules = pickText({ ...data }, "rules", locale);
   const owned: StudentExam | null = mine.data ?? null;
   const status = owned?.myStatus ?? null;
   const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data, locale) : "";
@@ -119,13 +125,13 @@ export function ExamPage({ examId }: { examId: string }) {
   let primary: React.ReactNode = null;
   if (!signedIn) {
     primary = price !== null && price !== undefined ? (
-      <Button fullWidth href={loginHref}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) })}</Button>
+      <Button fullWidth href={loginHref}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>
     ) : null;
   } else if (isStudent && !owned) {
     if (phoneRequired) {
       primary = <Button fullWidth href={`/set-phone?next=${encodeURIComponent(examPath(examId))}`}>{t("catalog.exam.addPhone")}</Button>;
     } else if (price !== null && price !== undefined) {
-      primary = <Button fullWidth onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) })}</Button>;
+      primary = <Button fullWidth onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>;
     }
   } else if (owned) {
     if (status === "NOT_ANNOUNCED") {
@@ -164,7 +170,7 @@ export function ExamPage({ examId }: { examId: string }) {
         {primary}
         {isStudent && !owned && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
           <Button variant="secondary" fullWidth onClick={() => setModuleBuying(true)}>
-            {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) })}
+            {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
           </Button>
         ) : null}
         {owned && beforeStart && startsAt ? (
@@ -212,7 +218,7 @@ export function ExamPage({ examId }: { examId: string }) {
         ) : null}
         <Section title={t("catalog.exam.price")}>
           {owned ? (
-            <p className="text-ok">âœ“ {t("catalog.exam.unlockedNote")}</p>
+            <p className="text-ok">✓ {t("catalog.exam.unlockedNote")}</p>
           ) : price !== null && price !== undefined ? (
             <p className="font-bold">{formatMoney(price, locale)}</p>
           ) : (

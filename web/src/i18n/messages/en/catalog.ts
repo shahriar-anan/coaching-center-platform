@@ -2,6 +2,7 @@ import type bn from "../bn/catalog";
 
 const catalog: typeof bn = {
   home: "Home",
+  loading: "Loading…",
   doorMcq: "MCQ",
   doorWritten: "Written",
   doorTitleMcq: "MCQ exams",

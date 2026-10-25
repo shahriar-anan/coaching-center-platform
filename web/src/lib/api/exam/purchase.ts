@@ -3,12 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 
-export type OrderStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
+export type PaymentState = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 
 export interface OrderView {
   orderId: string;
   tranId: string;
-  status: OrderStatus;
+  status: PaymentState;
   amount: number;
   redirectUrl: string | null;
   scope: "MODULE" | "EXAM";
@@ -17,7 +17,7 @@ export interface OrderView {
 }
 
 export interface PaymentStatus {
-  status: OrderStatus;
+  status: PaymentState;
   examName: string;
 }
 

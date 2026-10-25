@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useRoutine, type RoutineRow } from "@/lib/api/exam/catalog";
-import { formatDate, formatTime, pickTitle } from "./_tmp/format";
-import { useLocale } from "./_tmp/locale";
-import { useServerNow } from "./_tmp/clock";
-import { Button, EmptyState, ErrorState, PageHeader, Pill, Skeleton } from "./_tmp/ui";
+import { formatDate, formatTime, pickTitle } from "@/lib/format";
+import { useLocale } from "@/i18n/locale-context";
+import { useServerNow } from "@/lib/time/clock";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
+import { Skeleton } from "@/components/ui/skeleton";
 import { buildIcs, downloadIcs, examPath, groupRoutine, isLive } from "./catalog-helpers";
 import { ExamStatusPill, TypePill } from "./status-pill";
 
@@ -100,7 +105,7 @@ export function RoutinePage() {
               ? t("catalog.routine.today")
               : day.relative === "tomorrow"
                 ? t("catalog.routine.tomorrow")
-                : formatDate(day.firstStart, locale, { weekday: true })}
+                : formatDate(day.firstStart, locale, { weekday: true, year: "auto" })}
           </h2>
           <ul className="grid gap-3">
             {day.rows.map((row) => (

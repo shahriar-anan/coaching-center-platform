@@ -1,5 +1,6 @@
 const catalog = {
   home: "হোম",
+  loading: "লোড হচ্ছে…",
   doorMcq: "এমসিকিউ",
   doorWritten: "রিটেন",
   doorTitleMcq: "এমসিকিউ এক্সাম",
