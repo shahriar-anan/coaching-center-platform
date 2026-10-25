@@ -194,12 +194,13 @@ What students and staff expect from current learning and exam platforms (Moodle,
 **Contracts and syncing**
 
 7. Build against the WS0 **Contracts** and the WS1 **Contracts** exactly. If one is wrong or missing, write it in your **Report** and tell the integrator; do not work around it in someone else's file.
-8. When the integrator merges something you depend on, run `git merge catalog-acquisition` in your branch (do not rebase), fix what breaks in your own files, and run your checks again.
+8. When the integrator merges something you depend on, run `git merge catalog-acquisition` in your branch (do not rebase), fix what breaks in your own files, and run your checks again. **Expected conflicts after WS0 lands** (because page agents started before it): your message files (`i18n/messages/{bn,en}/<your namespace>.ts`) were created empty by WS0 — keep your content; `components/pdf/pdf-viewer.tsx` — keep WS0's wrapper and put the viewer body in `pdf-viewer-impl.tsx` (WS4 only). Then delete your `_tmp` stand-ins and import the real WS0 modules. A conflict in any other file means a rule was broken: ask the integrator.
 9. Web pages that need WS1 endpoints use mocked `fetch` in tests and work against the documented shape. They must handle a `404` or `400` from an old API gracefully until WS1 is deployed.
 
 **Machine limits (one PC, 16 GB)**
 
-10. Only one heavy job at a time across all agents: `npm run build`, `mvn test`, or `mvn package`. Before starting one, create the lock file `F:\coaching-center-platform\.heavy.lock` with your agent letter inside; if it exists, wait and retry every minute; delete it when your job ends. `npm test`, `npm run lint` and type checks are light and need no lock.
+10. Only one heavy job at a time across all agents: `npm run build`, `mvn test`, or `mvn package`. Before starting one, create the lock file `F:\coaching-center-platform\.heavy.lock` with your agent letter inside; if it exists, wait and retry every minute; delete it when your job ends. `npm run lint` and type checks are light and need no lock.
+10a. **Run web tests in one process**, always: `npx vitest run --pool=forks --poolOptions.forks.singleFork=true` (add a path to run only your tests, for example `tests/ws3`). Vitest's default worker pool ran out of memory on this PC while several agents were working (seen 25 October). In this mode tests need no lock. Once the integrator sets it as the default in `vitest.config.ts`, plain `npm test` does the same.
 11. Do not run `next dev` or the API. Do not open a browser. Shahriar does the browser pass.
 
 **Quality gate before you report done**

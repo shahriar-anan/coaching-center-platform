@@ -7,7 +7,7 @@ Branch `ui/ws4-student-sitting`, agent D, from the start. Build against the WS0 
 ## Owns
 
 - `web/src/app/(site)/exam/[examId]/sit/**`, `.../result/**`, `.../leaderboard/**`, `web/src/app/(site)/results/**`
-- `web/src/components/student/sitting/**`, `web/src/components/student/result/**`, `web/src/components/pdf/**` (replace WS0's `PdfViewer` stub and keep its props, because WS5 and WS6 already import it; `allowDownload` is false for students and true for staff answer scripts)
+- `web/src/components/student/sitting/**`, `web/src/components/student/result/**`, and `web/src/components/pdf/**` **except `pdf-viewer.tsx`**: WS0's `pdf-viewer.tsx` is the lazy wrapper everyone imports; put the viewer body in `pdf-viewer-impl.tsx` (replacing WS0's stub) and siblings like `pdf-document.tsx`. Keep the props, because WS5 and WS6 import it. `allowDownload` is false for students and true for staff answer scripts.
 - `web/src/lib/api/exam/sitting.ts`
 - `web/public/pdf.worker.min.mjs` (copied from `pdfjs-dist` by a `postinstall`-free script or a checked-in copy; must work in the standalone build)
 - `web/src/i18n/messages/{bn,en}/{sitting,result}.ts`

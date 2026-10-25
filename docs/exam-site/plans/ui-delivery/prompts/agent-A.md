@@ -28,6 +28,7 @@ You are the foundation everyone else builds on, and three agents start building 
 - All copy goes in message files, in both languages, written by `bangla-copy.md`.
 - Never write a host name or absolute URL. Use `lib/config`.
 - Before `npm run build` (or anything heavy), create `F:\coaching-center-platform\.heavy.lock` containing `A`. If it already exists, wait a minute and check again. Delete it when your build ends. `npm test` and `npm run lint` need no lock.
+- Run web tests in one process: `npx vitest run --pool=forks --poolOptions.forks.singleFork=true` (optionally with your test folder). The default worker pool runs out of memory on this PC.
 - Do not run `next dev`, do not run the API, do not open a browser.
 - If `web/node_modules` is missing or incomplete, run `npm ci` in `web/` (the integrator may still be installing it; wait if `npm ci` is already running).
 - Commit small and often on your branch, each message saying what and why, ending with the attribution line your session gives you.

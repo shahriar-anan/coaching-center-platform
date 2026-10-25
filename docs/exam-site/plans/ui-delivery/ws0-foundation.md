@@ -14,7 +14,7 @@ Give every page workstream the same tokens, shells, components, data helpers, fo
 - `web/src/app/layout.tsx`, `web/src/app/providers.tsx`, `web/src/app/globals.css`; delete `web/src/app/page.tsx` (the redirect). The home is `web/src/app/(site)/page.tsx`, which WS0 creates as a one-line placeholder and WS3 owns from then on.
 - Stubs that other workstreams replace (WS0 creates them with the interface below, then ownership moves):
   - `web/src/components/student/notice-bell.tsx` → WS2. `export function NoticeBell(): JSX.Element | null`, rendered by `StudentShell` for signed-in students. The stub returns `null`.
-  - `web/src/components/pdf/pdf-viewer.tsx` → WS4. `export function PdfViewer(props: { load: () => Promise<Blob>; watermark?: string; allowDownload?: boolean; fileName?: string }): JSX.Element`, default-exported through `next/dynamic` with a skeleton. The stub renders a "PDF" placeholder. WS5 and WS6 import it from the start.
+  - `web/src/components/pdf/pdf-viewer.tsx` (WS0 keeps this file): the `next/dynamic` wrapper exporting `PdfViewer(props: { load: () => Promise<Blob>; watermark?: string; allowDownload?: boolean; fileName?: string })` with a skeleton. Everyone imports `PdfViewer` from `@/components/pdf/pdf-viewer`. The viewer body lives in `web/src/components/pdf/pdf-viewer-impl.tsx` → **WS4 replaces that file** (and may add sibling files in `components/pdf/`), keeping the props. As built by WS0 on 25 October.
 - `web/src/app/(site)/layout.tsx`, `web/src/app/(auth)/layout.tsx`, `web/src/app/(staff)/layout.tsx`, `web/src/app/not-found.tsx`, `web/src/app/error.tsx`
 - `web/src/components/ui/**` (shared components)
 - `web/src/components/shell/**` (`StudentShell`, `StaffShell`, `Logo`, `LocalePill`, `ThemePill`, `NoticeBell` slot)
