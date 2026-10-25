@@ -44,7 +44,7 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
   const chosen = items.filter((item) => selected.includes(item.id) && !item.owned);
   const total = bundleTotal(chosen.map((item) => item.price));
 
-  function summary(count: number, _total: number | null): string {
+  function summary(count: number): string {
     const countText = t("purchase.shared.summaryCount", { n: formatNumber(count, locale) });
     if (total === null) return `${countText} · ${t("purchase.shared.summaryNoTotal")}`;
     return `${countText} · ${t("purchase.shared.summaryTotal", { total: formatMoney(total, locale) ?? "" })}`;
