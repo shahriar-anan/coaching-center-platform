@@ -176,3 +176,11 @@ Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student
 | `PATCH /api/v1/instructors/{id}/status` and `DELETE /api/v1/instructors/{id}` | Master Admin only | Suspend and restore an instructor (`{ "status": "ACTIVE" \| "INACTIVE" }`), and delete one (R-2, S-023). Delete is refused with `409 ACCOUNT_HAS_MARKED_WORK` when the instructor has evaluated any submission, and the message says to suspend instead. Other roles get `403`. Module assignments are not removed by suspend or delete; remove them with the existing unassign route. |
 | `PATCH /api/v1/students/{id}/status`, `PATCH /api/v1/admins/{id}/status`, `PATCH /api/v1/instructors/{id}/status` | Master Admin only | Suspend (`INACTIVE`) and restore (`ACTIVE`) students, system admins and instructors (R-2, S-022, S-023). Audit `USER_SUSPENDED` or `USER_RESTORED` (this replaces `USER_STATUS_CHANGED`). Master Admin cannot be suspended. |
 | `GET /api/v1/students/{id}/live-exam-access` | Master Admin, System Admin | Gains `via` = `MANUAL` for each access granted by hand (one row for a module, one for an exam). Revoked grants are left out. |
+
+## Added for the phase 2 UI (API-ACCESS)
+
+Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student-purchase-lms-plan.md) (S-003, S-005, S-012, S-018, S-024, S-027). Flyway: none (reads `V39`). A null field is left out of the body, as everywhere else in the API, unless a row says otherwise.
+
+| Call | Who | Notes |
+|---|---|---|
+| `GET /api/v1/me/live-exam-access` | Student | Own access only (S-003): `{ modules: [{ moduleId, via, orderId }], exams: [{ examId, moduleId, via, orderId }] }`. Module `via`: `ROSTER`, `MODULE` (order or bundle grant on the module), `MANUAL` (grant by hand). Exam `via`: `EXAM` (order or bundle grant) or `MANUAL`. `orderId` is left out for a roster row and a manual grant. Revoked grants, deleted modules and deleted exams give nothing. A module grant covers every exam of the module, so its exams are not listed again in `exams`. No paging. Staff get `403`, no token `401`. |
