@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { RequireStudent } from "@/lib/auth/guards";
@@ -35,9 +35,11 @@ function productTitle(row: MyOrder, locale: "bn" | "en"): string {
 
 export default function PaymentsPage() {
   return (
-    <RequireStudent>
-      <PaymentsView />
-    </RequireStudent>
+    <Suspense fallback={<Skeleton variant="card" count={2} />}>
+      <RequireStudent>
+        <PaymentsView />
+      </RequireStudent>
+    </Suspense>
   );
 }
 

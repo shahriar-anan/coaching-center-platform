@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Pill } from "@/components/ui/pill";
 import { TextInput } from "@/components/ui/text-input";
@@ -20,7 +21,7 @@ import { FormError, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui"
  * Signed-out entry for students and staff. The message never says which field
  * was wrong: a bad password, an unknown account and a deactivated one look the same.
  */
-export default function LoginPage() {
+function LoginForm() {
   const { t } = useLocale();
   const { login } = useSession();
   const params = useSearchParams();
@@ -162,5 +163,14 @@ export default function LoginPage() {
         </nav>
       </Card>
     </>
+  );
+}
+
+/** The form reads the URL (?next=), so it sits inside a Suspense boundary for the static build. */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

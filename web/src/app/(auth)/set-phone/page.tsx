@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { codeOf, FormError, focusFirst } from "@/app/(auth)/_components/auth-ui"
 import { isPhone, normalizePhone } from "@/app/(auth)/_components/validate";
 
 /** Shown once, for a Google sign-up with no phone. The phone can be saved only once. */
-export default function SetPhonePage() {
+function SetPhoneForm() {
   const { t } = useLocale();
   const router = useRouter();
   const params = useSearchParams();
@@ -105,5 +105,13 @@ export default function SetPhonePage() {
         </form>
       </Card>
     </>
+  );
+}
+
+export default function SetPhonePage() {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <SetPhoneForm />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
 import { Card } from "@/components/ui/card";
@@ -24,7 +24,7 @@ const KNOWN_ERRORS = [
  * cookie, signs the student in and routes on; a missing phone goes to set-phone.
  * Errors come back as `?error=CODE`. Google stays off until it is configured (U10).
  */
-export default function GoogleReturnPage() {
+function GoogleReturn() {
   const { t } = useLocale();
   const router = useRouter();
   const params = useSearchParams();
@@ -82,5 +82,13 @@ export default function GoogleReturnPage() {
         )}
       </Card>
     </>
+  );
+}
+
+export default function GoogleReturnPage() {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <GoogleReturn />
+    </Suspense>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { RequireStudent } from "@/lib/auth/guards";
 import { useLocale } from "@/i18n/locale-context";
@@ -17,9 +18,11 @@ import { cn } from "@/components/ui/cn";
 
 export default function NoticesPage() {
   return (
-    <RequireStudent>
-      <NoticesView />
-    </RequireStudent>
+    <Suspense fallback={<Skeleton variant="card" count={2} />}>
+      <RequireStudent>
+        <NoticesView />
+      </RequireStudent>
+    </Suspense>
   );
 }
 

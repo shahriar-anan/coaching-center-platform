@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Suspense, useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { RequireStudent } from "@/lib/auth/guards";
@@ -20,9 +21,11 @@ import { PhoneDialog } from "@/app/(site)/account/_components/phone-dialog";
 
 export default function AccountPage() {
   return (
-    <RequireStudent>
-      <AccountView />
-    </RequireStudent>
+    <Suspense fallback={<Skeleton variant="card" count={2} />}>
+      <RequireStudent>
+        <AccountView />
+      </RequireStudent>
+    </Suspense>
   );
 }
 
