@@ -64,6 +64,7 @@ export const catalogKeys = {
     ["catalog", "public-exams", moduleId, examType ?? "ALL"] as const,
   publicExam: (id: string) => ["catalog", "public-exam", id] as const,
   myModules: () => ["catalog", "my-modules"] as const,
+  myAccess: () => ["catalog", "my-access"] as const,
   myModule: (id: string) => ["catalog", "my-module", id] as const,
   myExams: (moduleId: string, examType: ExamType | null) =>
     ["catalog", "my-exams", moduleId, examType ?? "ALL"] as const,
@@ -210,6 +211,37 @@ export function useMyModules(enabled: boolean) {
       apiRequest<PageResponse<StudentModule>>("/api/v1/live-exam-modules?size=100", { signal }).then(
         (page) => page.content,
       ),
+  });
+}
+
+/** One module-wide grant the student holds. `via` is ROSTER, MODULE or MANUAL. */
+export interface OwnModuleAccess {
+  moduleId: string;
+  via: string;
+  orderId: string | null;
+}
+
+/** One exam-level grant the student holds. `via` is EXAM or MANUAL. */
+export interface OwnExamAccess {
+  examId: string;
+  moduleId: string;
+  via: string;
+  orderId: string | null;
+}
+
+/** `GET /api/v1/me/live-exam-access`: the student's own grants, with where each one came from. */
+export interface OwnAccess {
+  modules: OwnModuleAccess[];
+  exams: OwnExamAccess[];
+}
+
+/** The student's own access. A failure leaves the rows without a source label. */
+export function useMyLiveExamAccess(enabled: boolean) {
+  return useQuery({
+    queryKey: catalogKeys.myAccess(),
+    staleTime: CATALOG_STALE,
+    enabled,
+    queryFn: ({ signal }) => apiRequest<OwnAccess>("/api/v1/me/live-exam-access", { signal }),
   });
 }
 

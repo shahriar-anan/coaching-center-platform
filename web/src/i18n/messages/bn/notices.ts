@@ -8,8 +8,14 @@ const notices = {
   empty: "এখনো কোনো নোটিশ নেই।",
   emptyBody: "পরীক্ষা দিলে বা ফলাফল এলে নোটিশ এখানে দেখা যাবে। শুরু করতে নিচের একটি পাতা বেছে নিন।",
   kind: {
-    REMINDER: "পরীক্ষা শুরু হতে যাচ্ছে",
-    MCQ_RESULT: "এমসিকিউ স্কোর",
+    EXAM_REMINDER: "পরীক্ষা আসছে",
+    EXAM_STARTING_SOON: "পরীক্ষা শুরু হতে এক ঘণ্টার কম বাকি",
+    EXAM_OPEN: "পরীক্ষা এখন শুরু হয়েছে",
+    PURCHASE_GRANTED: "আপনার পরীক্ষা চালু হয়েছে",
+    EXAM_PUBLISHED: "নতুন পরীক্ষা প্রকাশিত হয়েছে",
+    RETAKE_AVAILABLE: "অনুশীলনের সুযোগ খুলেছে",
+    ANNOUNCEMENT: "প্রশাসকের ঘোষণা",
+    MCQ_SCORE: "এমসিকিউ স্কোর",
     WRITTEN_RESULT: "রিটেন ফল প্রকাশিত",
     other: "নোটিশ",
   },
@@ -17,6 +23,8 @@ const notices = {
   passed: "উত্তীর্ণ",
   failed: "অনুত্তীর্ণ",
   openExam: "পরীক্ষার পাতা খুলুন",
+  readMore: "আরও দেখুন",
+  readLess: "কম দেখুন",
   markedRead: "নোটিশটি পড়া হয়েছে।",
 } satisfies MessageTree;
 

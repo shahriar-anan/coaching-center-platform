@@ -6,7 +6,18 @@ import type { PageResponse } from "@/lib/api/exam/types";
 
 /** The student's notices: reminders, MCQ scores and written results. Keys live in this file. */
 
-export type NoticeKind = "REMINDER" | "MCQ_RESULT" | "WRITTEN_RESULT" | (string & {});
+/** The kinds from plan section 6.2. A kind not in this list still renders, with the generic label. */
+export type NoticeKind =
+  | "EXAM_REMINDER"
+  | "EXAM_STARTING_SOON"
+  | "EXAM_OPEN"
+  | "PURCHASE_GRANTED"
+  | "EXAM_PUBLISHED"
+  | "RETAKE_AVAILABLE"
+  | "ANNOUNCEMENT"
+  | "MCQ_SCORE"
+  | "WRITTEN_RESULT"
+  | (string & {});
 
 export interface NoticeExam {
   id: string;
@@ -18,13 +29,29 @@ export interface NoticeExam {
   endAt: string | null;
 }
 
+/** The announcement an ANNOUNCEMENT notice carries (plan 6.4). Either language may be blank. */
+export interface NoticeAnnouncement {
+  id: string;
+  titleEn: string | null;
+  titleBn: string | null;
+  bodyEn: string | null;
+  bodyBn: string | null;
+  /** ALL, or MODULE for an announcement sent to one module. */
+  audience: "ALL" | "MODULE" | (string & {});
+  /** Set only for a MODULE audience. */
+  moduleId: string | null;
+}
+
 export interface Notice {
   id: string;
   kind: NoticeKind;
   createdAt: string;
   /** Null while unread. */
   readAt: string | null;
+  /** Null for an announcement, which names no exam. */
   exam: NoticeExam | null;
+  /** Set on an ANNOUNCEMENT notice, and null on every other kind. */
+  announcement: NoticeAnnouncement | null;
   /** MCQ score or written mark, with the maximum. */
   score: number | null;
   maximum: number | null;
