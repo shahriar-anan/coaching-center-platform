@@ -9,6 +9,9 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     // Tests call the API by absolute URL; the app default is same-origin ("").
     env: { NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080" },
+    // One forked process: the default worker pool ran out of memory with several agents on this PC.
+    pool: "forks",
+    poolOptions: { forks: { singleFork: true } },
   },
   resolve: {
     alias: {
