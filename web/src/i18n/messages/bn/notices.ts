@@ -3,8 +3,8 @@ import type { MessageTree } from "../types";
 const notices = {
   title: "নোটিশ",
   markAll: "সবগুলো পড়া হয়েছে",
-  unreadCount: "{count}টি অপঠিত নোটিশ",
-  unreadDot: "অপঠিত",
+  unreadCount: "{count}টি নতুন নোটিশ",
+  unreadDot: "নতুন",
   empty: "এখনো কোনো নোটিশ নেই।",
   kind: {
     REMINDER: "পরীক্ষা শুরু হতে যাচ্ছে",

@@ -54,7 +54,7 @@ const account = {
     kindModule: "মডিউল",
     kindExam: "পরীক্ষা",
     statusPending: "অপেক্ষমাণ",
-    statusSuccess: "সফল",
+    statusPaid: "সফল",
     statusFailed: "ব্যর্থ",
     statusCancelled: "বাতিল",
     amount: "মূল্য",

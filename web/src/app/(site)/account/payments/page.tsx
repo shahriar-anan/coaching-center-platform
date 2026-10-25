@@ -20,10 +20,18 @@ import { useToast } from "@/components/ui/toast";
 
 const STATUS_TONE: Record<PaymentStatus, PillTone> = {
   PENDING: "warn",
-  SUCCESS: "ok",
+  PAID: "ok",
   FAILED: "danger",
   CANCELLED: "muted",
 };
+
+/** The title of the module or exam the order is for. */
+function productTitle(row: MyOrder, locale: "bn" | "en"): string {
+  const title = row.scope === "MODULE"
+    ? { titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn }
+    : { titleEn: row.examTitleEn, titleBn: row.examTitleBn };
+  return pickTitle(title, locale);
+}
 
 export default function PaymentsPage() {
   return (
@@ -72,7 +80,7 @@ function PaymentsView() {
   const statusWord = (status: PaymentStatus) =>
     ({
       PENDING: t("account.payments.statusPending"),
-      SUCCESS: t("account.payments.statusSuccess"),
+      PAID: t("account.payments.statusPaid"),
       FAILED: t("account.payments.statusFailed"),
       CANCELLED: t("account.payments.statusCancelled"),
     })[status];
@@ -84,10 +92,10 @@ function PaymentsView() {
       mobileLabel: t("account.payments.column.product"),
       cell: (row) => (
         <span className="grid gap-0.5">
-          <span className="font-semibold">{pickTitle({ titleEn: row.productTitleEn, titleBn: row.productTitleBn }, locale)}</span>
+          <span className="font-semibold">{productTitle(row, locale)}</span>
           <span className="text-sm text-muted">
-            {row.kind === "MODULE" ? t("account.payments.kindModule") : t("account.payments.kindExam")}
-            {row.method ? ` · ${t("account.payments.method")}: ${row.method}` : ""}
+            {row.scope === "MODULE" ? t("account.payments.kindModule") : t("account.payments.kindExam")}
+            {row.paymentChannel ? ` · ${t("account.payments.method")}: ${row.paymentChannel}` : ""}
           </span>
         </span>
       ),
@@ -121,6 +129,7 @@ function PaymentsView() {
 
   function openRow(row: MyOrder) {
     if (row.status === "PENDING" && row.tranId) {
+      // The result page polls until the gateway answers.
       router.push(`/purchase/result?tranId=${encodeURIComponent(row.tranId)}`);
     }
   }

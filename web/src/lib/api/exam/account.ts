@@ -2,25 +2,32 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import type { Me, PageResponse } from "@/lib/api/exam/types";
 
 /** Account and auth mutations for the signed-in student. Keys live in this file. */
 
-export type PaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED";
+/** The public order statuses the API sends (`LiveExamOrderService.publicStatus`). */
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 
-/** One row of the student's own payment history (WS1 endpoint, see the Report). */
+/** One row of the student's own payment history: `GET /api/v1/me/live-exam-orders`. */
 export interface MyOrder {
   orderId: string;
   tranId: string | null;
-  kind: "MODULE" | "EXAM";
-  productTitleEn: string;
-  productTitleBn: string;
-  /** Exam or module id, used to link the row to its page. */
-  productId: string;
   status: PaymentStatus;
   amount: number;
-  /** Payment method as the gateway names it (bKash, VISA...), when known. */
-  method: string | null;
+  currency: string;
+  /** "MODULE" or "EXAM". */
+  scope: "MODULE" | "EXAM";
+  moduleId: string | null;
+  moduleTitleEn: string | null;
+  moduleTitleBn: string | null;
+  examId: string | null;
+  examTitleEn: string | null;
+  examTitleBn: string | null;
+  /** Payment channel as the gateway names it (bKash, VISA...), when known. */
+  paymentChannel: string | null;
+  /** ISO UTC. */
   createdAt: string;
 }
 
@@ -80,9 +87,7 @@ export function useResendEmailVerification() {
   });
 }
 
-/** True for the 404 a not-yet-deployed endpoint returns. Screens treat it as "nothing yet". */
+/** True for the 404 an API that predates an endpoint returns. Screens show "not yet" instead of an error. */
 export function isNotDeployed(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error
-    ? (error as { code: string }).code === "RESOURCE_NOT_FOUND"
-    : false;
+  return error instanceof ApiError && error.code === "RESOURCE_NOT_FOUND";
 }

@@ -28,7 +28,15 @@ export default function RegisterPage() {
   const mutation = useMutation({
     mutationFn: (body: Values) =>
       api.register({ fullName: body.fullName.trim(), phone: normalizePhone(body.phone), email: body.email.trim(), password: body.password }),
-    onSuccess: () => setDone(true),
+    onSuccess: () => {
+      // WS3's home shows a one-time welcome card when this flag is set.
+      try {
+        window.localStorage.setItem("exam-portal.welcome", "1");
+      } catch {
+        /* storage blocked: the welcome card is simply not shown */
+      }
+      setDone(true);
+    },
     onError: (err) => {
       setFormError(null);
       const code = codeOf(err);

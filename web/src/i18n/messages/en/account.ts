@@ -54,7 +54,7 @@ const account = {
     kindModule: "Module",
     kindExam: "Exam",
     statusPending: "Pending",
-    statusSuccess: "Paid",
+    statusPaid: "Paid",
     statusFailed: "Failed",
     statusCancelled: "Cancelled",
     amount: "Amount",
