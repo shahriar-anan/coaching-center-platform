@@ -226,10 +226,25 @@ class ExamMailIT extends PostgresIntegrationTest {
 		exams.publish(fixture.examId);
 		BigDecimal amount = new BigDecimal("250.00");
 		LiveExamOrder order = orders.insert(buyer.id, LiveExamOrder.EXAM, fixture.moduleId, fixture.examId, amount);
+		orders.verify(order.getTranId(), LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT",
+				"VAL-SECRET-99", "BKASH-BKash"));
 		orders.verify(order.getTranId(),
 				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
-		orders.verify(order.getTranId(),
-				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
+
+		assertThat(noticeCount(order.getId())).isEqualTo(1);
+		UUID adminId = noticeRecipient(order.getId());
+		assertThat(jdbc.queryForObject("select role || '/' || status from users where id = ?", String.class, adminId))
+			.isEqualTo("MASTER_ADMIN/ACTIVE");
+		String adminEmail = jdbc.queryForObject("select email from users where id = ?", String.class, adminId);
+		String notice = sender.sentTo(adminEmail).stream()
+			.filter(message -> message.subject().contains("New purchase"))
+			.findFirst()
+			.orElseThrow()
+			.text();
+		assertThat(notice).contains(buyer.phone, buyer.email, "Paid paper", "পেইড", "250.00 BDT", "BKASH-BKash",
+				order.getTranId(), "2026-10-20 10:00");
+		assertThat(notice).doesNotContain("VAL-SECRET-99");
+		assertThat(mailStatus(adminId, ExamOutboundMail.PURCHASE_NOTICE)).isEqualTo(ExamOutboundMail.SENT);
 
 		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isEqualTo(1);
 		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
@@ -285,6 +300,32 @@ class ExamMailIT extends PostgresIntegrationTest {
 		orders.cancel(cancelled.getId(), buyer.id);
 		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isZero();
 		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isZero();
+		assertThat(noticeCount(failed.getId())).isZero();
+		assertThat(noticeCount(cancelled.getId())).isZero();
+	}
+
+	@Test
+	void thePurchaseNoticeIsSkippedWhenItsRecipientIsNoLongerAnActiveMasterAdmin() {
+		Fixture fixture = seed("PUBLISHED", START.plus(Duration.ofDays(2)), "Skip notice", "স্কিপ");
+		Student buyer = student("ACTIVE");
+		BigDecimal amount = new BigDecimal("60.00");
+		sender.failTimes(2);
+		LiveExamOrder order = orders.insert(buyer.id, LiveExamOrder.EXAM, fixture.moduleId, fixture.examId, amount);
+		orders.verify(order.getTranId(),
+				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
+		UUID adminId = noticeRecipient(order.getId());
+		assertThat(mailStatus(adminId, ExamOutboundMail.PURCHASE_NOTICE)).isEqualTo(ExamOutboundMail.PENDING);
+
+		jdbc.update("update users set status = 'INACTIVE' where id = ?", adminId);
+		try {
+			examMail.scan();
+		}
+		finally {
+			jdbc.update("update users set status = 'ACTIVE' where id = ?", adminId);
+		}
+
+		assertThat(mailStatus(adminId, ExamOutboundMail.PURCHASE_NOTICE)).isEqualTo(ExamOutboundMail.SKIPPED);
+		assertThat(mailStatus(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isEqualTo(ExamOutboundMail.SENT);
 	}
 
 	@Test
@@ -355,6 +396,19 @@ class ExamMailIT extends PostgresIntegrationTest {
 		Integer count = jdbc.queryForObject(
 				"select attempt_count from exam_outbound_mail where user_id = ? and kind = ?", Integer.class, userId, kind);
 		return count == null ? 0 : count;
+	}
+
+	private int noticeCount(UUID orderId) {
+		Integer count = jdbc.queryForObject(
+				"select count(*) from exam_outbound_mail where kind = 'PURCHASE_NOTICE' and message_key = ?", Integer.class,
+				orderId.toString());
+		return count == null ? 0 : count;
+	}
+
+	private UUID noticeRecipient(UUID orderId) {
+		return jdbc.queryForObject(
+				"select user_id from exam_outbound_mail where kind = 'PURCHASE_NOTICE' and message_key = ?", UUID.class,
+				orderId.toString());
 	}
 
 	private String orderStatus(UUID orderId) {

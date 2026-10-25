@@ -53,8 +53,13 @@ class ExamMailQueue {
 			return List.of();
 		}
 		List<UUID> ids = new ArrayList<>();
-		if (grants.existsByOrderId(order.getId()) && activeStudent(order.getStudentId()) != null) {
+		boolean granted = grants.existsByOrderId(order.getId());
+		if (granted && activeStudent(order.getStudentId()) != null) {
 			add(ids, insert(ExamOutboundMail.PAYMENT_RECEIPT, order.getId().toString(), order.getStudentId()));
+		}
+		UUID masterAdmin = granted ? masterAdmin() : null;
+		if (masterAdmin != null) {
+			add(ids, insert(ExamOutboundMail.PURCHASE_NOTICE, order.getId().toString(), masterAdmin));
 		}
 		if (LiveExamOrder.EXAM.equals(order.getScope())) {
 			exams.findByIdAndDeletedAtIsNull(order.getExamId())
@@ -154,6 +159,18 @@ class ExamMailQueue {
 			return null;
 		}
 		return user;
+	}
+
+	// There is one Master Admin. The oldest active one with an email is the recipient if that ever differs.
+	private UUID masterAdmin() {
+		List<UUID> found = jdbc.queryForList("""
+				select id from users
+				where role = 'MASTER_ADMIN' and status = 'ACTIVE' and deleted_at is null
+				  and email is not null and email <> ''
+				order by created_at, id
+				limit 1
+				""", UUID.class);
+		return found.isEmpty() ? null : found.get(0);
 	}
 
 	private UUID insert(String kind, String key, UUID userId) {

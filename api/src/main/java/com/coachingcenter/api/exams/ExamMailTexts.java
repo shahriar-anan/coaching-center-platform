@@ -9,6 +9,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 import com.coachingcenter.api.auth.Role;
+import com.coachingcenter.api.users.StudentProfile;
+import com.coachingcenter.api.users.StudentProfileRepository;
 import com.coachingcenter.api.users.User;
 import com.coachingcenter.api.users.UserRepository;
 
@@ -35,19 +37,26 @@ class ExamMailTexts {
 
 	private final LiveExamAccess access;
 
+	private final StudentProfileRepository profiles;
+
 	ExamMailTexts(LiveExamOrderRepository orders, LiveExamGrantRepository grants, LiveExamRepository exams,
-			LiveExamModuleRepository modules, UserRepository users, LiveExamAccess access) {
+			LiveExamModuleRepository modules, UserRepository users, LiveExamAccess access,
+			StudentProfileRepository profiles) {
 		this.orders = orders;
 		this.grants = grants;
 		this.exams = exams;
 		this.modules = modules;
 		this.users = users;
 		this.access = access;
+		this.profiles = profiles;
 	}
 
 	Prepared prepare(ExamOutboundMail row, Instant now) {
 		if (ExamOutboundMail.PAYMENT_RECEIPT.equals(row.getKind())) {
 			return receipt(row);
+		}
+		if (ExamOutboundMail.PURCHASE_NOTICE.equals(row.getKind())) {
+			return purchaseNotice(row);
 		}
 		if (ExamOutboundMail.EXAM_TIME.equals(row.getKind()) || ExamOutboundMail.HOUR_BEFORE.equals(row.getKind())) {
 			return notice(row, now);
@@ -79,29 +88,58 @@ class ExamMailTexts {
 		if (student == null || !student.getId().equals(order.getStudentId())) {
 			return null;
 		}
-		String titleBn;
-		String titleEn;
-		if (LiveExamOrder.EXAM.equals(order.getScope())) {
-			LiveExam exam = exams.findByIdAndDeletedAtIsNull(order.getExamId()).orElse(null);
-			if (exam == null) {
-				return null;
-			}
-			titleBn = exam.getTitleBn();
-			titleEn = exam.getTitleEn();
-		}
-		else {
-			LiveExamModule module = modules.findByIdAndDeletedAtIsNull(order.getModuleId()).orElse(null);
-			if (module == null) {
-				return null;
-			}
-			titleBn = module.getTitleBn();
-			titleEn = module.getTitleEn();
+		Titles titles = titles(order);
+		if (titles == null) {
+			return null;
 		}
 		String amount = order.getAmount().toPlainString();
-		String text = "পেমেন্ট রসিদ\n" + titleBn + "\nপরিমাণ: " + amount + " BDT\nলেনদেন: " + order.getTranId()
-				+ "\n\nPayment receipt\n" + titleEn + "\nAmount: " + amount + " BDT\nTransaction: " + order.getTranId()
+		String text = "পেমেন্ট রসিদ\n" + titles.bn() + "\nপরিমাণ: " + amount + " BDT\nলেনদেন: " + order.getTranId()
+				+ "\n\nPayment receipt\n" + titles.en() + "\nAmount: " + amount + " BDT\nTransaction: " + order.getTranId()
 				+ "\n";
 		return new Prepared(student.getEmail(), "পেমেন্ট রসিদ / Payment receipt", text);
+	}
+
+	private Prepared purchaseNotice(ExamOutboundMail row) {
+		UUID id = orderId(row);
+		if (id == null) {
+			return null;
+		}
+		LiveExamOrder order = orders.findById(id).orElse(null);
+		if (order == null || !LiveExamOrder.SUCCEEDED.equals(order.getStatus()) || !grants.existsByOrderId(order.getId())) {
+			return null;
+		}
+		User admin = users.findByIdAndDeletedAtIsNull(row.getUserId()).orElse(null);
+		if (admin == null || !Role.MASTER_ADMIN.name().equals(admin.getRole()) || !"ACTIVE".equals(admin.getStatus())
+				|| admin.getEmail() == null || admin.getEmail().isBlank()) {
+			return null;
+		}
+		User student = users.findById(order.getStudentId()).orElse(null);
+		Titles titles = titles(order);
+		if (student == null || titles == null) {
+			return null;
+		}
+		String name = profiles.findById(student.getId()).map(StudentProfile::getFullName).orElse("-");
+		String email = student.getEmail() == null ? "-" : student.getEmail();
+		String channel = order.getPaymentChannel() == null ? "-" : order.getPaymentChannel();
+		String amount = order.getAmount().toPlainString();
+		String time = TIME.format(order.getUpdatedAt());
+		String text = "নতুন পেমেন্ট\nশিক্ষার্থী: " + name + "\nফোন: " + student.getPhone() + "\nইমেইল: " + email + "\n"
+				+ titles.bn() + "\nপরিমাণ: " + amount + " BDT\nমাধ্যম: " + channel + "\nলেনদেন: " + order.getTranId()
+				+ "\nসময়: " + time + "\n\nNew purchase\nStudent: " + name + "\nPhone: " + student.getPhone() + "\nEmail: "
+				+ email + "\n" + titles.en() + "\nAmount: " + amount + " BDT\nPaid with: " + channel + "\nTransaction: "
+				+ order.getTranId() + "\nTime: " + time + "\n";
+		return new Prepared(admin.getEmail(), "নতুন পেমেন্ট / New purchase: " + titles.en(), text);
+	}
+
+	private Titles titles(LiveExamOrder order) {
+		if (LiveExamOrder.EXAM.equals(order.getScope())) {
+			return exams.findByIdAndDeletedAtIsNull(order.getExamId())
+				.map(exam -> new Titles(exam.getTitleBn(), exam.getTitleEn()))
+				.orElse(null);
+		}
+		return modules.findByIdAndDeletedAtIsNull(order.getModuleId())
+			.map(module -> new Titles(module.getTitleBn(), module.getTitleEn()))
+			.orElse(null);
 	}
 
 	private Prepared notice(ExamOutboundMail row, Instant now) {
@@ -175,6 +213,9 @@ class ExamMailTexts {
 	}
 
 	record Prepared(String to, String subject, String text) {
+	}
+
+	private record Titles(String bn, String en) {
 	}
 
 	private record ParsedKey(UUID studentId, UUID examId, Instant liveAt) {

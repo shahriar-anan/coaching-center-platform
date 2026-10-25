@@ -20,6 +20,8 @@ public class ExamOutboundMail {
 
 	public static final String REFUND = "REFUND";
 
+	public static final String PURCHASE_NOTICE = "PURCHASE_NOTICE";
+
 	public static final String PENDING = "PENDING";
 
 	public static final String SENT = "SENT";

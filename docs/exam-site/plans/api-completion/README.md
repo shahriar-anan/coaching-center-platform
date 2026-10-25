@@ -11,6 +11,7 @@ Written 25 October 2026 from the code on branch `catalog-acquisition`. Shahriar 
 | A5 | [a5-authoring-deletes.md](a5-authoring-deletes.md): delete exam, delete MCQ question | none | 3 h |
 | A6 | [a6-instructor-unassign.md](a6-instructor-unassign.md): remove the module instructor | none | 1–2 h |
 | A7 | [a7-staff-payments.md](a7-staff-payments.md): staff list of exam payments, payment channel (added 25 October 2026 after the VPS deploy) | `V37` | 3 h |
+| A8 | [a8-purchase-notice.md](a8-purchase-notice.md): one email to the Master Admin per successful purchase (added 25 October 2026) | `V38` | 2 h |
 
 ## Slice order
 
@@ -80,7 +81,7 @@ Confirmed by Shahriar on 25 October 2026.
 | D4 | Who deletes an MCQ question? | Anyone who can edit it (`EXAM_MANAGE`). It follows the same lock as edit: refused once `liveAt` has passed, and it returns the exam to draft. |
 | D5 | Unassign when the instructor has saved drafts? | Allowed. Drafts and `evaluated_by` stay. The next instructor can save over them. Only the Master Admin publishes either way. |
 | D6 | Reminder band (A1) | Created from 48 h before `liveAt`, inside a 48 h–24 h band. A student who gains access later still gets one up to the start. One per student, exam, and `liveAt`. |
-| D7 | Notices for staff | No stored staff notices and no staff email. Staff see work-queue counts from A3 as menu badges: the instructor sees papers awaiting marking, the Master Admin sees drafts awaiting publish. A count is not a notice, so `decisions.md` is unchanged. Staff notices for assignment, failed mail, and unmatched payments wait until the client asks. |
+| D7 | Notices for staff | Changed on 25 October 2026 by A8: the Master Admin now gets one email per successful purchase. Otherwise as follows. No stored staff notices and no staff email. Staff see work-queue counts from A3 as menu badges: the instructor sees papers awaiting marking, the Master Admin sees drafts awaiting publish. A count is not a notice, so `decisions.md` is unchanged. Staff notices for assignment, failed mail, and unmatched payments wait until the client asks. |
 | D8 | A written result saved again after publish | The notice stays. Its marks are hidden while the result is back in draft. The next publish adds a new notice. |
 
 ## Exit
