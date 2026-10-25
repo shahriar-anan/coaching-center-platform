@@ -543,3 +543,22 @@ Branch `ui/api-access`, worktree `F:\cc-wt\api-access`, rebased on `catalog-acqu
 - STU-PUR: drop the 404 probes. Use `access.state` and `access.blockedReason` on the module and exam reads, and `/me/live-exam-access` for "my modules". `orderId` is left out for roster rows and manual grants. Owning one exam does not own its module: the module stays `NONE` and buyable. `blockedReason` order is `ALREADY_HAS_ACCESS`, `PRICE_REQUIRED`, `CHECKOUT_OFF`, `PHONE_REQUIRED`. Upcoming rows: show "শুধু মডিউলে কেনা যাবে" when `moduleOnly`.
 - STU-LMS: when a review has `questions` but no `correct` on any option, the answers are withheld. Show "উত্তর এখনো প্রকাশ হয়নি".
 - API-ADMIN: `LiveExamPublicService` and `StudentOwnAccessService` read grants directly (ignoring revoked ones), not through `LiveExamAccess`.
+## Report — API-ADMIN, update: V40 and item 9
+
+Approved by the integrator after the blocked report above. Item 9 is now done.
+
+- **V40** (`1907442`, its own commit): kind check widened to the nine plan 6.2 kinds, `exam_id` nullable, `module_id` added. Check from clean: all 40 migrations applied to an empty database, `DemoContentSeedIT` 4/4 and `AuditLogIT` 3/3 green. The check database was dropped afterwards.
+- **Item 9** (`a99e0cc`): `POST /api/v1/announcements`, Master Admin only. One announcement row and one `ANNOUNCEMENT` notice per target student, in one transaction. `ALL` targets active students. `MODULE` targets active students with a roster row or an active grant in that module (the grant reading of "access to one module" is my interpretation; tell me if it should be roster only). Audit `ANNOUNCEMENT_SENT`. The notice inbox (`StudentInboxService`, A2's file) joins notices to exams with an inner join, so announcement notices are not shown there yet. A2 must change that join to a left join and map the module for module notices.
+- **Tests**: `LiveGrantAdminIT` 11/11, `AuditLogIT` 3/3, `LiveEvaluationIT` 46/46, `LiveSittingIT` 31/31, `LiveExamPurchaseIT` 15/15 on the test database.
+
+## Report — API-ADMIN, final
+
+Branch `ui/api-admin`, worktree `F:\cc-wt\api-admin`. Rebased on `catalog-acquisition` (includes API-ACCESS's merge `edce9c1`). The only conflict was in this file, where both reports were appended; both are kept. `StudentAccessIT`, `StudentLiveExamAccessService` and `LiveExamAccess` are as they are on main; my branch has no changes to them.
+
+Items: 2 to 10 done, V40 and item 9 included. Partly: none. Skipped: none.
+
+**Targeted tests after the rebase** (`mvn clean verify`, under the lock): 146 run, 0 failures, build successful. Classes: LiveGrantAdminIT 11, AuditLogIT 3, StudentAccessIT 2, AuthorizationIT 5, AuthorizationTest 4, LiveEvaluationIT 46, LiveSittingIT 33, LivePublicCatalogIT 6, PublicAccessIT 4, LiveExamPurchaseIT 15, ExamMailIT 13, DemoContentSeedIT 4. The full suite was not run, as instructed.
+
+**Item 9 decision (audience).** `MODULE` announcements go to active students with a roster row in the module, or an active grant (module or exam scope) in it. Revoked grants do not count. The rule is written in `current-api.md` and lives in one query, `TO_MODULE` in `AnnouncementService`, so the integrator can change it there.
+
+**Still open, outside this branch:** the notice inbox (`StudentInboxService`, A2) joins notices to exams with an inner join, so announcement notices do not appear in the notice box until A2 changes that join.
