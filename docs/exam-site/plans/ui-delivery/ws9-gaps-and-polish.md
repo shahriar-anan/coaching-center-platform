@@ -482,26 +482,25 @@ Worktree `F:\cc-wt\stu-lms`, branch `ui/stu-lms`, from `catalog-acquisition`. St
 
 **Done**
 - **S-002:** notice labels for the nine kinds from plan 6.2, in both languages. `REMINDER` and `MCQ_RESULT` removed. Unknown kinds keep the generic label. Tests per kind and for the fallback.
-- **S-004 and S-017 (UI):** exam kinds open the exam offer; `PURCHASE_GRANTED` opens the exam, or my modules when no exam is named; `ANNOUNCEMENT` and unknown kinds have no link. Tests per kind.
+- **S-004 and S-017 (UI):** `MCQ_SCORE` and `WRITTEN_RESULT` open the exam's result page; the other exam kinds open the exam offer; `PURCHASE_GRANTED` opens the exam, or my modules when no exam is named; `ANNOUNCEMENT` and unknown kinds have no link. One test per kind (label and href), in `tests/stu-lms/notice-kind-rows.test.tsx`.
+- **S-020, contract:** the announcement object now carries `id`, `audience` and `moduleId` as well as the four text fields, as the API sends them. A module-audience announcement is tested to read the same way, with no link.
 - **S-020 (UI):** announcements show the title and body in the student's language, falling back to the other when one is blank; long bodies expand, and expanding marks the notice read. No edit or delete. Tests for both languages, one blank, and expand.
 - **S-018 (UI):** withheld answers show no correct marker and no client-side right or wrong; the "not released yet" copy shows once; the right and wrong filters are hidden with the reason. Released answers keep the current display. Tests for withheld, released and the filter.
 - **S-024 (copy):** the late-upload sentence on the written paper page, both languages; the instruction no longer asks for a submit click; "পরীক্ষা শেষ করা যায়নি।" on a result that could not finish. Upload replace behaviour unchanged.
 - **ST-6:** the deadline passing during a written upload, with fake timers; the refusal is created with its assertion attached, so the `ApiError` is caught by the assertion.
 - **Written result states:** awaiting, published with a comment, published with the marked-script control. Tests.
-- **My modules access labels:** labels and a helper (`components/student/result/access-source.ts`) that returns no label for a missing or unknown source. Tests for each label and the fallback.
+- **My modules access labels (`my-modules-page.tsx`):** the page reads `GET /api/v1/me/live-exam-access` through `useMyLiveExamAccess` and shows one source label per module card: roster, module purchase, exam purchase or manual grant, in both languages. A module-wide source beats an exam grant. An unknown source, a missing row or a failed read shows no label. Tests in `tests/stu-lms/my-modules-access.test.tsx`.
+- **Answer withholding (S-018):** checked against the code and the existing tests. No change was needed.
 
 **Partly done**
-- **My modules (`my-modules-page.tsx`):** not changed. The helper is not wired in, because the access endpoint is not live and the brief forbids probing for it. Rows show no source label until the endpoint exists.
-- **Notice bell:** the count is unchanged and comes from the server, so the new kinds count as unread with no client change. The bell has no row list, so "ANNOUNCEMENT rows in the bell list" has nothing to change.
+- **Notice bell:** the count is unchanged and comes from the server, so the new kinds count as unread with no client change. The bell is a count link to `/notices` and has no row list, so the announcement title and body show on the notice page only.
 
-**Waits for an API merge**
-- S-002 and S-017: the new kinds and `EXAM_STARTING_SOON` arrive from A2. Until then the page shows the kinds it receives and the generic label for anything else.
-- S-020: the announcement fields on the notice (see Contract questions).
-- My modules: the source label, from `GET /api/v1/me/live-exam-access` (A1).
-- The per-question outcome on withheld answers: the client hides right and wrong until the API marks answers released; no API change is needed for that.
+**Waits for another merge**
+- Module purchase notices (see Contract questions 2): the row opens my modules until a notice can name its module.
+- `RETAKE_AVAILABLE`: the web label and link are in place, and the schema allows the kind, but no API code writes it yet. Until it does, no row of this kind arrives.
 
 **Contract questions**
-1. **Announcement shape:** the plan (6.4) names the fields but not their JSON names. I used `announcement: { titleEn, titleBn, bodyEn, bodyBn } | null` on each notice. A2 and A3 to confirm.
+1. **Announcement shape:** answered by the merged API (`StudentInboxService.NoticeAnnouncement`): `announcement: { id, titleEn, titleBn, bodyEn, bodyBn, audience, moduleId }`, with `moduleId` only for a MODULE audience. The client type now matches.
 2. **Module purchase notices:** a `PURCHASE_GRANTED` notice that names a module but no exam has no module id on the notice, so the row opens my modules. A `moduleId` on the notice would let it open the module.
 3. **ROSTER label:** the brief says "রোস্টার", but the copy guide bans that term and gives "সরাসরি ভর্তি". I used the glossary term.
 4. **Namespaces:** the brief put the written-paper copy in `catalog`, but `catalog` belongs to STU-PUR. I used `sitting`, and put the access labels under `result`.
