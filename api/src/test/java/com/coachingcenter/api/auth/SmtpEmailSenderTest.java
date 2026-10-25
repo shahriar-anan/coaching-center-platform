@@ -2,6 +2,8 @@ package com.coachingcenter.api.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +23,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
+import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
@@ -105,6 +108,18 @@ class SmtpEmailSenderTest {
 			.containsEntry("mail.smtp.timeout", "10000")
 			.containsEntry("mail.smtp.writetimeout", "10000")
 			.doesNotContainKey("mail.smtp.ssl.enable");
+	}
+
+	@Test
+	void transportConnectsWithTheConfiguredHostAndCredentials() throws Exception {
+		var sender = SmtpEmailSender.configuredSender(new AppProperties.Email("no-reply@symamlaw.com", "SYMAM LAW", null,
+				"smtp-relay.brevo.com", 587, "smtp-login@brevo.example", "brevo-api-key-should-not-leak"));
+		Transport transport = mock(Transport.class);
+
+		SmtpEmailSender.JavaMailOutbound.connect(transport, sender);
+
+		verify(transport).connect("smtp-relay.brevo.com", 587, "smtp-login@brevo.example",
+				"brevo-api-key-should-not-leak");
 	}
 
 	@Test

@@ -134,7 +134,7 @@ File syntax is systemd `EnvironmentFile`: one `NAME=value` per line, no `export`
 
 ### 4. Deploy the jar
 
-1. `scp` the jar to `/tmp/api.jar`, check its SHA-256 against slice 0, then `sudo install -o root -g root -m 644 /tmp/api.jar /opt/coaching-api/api.jar`.
+1. `scp` the jar to `/tmp/api.jar`, check its SHA-256 against slice 0, then `sudo install -o deploy -g deploy -m 640 /tmp/api.jar /opt/coaching-api/api.jar`, the same owner and mode as the old jar. A root-owned jar would not protect anything while `/opt/coaching-api` itself is `deploy:deploy 755`. Hardening that folder is later work.
 2. `sudo systemctl restart coaching-api`, then `journalctl -u coaching-api -f` until the app has started or exited.
 3. Expected in the log: profile `staging`, Flyway migrated to `36`, `Started ApiApplication`. No secret on any line.
 4. From the PC: `GET https://srv2089893.hstgr.cloud/api/v1/public/live-exam-categories` returns 200. `GET /api/v1/me` with no token returns 401 `UNAUTHENTICATED`.
@@ -186,6 +186,7 @@ Follows [../reports/sslcommerz-sandbox-runbook.md](../reports/sslcommerz-sandbox
 3. The log shows, for that `tranId`: `sslcommerz session accepted`, `sslcommerz validation accepted`, `live exam payment granted`, and `request completed method=POST path=/api/v1/live-exam-orders/<tranId>/ipn status=200`. **The IPN line is the S5 proof.** A grant from the browser return alone does not prove the IPN.
 4. DB: the order is `SUCCEEDED` with one grant row for that student and exam.
 5. The receipt mail arrives at the student inbox.
+5a. Real students will pay with bKash or Nagad on the same SSLCommerz page. The API sends no channel limit and validates every channel the same way. If the sandbox page offers a mobile-banking option, buy the same exam as the student registered in slice 5 (the seed student already owns it) and pay with bKash or Nagad. Record which channels the sandbox showed. Enabling bKash and Nagad on the live store is the client's arrangement with SSLCommerz.
 6. From the runbook's unhappy-path list, run: fail, cancel, and the startup guard (`staging` with the live host must exit). Do not leave a guard-test process running, and put the env back afterwards.
 
 **If no IPN arrives:** check that the sandbox merchant panel has no fixed IPN URL overriding the per-payment URL. Check that `access.log` in Nginx shows the POST. The 10-minute recheck job may still grant the order, but S5 is not done until an IPN lands.

@@ -304,7 +304,7 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 			String username, String password) {
 	}
 
-	private static final class JavaMailOutbound implements OutboundMail {
+	static final class JavaMailOutbound implements OutboundMail {
 
 		private final JavaMailSenderImpl sender;
 
@@ -321,7 +321,7 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 		public String send(MimeMessage message) throws MessagingException {
 			Transport transport = sender.getSession().getTransport("smtp");
 			try {
-				transport.connect();
+				connect(transport, sender);
 				Address[] recipients = message.getAllRecipients();
 				transport.sendMessage(message, recipients);
 				return lastResponse(transport);
@@ -329,6 +329,11 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 			finally {
 				close(transport);
 			}
+		}
+
+		// The session does not hold the host or the credentials. JavaMailSenderImpl keeps them itself.
+		static void connect(Transport transport, JavaMailSenderImpl sender) throws MessagingException {
+			transport.connect(sender.getHost(), sender.getPort(), sender.getUsername(), sender.getPassword());
 		}
 
 		private static String lastResponse(Transport transport) {
