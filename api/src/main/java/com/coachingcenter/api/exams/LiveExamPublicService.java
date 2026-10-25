@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -15,6 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -42,8 +44,11 @@ public class LiveExamPublicService {
 
 	private final LiveExamCatalogVisibility visibility;
 
+	private final Clock clock;
+
 	public LiveExamPublicService(LiveExamCategoryRepository categories, LiveExamModuleRepository modules,
-			LiveExamRepository exams, LiveExamCatalogVisibility visibility) {
+			LiveExamRepository exams, LiveExamCatalogVisibility visibility, Clock clock) {
+		this.clock = clock;
 		this.categories = categories;
 		this.modules = modules;
 		this.exams = exams;
@@ -110,11 +115,19 @@ public class LiveExamPublicService {
 	}
 
 	@Transactional(readOnly = true)
-	public Page<PublicModule> modules(UUID categoryId, String examType, Pageable pageable) {
+	public Page<PublicModule> modules(UUID categoryId, String examType, String q, Pageable pageable) {
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		Pageable ordered = orderedModules(pageable);
 		if (categoryId != null && hidden.contains(categoryId)) {
 			return Page.empty(ordered);
+		}
+		if (q != null && !q.isBlank()) {
+			boolean anyCategory = categoryId == null;
+			Page<LiveExamModule> matches = modules.searchPublished(hidden.isEmpty() ? Set.of(NO_HIDDEN_CATEGORY) : hidden,
+					anyCategory, anyCategory ? NO_HIDDEN_CATEGORY : categoryId, "%" + q.trim().toLowerCase() + "%",
+					LiveExamTypeFilter.ANY.equals(examType), examType, ordered);
+			Map<UUID, Counts> matchCounts = counts(matches.getContent().stream().map(LiveExamModule::getId).toList());
+			return matches.map(module -> moduleView(module, matchCounts.getOrDefault(module.getId(), Counts.NONE)));
 		}
 		Page<LiveExamModule> page;
 		if (!LiveExamTypeFilter.ANY.equals(examType)) {
@@ -133,6 +146,36 @@ public class LiveExamPublicService {
 		}
 		Map<UUID, Counts> counts = counts(page.getContent().stream().map(LiveExamModule::getId).toList());
 		return page.map(module -> moduleView(module, counts.getOrDefault(module.getId(), Counts.NONE)));
+	}
+
+	/**
+	 * Published exams that have not ended, soonest first, across published modules outside hidden categories. Public like
+	 * the catalog: no questions and no PDFs. An exam with no start date is not listed.
+	 */
+	@Transactional(readOnly = true)
+	public Page<UpcomingExam> upcoming(String examType, Pageable pageable) {
+		Instant now = clock.instant();
+		Set<UUID> hidden = visibility.hiddenCategoryIds();
+		Instant since = now.minus(Duration.ofMinutes(exams.maxDurationMinutes()));
+		List<LiveExam> live = exams
+			.findUpcomingPublished(since, hidden.isEmpty() ? Set.of(NO_HIDDEN_CATEGORY) : hidden,
+					LiveExamTypeFilter.ANY.equals(examType), examType)
+			.stream()
+			.filter(exam -> end(exam).isAfter(now))
+			.toList();
+		int from = (int) Math.min(pageable.getOffset(), live.size());
+		int to = Math.min(from + pageable.getPageSize(), live.size());
+		List<LiveExam> slice = live.subList(from, to);
+		Map<UUID, LiveExamModule> moduleById = new HashMap<>();
+		modules.findAllById(slice.stream().map(LiveExam::getModuleId).distinct().toList())
+			.forEach(module -> moduleById.put(module.getId(), module));
+		List<UpcomingExam> content = slice.stream().map(exam -> {
+			LiveExamModule module = moduleById.get(exam.getModuleId());
+			return new UpcomingExam(exam.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(), exam.getModuleId(),
+					module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(), exam.getLiveAt(),
+					end(exam), exam.getPrice());
+		}).toList();
+		return new PageImpl<>(content, pageable, live.size());
 	}
 
 	@Transactional(readOnly = true)
@@ -286,6 +329,11 @@ public class LiveExamPublicService {
 
 	public record PublicModule(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
 			String descriptionBn, int position, BigDecimal price, int mcqCount, int writtenCount) {
+	}
+
+	/** One upcoming exam, with its module's titles. Price is null when the exam is not sold on its own. */
+	public record UpcomingExam(UUID id, String examType, String titleEn, String titleBn, UUID moduleId, String moduleTitleEn,
+			String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price) {
 	}
 
 	private record Counts(int mcq, int written) {

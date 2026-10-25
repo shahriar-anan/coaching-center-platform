@@ -221,6 +221,21 @@ public class AuthService {
 		}
 	}
 
+	/** A student's own display name, 1 to 100 characters after trimming. Staff names stay as they were created. */
+	@Transactional
+	public void changeName(UUID userId, String fullName) {
+		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
+		if (!"STUDENT".equals(user.getRole())) {
+			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Only a student can change the name here.");
+		}
+		String name = fullName == null ? "" : fullName.trim();
+		if (name.isEmpty() || name.length() > 100) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
+		}
+		StudentProfile profile = profiles.findById(userId).orElseThrow(this::unauthenticated);
+		profile.setFullName(name);
+	}
+
 	public String allocateStudentCode() {
 		return nextStudentCode();
 	}

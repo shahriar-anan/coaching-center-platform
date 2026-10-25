@@ -3,6 +3,7 @@ package com.coachingcenter.api.exams;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -126,11 +127,6 @@ public class LiveExamModuleService {
 		return view(module);
 	}
 
-	@Transactional(readOnly = true)
-	public Page<ModuleView> list(UUID categoryId, Pageable pageable, boolean publishedOnly, UUID studentId) {
-		return list(categoryId, pageable, publishedOnly, studentId, LiveExamTypeFilter.ANY);
-	}
-
 	/** {@code examType} applies to the student read only, as {@link LiveExamTypeFilter} parsed it. */
 	@Transactional(readOnly = true)
 	public Page<ModuleView> list(UUID categoryId, Pageable pageable, boolean publishedOnly, UUID studentId,
@@ -149,16 +145,6 @@ public class LiveExamModuleService {
 			page = modules.findByCategoryIdAndDeletedAtIsNull(categoryId, ordered);
 		}
 		return page.map(this::view);
-	}
-
-	@Transactional(readOnly = true)
-	public Page<ModuleView> listForInstructor(UUID instructorId, Pageable pageable) {
-		return modules.findAssignedToInstructor(instructorId, ordered(pageable)).map(this::view);
-	}
-
-	@Transactional(readOnly = true)
-	public ModuleView get(UUID id) {
-		return view(require(id));
 	}
 
 	@Transactional(readOnly = true)
@@ -237,7 +223,7 @@ public class LiveExamModuleService {
 		return hidden;
 	}
 
-	private static Pageable ordered(Pageable pageable) {
+	static Pageable ordered(Pageable pageable) {
 		if (pageable.getSort().isSorted()) {
 			return pageable;
 		}
@@ -298,7 +284,16 @@ public class LiveExamModuleService {
 	private ModuleView view(LiveExamModule module) {
 		return new ModuleView(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
 				module.getDescriptionEn(), module.getDescriptionBn(), module.getAccessMode(), module.getStatus(),
-				module.isFinallySaved(), module.getPosition(), module.getPrice());
+				module.isFinallySaved(), module.getPosition(), module.getPrice(), null, null, null, null);
+	}
+
+	/** Staff reads only: the category path, the teacher and the exam counts. Student and public reads never get these. */
+	ModuleView staffView(LiveExamModule module, List<CategoryRef> categoryPath, TeacherRef instructor, int mcqCount,
+			int writtenCount) {
+		return new ModuleView(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
+				module.getDescriptionEn(), module.getDescriptionBn(), module.getAccessMode(), module.getStatus(),
+				module.isFinallySaved(), module.getPosition(), module.getPrice(), categoryPath, instructor, mcqCount,
+				writtenCount);
 	}
 
 	private static ApiException validationFailed() {
@@ -309,9 +304,19 @@ public class LiveExamModuleService {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
 
+	/** The category path and teacher and counts are filled on staff reads only; they are null everywhere else. */
 	public record ModuleView(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
 			String descriptionBn, String accessMode, String status, boolean finallySaved, int position,
-			BigDecimal price) {
+			BigDecimal price, List<CategoryRef> categoryPath, TeacherRef instructor, Integer mcqCount,
+			Integer writtenCount) {
+	}
+
+	/** One step of a module's category path, root first. */
+	public record CategoryRef(UUID id, String titleEn, String titleBn) {
+	}
+
+	/** The module's current teacher. Phone is shown to staff only. */
+	public record TeacherRef(UUID id, String name, String phone) {
 	}
 
 }

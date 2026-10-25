@@ -20,10 +20,14 @@ public class StudentLiveExamAccessController {
 
 	private final StudentLiveExamAccessService access;
 
+	private final LiveExamResultsService results;
+
 	private final PermissionChecker permissions;
 
-	public StudentLiveExamAccessController(StudentLiveExamAccessService access, PermissionChecker permissions) {
+	public StudentLiveExamAccessController(StudentLiveExamAccessService access, LiveExamResultsService results,
+			PermissionChecker permissions) {
 		this.access = access;
+		this.results = results;
 		this.permissions = permissions;
 	}
 
@@ -34,6 +38,16 @@ public class StudentLiveExamAccessController {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
 		return PageResponse.from(access.list(id, pageable));
+	}
+
+	/** Every sitting of one student, newest first, for the staff student page. */
+	@GetMapping("/api/v1/students/{id}/live-exam-results")
+	public PageResponse<LiveExamResultsService.HistoryRow> history(@PathVariable UUID id,
+			@PageableDefault(size = 20) Pageable pageable) {
+		if (!permissions.has(Permissions.STUDENT_READ)) {
+			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
+		}
+		return results.history(id, pageable);
 	}
 
 }

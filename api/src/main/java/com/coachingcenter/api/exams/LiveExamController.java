@@ -82,6 +82,13 @@ public class LiveExamController {
 		return exams.update(id, body);
 	}
 
+	/** A draft copy of this exam in the same module, with the title suffixed and no date or price. */
+	@PostMapping("/api/v1/live-exams/{id}/copy")
+	public ResponseEntity<LiveExamService.ExamView> copy(@PathVariable UUID id) {
+		require(Permissions.EXAM_MANAGE);
+		return ResponseEntity.status(HttpStatus.CREATED).body(exams.copy(id));
+	}
+
 	@PostMapping("/api/v1/live-exams/{id}/final-save")
 	public LiveExamService.ExamView finalSave(@PathVariable UUID id) {
 		require(Permissions.EXAM_MANAGE);

@@ -28,10 +28,14 @@ public class LiveExamModuleController {
 
 	private final LiveExamModuleService modules;
 
+	private final LiveExamStaffModuleService staff;
+
 	private final PermissionChecker permissions;
 
-	public LiveExamModuleController(LiveExamModuleService modules, PermissionChecker permissions) {
+	public LiveExamModuleController(LiveExamModuleService modules, LiveExamStaffModuleService staff,
+			PermissionChecker permissions) {
 		this.modules = modules;
+		this.staff = staff;
 		this.permissions = permissions;
 	}
 
@@ -61,15 +65,17 @@ public class LiveExamModuleController {
 		return modules.publish(id);
 	}
 
+	/** {@code status} and {@code q} apply to the staff read only; a student's list ignores them. */
 	@GetMapping("/api/v1/live-exam-modules")
 	public PageResponse<LiveExamModuleService.ModuleView> list(@RequestParam(required = false) UUID categoryId,
-			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String examType, @RequestParam(required = false) String status,
+			@RequestParam(required = false) String q, @PageableDefault(size = 20) Pageable pageable) {
 		String type = LiveExamTypeFilter.parse(examType);
 		if (permissions.has(Permissions.EXAM_READ)) {
-			return PageResponse.from(modules.list(categoryId, pageable, false, null));
+			return PageResponse.from(staff.list(categoryId, status, q, pageable));
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
-			return PageResponse.from(modules.listForInstructor(actorId(), pageable));
+			return PageResponse.from(staff.listForInstructor(actorId(), pageable));
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
 			return PageResponse.from(modules.list(categoryId, pageable, true, actorId(), type));
@@ -80,7 +86,10 @@ public class LiveExamModuleController {
 	@GetMapping("/api/v1/live-exam-modules/{id}")
 	public LiveExamModuleService.ModuleView get(@PathVariable UUID id) {
 		if (permissions.has(Permissions.EXAM_READ)) {
-			return modules.get(id);
+			return staff.get(id);
+		}
+		if (permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
+			return staff.getAssigned(id, actorId());
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
 			return modules.getPublished(id, actorId());

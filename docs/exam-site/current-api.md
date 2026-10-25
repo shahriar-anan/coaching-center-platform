@@ -127,4 +127,36 @@ Plan: [plans/ui-delivery/ws1-api.md](plans/ui-delivery/ws1-api.md). Flyway: none
 | `GET /api/v1/live-exams/{id}/leaderboard` rows gain `mine` | Student, staff | `true` only on the requesting student's own row. Always `false` for staff. No ids or phones are added. |
 | `GET /api/v1/live-exams/{id}/result` gains `kind` | Student | `"LIVE"` for the live sitting, `"RETAKE"` for the later attempt. |
 
+WS9 API stage (plan: [plans/ui-delivery/ws9-gaps-and-polish.md](plans/ui-delivery/ws9-gaps-and-polish.md)). Each row below is new or changed; nothing else moved.
+
+| Call | Who | Notes |
+|---|---|---|
+| `GET /api/v1/live-exams/{id}/question-pdf` | Master Admin, System Admin, assigned Instructor | Staff read of the written question PDF (G8). An unassigned instructor gets `404`. The student rule is unchanged: only during their own open sitting. |
+| `GET /api/v1/live-exam-participants/{id}` | Staff readers | Gains `comment`, `evaluatedFileName` (the stored marked PDF's original name), `moduleId`, `moduleTitleEn`, `moduleTitleBn`, `examTitleEn`, `examTitleBn`, `submittedAt`, `evaluatedAt`, `publishedAt` (G1, G2, R4). Same fields on the POST evaluation and publish responses and on each row of `GET /live-exam-modules/{moduleId}/submissions`. |
+| `GET /api/v1/live-exam-modules` | Master Admin, System Admin, Instructor | Staff reads accept `status` (`DRAFT`, `PUBLISHED`, `ARCHIVED`) and `q` (title in either language), and stay on server paging. Staff rows carry `categoryPath` (root first, `{id, titleEn, titleBn}`), `instructor` (`{id, name, phone}` or `null`), `mcqCount`, `writtenCount` (all non-deleted exams, any status) (G5, G10, G4). An instructor gets only assigned modules. Student rows have these four fields `null`. |
+| `GET /api/v1/live-exam-modules/{id}` | Master Admin, System Admin, Instructor | Same staff fields as the list (G4, G10). An instructor not assigned to the module gets `404`. |
+| `GET /api/v1/live-exam-submissions?moduleId=&examId=&status=&q=&sort=&page=&size=` | Master Admin, System Admin (all modules), Instructor (assigned modules only) | Written submissions across modules (G11). `status`: `AWAITING`, `DRAFT`, `PUBLISHED`, `FAILED_TO_SUBMIT`. `sort`: `submittedAt,desc` (default), `submittedAt,asc`, `studentName`. Rows: `participantId`, `examId`, `examTitleEn/Bn`, `moduleId`, `moduleTitleEn/Bn`, `categoryPath`, `studentName`, `status`, `kind`, `answerPdf`, `submittedAt`, `evaluatedAt`, `publishedAt`, `evaluatorName` (staff only). Open sittings are left out. A sitting is posted by the deadline job (about one minute after the deadline), so a sitting that just ended shows after that. |
+| `GET /api/v1/live-exams/{id}/results?kind=&status=&q=&sort=&page=&size=` | Master Admin, System Admin, assigned Instructor (written exams only) | Results report (G14). Body: `{ summary, rows }`, `rows` is the usual page. `summary`: `participants`, `submitted`, `failedToSubmit`, `averageScore`, `highestScore`, `lowestScore`, `passCount`, `passRate` (percent, one decimal), `practiceParticipants`. Live sittings only. A score counts once it is final: an MCQ submit, a written publish, or a no-submit zero. `kind`: `LIVE` or `RETAKE` (practice). `sort`: `submittedAt,desc` (default), `submittedAt,asc`, `score,desc`, `score,asc`, `studentName`. An unassigned instructor, or an MCQ exam read by an instructor, gets `404`. No phone numbers. |
+| `GET /api/v1/students/{id}/live-exam-results?page=&size=` | Master Admin, System Admin | A student's sittings, newest first (G15): `examTitleEn/Bn`, `moduleTitleEn/Bn`, `kind`, `status`, `score`, `maximum`, `passed`, `submittedAt`, `published` (written: a publish or a no-submit zero; MCQ: submitted). Unknown student `404`. |
+| `POST /api/v1/live-exams/{id}/publish-results` | Master Admin only | Publishes every draft of a written exam in one transaction (G16). Returns `{ "published": n }`. Each one writes a `LIVE_EXAM_RESULT_PUBLISH` audit row and a student notice, as the single publish does. The single publish now writes the same audit row. |
+| `POST /api/v1/live-exams/{id}/copy` | Master Admin, System Admin | Draft copy in the same module (G13), `201`. Titles get ` (copy)` / ` (কপি)`. Texts, settings, MCQ questions with options, or the question PDF as a new stored file are copied. No date, no price. |
+| `GET /api/v1/public/live-exam-modules?q=` | Public | Title search (either language) with the existing `categoryId` and `examType` filters (G12). Hidden categories stay out. |
+| `GET /api/v1/public/live-exams?upcoming=true&examType=&page=&size=` | Public | Published, dated exams in published modules that have not ended, soonest first (G12). `examType` is `MCQ` or `WRITTEN`. Rows: `id`, `examType`, `titleEn/Bn`, `moduleId`, `moduleTitleEn/Bn`, `liveAt`, `endAt`, `price`. `upcoming` must be `true`, otherwise `400 VALIDATION_FAILED`. |
+| `PATCH /api/v1/me` | Student | Body `{ "fullName" }`, trimmed, 1 to 100 characters (G7). Returns `MeView`. Staff and Master Admin names are not editable here: `403`. |
+| `POST /api/v1/live-exams/{id}/publish` | Master Admin, System Admin | A clash (`409 EXAM_WINDOW_CONFLICT`) now carries `details`: `{ id, titleEn, titleBn, liveAt, endAt }` of the exam it clashes with (G3). `details` is present only on this error. |
+
+**Upload limits (G6, checked against the code on 25 October 2026).** The web must use these numbers.
+
+| Upload | Server limit | Where it is set |
+|---|---|---|
+| Written question PDF | 100 MiB by default (`104857600` bytes) | `app.files.material-max-bytes`, env `MATERIAL_MAX_BYTES`. Shared with the material uploads. |
+| Written answer PDF (student) | 80 MiB (`83886080` bytes) | `LiveExamSittingService.MAX_PDF_BYTES`. |
+| Marked PDF (instructor) | 80 MiB | Same constant. |
+| Any multipart request | 100 MB | `spring.servlet.multipart.max-file-size` and `max-request-size`. |
+| Reverse proxy | `client_max_body_size 105m` (Nginx) | Server config. |
+
+A file over the storage limit gets `413 FILE_TOO_LARGE` with message `File is too large.`. A file over the multipart cap also gets `413 FILE_TOO_LARGE` (before, it fell through to `500`).
+
+**Error body.** `details` is an optional object. It is absent from every error except the clash above.
+
 Staging demo content: `SEED_DEMO=true` with the `staging` or `dev` profile loads the demo catalog. Details and cleanup in [api/.cursor/progress/ui-delivery/demo-seed.md](../../api/.cursor/progress/ui-delivery/demo-seed.md).

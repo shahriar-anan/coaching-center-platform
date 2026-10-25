@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -1973,6 +1974,364 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isNotFound());
 		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
+	}
+
+	@Test
+	void staffReadTheWrittenQuestionPaperOnlyWhereTheyMayMark() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Admin"));
+		UUID module = publishModule(master, "Paper read");
+		Instructor marker = instructor(master, "Marker");
+		Instructor stranger = instructor(master, "Stranger");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(master, module);
+
+		assertPaperReadable(master, exam);
+		assertPaperReadable(system, exam);
+		assertPaperReadable(marker.token(), exam);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(status().isNotFound());
+		Student outsider = seedStudent("Outsider");
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + outsider.token()))
+			.andExpect(status().is4xxClientError());
+	}
+
+	@Test
+	void theMarkingScreenAndTheModuleReadCarryTheSavedContext() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Marking context");
+		Instructor marker = instructor(master, "Context Instructor");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Context Student");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "7")
+			.param("comment", "Good effort")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant).header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.comment").value("Good effort"))
+			.andExpect(jsonPath("$.evaluatedFileName").isNotEmpty())
+			.andExpect(jsonPath("$.examTitleEn").value("Noon paper"))
+			.andExpect(jsonPath("$.examTitleBn").value("খাতা"))
+			.andExpect(jsonPath("$.moduleId").value(module.toString()))
+			.andExpect(jsonPath("$.moduleTitleEn").value("Marking context"))
+			.andExpect(jsonPath("$.maximum").value(10))
+			.andExpect(jsonPath("$.submittedAt").isNotEmpty())
+			.andExpect(jsonPath("$.evaluatedAt").isNotEmpty())
+			.andExpect(jsonPath("$.publishedAt").doesNotExist());
+
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.instructor.id").value(marker.id().toString()))
+			.andExpect(jsonPath("$.instructor.name").value("Context Instructor"))
+			.andExpect(jsonPath("$.instructor.phone").isNotEmpty())
+			.andExpect(jsonPath("$.categoryPath.length()").value(1))
+			.andExpect(jsonPath("$.categoryPath[0].titleEn").value("Marking context cat"))
+			.andExpect(jsonPath("$.writtenCount").value(1))
+			.andExpect(jsonPath("$.mcqCount").value(0));
+
+		mockMvc.perform(get("/api/v1/live-exam-modules").param("q", "MARKING context").param("status", "PUBLISHED")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content[?(@.id == '" + module + "')].writtenCount").value(org.hamcrest.Matchers.hasItem(1)));
+		mockMvc.perform(get("/api/v1/live-exam-modules").param("status", "OPEN").header("Authorization", "Bearer " + master))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		Instructor stranger = instructor(master, "Context Stranger");
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(status().isNotFound());
+
+		String phone = new JdbcTemplate(dataSource).queryForObject("select phone from users where id = ?", String.class,
+				marker.id());
+		String studentView = mockMvc.perform(get("/api/v1/live-exam-modules/" + module)
+			.header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(studentView).doesNotContain(phone).doesNotContain("Context Instructor");
+	}
+
+	@Test
+	void theSubmissionFeedAndTheResultsReportFollowTheInstructorsModules() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Feed");
+		UUID other = publishModule(staff, "Feed other");
+		Instructor marker = instructor(master, "Feed Instructor");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		UUID otherExam = writtenExam(staff, other);
+		Student alpha = seedStudent("Feed Alpha");
+		Student beta = seedStudent("Feed Beta");
+		mark(master, module, alpha.id());
+		mark(master, other, beta.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(alpha, exam);
+		upload(alpha, exam);
+		take(beta, otherExam);
+		upload(beta, otherExam);
+		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		deadlineJob.settleDue();
+
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("q", "feed").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].participantId").value(participant.toString()))
+			.andExpect(jsonPath("$.content[0].studentName").value("Feed Alpha"))
+			.andExpect(jsonPath("$.content[0].status").value("AWAITING"))
+			.andExpect(jsonPath("$.content[0].answerPdf").value(true))
+			.andExpect(jsonPath("$.content[0].moduleTitleEn").value("Feed"));
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("moduleId", module.toString())
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].studentName").value("Feed Alpha"));
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("moduleId", other.toString())
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].studentName").value("Feed Beta"));
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("moduleId", module.toString()).param("status", "PUBLISHED")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(jsonPath("$.totalElements").value(0));
+		Instructor stranger = instructor(master, "Feed Stranger");
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("q", "feed").header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(jsonPath("$.totalElements").value(0));
+		mockMvc.perform(get("/api/v1/live-exam-submissions").header("Authorization", "Bearer " + alpha.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("status", "NOPE").header("Authorization", "Bearer " + master))
+			.andExpect(status().isBadRequest());
+
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "7")
+			.param("comment", "Good")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exam-submissions").param("q", "feed alpha").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(jsonPath("$.content[0].status").value("DRAFT"));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/results").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.summary.participants").value(1))
+			.andExpect(jsonPath("$.summary.submitted").value(1))
+			.andExpect(jsonPath("$.summary.passCount").value(0))
+			.andExpect(jsonPath("$.rows.totalElements").value(1));
+
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.published").value(1));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.published").value(0));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/results").header("Authorization", "Bearer " + master))
+			.andExpect(jsonPath("$.summary.averageScore").value(7.0))
+			.andExpect(jsonPath("$.summary.highestScore").value(7))
+			.andExpect(jsonPath("$.summary.passCount").value(1))
+			.andExpect(jsonPath("$.summary.passRate").value(100.0));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/results").param("status", "FAILED_TO_SUBMIT")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(jsonPath("$.rows.totalElements").value(0));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/results").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/results").header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/live-exams/" + otherExam + "/results").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isNotFound());
+
+		mockMvc.perform(get("/api/v1/students/" + alpha.id() + "/live-exam-results").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].examTitleEn").value("Noon paper"))
+			.andExpect(jsonPath("$.content[0].score").value(7))
+			.andExpect(jsonPath("$.content[0].published").value(true));
+		mockMvc.perform(get("/api/v1/students/" + alpha.id() + "/live-exam-results").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/students/" + UUID.randomUUID() + "/live-exam-results").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void aCopyKeepsTheContentAndLeavesTheDateAndPriceEmpty() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Copy source");
+		Paper paper = mcq(staff, module);
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/copy").header("Authorization", "Bearer " + master))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.titleEn").value("Noon quiz (copy)"))
+			.andExpect(jsonPath("$.titleBn").value("কুইজ (কপি)"))
+			.andExpect(jsonPath("$.status").value("DRAFT"))
+			.andExpect(jsonPath("$.liveAt").doesNotExist())
+			.andExpect(jsonPath("$.price").doesNotExist())
+			.andExpect(jsonPath("$.questions.length()").value(1))
+			.andExpect(jsonPath("$.questions[0].stem").value("Ten"));
+		Instructor marker = instructor(master, "Copy Instructor");
+		assign(master, module, marker.id());
+		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/copy").header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void theStudentSearchAndTheUpcomingListReadOnlyPublishedExams() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Upcoming search");
+		Paper paper = mcq(staff, module);
+		String matches = mockMvc.perform(get("/api/v1/public/live-exam-modules").param("q", "UPCOMING search").param("size", "500"))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(matches).contains(module.toString());
+		assertThat(upcomingIds("MCQ")).contains(paper.examId());
+		assertThat(upcomingIds("WRITTEN")).doesNotContain(paper.examId());
+		mockMvc.perform(get("/api/v1/public/live-exams"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+	}
+
+	@Test
+	void aCopyFitsTheTitleColumnOrIsRefused() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Copy length");
+		UUID exact = publishedMcq(staff, module, "e".repeat(492), "ক".repeat(494), 40,
+				"2026-10-20T12:00:00+06:00");
+		mockMvc.perform(post("/api/v1/live-exams/" + exact + "/copy").header("Authorization", "Bearer " + master))
+			.andExpect(status().isCreated());
+		UUID over = publishedMcq(staff, module, "f".repeat(494), "ক".repeat(494), 40, "2026-10-20T14:00:00+06:00");
+		mockMvc.perform(post("/api/v1/live-exams/" + over + "/copy").header("Authorization", "Bearer " + master))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+	}
+
+	@Test
+	void aRunningExamWithALongDurationStaysOnTheUpcomingList() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Long window");
+		UUID exam = publishedMcq(staff, module, "Three day paper", "তিন দিন", 4320, "2026-10-20T12:00:00+06:00");
+		clock.set(Instant.parse("2026-10-22T12:00:00Z"));
+		assertThat(upcomingIds("MCQ")).contains(exam);
+	}
+
+	private UUID publishedMcq(String staff, UUID module, String titleEn, String titleBn, int minutes, String liveAt)
+			throws Exception {
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams")
+			.header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"examType":"MCQ","paperLanguage":"BN","titleEn":"%s","titleBn":"%s","descriptionEn":"d",
+					 "descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম","liveAt":"%s",
+					 "durationMinutes":%d,"passPercent":50}
+					""".formatted(titleEn, titleBn, liveAt, minutes)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"stem":"Ten","marks":10,"explanation":"Because","options":[{"text":"Yes","correct":true},{"text":"No","correct":false}]}
+					"""))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		return exam;
+	}
+
+	/** Every upcoming exam id of one type, across all pages (the server caps the page size). */
+	private java.util.Set<UUID> upcomingIds(String examType) throws Exception {
+		java.util.Set<UUID> ids = new java.util.HashSet<>();
+		int pages = 1;
+		for (int page = 0; page < pages; page++) {
+			JsonNode body = json.readTree(mockMvc.perform(get("/api/v1/public/live-exams").param("upcoming", "true")
+				.param("examType", examType).param("page", String.valueOf(page)))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString());
+			pages = body.get("totalPages").asInt();
+			for (JsonNode row : body.get("content")) {
+				ids.add(UUID.fromString(row.get("id").asText()));
+			}
+		}
+		return ids;
+	}
+
+	@Test
+	void aClashingPublishNamesTheExamItClashesWith() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Clash");
+		UUID first = writtenExam(staff, module);
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams")
+			.header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{
+					  "examType":"WRITTEN","paperLanguage":"BN","titleEn":"Clash paper","titleBn":"সংঘাত",
+					  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+					  "liveAt":"2026-10-20T12:10:00+06:00","durationMinutes":40,"passPercent":50,"maximum":10
+					}
+					"""))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID second = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		mockMvc.perform(multipart("/api/v1/live-exams/" + second + "/question-pdf").file(new MockMultipartFile("file",
+			"paper.pdf", "application/pdf", tinyPdf())).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + second + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + second + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
+			.andExpect(jsonPath("$.details.id").value(first.toString()))
+			.andExpect(jsonPath("$.details.titleEn").value("Noon paper"))
+			.andExpect(jsonPath("$.details.liveAt").isNotEmpty());
+	}
+
+	@Test
+	void aStudentRenamesOwnAccountAndStaffCannot() throws Exception {
+		Student student = seedStudent("Old Name");
+		mockMvc.perform(patch("/api/v1/me").header("Authorization", "Bearer " + student.token())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"fullName\":\"  New Name  \"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.fullName").value("New Name"));
+		mockMvc.perform(patch("/api/v1/me").header("Authorization", "Bearer " + student.token())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"fullName\":\"   \"}"))
+			.andExpect(status().isBadRequest());
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		mockMvc.perform(patch("/api/v1/me").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"fullName\":\"Renamed\"}"))
+			.andExpect(status().isForbidden());
+	}
+
+	private void assertPaperReadable(String token, UUID exam) throws Exception {
+		MvcResult read = mockMvc
+			.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk())
+			.andReturn();
+		assertThat(read.getResponse().getContentAsByteArray())
+			.startsWith("%PDF".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+		assertThat(read.getResponse().getHeader("Cache-Control")).isEqualTo("no-store");
 	}
 
 	@TestConfiguration
