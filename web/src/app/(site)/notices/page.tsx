@@ -48,13 +48,13 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice
           {title || kindWord(notice.kind, t)}
           {unread ? <span className="sr-only"> ({t("notices.unreadDot")})</span> : null}
         </span>
-        <span className="text-sm text-muted">
+        <span className="text-meta text-muted">
           {kindWord(notice.kind, t)}
           {notice.score !== null && notice.maximum !== null
             ? ` · ${t("notices.score", { score: formatNumber(notice.score, locale), max: formatNumber(notice.maximum, locale) })}`
             : ""}
         </span>
-        <span className="flex flex-wrap items-center gap-2 text-sm text-muted">
+        <span className="flex flex-wrap items-center gap-2 text-meta text-muted">
           <time dateTime={notice.createdAt}>{formatDateTime(notice.createdAt, locale)}</time>
           {notice.passed === null ? null : (
             <Pill tone={notice.passed ? "ok" : "muted"}>

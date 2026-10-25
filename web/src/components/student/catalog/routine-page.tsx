@@ -24,7 +24,7 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
   return (
     <li className="grid gap-2 rounded-card border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-muted">
+        <p className="text-body font-semibold text-muted">
           {formatTime(row.liveAt, locale)} – {formatTime(row.endAt, locale)}
         </p>
         {live ? (
@@ -33,10 +33,10 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
           <ExamStatusPill status={row.myStatus} examType={row.examType} retakeAvailable={row.retakeAvailable} />
         ) : null}
       </div>
-      <Link href={examPath(row.id)} className="text-[17px] font-bold text-text">
+      <Link href={examPath(row.id)} className="text-card font-bold text-text">
         {pickTitle(row, locale)}
       </Link>
-      <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
+      <p className="flex flex-wrap items-center gap-2 text-body text-muted">
         <span>{pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn }, locale)}</span>
         <TypePill type={row.examType} />
       </p>
@@ -100,7 +100,7 @@ export function RoutinePage() {
       ) : null}
       {days.map((day) => (
         <section key={day.key} aria-label={day.key} className="mb-6">
-          <h2 className="mb-2 text-[17px] font-bold">
+          <h2 className="mb-2 text-card font-bold">
             {day.relative === "today"
               ? t("catalog.routine.today")
               : day.relative === "tomorrow"
@@ -114,7 +114,7 @@ export function RoutinePage() {
           </ul>
         </section>
       ))}
-      {!empty ? <p className="text-sm text-muted">{t("catalog.routine.footer")}</p> : null}
+      {!empty ? <p className="text-body text-muted">{t("catalog.routine.footer")}</p> : null}
     </>
   );
 }

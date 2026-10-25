@@ -129,9 +129,9 @@ export function ResultsHub() {
             return (
               <li key={exam.id}>
                 <Card href={`/exam/${exam.id}/result`}>
-                  <p className="text-sm text-muted">{moduleTitle.get(exam.moduleId) ?? ""}</p>
+                  <p className="text-body text-muted">{moduleTitle.get(exam.moduleId) ?? ""}</p>
                   <p className="font-semibold text-text">{pickTitle(exam, locale)}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-body text-muted">
                     <span>{exam.examType === "MCQ" ? t("result.hub.mcq") : t("result.hub.written")}</span>
                     <span aria-hidden="true">·</span>
                     <span>{exam.liveAt ? formatDate(exam.liveAt, locale) : t("result.hub.undated")}</span>

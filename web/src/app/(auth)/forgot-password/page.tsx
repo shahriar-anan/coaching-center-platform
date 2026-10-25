@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
         <PageHeader title={t("auth.forgot.title")} />
         <Card padding="lg" className="grid gap-5">
           <FormNotice>{t("auth.forgot.sent")}</FormNotice>
-          <p className="text-[15px] text-muted">{t("auth.forgot.sentBody")}</p>
+          <p className="text-body text-muted">{t("auth.forgot.sentBody")}</p>
           <Button href="/reset-password">{t("auth.forgot.next")}</Button>
           <Link href="/login" className="text-center font-semibold text-text-accent underline underline-offset-4">
             {t("auth.forgot.back")}

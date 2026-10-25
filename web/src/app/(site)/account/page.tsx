@@ -32,8 +32,8 @@ export default function AccountPage() {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <span className="text-sm text-muted">{label}</span>
-      <div className="flex min-w-0 flex-wrap items-center gap-2 text-[15px] text-text">{children}</div>
+      <span className="text-meta text-muted">{label}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-body text-text">{children}</div>
     </div>
   );
 }
@@ -96,7 +96,7 @@ function AccountView() {
         <Row label={t("account.profile.name")}>
           <span className="font-semibold">{user.fullName}</span>
         </Row>
-        <p className="pb-2 text-sm text-muted">{t("account.profile.nameNote")}</p>
+        <p className="pb-2 text-body text-muted">{t("account.profile.nameNote")}</p>
 
         <Row label={t("account.profile.email")}>
           <span className="break-all">{user.email}</span>

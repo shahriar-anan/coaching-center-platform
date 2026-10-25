@@ -304,20 +304,20 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-3 shadow-sm">
         <div className="min-w-0">
           <p className="truncate font-semibold text-text">{exam.titleBn ?? exam.titleEn}</p>
-          <p className={`text-sm ${barTone}`}>
+          <p className={`text-body ${barTone}`}>
             {timeLabel}: <span className="tabular-nums">{formatClock(remainingMs, locale)}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           <SaveBadge state={saveState} t={t} onRetry={retrySave} />
-          <span className="text-sm text-muted tabular-nums">
+          <span className="text-meta text-muted tabular-nums">
             {t("sitting.bar.answered", { answered: n(answeredCount), total: n(questions.length) })}
           </span>
           <button
             type="button"
             aria-expanded={gridOpen}
             onClick={() => setGridOpen((value) => !value)}
-            className="min-h-11 rounded-control border border-border px-3 text-sm text-text focus-visible:outline-2 focus-visible:outline-accent"
+            className="min-h-11 rounded-control border border-border px-3 text-meta text-text focus-visible:outline-2 focus-visible:outline-accent"
           >
             {t("sitting.bar.questions")}
           </button>
@@ -348,7 +348,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
                   type="button"
                   onClick={() => jumpTo(index + 1)}
                   aria-label={`${t("sitting.grid.goTo", { number: n(index + 1) })}${answered ? `, ${t("sitting.grid.answered")}` : ""}${isFlagged ? `, ${t("sitting.grid.flagged")}` : ""}`}
-                  className={`min-h-11 rounded-control text-sm tabular-nums focus-visible:outline-2 focus-visible:outline-accent ${
+                  className={`min-h-11 rounded-control text-meta tabular-nums focus-visible:outline-2 focus-visible:outline-accent ${
                     answered ? "bg-accent text-on-accent" : "border border-border text-text"
                   } ${isFlagged ? "ring-2 ring-warn" : ""}`}
                 >
@@ -361,13 +361,13 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
       ) : null}
 
       {kind === "RETAKE" ? (
-        <p role="note" className="rounded-card border border-warn bg-card p-3 text-sm text-text">
+        <p role="note" className="rounded-card border border-warn bg-card p-3 text-body text-text">
           {t("sitting.paper.practice")}
         </p>
       ) : null}
 
       {closed && !deadlinePassed ? (
-        <p role="alert" className="rounded-card border border-danger bg-card p-3 text-sm text-text">
+        <p role="alert" className="rounded-card border border-danger bg-card p-3 text-body text-text">
           {t("sitting.paper.locked")}
         </p>
       ) : null}
@@ -393,14 +393,14 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
               onFlag={flag}
             />
           ))}
-          <p className="text-center text-sm text-muted">{t("sitting.paper.end")}</p>
+          <p className="text-center text-body text-muted">{t("sitting.paper.end")}</p>
         </div>
       )}
 
       {/* Submit: the primary action, fixed to the bottom on phones. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-[760px] items-center justify-between gap-3">
-          <p className="text-sm text-muted">
+          <p className="text-body text-muted">
             {result ? t("sitting.score.canChange") : t("sitting.submit.counts", { answered: n(answeredCount), unanswered: n(Math.max(0, unanswered)) })}
           </p>
           <button
@@ -445,18 +445,18 @@ function SaveBadge({
       <button
         type="button"
         onClick={onRetry}
-        className="min-h-11 rounded-control px-2 text-sm font-semibold text-warn underline focus-visible:outline-2 focus-visible:outline-accent"
+        className="min-h-11 rounded-control px-2 text-meta font-semibold text-warn underline focus-visible:outline-2 focus-visible:outline-accent"
       >
         {t("sitting.bar.saveFailed")} · {t("sitting.bar.retry")}
       </button>
     );
   }
   if (state === "offline") {
-    return <span className="text-sm text-warn">{t("sitting.offline")}</span>;
+    return <span className="text-meta text-warn">{t("sitting.offline")}</span>;
   }
   const label =
     state === "saving" ? t("sitting.bar.saving") : state === "saved" ? t("sitting.bar.saved") : "";
-  return label ? <span className="text-sm text-muted" aria-live="polite">{label}</span> : null;
+  return label ? <span className="text-meta text-muted" aria-live="polite">{label}</span> : null;
 }
 
 function ScoreCard({
@@ -470,14 +470,14 @@ function ScoreCard({
 }) {
   return (
     <section aria-labelledby="score-title" className="rounded-card border border-border bg-card p-4">
-      <h2 id="score-title" className="text-sm font-semibold text-muted">
+      <h2 id="score-title" className="text-label font-semibold text-muted">
         {t("sitting.score.title")}
       </h2>
       <p className="mt-1 text-2xl font-semibold text-accent tabular-nums">
         {t("sitting.score.value", { score: n(result.score ?? 0), maximum: n(result.maximum) })}
         {result.passed !== null ? ` · ${result.passed ? t("sitting.score.passed") : t("sitting.score.failed")}` : ""}
       </p>
-      <p className="mt-2 text-sm text-muted">{t("sitting.score.canChange")}</p>
+      <p className="mt-2 text-body text-muted">{t("sitting.score.canChange")}</p>
     </section>
   );
 }
@@ -522,10 +522,10 @@ function SubmitDialog({
         <p className="mt-2 text-text">
           {t("sitting.submit.counts", { answered: n(answered), unanswered: n(unanswered) })}
         </p>
-        {flaggedNumbers ? <p className="mt-2 text-sm text-muted">{t("sitting.submit.flagged", { numbers: flaggedNumbers })}</p> : null}
-        <p className="mt-2 text-sm text-muted">{t("sitting.submit.note")}</p>
+        {flaggedNumbers ? <p className="mt-2 text-body text-muted">{t("sitting.submit.flagged", { numbers: flaggedNumbers })}</p> : null}
+        <p className="mt-2 text-body text-muted">{t("sitting.submit.note")}</p>
         {failed ? (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <p role="alert" className="mt-3 text-body text-danger">
             {t("sitting.submit.failed")}
           </p>
         ) : null}

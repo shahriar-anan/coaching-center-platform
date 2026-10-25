@@ -38,7 +38,7 @@ export default function HelpPage() {
   return (
     <>
       <PageHeader title={t("legal.help.title")} breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("legal.help.title") }]} />
-      <p role="note" className="mb-4 rounded-control bg-warn/10 px-4 py-3 text-sm text-warn">
+      <p role="note" className="mb-4 rounded-control bg-warn/10 px-4 py-3 text-body text-warn">
         {t("legal.banner")}
       </p>
 
@@ -67,7 +67,7 @@ export default function HelpPage() {
                         ›
                       </span>
                     </summary>
-                    <p className="pb-2 pt-1 text-[15px] leading-relaxed text-muted">{item.a}</p>
+                    <p className="pb-2 pt-1 text-body leading-relaxed text-muted">{item.a}</p>
                   </details>
                 ))}
               </Card>
@@ -78,7 +78,7 @@ export default function HelpPage() {
 
       <Card padding="lg" className="mt-10 grid gap-2">
         <h2 className="text-lg font-bold text-text">{t("legal.help.contactTitle")}</h2>
-        <p className="text-[15px] text-muted">{t("legal.help.contactBody")}</p>
+        <p className="text-body text-muted">{t("legal.help.contactBody")}</p>
         <Link href="/contact" prefetch className="font-semibold text-text-accent underline underline-offset-4">
           {t("legal.help.contactLink")}
         </Link>

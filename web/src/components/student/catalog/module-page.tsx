@@ -67,7 +67,7 @@ function StripChip({
       <span aria-hidden className="block text-2xl">
         {icon}
       </span>
-      <span className="block text-[15px] font-bold">{label}</span>
+      <span className="block text-label font-bold">{label}</span>
       <span className="mt-1 block text-xs text-muted">{children}</span>
     </button>
   );
@@ -79,7 +79,7 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
   const percent = Math.round((done / total) * 100);
   return (
     <div className="mt-2">
-      <p className="text-sm text-muted">
+      <p className="text-body text-muted">
         {t("catalog.progress", { done: formatNumber(done, locale), total: formatNumber(total, locale) })}
       </p>
       <div
@@ -219,7 +219,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
         ) : (
           <>
             <p className="text-lg font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
-            <p className="text-sm text-muted">{t("catalog.buyModuleCovers")}</p>
+            <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
             {!signedIn ? (
               <Button fullWidth className="mt-2" href={loginHref}>
                 {t("catalog.buyModule")}
@@ -242,12 +242,12 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </section>
 
       <section id="module-routine" className="mb-3.5 rounded-card border border-border bg-card p-4">
-        <h2 className="mb-2.5 text-[17px] font-bold">📅 {t("catalog.routineTitle")}</h2>
+        <h2 className="mb-2.5 text-card font-bold">📅 {t("catalog.routineTitle")}</h2>
         {list.length === 0 ? (
           <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse text-sm">
+            <table className="w-full min-w-[420px] border-collapse text-body">
               <thead>
                 <tr className="text-left text-muted">
                   <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">{t("catalog.colExam")}</th>
@@ -276,7 +276,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </section>
 
       <section id="module-exams" className="mb-3.5 rounded-card border border-border bg-card p-4">
-        <h2 className="mb-2.5 text-[17px] font-bold">📚 {t("catalog.examListTitle")}</h2>
+        <h2 className="mb-2.5 text-card font-bold">📚 {t("catalog.examListTitle")}</h2>
         {list.length === 0 ? (
           <EmptyState
             title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
@@ -293,10 +293,10 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                     className="flex items-center justify-between gap-3 rounded-card border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-accent"
                   >
                     <span className="min-w-0">
-                      <span className="block text-[17px] font-bold">
+                      <span className="block text-card font-bold">
                         {type === "MCQ" ? "📝" : "📖"} {pickTitle(exam, locale)}
                       </span>
-                      {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
+                      {subtitle ? <span className="block text-meta text-muted">{subtitle}</span> : null}
                     </span>
                     <span className="shrink-0 text-right">
                       {exam.mine?.myStatus ? (
@@ -306,7 +306,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                           retakeAvailable={exam.mine.retakeAvailable}
                         />
                       ) : exam.price !== null && exam.price !== undefined ? (
-                        <span className="block text-sm">
+                        <span className="block text-meta">
                           <span className="block font-bold">{formatMoney(exam.price, locale)}</span>
                           <span className="text-accent">{t("catalog.buy")} ›</span>
                         </span>

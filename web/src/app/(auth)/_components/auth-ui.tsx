@@ -9,7 +9,7 @@ export function FormError({ children }: { children: ReactNode }) {
   return (
     <div
       role="alert"
-      className="rounded-control border border-danger/40 bg-danger/5 px-4 py-3 text-[15px] text-text"
+      className="rounded-control border border-danger/40 bg-danger/5 px-4 py-3 text-body text-text"
     >
       {children}
     </div>
@@ -20,7 +20,7 @@ export function FormNotice({ children, className }: { children: ReactNode; class
   return (
     <div
       role="status"
-      className={cn("rounded-control border border-ok/40 bg-ok/5 px-4 py-3 text-[15px] text-text", className)}
+      className={cn("rounded-control border border-ok/40 bg-ok/5 px-4 py-3 text-body text-text", className)}
     >
       {children}
     </div>

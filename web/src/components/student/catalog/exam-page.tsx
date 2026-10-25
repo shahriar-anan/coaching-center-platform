@@ -36,7 +36,7 @@ import { ExamStatusPill, TypePill } from "./status-pill";
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-card border border-border bg-card p-4">
-      <h2 className="mb-2 text-[17px] font-bold">{title}</h2>
+      <h2 className="mb-2 text-card font-bold">{title}</h2>
       {children}
     </section>
   );
@@ -140,7 +140,7 @@ export function ExamPage({ examId }: { examId: string }) {
       primary = (
         <div className="grid gap-2">
           <Button fullWidth disabled>{t("catalog.exam.startExam")}</Button>
-          {startsAt ? <p className="text-center text-sm text-muted">{t("catalog.exam.startsAt", { when: formatDateTime(startsAt, locale) })}</p> : null}
+          {startsAt ? <p className="text-center text-body text-muted">{t("catalog.exam.startsAt", { when: formatDateTime(startsAt, locale) })}</p> : null}
         </div>
       );
     } else if (status === "OPEN") {
@@ -175,7 +175,7 @@ export function ExamPage({ examId }: { examId: string }) {
         ) : null}
         {owned && beforeStart && startsAt ? (
           <Card>
-            <p className="text-sm text-muted">{t("catalog.exam.startsIn")}</p>
+            <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>
             <p className="text-lg font-bold"><Countdown deadline={startsAt} /></p>
           </Card>
         ) : null}

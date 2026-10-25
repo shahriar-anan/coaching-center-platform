@@ -164,22 +164,22 @@ export function PurchaseSheet({
         </div>
         <p>{t(item.kind === "exam" ? "purchase.unlockExam" : "purchase.unlockModule")}</p>
         {item.kind === "exam" && moduleOffer && onSwitchToModule ? (
-          <p className="text-sm text-muted">
+          <p className="text-body text-muted">
             {t("purchase.compare", { price: formatMoney(moduleOffer.price, locale) ?? "" })}{" "}
             <button type="button" className="font-semibold text-accent underline" onClick={onSwitchToModule}>
               {t("purchase.switchToModule")}
             </button>
           </p>
         ) : null}
-        <p className="text-sm text-muted">🔒 {t("purchase.trust")}</p>
-        <p className="text-sm text-muted">
+        <p className="text-body text-muted">🔒 {t("purchase.trust")}</p>
+        <p className="text-body text-muted">
           {t("purchase.leaving")}{" "}
           <Link href="/refund" className="text-accent underline" onClick={() => close(false)}>
             {t("purchase.refundLink")}
           </Link>
         </p>
         {problem ? (
-          <div role="alert" className="rounded-control border border-border p-3 text-sm">
+          <div role="alert" className="rounded-control border border-border p-3 text-meta">
             <p className={problem.kind === "cancelled" || problem.kind === "owned" ? "" : "text-danger"}>
               {t(problemKey[problem.kind])}
             </p>

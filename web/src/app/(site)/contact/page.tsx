@@ -13,26 +13,26 @@ export default function ContactPage() {
         title={t("legal.contact.title")}
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("legal.contact.title") }]}
       />
-      <p role="note" className="mb-4 rounded-control bg-warn/10 px-4 py-3 text-sm text-warn">
+      <p role="note" className="mb-4 rounded-control bg-warn/10 px-4 py-3 text-body text-warn">
         {t("legal.banner")}
       </p>
       <Card padding="lg" className="grid gap-5">
-        <p className="text-[16px] leading-relaxed">{t("legal.contact.body")}</p>
-        <dl className="grid gap-4 text-[16px]">
+        <p className="text-body leading-relaxed">{t("legal.contact.body")}</p>
+        <dl className="grid gap-4 text-body">
           <div className="grid gap-0.5">
-            <dt className="text-sm text-muted">{t("legal.contact.phoneLabel")}</dt>
+            <dt className="text-meta text-muted">{t("legal.contact.phoneLabel")}</dt>
             <dd className="font-semibold tabular-nums">{t("legal.contact.phoneValue")}</dd>
           </div>
           <div className="grid gap-0.5">
-            <dt className="text-sm text-muted">{t("legal.contact.emailLabel")}</dt>
+            <dt className="text-meta text-muted">{t("legal.contact.emailLabel")}</dt>
             <dd className="break-all font-semibold">{t("legal.contact.emailValue")}</dd>
           </div>
           <div className="grid gap-0.5">
-            <dt className="text-sm text-muted">{t("legal.contact.addressLabel")}</dt>
+            <dt className="text-meta text-muted">{t("legal.contact.addressLabel")}</dt>
             <dd className="font-semibold">{t("legal.contact.addressValue")}</dd>
           </div>
         </dl>
-        <p className="text-sm text-muted">{t("legal.contact.hours")}</p>
+        <p className="text-body text-muted">{t("legal.contact.hours")}</p>
       </Card>
     </>
   );

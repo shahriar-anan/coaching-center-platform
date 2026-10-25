@@ -81,7 +81,7 @@ export default function ActivatePage() {
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.activate.breadcrumb") }]}
       />
       <Card padding="lg" className="grid gap-5">
-        <p className="text-[15px] text-muted">{t("auth.activate.intro")}</p>
+        <p className="text-body text-muted">{t("auth.activate.intro")}</p>
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
           <Field label={t("auth.activate.phone")} error={errors.phone} required>
             <TextInput

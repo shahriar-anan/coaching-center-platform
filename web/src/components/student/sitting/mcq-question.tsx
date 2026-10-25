@@ -58,13 +58,13 @@ export const McqQuestion = memo(function McqQuestion({
       className="scroll-mt-40 rounded-card border border-border bg-card p-4"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-muted">{questionLabel}</h3>
+        <h3 className="text-label font-semibold text-muted">{questionLabel}</h3>
         {editable ? (
           <button
             type="button"
             aria-pressed={flagged}
             onClick={() => onFlag(question.id)}
-            className="min-h-11 rounded-control px-3 text-sm text-text underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            className="min-h-11 rounded-control px-3 text-meta text-text underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {flagged ? `✓ ${labels.flag}` : labels.flag}
           </button>
@@ -95,21 +95,21 @@ export const McqQuestion = memo(function McqQuestion({
               >
                 <span
                   aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-sm"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-meta"
                 >
                   {letters[position] ?? ""}
                 </span>
                 <span className="flex-1">{option.text}</span>
-                {picked && !reviewing ? <span className="text-sm font-semibold">{labels.selected}</span> : null}
-                {isCorrect ? <span className="text-sm font-semibold text-ok">{labels.correct}</span> : null}
-                {isWrongChoice ? <span className="text-sm font-semibold text-warn">{labels.yourAnswer}</span> : null}
+                {picked && !reviewing ? <span className="text-meta font-semibold">{labels.selected}</span> : null}
+                {isCorrect ? <span className="text-meta font-semibold text-ok">{labels.correct}</span> : null}
+                {isWrongChoice ? <span className="text-meta font-semibold text-warn">{labels.yourAnswer}</span> : null}
               </button>
             </li>
           );
         })}
       </ul>
       {reviewing && question.explanation ? (
-        <p className="mt-3 rounded-control bg-bg p-3 text-sm text-muted">
+        <p className="mt-3 rounded-control bg-bg p-3 text-body text-muted">
           <span className="font-semibold text-text">{labels.explanation}: </span>
           {question.explanation}
         </p>

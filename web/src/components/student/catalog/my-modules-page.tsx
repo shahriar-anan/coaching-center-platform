@@ -76,13 +76,13 @@ export function MyModulesPage() {
             return (
               <li key={module.id}>
                 <Card padding="lg">
-                  <p className="text-[17px] font-bold">📚 {pickTitle(module, locale)}</p>
+                  <p className="text-card font-bold">📚 {pickTitle(module, locale)}</p>
                   <ProgressBar done={done} total={mine.length} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="secondary" href={modulePath("mcq", module.id)}>{t("catalog.myModules.openMcq")}</Button>
                     <Button variant="secondary" href={modulePath("written", module.id)}>{t("catalog.myModules.openWritten")}</Button>
                   </div>
-                  <div className="mt-3 grid gap-1 text-sm">
+                  <div className="mt-3 grid gap-1 text-meta">
                     <p className="font-semibold text-muted">{t("catalog.myModules.next")}</p>
                     {nextRows.length === 0 ? (
                       <p className="text-muted">{t("catalog.myModules.noneNext")}</p>

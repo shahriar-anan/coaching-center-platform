@@ -61,7 +61,7 @@ function TranCell({ value }: { value: string | null }) {
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <code className="font-latin text-[13px] tabular-nums break-all">{value}</code>
+      <code className="font-latin text-meta tabular-nums break-all">{value}</code>
       <IconButton
         label={t("common.actions.copy")}
         className="size-9"
@@ -95,7 +95,7 @@ function PaymentsView() {
       cell: (row) => (
         <span className="grid gap-0.5">
           <span className="font-semibold">{productTitle(row, locale)}</span>
-          <span className="text-sm text-muted">
+          <span className="text-meta text-muted">
             {row.scope === "MODULE" ? t("account.payments.kindModule") : t("account.payments.kindExam")}
             {row.paymentChannel ? ` · ${t("account.payments.method")}: ${row.paymentChannel}` : ""}
           </span>
@@ -119,7 +119,7 @@ function PaymentsView() {
       key: "date",
       header: t("account.payments.column.date"),
       mobileLabel: t("account.payments.column.date"),
-      cell: (row) => <span className="text-sm">{formatDateTime(row.createdAt, locale)}</span>,
+      cell: (row) => <span className="text-meta">{formatDateTime(row.createdAt, locale)}</span>,
     },
     {
       key: "tran",

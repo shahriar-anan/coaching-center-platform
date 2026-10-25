@@ -50,7 +50,7 @@ export function StartConfirm({
     >
       <div className="grid gap-3">
         <p className="font-semibold">{exam.title}</p>
-        <ul className="grid list-disc gap-1.5 pl-5 text-sm">
+        <ul className="grid list-disc gap-1.5 pl-5 text-body">
           <li>{t("catalog.start.duration", { duration: formatDuration(exam.durationMinutes, locale) })}</li>
           <li>{t("catalog.start.clock")}</li>
           <li>{t("catalog.start.endsAt", { when: formatDateTime(ends, locale) })}</li>
@@ -60,7 +60,7 @@ export function StartConfirm({
           <li>{t("catalog.start.connection")}</li>
         </ul>
         {exam.rules ? (
-          <div className="rounded-control bg-bg p-3 text-sm">
+          <div className="rounded-control bg-bg p-3 text-meta">
             <p className="mb-1 font-semibold">{t("catalog.exam.rules")}</p>
             <p className="whitespace-pre-line text-muted">{exam.rules}</p>
           </div>

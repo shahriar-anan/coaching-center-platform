@@ -139,13 +139,13 @@ export function ResultPage({ examId }: { examId: string }) {
         <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
       ) : null}
 
-      {notSubmitted ? <p className="text-sm text-muted">{t("result.written.notSubmitted")}</p> : null}
+      {notSubmitted ? <p className="text-body text-muted">{t("result.written.notSubmitted")}</p> : null}
 
-      {awaiting && !notSubmitted ? <p className="text-sm text-muted">{t("result.written.awaiting")}</p> : null}
+      {awaiting && !notSubmitted ? <p className="text-body text-muted">{t("result.written.awaiting")}</p> : null}
 
       {published && data.comment ? (
         <Card>
-          <h2 className="text-sm font-semibold text-muted">{t("result.written.comment")}</h2>
+          <h2 className="text-label font-semibold text-muted">{t("result.written.comment")}</h2>
           <p className="mt-2 whitespace-pre-line text-text">{data.comment}</p>
         </Card>
       ) : null}
@@ -192,7 +192,7 @@ export function ResultPage({ examId }: { examId: string }) {
         </section>
       ) : null}
 
-      {!written && !data.questions ? <p className="text-sm text-muted">{t("result.review.afterDeadline")}</p> : null}
+      {!written && !data.questions ? <p className="text-body text-muted">{t("result.review.afterDeadline")}</p> : null}
 
       <Link href={`/exam/${examId}/leaderboard`} className="text-accent underline underline-offset-4">
         {t("result.page.leaderboard")}

@@ -155,7 +155,7 @@ export default function RegisterPage() {
             {t("auth.register.submit")}
           </Button>
         </form>
-        <p className="text-center text-[15px] text-muted">
+        <p className="text-center text-body text-muted">
           {t("auth.register.haveAccount")}{" "}
           <Link href="/login" className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.submit")}

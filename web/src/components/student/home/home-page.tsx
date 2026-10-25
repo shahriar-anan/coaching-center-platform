@@ -46,7 +46,7 @@ function WelcomeCard({ name }: { name: string }) {
   return (
     <section aria-label={t("home.welcomeTitle", { name })} className="mb-4 grid gap-2 rounded-card border border-ok bg-card p-4">
       <p className="font-bold">{t("home.welcomeTitle", { name })}</p>
-      <p className="text-sm text-muted">{t("home.welcomeBody")}</p>
+      <p className="text-body text-muted">{t("home.welcomeBody")}</p>
       <div>
         <Button variant="ghost" className="px-0" onClick={() => setShow(false)}>
           {t("home.dismiss")}
@@ -82,16 +82,16 @@ function Doors() {
         className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
       >
         <span aria-hidden className="block text-4xl">✅</span>
-        <span className="mt-1 block text-[22px] font-bold">{t("home.doorMcqTitle")}</span>
-        <span className="block text-sm text-muted">{t("home.doorMcqSub")}</span>
+        <span className="mt-1 block text-title font-bold">{t("home.doorMcqTitle")}</span>
+        <span className="block text-meta text-muted">{t("home.doorMcqSub")}</span>
       </Link>
       <Link
         href="/written"
         className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
       >
         <span aria-hidden className="block text-4xl">✍️</span>
-        <span className="mt-1 block text-[22px] font-bold">{t("home.doorWrittenTitle")}</span>
-        <span className="block text-sm text-muted">{t("home.doorWrittenSub")}</span>
+        <span className="mt-1 block text-title font-bold">{t("home.doorWrittenTitle")}</span>
+        <span className="block text-meta text-muted">{t("home.doorWrittenSub")}</span>
       </Link>
     </div>
   );
@@ -115,14 +115,14 @@ function SignedOutHome() {
     <>
       <Hero />
       <Doors />
-      <ul className="mt-5 grid gap-2 text-sm text-muted">
+      <ul className="mt-5 grid gap-2 text-body text-muted">
         <li>• {t("home.valueLive")}</li>
         <li>• {t("home.valueScore")}</li>
         <li>• {t("home.valueMarked")}</li>
       </ul>
       <div className="mt-6 grid gap-2">
         <Button fullWidth href="/register">{t("home.signUp")}</Button>
-        <p className="text-center text-sm text-muted">
+        <p className="text-center text-body text-muted">
           {t("home.haveAccount")} <Link className="font-semibold text-accent underline" href="/login">{t("home.login")}</Link>
         </p>
       </div>
@@ -153,9 +153,9 @@ function Nudges({ phoneRequired, emailVerified, live }: {
     <section aria-label={t("home.nudgeLabel")} className="mb-4 grid gap-2">
       {visible.map((item) => (
         <div key={item.key} className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-warn bg-card p-3">
-          <p className="text-sm">{item.body}</p>
+          <p className="text-body">{item.body}</p>
           <div className="flex items-center gap-2">
-            <Link href={item.href} className="text-sm font-bold text-accent underline">{item.action}</Link>
+            <Link href={item.href} className="text-label font-bold text-accent underline">{item.action}</Link>
             <button
               type="button"
               aria-label={t("home.dismiss")}
@@ -179,11 +179,11 @@ function RoutineLine({ row }: { row: RoutineRow }) {
   const { locale } = useLocale();
   return (
     <Card href={examPath(row.id)}>
-      <p className="text-sm text-muted">
+      <p className="text-body text-muted">
         {formatDate(row.liveAt, locale, { year: "auto" })} · {formatTime(row.liveAt, locale)} – {formatTime(row.endAt, locale)}
       </p>
       <p className="font-bold">{pickTitle(row, locale)}</p>
-      <p className="mt-1 flex flex-wrap gap-2 text-sm">
+      <p className="mt-1 flex flex-wrap gap-2 text-body">
         <TypePill type={row.examType} />
         {row.myStatus ? <ExamStatusPill status={row.myStatus} examType={row.examType} retakeAvailable={row.retakeAvailable} /> : null}
       </p>
@@ -207,7 +207,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
     return (
       <>
         <SignedOutHome />
-        <p className="mt-4 text-center text-sm text-muted">{t("home.staffNote")}</p>
+        <p className="mt-4 text-center text-body text-muted">{t("home.staffNote")}</p>
         <div className="mt-3 text-center">
           <Button variant="secondary" href={staffHref("/staff")}>{t("home.staffPanel")}</Button>
         </div>
@@ -227,7 +227,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
   return (
     <>
       <div className="pb-4 pt-2">
-        <p className="text-sm text-muted">{name}</p>
+        <p className="text-body text-muted">{name}</p>
       </div>
       <WelcomeCard name={name} />
       <Nudges phoneRequired={phoneRequired} emailVerified={emailVerified} live={liveRow} />
@@ -235,7 +235,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
       <Doors />
 
       <section className="mt-6" aria-labelledby="next-exam">
-        <h2 id="next-exam" className="mb-2 text-[17px] font-bold">{t("home.nextExam")}</h2>
+        <h2 id="next-exam" className="mb-2 text-card font-bold">{t("home.nextExam")}</h2>
         {routine.isPending ? (
           <Skeleton variant="card" />
         ) : routine.isError && !routine.data ? (
@@ -246,28 +246,28 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
           <Card href={examPath(next.id)}>
             <Pill tone="warn" pulse>{t("home.liveNow")}</Pill>
             <p className="mt-1 font-bold">{pickTitle(next, locale)}</p>
-            <p className="mt-1 text-sm font-semibold text-accent">{t("home.sitNow")} ›</p>
+            <p className="mt-1 text-body font-semibold text-accent">{t("home.sitNow")} ›</p>
           </Card>
         ) : (
           <Card>
-            <p className="text-sm text-muted">{t("home.startsIn", { title: pickTitle(next, locale) })}</p>
+            <p className="text-body text-muted">{t("home.startsIn", { title: pickTitle(next, locale) })}</p>
             <p className="text-lg font-bold"><Countdown deadline={next.liveAt} /></p>
-            <p className="text-sm text-muted">{formatDate(next.liveAt, locale, { year: "auto" })} · {formatTime(next.liveAt, locale)}</p>
+            <p className="text-body text-muted">{formatDate(next.liveAt, locale, { year: "auto" })} · {formatTime(next.liveAt, locale)}</p>
           </Card>
         )}
       </section>
 
       {nowRows.length > 0 ? (
         <section className="mt-6" aria-labelledby="now-section">
-          <h2 id="now-section" className="mb-2 text-[17px] font-bold">{t("home.nowSection")}</h2>
+          <h2 id="now-section" className="mb-2 text-card font-bold">{t("home.nowSection")}</h2>
           <div className="grid gap-2.5">{nowRows.map((row) => <RoutineLine key={row.id} row={row} />)}</div>
         </section>
       ) : null}
 
       <section className="mt-6" aria-labelledby="upcoming-section">
         <div className="mb-2 flex items-center justify-between">
-          <h2 id="upcoming-section" className="text-[17px] font-bold">{t("home.upcomingSection")}</h2>
-          <Link href="/routine" className="text-sm font-semibold text-accent">{t("home.seeAll")}</Link>
+          <h2 id="upcoming-section" className="text-card font-bold">{t("home.upcomingSection")}</h2>
+          <Link href="/routine" className="text-label font-semibold text-accent">{t("home.seeAll")}</Link>
         </div>
         {soon.length === 0 ? (
           <p className="text-muted">{t("home.noUpcoming")}</p>
@@ -278,8 +278,8 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
 
       <section className="mt-6" aria-labelledby="my-modules">
         <div className="mb-2 flex items-center justify-between">
-          <h2 id="my-modules" className="text-[17px] font-bold">{t("home.myModules")}</h2>
-          <Link href="/my-modules" className="text-sm font-semibold text-accent">{t("home.seeAll")}</Link>
+          <h2 id="my-modules" className="text-card font-bold">{t("home.myModules")}</h2>
+          <Link href="/my-modules" className="text-label font-semibold text-accent">{t("home.seeAll")}</Link>
         </div>
         {modules.isPending ? (
           <Skeleton variant="card" count={2} />

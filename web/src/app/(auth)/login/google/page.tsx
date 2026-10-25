@@ -76,7 +76,7 @@ function GoogleReturn() {
           </>
         ) : (
           <div aria-busy="true" className="grid gap-3">
-            <p className="text-[15px] text-muted">{t("auth.google.working")}</p>
+            <p className="text-body text-muted">{t("auth.google.working")}</p>
             <Skeleton variant="text" count={2} />
           </div>
         )}
