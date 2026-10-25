@@ -23,17 +23,23 @@ const DISMISS_KEY = "exam-portal.home.dismissed";
 const WELCOME_KEY = "exam-portal.welcome";
 
 /** One-time welcome after registration. Storage is only a per-browser convenience. */
+/** Reads the flag once on mount; the card is client-only, so no server markup differs. */
+function readWelcome(): boolean {
+  try {
+    return window.localStorage.getItem(WELCOME_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function WelcomeCard({ name }: { name: string }) {
   const { t } = useLocale();
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(readWelcome);
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(WELCOME_KEY) === "1") {
-        window.localStorage.removeItem(WELCOME_KEY);
-        setShow(true);
-      }
+      window.localStorage.removeItem(WELCOME_KEY);
     } catch {
-      /* storage blocked: no welcome card */
+      /* storage blocked: the flag was never set */
     }
   }, []);
   if (!show) return null;
