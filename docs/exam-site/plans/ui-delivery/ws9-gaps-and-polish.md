@@ -234,9 +234,67 @@ The full journey an admin must be able to complete in the UI, in order. **Every 
 - Every new list has loading, empty, error and success states; every count comes from the server; every time is Asia/Dhaka with Bengali digits in Bangla; every new string is written by the copy guide (খাতা, মূল্যায়ন, খসড়া, প্রকাশিত, সরাসরি ভর্তি, শিক্ষক, চূড়ান্ত করুন).
 - Every new screen works at 375 px and 1440 px, in both languages and themes, and by keyboard.
 
+## Part 6 — Core functions by role (third review, against the client brief and the decisions)
+
+Method: every requirement in [../../client-brief.md](../../client-brief.md) sections 4–6 and every rule in [../../decisions.md](../../decisions.md) was checked against the merged UI, and every exam-site API endpoint was checked for a caller in `web/src`. **Endpoint coverage is complete** (every endpoint the UI needs is called). The gaps are missing features and workflows, listed here as C-items.
+
+### Core matrix
+
+| Role | Core function (source) | UI today | Gap |
+|---|---|---|---|
+| Student | Register and log in with email or phone, no OTP (brief 4.1) | done | — |
+| Student | Google sign-in (brief 4.1) | button disabled until configured (U10 decision) | config only; `NEXT_PUBLIC_GOOGLE_ENABLED` turns it on |
+| Student | Bangla / English switch (4.1) | done | — |
+| Student | Home with MCQ and Written entry; type → category → subcategory → module (4.2) | done | U10, U11 improve it |
+| Student | Module page with description, routine, rules, full exam list with status; no questions before purchase (4.2) | done | — |
+| Student | Buy one exam or the whole module; module covers past and future exams (4.3) | done (student side) | **R2: no exam price in staff UI, so single-exam sale cannot be configured** |
+| Student | Dashboard: purchases, live now, reminders, result notices (4.4) | done | — |
+| Student | Take exam only in the window, server-enforced; paper styled formally; PDF inline, watermark, no download (4.5) | done | — |
+| Student | Written: PDF only, resubmit until the deadline, no retake (4.6) | done | — |
+| Student | MCQ: automatic marking; one practice attempt per decisions (4.6, decisions) | done | — |
+| Student | Past exams in a bought module (4.7) | MCQ practice attempt done; past written paper not viewable after the window | **decision needed (D-W1)**, see below |
+| Student | Results after publication, per-exam leaderboard with names, history (4.8) | done (results hub, leaderboard, own row) | — |
+| Instructor | Credentials created by the admin (5) | done | — |
+| Instructor | Only assigned exams and their submissions (5) | done | U1–U2 make it usable |
+| Instructor | Open the answer PDF, mark it on a device, upload the marked PDF, enter marks, save as draft, cannot publish (5) | done | U3, G1 (saved comment), G8 (question paper) |
+| Admin | Manage categories, subcategories, modules, exams (6) | done | U4–U6 make the journey clear |
+| Admin | MCQ correct answers at creation; exam language; text or PDF content (6) | done | — |
+| Admin | Create instructors and assign them (6) | done | G4 |
+| Admin | Review and publish results (6) | done one paper at a time | **C3: publish many at once** |
+| Admin | **Analytics: who is taking exams, how many, participation and results (6)** | participation counts only; no per-exam results list, no averages or pass rate | **C1: exam results report** (no API exists) |
+| Admin | Payment permissions: System Admin cannot change prices or financial records (6) | done (server and UI) | R2 adds the Master Admin exam price |
+| Admin (support) | Answer "what did this student sit and score?" | student page shows access only | **C2: student exam history** (no API exists) |
+
+**Decision D-W1 for Shahriar (not built):** the brief assumes a past written paper stays viewable to a buyer after its window; the decisions say the question PDF is shown only during the student's own sitting. Today the decisions apply. If Shahriar wants past written papers viewable after the window (without a new submission), that is one API rule change in the question-PDF read plus a "প্রশ্নপত্র দেখুন" button on the exam page for ended written exams.
+
+### New core items
+
+| # | Item | API | UI | Priority |
+|---|---|---|---|---|
+| C1 | **Exam results report** for staff. | G14: `GET /api/v1/live-exams/{id}/results?kind=&status=&q=&sort=&page=&size=` for Master Admin and System Admin (all exams) and the assigned Instructor (written exams in their modules). Rows: student name, student code, status, score, maximum, passed, kind (live or practice), started, submitted, published (written). A `summary` object: participants, submitted, failed to submit, average score, highest, lowest, pass count and pass rate (live sittings only; practice attempts counted separately). Never phone numbers for the Instructor. Tests per role. | New route `/staff/exams/[examId]/results` (owned by the staff-ops stage): summary strip on top, then the table with filters and sort; linked from the module exam table, the participation rows and the exam editor. Numbers only, no charts (admin-prompt rule). | P0 |
+| C2 | **Student exam history** on the staff student page. | G15: `GET /api/v1/students/{id}/live-exam-results?page=&size=` for Master Admin and System Admin: each sitting with exam and module titles, kind, status, score, passed, submitted time, published flag. | A "পরীক্ষার ইতিহাস" section under the access list on `/staff/students/[id]`, newest first, each row linking to the exam results report. | P0 |
+| C3 | **Publish many written results at once** (Master Admin). | G16: `POST /api/v1/live-exams/{id}/publish-results` publishing every draft of that exam in one transaction, returning the count; audit row per participant (same as single publish), student notices as today. Tests: only drafts are published, Instructor and System Admin refused, notices written. | On the submissions browser and the results report: "সব খসড়া প্রকাশ করুন (১২টি)" with a confirm dialog naming the exam and the count; also row checkboxes for "নির্বাচিতগুলো প্রকাশ করুন" (calls the single publish per row with progress). | P0 |
+
+## Part 7 — User-friendly features (beyond the core)
+
+These come from how students, teachers and coaching-centre admins actually use exam and LMS platforms. Each is small and built from shared components.
+
+| # | Role | Feature | Priority |
+|---|---|---|---|
+| UF1 | Student | **Payment receipt page**: from payment history, "রসিদ দেখুন" opens a printable receipt (site name, student, item, amount, method, transaction number, date and time, status) with print styles; data from `GET /me/live-exam-orders`, no new API. | P1 |
+| UF2 | Student | **Result detail polish**: on the MCQ review, a filter "সব / ভুল / সঠিক / উত্তর দেননি" and a jump grid colored by outcome; on the results hub, a small per-exam pass line ("পাস নম্বর ৪০%"). | P1 |
+| UF3 | Student | **Empty-state guidance everywhere a new student lands**: home, my modules, results, notices, routine each link to the doors with one sentence on what to do next. | P0 |
+| UF4 | Instructor | **Comment snippets**: save frequently used comments on the device and insert them with one click on the marking form. | P2 |
+| UF5 | Instructor | **Today's work line** on the dashboard: "আজ ১২টি খাতা মূল্যায়ন করেছেন" (from G11 rows with `evaluatedAt` today and the instructor as evaluator). | P2 |
+| UF6 | Admin | **Exam agenda** on the staff home: the next 14 days of dated exams across all modules grouped by day, each with its module, time, status and participant count, so clashes and gaps are visible (participation list sorted by date). | P1 |
+| UF7 | Admin | **Publish confirmation summary**: before publishing an exam, a dialog that restates what students will get ("সিআরপিসি · এমসিকিউ · ১২টি প্রশ্ন · মোট ৫০ নম্বর · ১২ নভেম্বর দুপুর ১২:০০ – ১২:৪০ · মূল্য ৳৪০০"). | P0 |
+| UF8 | Admin | **Edit in context**: from any list (module exams, results report, participation), a row menu with the next likely action (edit, results, leaderboard, publish, copy), consistent everywhere. | P1 |
+| UF9 | All staff | **Remember list preferences** (page size, last filter) per device, on top of the URL state. | P2 |
+| UF10 | All | **Session-safe forms**: long staff forms keep an unsent draft in `localStorage` (per record) and offer "সেভ না করা পরিবর্তন ফিরিয়ে আনুন" after an accidental reload. | P2 |
+
 ## Order of work (whole file)
 
-1. **Blockers:** G8 (staff question PDF) and U5's price section with G9 (exam price).
+1. **Blockers:** G8 (staff question PDF) and U5's price section with G9 (exam price). When several agents run, follow [ws9-stages.md](ws9-stages.md) instead of this list.
 2. Part 3 P1 type scale and P6 clean-up.
 3. G1, G2, G3, G4, G7, G10, G11.
 4. U1, U2, U3 (instructor), then U4, U5, U6, U9 (exam creation journey).
