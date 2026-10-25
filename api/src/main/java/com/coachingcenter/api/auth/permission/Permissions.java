@@ -20,6 +20,9 @@ public final class Permissions {
 
 	public static final String AUDIT_READ = "AUDIT_READ";
 
+	/** The Master Admin's configuration status page: names and yes or no only. */
+	public static final String SYSTEM_STATUS_READ = "SYSTEM_STATUS_READ";
+
 	public static final String COURSE_READ = "COURSE_READ";
 
 	public static final String COURSE_MANAGE = "COURSE_MANAGE";
