@@ -13,7 +13,9 @@ public class AuditRecorder {
 
 	public static final String USER_DELETED = "USER_DELETED";
 
-	public static final String USER_STATUS_CHANGED = "USER_STATUS_CHANGED";
+	public static final String USER_SUSPENDED = "USER_SUSPENDED";
+
+	public static final String USER_RESTORED = "USER_RESTORED";
 
 	public static final String ACTIVATION_CODE_ISSUED = "ACTIVATION_CODE_ISSUED";
 

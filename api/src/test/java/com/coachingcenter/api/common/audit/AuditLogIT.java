@@ -327,7 +327,13 @@ class AuditLogIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"status\":\"INACTIVE\"}"))
 			.andExpect(status().isNoContent());
-		assertAudit(jdbc, AuditRecorder.USER_STATUS_CHANGED, masterId, studentId);
+		assertAudit(jdbc, AuditRecorder.USER_SUSPENDED, masterId, studentId);
+
+		mockMvc.perform(patch("/api/v1/students/" + studentId + "/status").header("Authorization", "Bearer " + access)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"status\":\"ACTIVE\"}"))
+			.andExpect(status().isNoContent());
+		assertAudit(jdbc, AuditRecorder.USER_RESTORED, masterId, studentId);
 
 		mockMvc.perform(delete("/api/v1/students/" + studentId).header("Authorization", "Bearer " + access))
 			.andExpect(status().isNoContent());
