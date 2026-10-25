@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -25,7 +26,18 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 
 	Page<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(UUID moduleId, String status, Pageable pageable);
 
+	Page<LiveExam> findByModuleIdAndStatusAndExamTypeAndDeletedAtIsNull(UUID moduleId, String status, String examType,
+			Pageable pageable);
+
 	List<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(UUID moduleId, String status);
+
+	/** Rows of module id, exam type and the number of published exams of that type. */
+	@Query("""
+			SELECT e.moduleId, e.examType, count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId IN :moduleIds
+			GROUP BY e.moduleId, e.examType
+			""")
+	List<Object[]> countPublishedByModuleAndType(@Param("moduleIds") Collection<UUID> moduleIds);
 
 	@Query("""
 			SELECT e FROM LiveExam e
@@ -53,9 +65,11 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	List<LiveExam> findVisibleRoutineCandidates(@Param("studentId") UUID studentId,
 			@Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds);
 
+	/** {@code examType} is {@link LiveExamTypeFilter#ANY} for every type. */
 	@Query(value = """
 			SELECT e FROM LiveExam e
 			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId = :moduleId
+			  AND (:examType = '' OR e.examType = :examType)
 			  AND (
 			    EXISTS (
 			      SELECT r FROM LiveExamRoster r
@@ -73,6 +87,7 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""", countQuery = """
 			SELECT count(e) FROM LiveExam e
 			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId = :moduleId
+			  AND (:examType = '' OR e.examType = :examType)
 			  AND (
 			    EXISTS (
 			      SELECT r FROM LiveExamRoster r
@@ -89,7 +104,7 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			  )
 			""")
 	Page<LiveExam> findAccessibleToStudent(@Param("moduleId") UUID moduleId, @Param("studentId") UUID studentId,
-			Pageable pageable);
+			@Param("examType") String examType, Pageable pageable);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select e from LiveExam e where e.id = :id and e.deletedAt is null")

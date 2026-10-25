@@ -22,14 +22,14 @@ public class LiveExamPublicController {
 	}
 
 	@GetMapping("/api/v1/public/live-exam-categories")
-	public List<LiveExamPublicService.PublicCategory> categories() {
-		return catalog.categories();
+	public List<LiveExamPublicService.PublicCategory> categories(@RequestParam(required = false) String examType) {
+		return catalog.categories(LiveExamTypeFilter.parse(examType));
 	}
 
 	@GetMapping("/api/v1/public/live-exam-modules")
 	public PageResponse<LiveExamPublicService.PublicModule> modules(@RequestParam(required = false) UUID categoryId,
-			@PageableDefault(size = 20) Pageable pageable) {
-		return PageResponse.from(catalog.modules(categoryId, pageable));
+			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
+		return PageResponse.from(catalog.modules(categoryId, LiveExamTypeFilter.parse(examType), pageable));
 	}
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}")
@@ -39,8 +39,8 @@ public class LiveExamPublicController {
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}/exams")
 	public PageResponse<LiveExamPublicService.PublicExam> exams(@PathVariable UUID id,
-			@PageableDefault(size = 20) Pageable pageable) {
-		return PageResponse.from(catalog.exams(id, pageable));
+			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
+		return PageResponse.from(catalog.exams(id, LiveExamTypeFilter.parse(examType), pageable));
 	}
 
 	@GetMapping("/api/v1/public/live-exams/{id}")

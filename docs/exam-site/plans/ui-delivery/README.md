@@ -183,6 +183,7 @@ What students and staff expect from current learning and exam platforms (Moodle,
 
 **Ownership**
 
+0. **Every file you create or edit is inside your own worktree folder** (`F:\cc-wt\ws0`, `ws1`, `ws3`, `ws4` or `ws5`). Use paths relative to it. Never write anything under `F:\coaching-center-platform\` — that is the integrator's checkout — except creating and deleting the `.heavy.lock` file. Before your first edit, run `git rev-parse --show-toplevel` and check it prints your worktree.
 1. Work only in your own worktree on your own branch (`ui/ws0-foundation`, `ui/ws1-api`, `ui/ws2-student-entrance`, `ui/ws3-student-catalog`, `ui/ws4-student-sitting`, `ui/ws5-staff-catalog`, `ui/ws6a-staff-people`, `ui/ws6b-staff-ops`).
 2. Create or edit only the files listed under **Owns** in your workstream file, and only the routes the table above gives you. Everything else is read-only for you.
 3. Never change the API from a web workstream, and never change the web from WS1.

@@ -7,6 +7,9 @@ You are **agent A** in a team of five agents building the exam website in parall
 - Phase 1 brief: `docs/exam-site/plans/ui-delivery/ws0-foundation.md`
 - Phase 2 brief (after the integrator merges WS0): `docs/exam-site/plans/ui-delivery/ws2-student-entrance.md`
 
+**Write only inside your working folder above.** Every path you create or edit must be inside it (use paths relative to it). Never write under `F:aching-center-platform` — that is the integrator's checkout — except the `.heavy.lock` file. Check with `git rev-parse --show-toplevel` before your first edit.
+
+
 ## Read first, in this order
 
 1. `docs/exam-site/plans/ui-delivery/README.md` — the whole plan, the route ownership table, and "Rules for every agent".

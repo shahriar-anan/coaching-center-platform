@@ -40,6 +40,8 @@ public class LiveExamOrderController {
 
 	private final LiveExamOrderAdminService adminOrders;
 
+	private final LiveExamOrderHistoryService history;
+
 	private final PermissionChecker permissions;
 
 	private final ObjectMapper json;
@@ -47,9 +49,11 @@ public class LiveExamOrderController {
 	private final AppProperties properties;
 
 	public LiveExamOrderController(LiveExamOrderService orders, LiveExamOrderAdminService adminOrders,
-			PermissionChecker permissions, ObjectMapper json, AppProperties properties) {
+			LiveExamOrderHistoryService history, PermissionChecker permissions, ObjectMapper json,
+			AppProperties properties) {
 		this.orders = orders;
 		this.adminOrders = adminOrders;
+		this.history = history;
 		this.permissions = permissions;
 		this.json = json;
 		this.properties = properties;
@@ -70,6 +74,12 @@ public class LiveExamOrderController {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
 		return PageResponse.from(adminOrders.list(status, tranId, q, pageable));
+	}
+
+	@GetMapping("/api/v1/me/live-exam-orders")
+	public PageResponse<LiveExamOrderHistoryService.OwnOrderRow> mine(@PageableDefault(size = 20) Pageable pageable) {
+		requireStudent();
+		return PageResponse.from(history.list(actorId(), pageable));
 	}
 
 	@GetMapping("/api/v1/live-exam-orders/status")

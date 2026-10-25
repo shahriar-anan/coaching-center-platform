@@ -833,6 +833,58 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void anOpenSittingReturnsTheSavedSelectionWithoutTheCorrectOption() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		save(student, holder.examId(), holder.questions().subList(0, 2));
+
+		String during = mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
+			.andExpect(jsonPath("$.questions[0].options[1].selected").value(false))
+			.andExpect(jsonPath("$.questions[1].options[0].selected").value(true))
+			.andExpect(jsonPath("$.questions[2].options[0].selected").value(false))
+			.andExpect(jsonPath("$.questions[2].options[1].selected").value(false))
+			.andExpect(jsonPath("$.questions[0].explanation").doesNotExist())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(during).doesNotContain("\"correct\"", "Because");
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
+			.andExpect(jsonPath("$.questions[1].options[0].selected").value(true))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+
+		UUID laterId = seed("STUDENT");
+		String later = token(laterId);
+		mark(master, holder.moduleId(), laterId);
+		clock.set(Instant.parse("2026-10-20T06:41:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + later))
+			.andExpect(status().isOk());
+		save(later, holder.examId(), holder.questions().subList(2, 3));
+		String retake = mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + later))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(false))
+			.andExpect(jsonPath("$.questions[2].options[0].selected").value(true))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(retake).doesNotContain("\"correct\"", "Because");
+	}
+
+	@Test
 	void aBlankMcqFailsWhenThePassPercentIsZero() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
