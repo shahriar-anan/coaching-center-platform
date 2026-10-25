@@ -22,9 +22,9 @@ const notices = {
   score: "{score}/{max}",
   passed: "Passed",
   failed: "Not passed",
+  openExam: "Open exam page",
   readMore: "Read more",
   readLess: "Show less",
-  openExam: "Open exam page",
   markedRead: "Notice marked as read.",
 } satisfies MessageTree;
 
