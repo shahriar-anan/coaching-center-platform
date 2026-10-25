@@ -183,6 +183,10 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
 
   const price = data.price;
   const loginHref = `/login?next=${encodeURIComponent(modulePath(door, moduleId))}`;
+  const countLine = type === "MCQ" ? t("catalog.countMcq", { n: formatNumber(list.length, locale) }) : t("catalog.countWritten", { n: formatNumber(list.length, locale) });
+  const summaryLine = nextDated?.liveAt
+    ? `${countLine} · ${t("catalog.summaryNext", { date: formatDate(nextDated.liveAt, locale, { year: "auto" }) })}`
+    : countLine;
 
   return (
     <>
@@ -190,7 +194,13 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
         <TypePill type={type} />
       </div>
-      {description ? <p className="mb-4 whitespace-pre-line text-muted">{description}</p> : null}
+      {description ? <p className="whitespace-pre-line text-body text-muted">{description}</p> : null}
+      {list.length > 0 ? (
+        <section aria-labelledby="module-summary" className="mb-4 mt-3 rounded-card border border-border bg-card p-4">
+          <h2 id="module-summary" className="mb-1 text-label font-bold">{t("catalog.summaryTitle")}</h2>
+          <p className="text-body">{summaryLine}</p>
+        </section>
+      ) : null}
 
       <div className={`mb-4 grid gap-2.5 ${showOwnStrip ? (door === "written" ? "grid-cols-3" : "grid-cols-2") : "grid-cols-1"}`}>
         <StripChip icon="📅" label={t("catalog.stripRoutine")} target="module-routine" accent="accent">

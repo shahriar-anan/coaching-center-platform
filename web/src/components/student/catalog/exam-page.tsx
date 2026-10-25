@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -62,8 +63,18 @@ export function ExamPage({ examId }: { examId: string }) {
   const [moduleBuying, setModuleBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
 
+  const { toast } = useToast();
   const exam = usePublicExam(examId);
   const mine = useMyExam(examId, isStudent);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({ title: t("catalog.exam.linkCopied"), tone: "ok" });
+    } catch {
+      toast({ title: t("catalog.exam.linkCopyFailed"), tone: "danger" });
+    }
+  }
   const data = exam.data;
   const moduleId = data?.moduleId ?? "";
   const moduleQuery = usePublicModule(moduleId);
@@ -173,6 +184,9 @@ export function ExamPage({ examId }: { examId: string }) {
             {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
           </Button>
         ) : null}
+        <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
+          {t("catalog.exam.copyLink")}
+        </Button>
         {owned && beforeStart && startsAt ? (
           <Card>
             <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>

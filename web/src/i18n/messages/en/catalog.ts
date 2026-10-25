@@ -61,7 +61,12 @@ const catalog: typeof bn = {
     MISSED: "Time over",
     MISSED_RETAKE: "Time over · practice available",
   },
+  summaryTitle: "What you get",
+  summaryNext: "Next exam {date}",
   exam: {
+    copyLink: "Copy link",
+    linkCopied: "Link copied",
+    linkCopyFailed: "Could not copy the link. Copy the address yourself.",
     description: "About this exam",
     rules: "Rules",
     paperLanguage: "Paper language",
