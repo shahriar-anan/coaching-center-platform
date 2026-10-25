@@ -50,6 +50,8 @@ export const McqQuestion = memo(function McqQuestion({
   onFlag,
 }: Props) {
   const stemFace = paperLanguage === "BN" ? "font-bn" : "font-latin";
+  /** The paper's text size, set by the wrapper (see paper-text-size.tsx). */
+  const paperFont = { fontSize: "var(--paper-font, 16px)" };
 
   return (
     <article
@@ -70,7 +72,7 @@ export const McqQuestion = memo(function McqQuestion({
           </button>
         ) : null}
       </div>
-      <p className={`mt-2 text-base leading-relaxed text-text ${stemFace}`}>{question.stem}</p>
+      <p className={`mt-2 leading-relaxed text-text ${stemFace}`} style={paperFont}>{question.stem}</p>
       <ul className="mt-3 flex flex-col gap-2" role="radiogroup" aria-label={questionLabel}>
         {question.options.map((option, position) => {
           const picked = option.id === selectedOptionId;
@@ -99,7 +101,7 @@ export const McqQuestion = memo(function McqQuestion({
                 >
                   {letters[position] ?? ""}
                 </span>
-                <span className="flex-1">{option.text}</span>
+                <span className="flex-1" style={paperFont}>{option.text}</span>
                 {picked && !reviewing ? <span className="text-meta font-semibold">{labels.selected}</span> : null}
                 {isCorrect ? <span className="text-meta font-semibold text-ok">{labels.correct}</span> : null}
                 {isWrongChoice ? <span className="text-meta font-semibold text-warn">{labels.yourAnswer}</span> : null}

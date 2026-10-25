@@ -12,6 +12,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { formatClock, formatNumber } from "@/lib/format";
 import { useServerNow } from "@/lib/time/clock";
 import { McqQuestion, type OptionLabels, type PaperLanguage } from "./mcq-question";
+import { PaperTextSizeControl, usePaperTextSize } from "./paper-text-size";
 import {
   backupKey as makeBackupKey,
   clearBackup,
@@ -86,6 +87,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
   const [announcement, setAnnouncement] = useState("");
   const [gridOpen, setGridOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const textSize = usePaperTextSize();
   const [result, setResult] = useState<PostedResult | null>(null);
   const [submitError, setSubmitError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -376,6 +378,8 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
         <p className="text-center text-muted">{t("sitting.paper.empty")}</p>
       ) : (
         <div className="flex flex-col gap-3">
+          <PaperTextSizeControl size={textSize} className="justify-end" />
+          <div className="flex flex-col gap-3" style={textSize.style}>
           {questions.map((question, index) => (
             <McqQuestion
               key={question.id}
@@ -394,6 +398,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
             />
           ))}
           <p className="text-center text-body text-muted">{t("sitting.paper.end")}</p>
+          </div>
         </div>
       )}
 

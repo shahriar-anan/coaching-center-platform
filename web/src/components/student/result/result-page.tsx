@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Stat, StatRow } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
 import { McqQuestion, type OptionLabels } from "@/components/student/sitting/mcq-question";
+import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -52,6 +53,7 @@ export function ResultPage({ examId }: { examId: string }) {
   const mine = board.data?.rows.find((row) => row.mine) ?? null;
   const [showScript, setShowScript] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  const textSize = usePaperTextSize();
 
   const header = (
     <PageHeader
@@ -199,7 +201,7 @@ export function ResultPage({ examId }: { examId: string }) {
       ) : null}
 
       {!written && data.questions ? (
-        <section aria-labelledby="review-title" className="flex flex-col gap-3">
+        <section aria-labelledby="review-title" className="flex flex-col gap-3" style={textSize.style}>
           <h2 id="review-title" className="text-section font-semibold text-text">
             {t("result.review.title")}
           </h2>
@@ -214,6 +216,7 @@ export function ResultPage({ examId }: { examId: string }) {
             onChange={(value) => setReviewFilter(value as ReviewFilter)}
             ariaLabel={t("result.review.title")}
           />
+          <PaperTextSizeControl size={textSize} className="justify-end" />
           <nav aria-label={t("result.review.jumpLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] gap-2">
             {visibleItems.map((item) => (
               <a

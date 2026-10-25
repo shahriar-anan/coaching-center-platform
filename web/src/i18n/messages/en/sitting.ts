@@ -23,6 +23,11 @@ const sitting = {
     textSmaller: "Smaller text",
     textLarger: "Larger text",
   },
+  textSize: {
+    label: "Text size",
+    smaller: "Make text smaller",
+    larger: "Make text larger",
+  },
   paper: {
     question: "Question {number}",
     marks: "{marks} marks",
