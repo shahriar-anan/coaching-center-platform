@@ -31,14 +31,16 @@ Notices for admins and instructors are not in `decisions.md`, which defines stud
 
 ## 3. Server
 
-| # | Goal |
-|---|---|
-| S1 | Deploy the current jar. The jar running now reads `EMAIL_HOST` and fails registration with HTTP 500. |
-| S2 | Env: `WEB_ORIGIN=https://srv2089893.hstgr.cloud`, Brevo `MAIL_*`, sandbox `SSLCZ_*` with `SSLCZ_CALLBACK_BASE_URL=https://srv2089893.hstgr.cloud`, `SPRING_PROFILES_ACTIVE=staging`, `SEED_ENABLED=true` for the test exam. |
-| S3 | Real mail check: one verification and one reset email to an inbox Shahriar can open. |
-| S4 | Install Node and a process manager. Nginx sends `/` to Next.js and keeps `/api/` on 8080. Build on the PC, not on the box. |
-| S5 | One sandbox payment on the VPS, including an IPN. |
-| S6 | Apply the pending reboot. Start a nightly off-server `pg_dump` before the client enters data. |
+Status 25 October 2026: S1–S5 done, S6 half done. Plan: [plans/vps-staging-deploy.md](plans/vps-staging-deploy.md). Evidence: [reports/vps-staging-deploy.md](reports/vps-staging-deploy.md).
+
+| # | Goal | Status |
+|---|---|---|
+| S1 | Deploy the current jar. The jar running now reads `EMAIL_HOST` and fails registration with HTTP 500. | Done. Jar from `fea6d12`, Flyway 36. |
+| S2 | Env: `WEB_ORIGIN=https://srv2089893.hstgr.cloud`, Brevo `MAIL_*`, sandbox `SSLCZ_*` with `SSLCZ_CALLBACK_BASE_URL=https://srv2089893.hstgr.cloud`, `SPRING_PROFILES_ACTIVE=staging`, `SEED_ENABLED=true` for the test exam. | Done. Seed ran once, `SEED_ENABLED` back to `false`. |
+| S3 | Real mail check: one verification and one reset email to an inbox Shahriar can open. | Done, both in the inbox. Needed a code fix: SMTP connected with no credentials (`fea6d12`). |
+| S4 | Install Node and a process manager. Nginx sends `/` to Next.js and keeps `/api/` on 8080. Build on the PC, not on the box. | Done. Node 22, `coaching-web.service`, standalone build with Linux `sharp`. |
+| S5 | One sandbox payment on the VPS, including an IPN. | Done. Card success by IPN, plus failed, cancelled, and a second success with receipt mail. |
+| S6 | Apply the pending reboot. Start a nightly off-server `pg_dump` before the client enters data. | Reboot done (kernel 6.8.0-147, all services back). Nightly backup deferred; manual pulls to the PC until then. |
 
 ## 4. Website
 
@@ -55,6 +57,12 @@ Notices for admins and instructors are not in `decisions.md`, which defines stud
 
 Catalog authoring screens come after W8. Until then, test data comes from the staging seed or Master Admin API calls.
 
+Found during the deploy: student pages have no logout button. `logout()` and `POST /api/v1/auth/logout` exist. Only the staff layout shows it. Add it with W1–W3. `/` sends visitors to the staff page `/students`.
+
 ## 5. Before the real launch on `symamlaw.com`
 
 Switch to the `prod` profile. Turn off `MAIL_TEST_ENABLED` and `SEED_ENABLED`. Decide sandbox or live SSLCommerz. Point DNS, issue the certificate, and update `WEB_ORIGIN` and `SSLCZ_CALLBACK_BASE_URL`.
+
+Open decisions from the deploy: the final website address (Shahriar said the old site keeps `symamlaw.com`), and what to do with payments SSLCommerz marks risky (`risk_level`), which the API grants today. Nightly off-server backup (S6) before real data. The client confirms bKash and Nagad are enabled on the live store.
+
+Live payment check, once the live store is on: one 10 BDT payment with a deliberately wrong OTP (expect failed, no grant, no charge) and one 10 BDT payment done correctly (expect paid, grant, receipt). Refund the paid one from the SSLCommerz merchant panel, because the API has no refund yet. The sandbox cannot test a wrong OTP: its OTP page only simulates the outcome with buttons.

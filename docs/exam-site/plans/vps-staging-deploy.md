@@ -2,6 +2,8 @@
 
 Written 25 October 2026 from the code on branch `catalog-acquisition` and [../reports/new-vps-provision-audit.md](../reports/new-vps-provision-audit.md). Goals come from [../todays-goals.md](../todays-goals.md) section 3. [../decisions.md](../decisions.md) still wins where this file is silent.
 
+**Status, 25 October 2026:** slices 0–8 and 10 done, plus the reboot. Slice 9's nightly backup is deferred. The record is [../reports/vps-staging-deploy.md](../reports/vps-staging-deploy.md).
+
 **Audience:** the agent helping Shahriar. **Outcome:** by the night of 26 October the current API and website run on the new VPS at `https://srv2089893.hstgr.cloud` on the `staging` profile. One real verification mail and one reset mail have arrived. One sandbox payment has been granted through an IPN. `symamlaw.com` stays on the old VPS.
 
 ## The box today
@@ -194,6 +196,8 @@ Follows [../reports/sslcommerz-sandbox-runbook.md](../reports/sslcommerz-sandbox
 **Exit:** one granted order with an IPN 200, the receipt mail received, and the three unhappy checks pass.
 
 ### 9. Nightly off-server backup, reboot
+
+**Deferred by Shahriar on 25 October 2026.** Manual pulls to the PC stand in for now (see the report). Do this slice before the client enters real data.
 
 1. Install `rclone` from the Ubuntu archive. Shahriar runs `sudo rclone config` and creates a `b2` remote, then a `crypt` remote over `b2:<bucket>/coaching`. The config lives at `/root/.config/rclone/rclone.conf`, mode `600`. The agent never opens it.
 2. Script `/usr/local/sbin/coaching-backup` (root, `700`): `pg_dump -Fc coaching` plus a tar of `/var/lib/coaching-api/files`, both under `/var/backups/coaching/` with a date in the name. Keep 14 days on the box. `rclone copy` the new files to the crypt remote. On B2, a bucket lifecycle rule keeps 30 days.
