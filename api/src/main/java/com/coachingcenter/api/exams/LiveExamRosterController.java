@@ -3,6 +3,8 @@ package com.coachingcenter.api.exams;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,6 +19,7 @@ import com.coachingcenter.api.auth.permission.PermissionChecker;
 import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.web.PageResponse;
 
 import tools.jackson.databind.JsonNode;
 
@@ -30,6 +33,13 @@ public class LiveExamRosterController {
 	public LiveExamRosterController(LiveExamRosterService roster, PermissionChecker permissions) {
 		this.roster = roster;
 		this.permissions = permissions;
+	}
+
+	@GetMapping("/api/v1/live-exam-modules/{moduleId}/roster")
+	public PageResponse<LiveExamRosterService.RosterRow> list(@PathVariable UUID moduleId,
+			@RequestParam(required = false) String q, @PageableDefault(size = 20) Pageable pageable) {
+		requireRoster();
+		return PageResponse.from(roster.rows(moduleId, q, pageable));
 	}
 
 	@GetMapping("/api/v1/live-exam-modules/{moduleId}/roster/search")
