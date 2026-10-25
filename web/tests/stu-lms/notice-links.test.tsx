@@ -13,7 +13,7 @@ const exam = (id: string) => ({
   endAt: null,
 });
 
-const base = { createdAt: "2026-11-01T04:00:00Z", readAt: null, score: null, maximum: null, passed: null };
+const base = { createdAt: "2026-11-01T04:00:00Z", readAt: null, score: null, maximum: null, passed: null, announcement: null };
 
 const notices = [
   { ...base, id: "n1", kind: "EXAM_OPEN", exam: exam("e1") },

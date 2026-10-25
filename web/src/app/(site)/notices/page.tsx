@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import Link from "next/link";
+import { useState } from "react";
 import { RequireStudent } from "@/lib/auth/guards";
 import { useLocale } from "@/i18n/locale-context";
 import { useMarkAllNoticesRead, useMarkNoticeRead, useNotices, type Notice } from "@/lib/api/exam/notices";
@@ -17,6 +18,7 @@ import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/cn";
 import { noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
+import { announcementText, isLongBody, previewBody } from "./_components/announcement";
 
 export default function NoticesPage() {
   return (
@@ -32,8 +34,52 @@ function kindWord(kind: string, t: (key: string) => string): string {
   return t(noticeKindLabelKey(kind));
 }
 
+/**
+ * An announcement: read in place, no link, no edit or delete. The student's language first, the
+ * other one when it is blank. Long bodies show their first lines and expand; expanding marks it read.
+ */
+function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice) => void }) {
+  const { t, locale } = useLocale();
+  const [expanded, setExpanded] = useState(false);
+  const unread = notice.readAt === null;
+  const { title, body } = announcementText(notice.announcement, locale);
+  const long = isLongBody(body);
+
+  function toggle() {
+    if (!expanded && unread) onOpen(notice);
+    setExpanded((value) => !value);
+  }
+
+  return (
+    <article className="grid gap-2 rounded-card border border-border bg-card p-4">
+      <p className="flex flex-wrap items-center gap-2 text-meta text-muted">
+        <span>{t("notices.kind.ANNOUNCEMENT")}</span>
+        <time dateTime={notice.createdAt}>{formatDateTime(notice.createdAt, locale)}</time>
+        {unread ? <span className="sr-only">({t("notices.unreadDot")})</span> : null}
+      </p>
+      <h2 className="text-card font-bold text-text">{title || t("notices.kind.ANNOUNCEMENT")}</h2>
+      {body ? (
+        <p className="whitespace-pre-line text-body text-text">{expanded || !long ? body : previewBody(body)}</p>
+      ) : null}
+      {long ? (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={toggle}
+          className="justify-self-start font-semibold text-accent underline underline-offset-4"
+        >
+          {expanded ? t("notices.readLess") : t("notices.readMore")}
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
 function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice) => void }) {
   const { t, locale } = useLocale();
+  if (notice.kind === "ANNOUNCEMENT") {
+    return <AnnouncementRow notice={notice} onOpen={onOpen} />;
+  }
   const unread = notice.readAt === null;
   const title = notice.exam ? pickTitle(notice.exam, locale) : "";
   const content = (

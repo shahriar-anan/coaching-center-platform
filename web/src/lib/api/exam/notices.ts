@@ -36,6 +36,13 @@ export interface Notice {
   /** Null while unread. */
   readAt: string | null;
   exam: NoticeExam | null;
+  /** Set on an ANNOUNCEMENT notice: the title and body in both languages (plan 6.4). */
+  announcement: {
+    titleEn: string | null;
+    titleBn: string | null;
+    bodyEn: string | null;
+    bodyBn: string | null;
+  } | null;
   /** MCQ score or written mark, with the maximum. */
   score: number | null;
   maximum: number | null;

@@ -23,6 +23,8 @@ const notices = {
   passed: "উত্তীর্ণ",
   failed: "অনুত্তীর্ণ",
   openExam: "পরীক্ষার পাতা খুলুন",
+  readMore: "আরও দেখুন",
+  readLess: "কম দেখুন",
   markedRead: "নোটিশটি পড়া হয়েছে।",
 } satisfies MessageTree;
 
