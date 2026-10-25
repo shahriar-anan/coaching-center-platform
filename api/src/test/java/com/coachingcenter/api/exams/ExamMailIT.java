@@ -25,7 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.exam-mail.hour-before.enabled=true")
 @Import({ ExamMailIT.ClockConfig.class, ExamMailIT.MailConfig.class })
 class ExamMailIT extends PostgresIntegrationTest {
 

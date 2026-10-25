@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -24,10 +25,15 @@ public class ExamMailService {
 
 	private final AtomicBoolean running = new AtomicBoolean();
 
-	public ExamMailService(ExamMailQueue queue, ExamMailDelivery delivery, Clock clock) {
+	/** Off by default: the one-hour-before mail is skipped for now (client decision). */
+	private final boolean hourBeforeEnabled;
+
+	public ExamMailService(ExamMailQueue queue, ExamMailDelivery delivery, Clock clock,
+			@Value("${app.exam-mail.hour-before.enabled:false}") boolean hourBeforeEnabled) {
 		this.queue = queue;
 		this.delivery = delivery;
 		this.clock = clock;
+		this.hourBeforeEnabled = hourBeforeEnabled;
 	}
 
 	public void onOrderSucceeded(UUID orderId) {
@@ -77,7 +83,9 @@ public class ExamMailService {
 			return;
 		}
 		try {
-			queue.enqueueHourBefore(clock.instant());
+			if (hourBeforeEnabled) {
+				queue.enqueueHourBefore(clock.instant());
+			}
 			deliver(queue.pendingIds());
 		}
 		catch (RuntimeException exception) {
