@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import type { ExamType, OrderKind, OrderStatus, PageResponse } from "@/lib/api/exam/types";
+import { serverNow } from "@/lib/time/clock";
 
 /*
  * Staff operations: payments (read only), the audit log, the staff leaderboard,
@@ -91,6 +92,69 @@ export function useStaffPaymentDetail(tranId: string) {
     },
     enabled: tranId.length > 0,
     staleTime: 0,
+  });
+}
+
+/** The three numbers on the payments strip. `todayCount` counts orders created today (Dhaka day). */
+export type PaymentsStrip = {
+  todayCount: number;
+  todayTotal: number;
+  pendingCount: number;
+};
+
+/** The Dhaka day's start, in milliseconds. The day is the staff's day, not the browser's. */
+function dhakaDayStart(now: number): number {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date(now));
+  return new Date(`${day}T00:00:00+06:00`).getTime();
+}
+
+/**
+ * Walks the successful orders newest first, one page at a time, and stops at the first
+ * order from before today. The list is ordered by creation time, so no earlier page can
+ * hold a row from today after it.
+ */
+async function todaysPaid(signal: AbortSignal): Promise<{ count: number; total: number }> {
+  const start = dhakaDayStart(serverNow());
+  let count = 0;
+  let total = 0;
+  for (let page = 0; ; page += 1) {
+    const body = await apiRequest<PageResponse<StaffOrderRow>>(
+      `/api/v1/live-exam-orders${queryString({ status: "SUCCEEDED", page, size: 100 })}`,
+      { signal },
+    );
+    for (const row of body.content) {
+      if (new Date(row.createdAt).getTime() < start) {
+        return { count, total };
+      }
+      count += 1;
+      total += row.amount;
+    }
+    if (body.content.length === 0 || page + 1 >= body.totalPages) {
+      return { count, total };
+    }
+  }
+}
+
+/** Today's paid orders and the pending count. Cached for 60 seconds; a failure is shown on the strip only. */
+export function usePaymentsStrip() {
+  return useQuery({
+    queryKey: ["staffOps", "paymentsStrip"],
+    queryFn: async ({ signal }) => {
+      const [pending, today] = await Promise.all([
+        apiRequest<PageResponse<StaffOrderRow>>(
+          `/api/v1/live-exam-orders${queryString({ status: "INITIATED", page: 0, size: 1 })}`,
+          { signal },
+        ),
+        todaysPaid(signal),
+      ]);
+      const strip: PaymentsStrip = {
+        todayCount: today.count,
+        todayTotal: today.total,
+        pendingCount: pending.totalElements,
+      };
+      return strip;
+    },
+    staleTime: 60_000,
   });
 }
 

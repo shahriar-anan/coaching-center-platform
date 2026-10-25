@@ -9,10 +9,12 @@ import { Pagination } from "@/components/ui/pagination";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
+import { SummaryStrip } from "@/components/ui/summary-strip";
 import { PaymentsTable } from "@/components/staff/ops/payments-table";
 import { PAYMENT_STATUS_FILTERS } from "@/components/staff/ops/ops-copy";
 import { RequireStaff } from "@/lib/auth/guards";
-import { useStaffPayments } from "@/lib/api/exam/staff-ops";
+import { usePaymentsStrip, useStaffPayments } from "@/lib/api/exam/staff-ops";
+import { useFormat } from "@/lib/format/use-format";
 import { useListParams } from "@/lib/url/list-params";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -28,8 +30,10 @@ export default function StaffPaymentsPage() {
 
 function PaymentsList() {
   const { t } = useLocale();
+  const format = useFormat();
   const [params, setParams] = useListParams({ page: 0, size: 20, q: "", tranId: "", status: "" });
   const payments = useStaffPayments(params);
+  const strip = usePaymentsStrip();
 
   return (
     <div className="grid gap-5">
@@ -37,7 +41,31 @@ function PaymentsList() {
         title={t("staffOps.payments.title")}
         breadcrumbs={[{ label: t("common.nav.home"), href: "/staff" }, { label: t("staffOps.payments.title") }]}
       />
-      <p className="text-sm text-muted">{t("staffOps.payments.readOnly")}</p>
+      <p className="text-meta text-muted">{t("staffOps.payments.readOnly")}</p>
+
+      {strip.isError ? (
+        <p className="text-meta text-muted">{t("staffOps.payments.strip.error")}</p>
+      ) : (
+        <SummaryStrip
+          loading={strip.isPending}
+          items={[
+            {
+              label: t("staffOps.payments.strip.today"),
+              value: format.formatNumber(strip.data?.todayCount ?? 0),
+              tone: "ok",
+            },
+            {
+              label: t("staffOps.payments.strip.todayTotal"),
+              value: format.formatMoney(strip.data?.todayTotal ?? 0) ?? t("staffResults.result.none"),
+            },
+            {
+              label: t("staffOps.payments.strip.pending"),
+              value: format.formatNumber(strip.data?.pendingCount ?? 0),
+              tone: "warn",
+            },
+          ]}
+        />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label={t("staffOps.payments.searchLabel")}>

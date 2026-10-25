@@ -10,7 +10,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Stat, StatRow } from "@/components/ui/stat";
+import { RowMenu } from "@/components/ui/row-menu";
+import { SummaryStrip } from "@/components/ui/summary-strip";
 import { Table, type Column } from "@/components/ui/table";
 import { TextInput } from "@/components/ui/text-input";
 import { ALL_STAFF, RequireStaff } from "@/lib/auth/guards";
@@ -115,6 +116,22 @@ function Participation() {
       cell: (row) => (row.published === null ? DASH : format.formatNumber(row.published)),
     },
     { key: "later", header: t("staffPeople.participation.columns.later"), align: "end", cell: (row) => format.formatNumber(row.retakes) },
+    {
+      key: "menu",
+      header: "",
+      align: "end",
+      cell: (row) => (
+        <RowMenu
+          label={t("staffPeople.participation.rowMenu.label", {
+            name: format.pickTitle({ titleEn: row.titleEn, titleBn: row.titleBn }),
+          })}
+          items={[
+            { label: t("staffResults.rowMenu.openResults"), href: `/staff/exams/${row.examId}/results` },
+            { label: t("staffResults.rowMenu.openLeaderboard"), href: `/staff/exams/${row.examId}/leaderboard` },
+          ]}
+        />
+      ),
+    },
   ];
 
   return (
@@ -124,14 +141,27 @@ function Participation() {
         breadcrumbs={[{ label: t("common.staffNav.dashboard"), href: "/staff" }, { label: t("staffPeople.participation.title") }]}
       />
 
-      {summary.data ? (
-        <StatRow>
-          <Stat value={format.formatNumber(summary.data.awaitingMarking)} label={t("staffPeople.participation.summary.awaiting")} />
-          <Stat value={format.formatNumber(summary.data.draftsAwaitingPublish)} label={t("staffPeople.participation.summary.drafts")} />
-        </StatRow>
-      ) : null}
+      {summary.isError ? (
+        <p className="text-meta text-muted">{t("staffPeople.participation.summaryError")}</p>
+      ) : (
+        <SummaryStrip
+          loading={summary.isPending}
+          items={[
+            {
+              label: t("staffPeople.participation.summary.awaiting"),
+              value: format.formatNumber(summary.data?.awaitingMarking ?? 0),
+              tone: "warn",
+            },
+            {
+              label: t("staffPeople.participation.summary.drafts"),
+              value: format.formatNumber(summary.data?.draftsAwaitingPublish ?? 0),
+              tone: "warn",
+            },
+          ]}
+        />
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field label={t("staffPeople.participation.filters.module")}>
           <Select value={params.moduleId} onChange={(event) => setParams({ moduleId: event.target.value })}>
             <option value="">{t("staffPeople.participation.filters.allModules")}</option>
