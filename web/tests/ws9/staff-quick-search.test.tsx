@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StaffQuickSearch } from "@/components/shell/staff-quick-search";
-import { fixtures, mockApi, renderWithProviders } from "../helpers";
+import { fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
 
 const page = (content: unknown[]) => ({ content, page: 0, size: 5, totalElements: content.length, totalPages: 1 });
 
@@ -63,5 +63,27 @@ describe("StaffQuickSearch (U8)", () => {
     screen.getByRole("button", { name: "অন্য বোতাম" }).focus();
     await userEvent.keyboard("/");
     expect(screen.getByRole("combobox", { name: "Quick search" })).toHaveFocus();
+  });
+
+  it("moves through the results with the arrow keys and opens the highlighted one on Enter", async () => {
+    routerState.push.mockClear();
+    mockApi({
+      "GET /api/v1/students": page([{ id: "s-1", fullName: "রহিম উদ্দিন", phone: "01700000001", studentCode: "STU-0001" }]),
+      "GET /api/v1/live-exam-modules": page([{ id: "m-1", titleEn: "HSC Physics", titleBn: "এইচএসসি পদার্থ", status: "PUBLISHED" }]),
+    });
+    renderWithProviders(<StaffQuickSearch />, { user: fixtures.masterAdmin, locale: "en", route: "/staff" });
+    const input = screen.getByRole("combobox", { name: "Quick search" });
+
+    await userEvent.type(input, "ra");
+    await screen.findByRole("option", { name: /HSC Physics/ });
+
+    await userEvent.keyboard("{ArrowDown}");
+    expect(input).toHaveAttribute("aria-activedescendant", "student-s-1");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(input).toHaveAttribute("aria-activedescendant", "module-m-1");
+    expect(screen.getByRole("option", { name: /HSC Physics/ })).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.keyboard("{Enter}");
+    expect(routerState.push).toHaveBeenCalledWith("/staff/modules/m-1");
   });
 });
