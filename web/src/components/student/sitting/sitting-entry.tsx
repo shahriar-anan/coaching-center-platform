@@ -1,0 +1,166 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
+// apiRequest is WS0's client; apiUpload is not in the repo until WS0 merges.
+import {
+  useRetakeExam,
+  useStudentExam,
+  useTakeExam,
+  type TakeResult,
+} from "@/lib/api/exam/sitting";
+import { useLocale } from "./_tmp/locale";
+import { McqPaper } from "./mcq-paper";
+import { SittingPlaceholder } from "./sitting-placeholder";
+
+export type Start = "live" | "retake" | null;
+
+const takeKey = (examId: string) => `sitting:take:${examId}`;
+
+/** The take result is kept for this tab, so a reload of the paper still knows its own deadline. */
+function readTake(examId: string): TakeResult | null {
+  try {
+    const raw = window.sessionStorage.getItem(takeKey(examId));
+    return raw ? (JSON.parse(raw) as TakeResult) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTake(examId: string, take: TakeResult) {
+  try {
+    window.sessionStorage.setItem(takeKey(examId), JSON.stringify(take));
+  } catch {
+    /* the paper still runs from the server's deadline on the next exam read */
+  }
+}
+
+/** Only one sitting exists per student per exam; the take call is idempotent for an open one. */
+export function SittingEntry({ examId, start }: { examId: string; start: Start }) {
+  const router = useRouter();
+  const { t } = useLocale();
+  const exam = useStudentExam(examId);
+  const me = useQuery({
+    queryKey: ["sitting", "me"],
+    queryFn: () => apiRequest<{ id: string }>("/api/v1/me"),
+    staleTime: 5 * 60_000,
+  });
+  const take = useTakeExam(examId);
+  const retake = useRetakeExam(examId);
+  const [error, setError] = useState<string | null>(null);
+  const [phoneMissing, setPhoneMissing] = useState(false);
+  const started = useRef(false);
+  // A reload of the paper (no `start` in the URL) reads the take kept for this tab.
+  const [stored, setStored] = useState<TakeResult | null>(() => readTake(examId));
+  const sitting = stored ?? null;
+
+  // `?start=live|retake`: take the exam, then replace the URL so a reload does not take it again.
+  useEffect(() => {
+    if (!start || started.current) {
+      return;
+    }
+    started.current = true;
+    const run = start === "retake" ? retake.mutateAsync : take.mutateAsync;
+    run()
+      .then((result) => {
+        writeTake(examId, result);
+        setStored(result);
+        router.replace(`/exam/${examId}/sit`);
+      })
+      .catch((caught: unknown) => {
+        if (caught instanceof ApiError && caught.code === "PHONE_REQUIRED") {
+          setPhoneMissing(true);
+          return;
+        }
+        if (caught instanceof ApiError && (caught.code === "SITTING_NOT_OPEN" || caught.code === "RETAKE_NOT_ALLOWED")) {
+          router.replace(`/exam/${examId}`);
+          return;
+        }
+        setError(caught instanceof ApiError && caught.code === "RESOURCE_NOT_FOUND" ? "notFound" : "failed");
+      });
+    // The mutations are stable for this mount; the effect must run once per take.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, examId]);
+
+  if (phoneMissing) {
+    return (
+      <div className="rounded-card border border-border bg-card p-6 text-center">
+        <p className="text-text">{t("sitting.entry.phoneRequired")}</p>
+        <Link
+          href="/account"
+          className="mt-4 inline-flex min-h-11 items-center rounded-control bg-accent px-5 font-semibold text-on-accent"
+        >
+          {t("sitting.entry.addPhone")}
+        </Link>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="rounded-card border border-border bg-card p-6 text-center">
+        <p className="text-text">
+          {error === "notFound" ? t("sitting.entry.notFound") : t("sitting.entry.failed")}
+        </p>
+        <Link href={`/exam/${examId}`} className="mt-4 inline-block min-h-11 text-accent underline">
+          {t("sitting.entry.backToExam")}
+        </Link>
+      </div>
+    );
+  }
+
+  if (exam.isPending || me.isPending || (start && !sitting)) {
+    return <p role="status" className="p-8 text-center text-muted">{t("sitting.entry.opening")}</p>;
+  }
+
+  if (exam.isError) {
+    if (exam.error instanceof ApiError && exam.error.code === "RESOURCE_NOT_FOUND") {
+      router.replace(`/exam/${examId}`);
+    }
+    return (
+      <div role="alert" className="rounded-card border border-border bg-card p-6 text-center">
+        <p className="text-text">{t("sitting.entry.failed")}</p>
+        <button
+          type="button"
+          onClick={() => exam.refetch()}
+          className="mt-4 min-h-11 rounded-control border border-border px-4 text-text"
+        >
+          {t("common.retry")}
+        </button>
+      </div>
+    );
+  }
+
+  const data = exam.data;
+  if (!data || !me.data) {
+    return null;
+  }
+
+  if (data.examType === "WRITTEN") {
+    return <SittingPlaceholder />;
+  }
+
+  const open = Boolean(data.questions) && sitting !== null;
+  if (!open || !sitting || !data.questions) {
+    // Without an open sitting, the exam page owns the decision (offer, closed, or result).
+    if (!start && !open) {
+      router.replace(`/exam/${examId}`);
+    }
+    return null;
+  }
+
+  return (
+    <McqPaper
+      exam={data}
+      studentId={me.data.id}
+      startedAt={sitting.startedAt}
+      deadlineAt={sitting.deadlineAt}
+      kind={sitting.kind}
+      onClosed={() => router.replace(`/exam/${examId}/result`)}
+    />
+  );
+}

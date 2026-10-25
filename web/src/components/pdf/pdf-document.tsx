@@ -41,7 +41,7 @@ export function PdfDocument({ load, watermark, allowDownload = false, fileName, 
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const loadRef = useRef(load);
 
   useEffect(() => {
@@ -79,34 +79,36 @@ export function PdfDocument({ load, watermark, allowDownload = false, fileName, 
   }, [attempt]);
 
   useEffect(() => {
-    const element = scrollRef.current;
-    if (!element) {
+    if (!scroller) {
       return;
     }
-    const measure = () => setWidth(element.clientWidth);
+    const measure = () => setWidth(scroller.clientWidth);
     measure();
     if (typeof ResizeObserver === "undefined") {
       return;
     }
     const observer = new ResizeObserver(measure);
-    observer.observe(element);
+    observer.observe(scroller);
     return () => observer.disconnect();
-  }, [state.status]);
+  }, [scroller]);
 
   const pageCount = state.status === "ready" ? state.doc.numPages : 0;
   const fitScale = state.status === "ready" && width > 0 ? (width - 16) / state.baseWidth : 1;
   const scale = fitScale * zoom;
 
-  const scrollToPage = useCallback((page: number) => {
-    const target = scrollRef.current?.querySelector<HTMLElement>(`[data-page="${page}"]`);
-    if (target && scrollRef.current) {
-      scrollRef.current.scrollTo({ top: target.offsetTop - 8, behavior: "smooth" });
-    }
-    setCurrentPage(page);
-  }, []);
+  const scrollToPage = useCallback(
+    (page: number) => {
+      const target = scroller?.querySelector<HTMLElement>(`[data-page="${page}"]`);
+      if (target && scroller) {
+        scroller.scrollTo({ top: target.offsetTop - 8, behavior: "smooth" });
+      }
+      setCurrentPage(page);
+    },
+    [scroller],
+  );
 
   const onScroll = useCallback(() => {
-    const container = scrollRef.current;
+    const container = scroller;
     if (!container) {
       return;
     }
@@ -118,9 +120,9 @@ export function PdfDocument({ load, watermark, allowDownload = false, fileName, 
         return;
       }
     }
-  }, []);
+  }, [scroller]);
 
-  const pinch = usePinchZoom(setZoom);
+  const { contentRef, onPointerDown, onPointerMove, onPointerEnd } = usePinchZoom(setZoom);
 
   if (state.status === "loading") {
     return (
@@ -206,21 +208,21 @@ export function PdfDocument({ load, watermark, allowDownload = false, fileName, 
           >
             <span aria-hidden="true">+</span>
           </button>
-          {allowDownload && blob ? <DownloadLink blob={blob} fileName={fileName} label={t("sitting.pdf.download")} /> : null}
+          {allowDownload && blob ? <DownloadButton blob={blob} fileName={fileName} label={t("sitting.pdf.download")} /> : null}
         </div>
       </div>
       <div
-        ref={scrollRef}
+        ref={setScroller}
         tabIndex={0}
         aria-label={label ?? t("sitting.pdf.region")}
         onScroll={onScroll}
-        onPointerDown={pinch.onPointerDown}
-        onPointerMove={pinch.onPointerMove}
-        onPointerUp={pinch.onPointerEnd}
-        onPointerCancel={pinch.onPointerEnd}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
         className="h-[70vh] max-h-[880px] min-h-[360px] touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <div ref={pinch.contentRef} className="flex origin-top flex-col items-center gap-2">
+        <div ref={contentRef} className="flex origin-top flex-col items-center gap-2">
           {width > 0
             ? Array.from({ length: pageCount }, (_, index) => (
                 <PdfPage
@@ -231,7 +233,7 @@ export function PdfDocument({ load, watermark, allowDownload = false, fileName, 
                   placeholderWidth={state.baseWidth * scale}
                   placeholderHeight={state.baseHeight * scale}
                   watermark={watermark}
-                  root={scrollRef}
+                  root={scroller}
                 />
               ))
             : null}
@@ -241,24 +243,23 @@ export function PdfDocument({ load, watermark, allowDownload = false, fileName, 
   );
 }
 
-function DownloadLink({ blob, fileName, label }: { blob: Blob; fileName?: string; label: string }) {
-  const [href, setHref] = useState<string | null>(null);
-  useEffect(() => {
-    const url = URL.createObjectURL(blob);
-    setHref(url);
-    return () => URL.revokeObjectURL(url);
-  }, [blob]);
-  if (!href) {
-    return null;
-  }
+/** Staff only. The object URL is made on click and freed after the browser has started the save. */
+function DownloadButton({ blob, fileName, label }: { blob: Blob; fileName?: string; label: string }) {
   return (
-    <a
-      href={href}
-      download={fileName ?? "file.pdf"}
+    <button
+      type="button"
+      onClick={() => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName ?? "file.pdf";
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }}
       className="inline-flex min-h-11 items-center rounded-control border border-border px-3 text-sm text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       {label}
-    </a>
+    </button>
   );
 }
 
@@ -269,7 +270,7 @@ type PageProps = {
   placeholderWidth: number;
   placeholderHeight: number;
   watermark?: string;
-  root: React.RefObject<HTMLDivElement | null>;
+  root: HTMLDivElement | null;
 };
 
 /** One page. Renders only once it is near the visible area, and again when the scale changes. */
@@ -284,29 +285,27 @@ const PdfPage = memo(function PdfPage({
 }: PageProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [near, setNear] = useState(false);
+  // Without IntersectionObserver (very old browsers) every page renders at once.
+  const [near, setNear] = useState(() => typeof IntersectionObserver === "undefined");
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     const element = wrapperRef.current;
-    if (!element) {
-      return;
-    }
-    if (typeof IntersectionObserver === "undefined") {
-      setNear(true);
+    if (!element || near) {
       return;
     }
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
           setNear(true);
+          observer.disconnect();
         }
       },
-      { root: root.current, rootMargin: "100% 0px" },
+      { root, rootMargin: "100% 0px" },
     );
     observer.observe(element);
     return () => observer.disconnect();
-  }, [root]);
+  }, [root, near]);
 
   useEffect(() => {
     if (!near) {

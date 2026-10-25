@@ -54,10 +54,18 @@ describe("PdfViewer", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("offers a download to staff with the file name", async () => {
+  it("offers a download to staff, which saves under the file name", async () => {
+    const clicks: HTMLAnchorElement[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicks.push(this);
+    });
+    URL.createObjectURL = vi.fn(() => "blob:script");
+    const user = userEvent.setup();
     renderWs4(<PdfDocument load={async () => pdfBlob()} allowDownload fileName="script.pdf" />, { locale: "en" });
-    const link = await screen.findByRole("link", { name: "Download" });
-    expect(link).toHaveAttribute("download", "script.pdf");
+    await user.click(await screen.findByRole("button", { name: "Download" }));
+    expect(clicks[0]).toHaveAttribute("download", "script.pdf");
+    expect(clicks[0]).toHaveAttribute("href", "blob:script");
+    click.mockRestore();
   });
 
   it("zooms with the buttons and resets to fit", async () => {

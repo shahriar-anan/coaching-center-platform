@@ -54,6 +54,25 @@ export function formatTime(iso: string, locale: Locale): string {
   return `${hour % 12 === 0 ? 12 : hour % 12}:${mm} ${hour < 12 ? "am" : "pm"}`;
 }
 
+/** Countdown as hh:mm:ss, for example "০০:৩২:১০". Never negative. */
+export function formatCountdown(ms: number, locale: Locale): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return digits(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`, locale);
+}
+
+export function formatDuration(minutes: number, locale: Locale): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours} ঘণ্টা`);
+  if (rest > 0 || hours === 0) parts.push(`${rest} মিনিট`);
+  return digits(parts.join(" "), locale);
+}
+
 export function formatDateTime(iso: string, locale: Locale): string {
   return `${formatDate(iso, locale)}, ${formatTime(iso, locale)}`;
 }

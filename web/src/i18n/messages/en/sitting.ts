@@ -63,6 +63,7 @@ const sitting = {
   written: {
     paper: "Question paper",
     noPaper: "The question paper has not been added yet.",
+    comingSoon: "The written exam page will open soon.",
     script: "Submit your answer script",
     instruction: "Submit your answer script as one PDF file. Photos are not accepted.",
     drop: "Upload your answer script PDF here",
