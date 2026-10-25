@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { SittingEntry, type Start } from "@/components/student/sitting/sitting-entry";
+import { RequireStudent } from "@/lib/auth/guards";
 
 export default function SitPage({
   params,
@@ -13,5 +14,9 @@ export default function SitPage({
   const { examId } = use(params);
   const { start } = use(searchParams);
   const mode: Start = start === "live" || start === "retake" ? start : null;
-  return <SittingEntry examId={examId} start={mode} />;
+  return (
+    <RequireStudent>
+      <SittingEntry examId={examId} start={mode} />
+    </RequireStudent>
+  );
 }

@@ -1,3 +1,4 @@
+/* eslint-disable -- vendored pdf.js worker, copied from pdfjs-dist; do not lint */
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page

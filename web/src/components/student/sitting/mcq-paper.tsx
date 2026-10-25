@@ -8,9 +8,9 @@ import {
   type StudentExam,
 } from "@/lib/api/exam/sitting";
 import { ApiError } from "@/lib/api/errors";
-import { useLocale } from "./_tmp/locale";
-import { formatCountdown, formatNumber } from "./_tmp/format";
-import { useServerNow } from "./_tmp/clock";
+import { useLocale } from "@/i18n/locale-context";
+import { formatClock, formatNumber } from "@/lib/format";
+import { useServerNow } from "@/lib/time/clock";
 import { McqQuestion, type OptionLabels, type PaperLanguage } from "./mcq-question";
 import {
   backupKey as makeBackupKey,
@@ -305,7 +305,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
         <div className="min-w-0">
           <p className="truncate font-semibold text-text">{exam.titleBn ?? exam.titleEn}</p>
           <p className={`text-sm ${barTone}`}>
-            {timeLabel}: <span className="tabular-nums">{formatCountdown(remainingMs, locale)}</span>
+            {timeLabel}: <span className="tabular-nums">{formatClock(remainingMs, locale)}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">

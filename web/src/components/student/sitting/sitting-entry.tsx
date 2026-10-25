@@ -3,19 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-// apiRequest is WS0's client; apiUpload is not in the repo until WS0 merges.
+import { useUser } from "@/lib/auth/session-context";
 import {
   useRetakeExam,
   useStudentExam,
   useTakeExam,
   type TakeResult,
 } from "@/lib/api/exam/sitting";
-import { useLocale } from "./_tmp/locale";
+import { useLocale } from "@/i18n/locale-context";
 import { McqPaper } from "./mcq-paper";
-import { SittingPlaceholder } from "./sitting-placeholder";
+import { WrittenSitting } from "./written-sitting";
 
 export type Start = "live" | "retake" | null;
 
@@ -44,11 +42,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   const router = useRouter();
   const { t } = useLocale();
   const exam = useStudentExam(examId);
-  const me = useQuery({
-    queryKey: ["sitting", "me"],
-    queryFn: () => apiRequest<{ id: string }>("/api/v1/me"),
-    staleTime: 5 * 60_000,
-  });
+  const user = useUser();
   const take = useTakeExam(examId);
   const retake = useRetakeExam(examId);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +107,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
     );
   }
 
-  if (exam.isPending || me.isPending || (start && !sitting)) {
+  if (exam.isPending || (start && !sitting)) {
     return <p role="status" className="p-8 text-center text-muted">{t("sitting.entry.opening")}</p>;
   }
 
@@ -136,12 +130,26 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   }
 
   const data = exam.data;
-  if (!data || !me.data) {
+  if (!data || !user) {
     return null;
   }
 
   if (data.examType === "WRITTEN") {
-    return <SittingPlaceholder />;
+    if (!sitting) {
+      if (!start) {
+        router.replace(`/exam/${examId}`);
+      }
+      return null;
+    }
+    const watermark = user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName;
+    return (
+      <WrittenSitting
+        exam={data}
+        deadlineAt={sitting.deadlineAt}
+        watermark={watermark}
+        onClosed={() => router.replace(`/exam/${examId}/result`)}
+      />
+    );
   }
 
   const open = Boolean(data.questions) && sitting !== null;
@@ -156,7 +164,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   return (
     <McqPaper
       exam={data}
-      studentId={me.data.id}
+      studentId={user.id}
       startedAt={sitting.startedAt}
       deadlineAt={sitting.deadlineAt}
       kind={sitting.kind}

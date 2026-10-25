@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McqPaper } from "@/components/student/sitting/mcq-paper";
 import type { StudentExam } from "@/lib/api/exam/sitting";
 import { backupKey } from "@/components/student/sitting/selection";
-import { mockApi, renderWs4, apiError } from "./helpers";
+import { mockApi, apiError, renderWithProviders as renderWs4 } from "../helpers";
 
 const STUDENT = "stu-1";
 const STARTED = "2026-11-12T06:00:00Z";

@@ -9,8 +9,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { useLocale } from "@/components/student/sitting/_tmp/locale";
-import { formatNumber } from "@/components/student/sitting/_tmp/format";
+import { useLocale } from "@/i18n/locale-context";
+import { formatNumber } from "@/lib/format";
 /** The props `PdfViewer` (pdf-viewer.tsx) passes through. Unchanged from the WS0 contract; `label` is optional. */
 export type PdfViewerProps = {
   /** Fetches the file with the caller's auth, for example `() => apiBlob(path)`. Called again on retry. */

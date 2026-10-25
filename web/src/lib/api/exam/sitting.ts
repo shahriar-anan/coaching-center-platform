@@ -1,9 +1,8 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api/client";
-// Stand-in until WS0 adds apiUpload to lib/api/client.ts; then import it from there.
-import { apiUpload } from "@/components/student/sitting/_tmp/client";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, apiUpload } from "@/lib/api/client";
+import type { PageResponse } from "@/lib/api/exam/types";
 
 // Local types until WS0 adds these to lib/api/exam/types.ts. Shapes follow LiveExamSittingService (API).
 
@@ -174,4 +173,32 @@ export function questionPdfPath(examId: string) {
 
 export function evaluatedPdfPath(examId: string) {
   return `/api/v1/live-exams/${examId}/evaluated-pdf`;
+}
+
+/** One row of the student's module exam list (the fields the results hub needs). */
+export type HubExam = Pick<StudentExam, "id" | "moduleId" | "titleEn" | "titleBn" | "examType" | "liveAt" | "myStatus">;
+
+type PageOf<T> = PageResponse<T>;
+
+/** The student's modules, one page. The student owns few modules, so one page is enough. */
+export function useMyModules() {
+  return useQuery({
+    queryKey: ["sitting", "hub", "modules"],
+    queryFn: () =>
+      apiRequest<PageOf<{ id: string; titleEn: string; titleBn: string | null }>>(
+        "/api/v1/live-exam-modules?page=0&size=50",
+      ),
+    staleTime: 60_000,
+  });
+}
+
+/** Every module's exams, in parallel. Results are cached per module. */
+export function useModuleExams(moduleIds: string[]) {
+  return useQueries({
+    queries: moduleIds.map((id) => ({
+      queryKey: ["sitting", "hub", "exams", id],
+      queryFn: () => apiRequest<PageOf<HubExam>>(`/api/v1/live-exam-modules/${id}/exams?page=0&size=50`),
+      staleTime: 60_000,
+    })),
+  });
 }

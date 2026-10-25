@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PdfDocument, PDF_WORKER_SRC } from "@/components/pdf/pdf-document";
 import { clampZoom } from "@/components/pdf/zoom";
-import { renderWs4 } from "./helpers";
+import { renderWithProviders as renderWs4 } from "../helpers";
 
 const render = vi.fn(() => ({ promise: Promise.resolve(), cancel: vi.fn() }));
 const destroy = vi.fn(async () => undefined);

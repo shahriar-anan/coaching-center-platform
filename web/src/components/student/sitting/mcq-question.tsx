@@ -59,15 +59,16 @@ export const McqQuestion = memo(function McqQuestion({
     >
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-semibold text-muted">{questionLabel}</h3>
-        <button
-          type="button"
-          aria-pressed={flagged}
-          disabled={!editable}
-          onClick={() => onFlag(question.id)}
-          className="min-h-11 rounded-control px-3 text-sm text-text underline-offset-4 hover:underline disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          {flagged ? `✓ ${labels.flag}` : labels.flag}
-        </button>
+        {editable ? (
+          <button
+            type="button"
+            aria-pressed={flagged}
+            onClick={() => onFlag(question.id)}
+            className="min-h-11 rounded-control px-3 text-sm text-text underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            {flagged ? `✓ ${labels.flag}` : labels.flag}
+          </button>
+        ) : null}
       </div>
       <p className={`mt-2 text-base leading-relaxed text-text ${stemFace}`}>{question.stem}</p>
       <ul className="mt-3 flex flex-col gap-2" role="radiogroup" aria-label={questionLabel}>
