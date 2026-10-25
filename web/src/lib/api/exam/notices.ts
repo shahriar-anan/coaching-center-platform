@@ -6,7 +6,18 @@ import type { PageResponse } from "@/lib/api/exam/types";
 
 /** The student's notices: reminders, MCQ scores and written results. Keys live in this file. */
 
-export type NoticeKind = "REMINDER" | "MCQ_RESULT" | "WRITTEN_RESULT" | (string & {});
+/** The kinds from plan section 6.2. A kind not in this list still renders, with the generic label. */
+export type NoticeKind =
+  | "EXAM_REMINDER"
+  | "EXAM_STARTING_SOON"
+  | "EXAM_OPEN"
+  | "PURCHASE_GRANTED"
+  | "EXAM_PUBLISHED"
+  | "RETAKE_AVAILABLE"
+  | "ANNOUNCEMENT"
+  | "MCQ_SCORE"
+  | "WRITTEN_RESULT"
+  | (string & {});
 
 export interface NoticeExam {
   id: string;

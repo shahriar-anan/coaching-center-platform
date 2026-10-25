@@ -16,6 +16,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/cn";
+import { noticeKindLabelKey } from "./_components/notice-kind";
 
 export default function NoticesPage() {
   return (
@@ -28,10 +29,7 @@ export default function NoticesPage() {
 }
 
 function kindWord(kind: string, t: (key: string) => string): string {
-  if (kind === "REMINDER" || kind === "MCQ_RESULT" || kind === "WRITTEN_RESULT") {
-    return t(`notices.kind.${kind}`);
-  }
-  return t("notices.kind.other");
+  return t(noticeKindLabelKey(kind));
 }
 
 function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice) => void }) {
