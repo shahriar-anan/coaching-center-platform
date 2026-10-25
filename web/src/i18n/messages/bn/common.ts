@@ -170,6 +170,7 @@ const common = {
     label: "সূচি",
   },
   quickSearch: {
+    open: "খুঁজুন",
     label: "দ্রুত অনুসন্ধান",
     placeholder: "শিক্ষার্থী বা মডিউল খুঁজুন (/)",
     students: "শিক্ষার্থী",

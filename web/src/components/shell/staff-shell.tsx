@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, Search } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { Logo } from "@/components/shell/logo";
@@ -16,6 +16,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/components/ui/cn";
 import type { Role } from "@/lib/api/exam/types";
+import { useRole } from "@/lib/auth/guards";
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/staff" ? pathname === "/staff" : pathname === href || pathname.startsWith(`${href}/`);
@@ -70,6 +71,10 @@ export function StaffShell({ children }: { children: ReactNode }) {
   const { t } = useLocale();
   const { session, logout } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { canAuthor, canSeeStudents } = useRole();
+  // The phone search is offered only where the search itself works.
+  const canSearch = canAuthor || canSeeStudents;
   const role = session.status === "authenticated" ? session.user.role : null;
   const items = staffNavFor(role);
 
@@ -104,6 +109,14 @@ export function StaffShell({ children }: { children: ReactNode }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {canSearch ? (
+                <IconButton
+                  label={t("common.quickSearch.open")}
+                  icon={<Search aria-hidden="true" className="size-5" />}
+                  onClick={() => setSearchOpen(true)}
+                  className="md:hidden"
+                />
+              ) : null}
               <LocalePill />
               <ThemePill />
               {session.status === "authenticated" ? (
@@ -119,6 +132,11 @@ export function StaffShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 py-6 md:px-6">{children}</main>
       </div>
       <UnsavedChangesDialog />
+      {canSearch ? (
+        <Dialog open={searchOpen} onOpenChange={setSearchOpen} title={t("common.quickSearch.label")}>
+          <StaffQuickSearch />
+        </Dialog>
+      ) : null}
     </div>
   );
 }

@@ -170,6 +170,7 @@ const common = {
     label: "Sections",
   },
   quickSearch: {
+    open: "Search",
     label: "Quick search",
     placeholder: "Find a student or module (/)",
     students: "Students",
