@@ -2,7 +2,6 @@ import type { MessageTree } from "../types";
 
 const common = {
   brand: {
-    name: "এক্সাম পোর্টাল",
     first: "এক্সাম",
     second: "পোর্টাল",
     home: "এক্সাম পোর্টাল, হোম",
@@ -37,7 +36,6 @@ const common = {
   },
   locale: {
     switchLabel: "Switch to English",
-    pill: "EN",
   },
   theme: {
     toDark: "ডার্ক মোড চালু করুন",
@@ -71,41 +69,30 @@ const common = {
     staffOnlyBody: "আপনি শিক্ষার্থীর অ্যাকাউন্টে লগইন করে আছেন।",
     goStaffHome: "অ্যাডমিন প্যানেলে যান",
     goHome: "হোমে ফিরে যান",
-    sessionExpired: "সেশন শেষ হয়েছে। আবার লগইন করুন।",
     restoring: "লোড হচ্ছে…",
     staffLoginHere: "অ্যাডমিন প্যানেলে লগইন করুন",
-    staffLoginHereBody: "এটি শিক্ষার্থীদের সাইট। অ্যাডমিন ও শিক্ষকেরা অ্যাডমিন প্যানেলে লগইন করবেন।",
     studentLoginHere: "শিক্ষার্থীদের সাইটে লগইন করুন",
-    studentLoginHereBody: "এটি অ্যাডমিন প্যানেল। শিক্ষার্থীরা শিক্ষার্থীদের সাইটে লগইন করবেন।",
   },
   actions: {
     retry: "আবার চেষ্টা করুন",
     cancel: "বাতিল",
     close: "বন্ধ করুন",
-    confirm: "নিশ্চিত করুন",
     copy: "কপি করুন",
     copied: "কপি হয়েছে",
     showPassword: "পাসওয়ার্ড দেখুন",
     hidePassword: "পাসওয়ার্ড লুকান",
-    back: "ফিরে যান",
     save: "সেভ করুন",
-    working: "অপেক্ষা করুন…",
   },
   states: {
     loading: "লোড হচ্ছে…",
-    nothingFound: "কিছু পাওয়া যায়নি",
-    errorTitle: "তথ্য আনা যায়নি",
     errorBody: "ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।",
     offline: "ইন্টারনেট সংযোগ নেই। সংযোগ ফিরলে আবার চেষ্টা করা হবে।",
     required: "আবশ্যক",
-    on: "চালু",
-    off: "বন্ধ",
   },
   pagination: {
     label: "পাতা বদলান",
     prev: "আগের পাতা",
     next: "পরের পাতা",
-    page: "পাতা {page}",
     of: "{total}টির মধ্যে {page} নম্বর পাতা",
   },
   search: {
@@ -117,16 +104,13 @@ const common = {
     choose: "পিডিএফ ফাইল বেছে নিন",
     drop: "ফাইলটি এখানে টেনে আনুন, অথবা",
     replace: "ফাইল বদলান",
-    onlyPdf: "শুধু পিডিএফ ফাইল জমা দেওয়া যাবে।",
     notPdf: "ফাইলটি পিডিএফ নয়। একটি পিডিএফ ফাইল বেছে নিন।",
     tooLarge: "ফাইলটি {max}-এর চেয়ে বড়। ছোট একটি ফাইল দিন।",
     limit: "সর্বোচ্চ {max}",
     uploading: "আপলোড হচ্ছে… {percent}%",
-    uploadedAt: "আপলোড হয়েছে {time}",
   },
   confirm: {
     typeToConfirm: "নিশ্চিত করতে লিখুন: {name}",
-    mismatch: "লেখাটি মেলেনি।",
   },
   oneTimeCode: {
     title: "অ্যাকাউন্ট চালু করার কোড",
@@ -143,9 +127,7 @@ const common = {
   dateTime: {
     notSet: "তারিখ পরে জানানো হবে",
     date: "তারিখ",
-    time: "সময়",
     zone: "বাংলাদেশ সময়",
-    clear: "তারিখ মুছুন",
   },
   notFound: {
     title: "পাতাটি পাওয়া যায়নি",
@@ -184,13 +166,6 @@ const common = {
     leave: "চলে যান",
   },
   unreadNotices: "{count}টি অপঠিত নোটিশ",
-  pdf: {
-    placeholder: "পিডিএফ",
-    loading: "পিডিএফ লোড হচ্ছে…",
-  },
-  placeholder: {
-    home: "হোম পাতা তৈরি হচ্ছে।",
-  },
 } satisfies MessageTree;
 
 export default common;

@@ -2,7 +2,6 @@ import type { MessageTree } from "../types";
 
 const common = {
   brand: {
-    name: "Exam Portal",
     first: "Exam",
     second: "Portal",
     home: "Exam Portal, home",
@@ -37,7 +36,6 @@ const common = {
   },
   locale: {
     switchLabel: "বাংলায় দেখুন",
-    pill: "বাং",
   },
   theme: {
     toDark: "Switch to dark mode",
@@ -71,41 +69,30 @@ const common = {
     staffOnlyBody: "You are logged in with a student account.",
     goStaffHome: "Go to the admin panel",
     goHome: "Back to home",
-    sessionExpired: "Your session has ended. Log in again.",
     restoring: "Loading…",
     staffLoginHere: "Log in to the admin panel",
-    staffLoginHereBody: "This is the student site. Admins and teachers log in on the admin panel.",
     studentLoginHere: "Log in on the student site",
-    studentLoginHereBody: "This is the admin panel. Students log in on the student site.",
   },
   actions: {
     retry: "Try again",
     cancel: "Cancel",
     close: "Close",
-    confirm: "Confirm",
     copy: "Copy",
     copied: "Copied",
     showPassword: "Show password",
     hidePassword: "Hide password",
-    back: "Go back",
     save: "Save",
-    working: "Please wait…",
   },
   states: {
     loading: "Loading…",
-    nothingFound: "Nothing found",
-    errorTitle: "Could not load this",
     errorBody: "Check your internet connection and try again.",
     offline: "You are offline. We will try again when the connection is back.",
     required: "required",
-    on: "On",
-    off: "Off",
   },
   pagination: {
     label: "Pages",
     prev: "Previous page",
     next: "Next page",
-    page: "Page {page}",
     of: "Page {page} of {total}",
   },
   search: {
@@ -117,16 +104,13 @@ const common = {
     choose: "Choose a PDF file",
     drop: "Drag the file here, or",
     replace: "Replace file",
-    onlyPdf: "Only PDF files can be uploaded.",
     notPdf: "This file is not a PDF. Choose a PDF file.",
     tooLarge: "The file is larger than {max}. Choose a smaller file.",
     limit: "Up to {max}",
     uploading: "Uploading… {percent}%",
-    uploadedAt: "Uploaded {time}",
   },
   confirm: {
     typeToConfirm: "Type {name} to confirm",
-    mismatch: "The text does not match.",
   },
   oneTimeCode: {
     title: "Activation code",
@@ -143,9 +127,7 @@ const common = {
   dateTime: {
     notSet: "Date to be announced",
     date: "Date",
-    time: "Time",
     zone: "Bangladesh time",
-    clear: "Clear date",
   },
   notFound: {
     title: "Page not found",
@@ -184,13 +166,6 @@ const common = {
     leave: "Leave",
   },
   unreadNotices: "{count} unread notices",
-  pdf: {
-    placeholder: "PDF",
-    loading: "Loading PDF…",
-  },
-  placeholder: {
-    home: "The home page is being built.",
-  },
 } satisfies MessageTree;
 
 export default common;
