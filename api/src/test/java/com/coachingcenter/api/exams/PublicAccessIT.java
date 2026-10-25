@@ -128,7 +128,8 @@ class PublicAccessIT extends PostgresIntegrationTest {
 		UUID root = createCategory(master, "Path root", null);
 		UUID middle = createCategory(master, "Path middle", root);
 		UUID leaf = createCategory(master, "Path leaf", middle);
-		UUID module = publishedModule(master, leaf, "Path module", "300.00");
+		String word = "Pathmodule" + UUID.randomUUID().toString().substring(0, 8);
+		UUID module = publishedModule(master, leaf, word, "300.00");
 		UUID top = publishedModule(master, root, "Top module", "300.00");
 
 		JsonNode path = read(null, "/api/v1/public/live-exam-modules/" + module).get("categoryPath");
@@ -140,7 +141,7 @@ class PublicAccessIT extends PostgresIntegrationTest {
 		assertThat(path.get(2).get("id").asText()).isEqualTo(leaf.toString());
 		JsonNode listed = byId(read(null, "/api/v1/public/live-exam-modules?categoryId=" + leaf).get("content"), module);
 		assertThat(listed.get("categoryPath")).isEqualTo(path);
-		JsonNode searched = byId(read(null, "/api/v1/public/live-exam-modules?q=Path%20module&size=100").get("content"),
+		JsonNode searched = byId(read(null, "/api/v1/public/live-exam-modules?q=" + word + "&size=100").get("content"),
 				module);
 		assertThat(searched.get("categoryPath")).isEqualTo(path);
 		JsonNode topPath = read(null, "/api/v1/public/live-exam-modules/" + top).get("categoryPath");
