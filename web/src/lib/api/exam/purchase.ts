@@ -51,6 +51,18 @@ export function useCancelOrder() {
 const POLL_MS = 3000;
 const POLL_WINDOW_MS = 60_000;
 
+/**
+ * Milliseconds until the next status call, or false to stop. Polls every 3 s
+ * while the payment is pending, and only for one minute from `startedAt`.
+ */
+export function paymentPollDelay(
+  status: string | undefined,
+  startedAt: number,
+  now: number,
+): number | false {
+  return status === "PENDING" && now - startedAt < POLL_WINDOW_MS ? POLL_MS : false;
+}
+
 /** Polls every 3 s while pending, for one minute from `startedAt`. */
 export function usePaymentStatus(tranId: string, enabled: boolean, startedAt: number) {
   return useQuery<PaymentStatus>({
@@ -58,10 +70,7 @@ export function usePaymentStatus(tranId: string, enabled: boolean, startedAt: nu
     enabled,
     staleTime: 0,
     retry: false,
-    refetchInterval: (query) =>
-      query.state.data?.status === "PENDING" && Date.now() - startedAt < POLL_WINDOW_MS
-        ? POLL_MS
-        : false,
+    refetchInterval: (query) => paymentPollDelay(query.state.data?.status, startedAt, Date.now()),
     queryFn: ({ signal }) =>
       apiRequest<PaymentStatus>(
         `/api/v1/live-exam-orders/status?tranId=${encodeURIComponent(tranId)}`,
