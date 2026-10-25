@@ -716,6 +716,7 @@ Branch `ui/w9-marking`, worktree `F:\cc-wt\w9-mrk`. Checks: `npm run lint` 0 err
 - `messages/{en,bn}/staffPeople.ts` (OPS) still has the `submissions` and `submission` keys. Nothing in MRK's code uses them. OPS should remove them.
 - API gap for G1 "দেখুন": a staff read of a participant's stored marked PDF, for example `GET /api/v1/live-exam-participants/{id}/evaluated-pdf`. Not built; MRK does not own the API.
 - Shared reads used read-only: `lib/api/exam/staff-home.ts` (participation rows, owned by AUT), and the staff module list through its own hook in `staff-marking.ts`. `staff-catalog.ts` is not touched.
+- `tests/ws5/home.test.tsx` (outside MRK's list): two assertions now expect the instructor empty heading that U1 shows ("আপনাকে এখনো কোনো মডিউল দেওয়া হয়নি"). Without this change the test fails after U1. Check it at the merge.
 
 **API additions used:** none new. Uses `GET /api/v1/live-exam-submissions`, `GET /api/v1/live-exam-participants/{id}` (with `comment`, `evaluatedFileName`, titles), `POST .../evaluation`, `POST .../publish`, `POST /api/v1/live-exams/{id}/publish-results`, `GET /api/v1/live-exams/{id}/question-pdf`, `GET /api/v1/live-exam-modules` (with `categoryPath` and `instructor`).
 
