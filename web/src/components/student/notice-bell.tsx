@@ -32,7 +32,7 @@ export function NoticeBell(): ReactElement | null {
       {count > 0 ? (
         <span
           aria-hidden="true"
-          className="absolute -end-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-warn-fill px-1.5 text-meta font-bold text-white tabular-nums"
+          className="absolute -end-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-warn-fill px-1.5 text-meta font-bold text-on-warn tabular-nums"
         >
           {formatNumber(count, locale)}
         </span>
