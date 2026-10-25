@@ -475,3 +475,32 @@ Branch `ui/w9-api`, worktree `F:\cc-wt\w9-api`. Checks: full suite from clean, a
 - **STU-FU-3:** the sitting score figure uses `text-section` (20 px, the mockup's stat size) in place of `text-2xl`.
 - **STU-FU-4 (decision, pending user confirmation):** the sitting jump grid stays at 44 px, the README's touch target. Accepted by STU; pending user confirmation.
 - **Not touched, per the follow-up's list:** `components/student/catalog/**`, `purchase/**`, `notice-bell.tsx`, the notices page, `result/**`, `home/**`, the listed `lib/api/exam` files, and the messages `catalog`, `purchase`, `notices`, `result`, `sitting`. ST-2 and ST-4 are not STU's.
+
+## Report — PUR-FND
+
+Worktree `F:\cc-wt\pur-fnd`, branch `ui/pur-fnd`, cut from `catalog-acquisition`.
+
+**Done**
+- Stubs (commit `9d2b152`): the six components with the exact contract props.
+- P-1 `PriceBar`: price with Bengali digits in Bangla (western in English), the no-price sentence, note, status and action (right on desktop, below on phones).
+- P-2 `AccessBadge`: ok pill "অ্যাক্সেস আছে" with the source label (module, this exam, roster, admin).
+- P-3 `ConfirmSheet`: built on `Dialog`. A bottom sheet on phones, a centred dialog on desktop. Focus goes to the primary on open, back to the trigger on close, Escape closes. Added an optional `initialFocus` prop to `Dialog` (additive; other callers unchanged).
+- P-4 `SelectableExamList`: native checkboxes (Space works), disabled rows greyed with the reason as text, sticky summary with count and total (no total when nothing is selected or a selected exam has no price), action beside it.
+- P-5 `ProductCard`: one link card with the mockup's lift and gold border, price line, exam count with formatter.
+- P-6 `ConfigNotice`: `role="status"` banner, nothing when `show` is false.
+- P-7 copy: `common.purchase.shared.*` in bn and en.
+- P-8 toast size: check only. `toast.tsx` already uses `text-label` (FND commit `a453d4c`, in this branch). Test added. No change to the toast.
+
+**Deviations**
+- Copy keys are at `common.purchase.shared.*`, not at a top-level `purchase.shared.*`. The top-level `purchase` namespace belongs to STU-PUR's file, so the prompt's literal path would have needed an edit there.
+- P-3 needed an optional `initialFocus` prop on `Dialog`. The prompt says to build on `Dialog`; it did not allow for focus control.
+- The ConfigNotice sentence is the prompt's wording. `bangla-copy.md` has no approved text for this message yet.
+
+**Contract questions:** none.
+
+**Checks (web, this worktree)**
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: 0 errors, 2 warnings (the existing `<img>` ones).
+- `npx vitest run`: 56 files, 328 tests passing.
+- `npm run build`: see the ready message.
+- No `text-[..]`, `text-sm`, raw hex or zinc in the purchase components or their tests.
