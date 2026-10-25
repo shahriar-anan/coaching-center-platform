@@ -1,6 +1,77 @@
-import type { MessageTree } from "../types";
-
-/** Owned by its workstream; see docs/exam-site/plans/ui-delivery. */
-const result = {} satisfies MessageTree;
+const result = {
+  page: {
+    title: "Result",
+    loading: "Loading your result…",
+    notSat: "You did not take this exam.",
+    notReady: "Your result will be ready when time runs out.",
+    backToExam: "Back to the exam",
+    leaderboard: "See the merit list",
+    practice: "Practice attempt · not on the merit list",
+  },
+  stat: {
+    marks: "Marks",
+    obtained: "Marks obtained",
+    outcome: "Result",
+    rank: "Rank",
+    marking: "Marking",
+    score: "{score} / {maximum}",
+    none: "—",
+  },
+  outcome: {
+    passed: "Passed",
+    failed: "Not passed",
+    notSubmitted: "Not submitted",
+    pending: "Pending",
+  },
+  written: {
+    notSubmitted: "No answer script was submitted in time, so the mark is 0.",
+    awaiting: "Your script is being marked. The result will appear here once it is published.",
+    comment: "Teacher's comment",
+    viewMarked: "View marked script",
+    hideMarked: "Close the script",
+    markedScript: "Marked script",
+  },
+  review: {
+    title: "Check your answers",
+    afterDeadline: "Correct answers and explanations appear when time runs out.",
+    yourAnswer: "Your answer",
+    correct: "Correct answer",
+    explanation: "Explanation",
+    notAnswered: "You did not answer this question.",
+    question: "Question {number}",
+  },
+  hub: {
+    title: "Results",
+    summaryTaken: "Exams taken",
+    summaryPassed: "Passed",
+    summaryWaiting: "Results waiting",
+    tabResults: "Results",
+    tabMarking: "Being marked",
+    empty: "No results yet",
+    emptyBody: "Your results will appear here after you sit an exam.",
+    emptyAction: "See the exam schedule",
+    emptyMarking: "No scripts are waiting to be marked.",
+    awaiting: "Script pending",
+    stored: "Script submitted",
+    notFinal: "Final when time runs out",
+    mcq: "MCQ",
+    written: "Written",
+    undated: "Date to be announced",
+  },
+  board: {
+    title: "Merit list",
+    opensAt: "The merit list will be published at {time}.",
+    undated: "The exam date is not set yet, so there is no merit list.",
+    empty: "No one is on the merit list yet.",
+    liveOnly: "Only exams taken at the scheduled time count for the merit list.",
+    name: "Name",
+    rank: "Rank",
+    score: "Marks",
+    maximum: "Full marks",
+    outcome: "Result",
+    you: "You",
+    myResult: "My result",
+  },
+};
 
 export default result;
