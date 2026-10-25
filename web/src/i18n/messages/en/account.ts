@@ -1,6 +1,75 @@
 import type { MessageTree } from "../types";
 
-/** Owned by its workstream; see docs/exam-site/plans/ui-delivery. */
-const account = {} satisfies MessageTree;
+const account = {
+  title: "My account",
+  profile: {
+    name: "Name",
+    email: "Email",
+    emailVerified: "Verified",
+    emailUnverified: "Not verified",
+    sendCode: "Send verification code",
+    codeLabel: "Verification code",
+    verifySubmit: "Verify email",
+    codeSent: "Code sent. Check your email.",
+    verified: "Email verified.",
+    phone: "Phone",
+    changePhone: "Change",
+    studentCode: "Student code",
+    noPhone: "No phone number yet",
+    nameNote: "To change your name, contact the centre.",
+    preferences: "Language and theme",
+  },
+  password: {
+    title: "Password",
+    change: "Change password",
+    current: "Current password",
+    next: "New password",
+    nextHelp: "8 to 72 characters.",
+    submit: "Change password",
+    saved: "Your password has changed.",
+    wrongCurrent: "The current password is not correct.",
+    lengthError: "The new password must be 8 to 72 characters.",
+  },
+  phoneDialog: {
+    title: "Change phone number",
+    current: "Current password",
+    phone: "New phone number",
+    help: "Starts with 01, 11 digits in all.",
+    submit: "Change phone",
+    saved: "Phone number changed.",
+    wrongCurrent: "The current password is not correct.",
+    duplicate: "An account with this phone number already exists.",
+  },
+  logout: {
+    button: "Log out",
+    title: "Log out now?",
+    body: "You will be logged out on this device.",
+    confirm: "Log out",
+  },
+  payments: {
+    title: "Payment history",
+    link: "Payment history",
+    empty: "No payments yet.",
+    notYet: "Payment history is not available yet. Check again shortly.",
+    kindModule: "Module",
+    kindExam: "Exam",
+    statusPending: "Pending",
+    statusSuccess: "Paid",
+    statusFailed: "Failed",
+    statusCancelled: "Cancelled",
+    amount: "Amount",
+    method: "Method",
+    date: "Date",
+    tranId: "Transaction ID",
+    copied: "Transaction ID copied.",
+    pendingLink: "See payment status",
+    column: {
+      product: "Product",
+      status: "Status",
+      amount: "Amount",
+      date: "Date",
+    },
+  },
+} satisfies MessageTree;
 
 export default account;

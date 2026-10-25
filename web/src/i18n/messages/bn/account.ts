@@ -1,6 +1,75 @@
 import type { MessageTree } from "../types";
 
-/** Owned by its workstream; see docs/exam-site/plans/ui-delivery. */
-const account = {} satisfies MessageTree;
+const account = {
+  title: "আমার অ্যাকাউন্ট",
+  profile: {
+    name: "নাম",
+    email: "ইমেইল",
+    emailVerified: "যাচাই করা হয়েছে",
+    emailUnverified: "যাচাই করা হয়নি",
+    sendCode: "যাচাইয়ের কোড পাঠান",
+    codeLabel: "যাচাই কোড",
+    verifySubmit: "ইমেইল যাচাই করুন",
+    codeSent: "কোড পাঠানো হয়েছে। ইমেইল দেখুন।",
+    verified: "ইমেইল যাচাই হয়েছে।",
+    phone: "ফোন",
+    changePhone: "বদলান",
+    studentCode: "শিক্ষার্থী কোড",
+    noPhone: "এখনো ফোন নম্বর নেই",
+    nameNote: "নাম বদলাতে অ্যাডমিনের সঙ্গে যোগাযোগ করুন।",
+    preferences: "ভাষা ও থিম",
+  },
+  password: {
+    title: "পাসওয়ার্ড",
+    change: "পাসওয়ার্ড বদলান",
+    current: "বর্তমান পাসওয়ার্ড",
+    next: "নতুন পাসওয়ার্ড",
+    nextHelp: "৮ থেকে ৭২ অক্ষর।",
+    submit: "পাসওয়ার্ড বদলান",
+    saved: "পাসওয়ার্ড বদলানো হয়েছে।",
+    wrongCurrent: "বর্তমান পাসওয়ার্ডটি সঠিক নয়।",
+    lengthError: "নতুন পাসওয়ার্ড ৮ থেকে ৭২ অক্ষরের হতে হবে।",
+  },
+  phoneDialog: {
+    title: "ফোন নম্বর বদলান",
+    current: "বর্তমান পাসওয়ার্ড",
+    phone: "নতুন ফোন নম্বর",
+    help: "০১ দিয়ে শুরু করে মোট ১১টি সংখ্যা লিখুন।",
+    submit: "ফোন বদলান",
+    saved: "ফোন নম্বর বদলানো হয়েছে।",
+    wrongCurrent: "বর্তমান পাসওয়ার্ডটি সঠিক নয়।",
+    duplicate: "এই ফোন নম্বরে আগেই একটি অ্যাকাউন্ট আছে।",
+  },
+  logout: {
+    button: "লগআউট",
+    title: "বেরিয়ে যাবেন?",
+    body: "এই ডিভাইস থেকে আপনি লগআউট হবেন।",
+    confirm: "লগআউট করুন",
+  },
+  payments: {
+    title: "পেমেন্ট ইতিহাস",
+    link: "পেমেন্ট ইতিহাস",
+    empty: "এখনো কোনো পেমেন্ট নেই।",
+    notYet: "পেমেন্ট ইতিহাস এখনো চালু হয়নি। কিছুক্ষণ পরে আবার দেখুন।",
+    kindModule: "মডিউল",
+    kindExam: "পরীক্ষা",
+    statusPending: "অপেক্ষমাণ",
+    statusSuccess: "সফল",
+    statusFailed: "ব্যর্থ",
+    statusCancelled: "বাতিল",
+    amount: "মূল্য",
+    method: "মাধ্যম",
+    date: "তারিখ",
+    tranId: "লেনদেন নম্বর",
+    copied: "লেনদেন নম্বর কপি হয়েছে।",
+    pendingLink: "পেমেন্টের অবস্থা দেখুন",
+    column: {
+      product: "পণ্য",
+      status: "অবস্থা",
+      amount: "মূল্য",
+      date: "তারিখ",
+    },
+  },
+} satisfies MessageTree;
 
 export default account;
