@@ -4,23 +4,16 @@ import Link from "next/link";
 import { Suspense, use, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShortcutsPopover } from "@/components/ui/shortcuts-popover";
-import { QuestionPaperPanel } from "@/components/staff/marking/question-paper-panel";
+import { PaperViews } from "@/components/staff/marking/paper-views";
 import { SubmissionForm } from "@/components/staff/marking/submission-form";
 import { neighbour, nextToMark, paperStatus } from "@/components/staff/marking/marking-queue";
 import { ALL_STAFF, RequireStaff, useRole } from "@/lib/auth/guards";
-import {
-  answerPaperBlob,
-  FEED_PAGE_MAX,
-  useFeed,
-  useMarkingPaper,
-} from "@/lib/api/exam/staff-marking";
+import { FEED_PAGE_MAX, useFeed, useMarkingPaper } from "@/lib/api/exam/staff-marking";
 import { useFormat } from "@/lib/format/use-format";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -152,19 +145,14 @@ function Paper({ participantId }: { participantId: string }) {
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        <div className="grid gap-4">
-          {canEvaluate && hasAnswer ? (
-            <Card>
-              <PdfViewer
-                load={() => answerPaperBlob(current.id)}
-                allowDownload
-                fileName={`${current.studentName}-${examTitle}.pdf`}
-                watermark={t("staffMarking.form.watermark")}
-              />
-            </Card>
-          ) : null}
-          {canEvaluate && hasAnswer ? <QuestionPaperPanel examId={current.examId} examTitle={examTitle} /> : null}
-        </div>
+        {canEvaluate && hasAnswer ? (
+          <PaperViews
+            answerId={current.id}
+            studentName={current.studentName}
+            examId={current.examId}
+            examTitle={examTitle}
+          />
+        ) : null}
 
         <SubmissionForm
           key={current.id}

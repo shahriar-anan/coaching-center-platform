@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import StaffSubmissionPage from "@/app/(staff)/staff/submissions/[participantId]/page";
-import { QuestionPaperPanel } from "@/components/staff/marking/question-paper-panel";
+import { PaperViews } from "@/components/staff/marking/paper-views";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { notAllowed, paper, serveFeed } from "./fixtures";
 
@@ -17,20 +17,23 @@ function resolved<T>(value: T): Promise<T> {
   return promise;
 }
 
+const views = { answerId: "a1", studentName: "রহিম উদ্দিন", examId: "e1", examTitle: "রচনা পত্র" };
+
 describe("question paper while marking (G8)", () => {
-  it("stays closed, and asks the server for nothing, until the panel is opened", async () => {
+  it("shows the answer tab first, and asks the server for the question paper only when its tab is opened", async () => {
     const api = mockApi({ "GET /api/v1/live-exams/e1/question-pdf": notAllowed() });
-    renderWithProviders(<QuestionPaperPanel examId="e1" examTitle="রচনা পত্র" />, { user: fixtures.instructor });
+    renderWithProviders(<PaperViews {...views} />, { user: fixtures.instructor });
+    expect(screen.getByRole("tab", { name: "খাতা" })).toHaveAttribute("aria-selected", "true");
     expect(api.calls.some((call) => call.path.endsWith("/question-pdf"))).toBe(false);
 
-    await userEvent.click(screen.getByRole("button", { name: /প্রশ্নপত্র/ }));
+    await userEvent.click(screen.getByRole("tab", { name: "প্রশ্নপত্র" }));
     expect(await screen.findByText("এই প্রশ্নপত্র দেখার অনুমতি নেই।")).toBeInTheDocument();
   });
 
   it("gives an unassigned instructor the permission line, with no error stack or code", async () => {
     mockApi({ "GET /api/v1/live-exams/e1/question-pdf": notAllowed() });
-    renderWithProviders(<QuestionPaperPanel examId="e1" examTitle="রচনা পত্র" />, { user: fixtures.instructor });
-    await userEvent.click(screen.getByRole("button", { name: /প্রশ্নপত্র/ }));
+    renderWithProviders(<PaperViews {...views} />, { user: fixtures.instructor });
+    await userEvent.click(screen.getByRole("tab", { name: "প্রশ্নপত্র" }));
     const body = await screen.findByText("এই প্রশ্নপত্র দেখার অনুমতি নেই।");
     expect(within(body.parentElement!).queryByRole("alert")).toBeNull();
     expect(document.body.textContent).not.toContain("RESOURCE_NOT_FOUND");

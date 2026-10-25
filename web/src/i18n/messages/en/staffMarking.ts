@@ -83,6 +83,10 @@ const staffMarking = {
     stop: "Stop",
     publishedSelected: "{published} published. {failed} failed.",
   },
+  views: {
+    label: "Answer script and question paper",
+    answer: "Answer script",
+  },
   questionPaper: {
     title: "Question paper",
     notAllowed: "You cannot view this question paper.",

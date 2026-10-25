@@ -83,6 +83,10 @@ const staffMarking = {
     stop: "থামান",
     publishedSelected: "{published}টি প্রকাশ হয়েছে। {failed}টি হয়নি।",
   },
+  views: {
+    label: "খাতা ও প্রশ্নপত্র",
+    answer: "খাতা",
+  },
   questionPaper: {
     title: "প্রশ্নপত্র",
     notAllowed: "এই প্রশ্নপত্র দেখার অনুমতি নেই।",
