@@ -72,6 +72,12 @@ public class LiveExamEvaluationController {
 		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.answerPdf(id, actor()));
 	}
 
+	@GetMapping("/api/v1/live-exam-participants/{id}/evaluated-pdf")
+	public ResponseEntity<byte[]> staffEvaluatedPdf(@PathVariable UUID id) {
+		requireReader();
+		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.staffEvaluatedPdf(id, actor()));
+	}
+
 	@PostMapping(value = "/api/v1/live-exam-participants/{id}/evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public LiveExamEvaluationService.SubmissionView evaluate(@PathVariable UUID id, @RequestParam("marks") int marks,
 			@RequestParam(value = "comment", required = false) String comment, @RequestParam("file") MultipartFile file) {
