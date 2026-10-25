@@ -226,4 +226,24 @@ Rules for every workstream: links inside one surface use `next/link` with relati
 
 ## Report
 
-(Agent fills this in.)
+**Done (agent A, phase 1).** Dependencies from the README list added in `web/package.json`. Tokens (two surfaces, light and dark, `data-theme` set before paint), three font families through `next/font`, root and route-group layouts, both shells (student header, footer, bottom tab bar hidden on `/exam/[id]/sit`; staff sidebar and drawer), staff nav table, every component in the Contracts table (one file each, under `components/ui/`), `lib/config` with both host modes, `lib/time/clock`, `lib/format` (with a `useFormat` hook), `lib/url/list-params`, auth routing and guards with one role table, host routing in `proxy.ts` (`lib/url/host-routing.ts`), TanStack Query client, shared exam types, `apiUpload` and `apiBlob`, message namespaces (`messages/index.ts` merges them; old catalogs kept as `legacy`), and the test helpers (`renderWithProviders`, `mockApi`, `fixtures`). `/`, `/sandbox` and `/live-exams` are removed, and the old admin nav is cut to students and admin accounts. Tests: `tests/ws0/**` (65 tests) plus the existing suite, 96 in total.
+
+**Checks.** `npm run lint`: 0 errors, 2 warnings, both in old pages (`<img>`). `npm test`: 96 passed in 9 files. `npm run build`: passed (under the lock).
+
+**Contract changes (additions and two notes, no renames):**
+- `Me` (`lib/api/exam/types.ts`) has `phone` and `email` as `string | null`, and `phoneRequired?`, matching the live API. `Role` adds `INSTRUCTOR`.
+- `lib/config` adds `hostConfig`, `hrefOn`, `apiUrl`, `onStaffHost`, `onSiteHost`, `googleEnabled`. `siteHref`, `staffHref` and the rest match the contract.
+- `useSession()` adds `sessionExpired` and `acceptToken`. `login(identifier, password, options?)` routes by `destinationFor` and returns the `Me`. With split hosts a student on the admin login (or staff on the student login) gets `WrongAudienceError` with `audience`.
+- `useRole()` adds `isStaff`, `canAuthor`, `canSeeStudents`. The instructor's `canEvaluate` is set. `RequireStaff` takes an optional `notFound` node.
+- `StaffShell` takes children only (no `title`); pages render `PageHeader`.
+- **PdfViewer:** `components/pdf/pdf-viewer.tsx` exports the `next/dynamic` wrapper `PdfViewer`. The stub body is `components/pdf/pdf-viewer-impl.tsx`. WS4 replaces the body in `pdf-viewer-impl.tsx`, keeps the props, and leaves the import path alone.
+- **NoticeBell:** stub returns `null`. WS2 replaces the file and keeps the export.
+- **Locale:** the default is Bangla (`bn`) and the choice is stored in `localStorage` (key `locale`). Missing keys show the key outside production. The old admin tests (`course-management`, `payments-page`) now pass `initialLocale="en"`, since those screens are English.
+- **Messages:** `MessageTree` moved to `messages/types.ts`. `messages/en.ts` and `bn.ts` are thin re-exports of the merged catalogs, so old imports still work.
+
+**Notes for other agents and the integrator:**
+- **Runtime vs build-time hosts.** `proxy.ts` reads `SITE_URL` and `STAFF_URL` at request time, so the server redirects can move without a rebuild. Client links (`siteHref`, `staffHref`, `studentHome`) still use the `NEXT_PUBLIC_*` values, which are fixed at build time. For a host move, WS7 must rebuild as well. Verified in the Next 16 docs: proxy runs on the Node runtime by default.
+- **Tests on this PC.** Vitest's default worker pool ran out of memory here (the page file is nearly full while other agents run). `npx vitest run --pool=forks --poolOptions.forks.singleFork=true` works. Test API base is set in `vitest.config.ts`.
+- **Old routes still live until WS2 and WS3 move them:** `app/login`, `app/register`, `app/forgot-password`, `app/reset-password`, `app/activate`, `app/account`, `app/purchase/result`. The new `(auth)` group has no pages yet, so there is no route clash.
+- **Glossary terms this foundation uses** (please add to `bangla-copy.md`): মেনু, খুলুন, বন্ধ করুন, নিচের মেনু, চালু / বন্ধ (switch), অ্যাডমিন প্যানেলে যান, শিক্ষার্থীদের সাইটে লগইন করুন, অ্যাডমিন প্যানেলে লগইন করুন, সময় বাকি, সময় শেষ, আর {n} মিনিট বাকি, ফাইল বদলান, পিডিএফ ফাইল বেছে নিন.
+- **Lint and TypeScript.** `tsc --noEmit` is clean. No open contract issues.
