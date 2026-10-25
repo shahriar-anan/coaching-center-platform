@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -285,6 +286,60 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 				VALUES (?, ?, 'MODULE', ?, NULL, 500.00, 'BDT', 'SSLCOMMERZ', ?, 'INITIATED', now(), now())
 				""", id, student, module, "P" + id.toString().replace("-", "").substring(0, 20));
 		return id;
+	}
+
+	@Test
+	void masterAdminAndSystemAdminReleaseOrWithholdTheMcqAnswers() throws Exception {
+		UUID masterId = seed("MASTER_ADMIN", "Master");
+		String master = token(masterId);
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		String instructor = token(seed("INSTRUCTOR", "Teacher"));
+		String learner = token(seed("STUDENT", "Reader"));
+		UUID module = module(system, "Answers");
+		UUID exam = exam(system, module);
+		String path = "/api/v1/live-exams/" + exam + "/answers-released";
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.released").value(true))
+			.andExpect(jsonPath("$.releasedAt").isNotEmpty());
+		assertThat(jdbc.queryForObject("select answers_released_by from live_exams where id = ?", UUID.class, exam))
+			.isEqualTo(masterId);
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ANSWERS_RELEASED' and entity_id = ?",
+				Integer.class, exam)).isEqualTo(1);
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
+			.andExpect(status().isOk());
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ANSWERS_RELEASED' and entity_id = ?",
+				Integer.class, exam)).isEqualTo(1);
+
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.released").value(false))
+			.andExpect(jsonPath("$.releasedAt").doesNotExist());
+		assertThat(jdbc.queryForObject("select count(*) from live_exams where id = ? and answers_released_at is null", Integer.class, exam)).isOne();
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ANSWERS_WITHHELD' and entity_id = ?",
+				Integer.class, exam)).isEqualTo(1);
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.released").value(true));
+
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + instructor)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + learner)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(put("/api/v1/live-exams/" + UUID.randomUUID() + "/answers-released")
+			.header("Authorization", "Bearer " + master).contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
+			.andExpect(status().isNotFound());
 	}
 
 	private void publish(String token, UUID module) throws Exception {
