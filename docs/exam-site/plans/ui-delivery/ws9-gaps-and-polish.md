@@ -509,3 +509,144 @@ Worktree `F:\cc-wt\stu-lms`, branch `ui/stu-lms`, from `catalog-acquisition`. St
 **Stand-ins:** none.
 
 **Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc` clean; `npm test` (single process) 332 passed in 57 files; `npm run build` under lock `STULMS` passed (BUILD_EXIT 0, no errors in the log).
+
+## Report — PUR-FND
+
+Worktree `F:\cc-wt\pur-fnd`, branch `ui/pur-fnd`, cut from `catalog-acquisition`.
+
+**Done**
+- Stubs (commit `9d2b152`): the six components with the exact contract props.
+- P-1 `PriceBar`: price with Bengali digits in Bangla (western in English), the no-price sentence, note, status and action (right on desktop, below on phones).
+- P-2 `AccessBadge`: ok pill "অ্যাক্সেস আছে" with the source label (module, this exam, roster, admin).
+- P-3 `ConfirmSheet`: built on `Dialog`. A bottom sheet on phones, a centred dialog on desktop. Focus goes to the primary on open, back to the trigger on close, Escape closes. Added an optional `initialFocus` prop to `Dialog` (additive; other callers unchanged).
+- P-4 `SelectableExamList`: native checkboxes (Space works), disabled rows greyed with the reason as text, sticky summary with count and total (no total when nothing is selected or a selected exam has no price), action beside it.
+- P-5 `ProductCard`: one link card with the mockup's lift and gold border, price line, exam count with formatter.
+- P-6 `ConfigNotice`: `role="status"` banner, nothing when `show` is false.
+- P-7 copy: `common.purchase.shared.*` in bn and en.
+- P-8 toast size: check only. `toast.tsx` already uses `text-label` (FND commit `a453d4c`, in this branch). Test added. No change to the toast.
+
+**Deviations**
+- Copy keys are at `common.purchase.shared.*`, not at a top-level `purchase.shared.*`. The top-level `purchase` namespace belongs to STU-PUR's file, so the prompt's literal path would have needed an edit there.
+- P-3 needed an optional `initialFocus` prop on `Dialog`. The prompt says to build on `Dialog`; it did not allow for focus control.
+- The ConfigNotice sentence is the prompt's wording. `bangla-copy.md` has no approved text for this message yet.
+
+**Contract questions:** none.
+
+**Checks (web, this worktree)**
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: 0 errors, 2 warnings (the existing `<img>` ones).
+- `npx vitest run`: 56 files, 328 tests passing.
+- `npm run build`: see the ready message.
+- No `text-[..]`, `text-sm`, raw hex or zinc in the purchase components or their tests.
+## Report — API-ADMIN
+
+Branch `ui/api-admin`, worktree `F:\cc-wt\api-admin`. Merged `catalog-acquisition` first (includes V39 at `3fa6238`). V39 itself was not changed.
+
+Checks: full suite from clean, under the lock: 334 run, 2 failures, both expected: `BookOrderIT`, `CoursePurchaseIT`. One more error on HEAD, outside this work: `StudentAccessIT.staffSeeEveryReasonAStudentCanSitAndNobodyElseCan` inserts a grant with raw SQL and no `source`. V39 dropped the column default, so the insert fails. That file belongs to API-ACCESS (A1), and the fix is theirs; API-ADMIN left it as it is. Touched `*IT` classes green in targeted runs: LiveGrantAdminIT (9), LiveExamPurchaseIT (15), LiveSittingIT (31), LivePublicCatalogIT (5), ExamMailIT (13), LiveEvaluationIT (46), AuditLogIT (3), AuthorizationIT (5), AuthorizationTest (4).
+
+| Item | Status | Note |
+|---|---|---|
+| V39 (S-019) | done | `a726e1e` (merged as `3fa6238`). |
+| 2 Manual grant (R-3) | done | `f2ad59c`. `POST /api/v1/live-exam-grants`, Master Admin and System Admin. `GRANT_ALREADY_ACTIVE`, `RESOURCE_NOT_FOUND`, `ACCESS_GRANTED`. |
+| 3 Revoke (R-2) | done | `ccdc190`. `DELETE /api/v1/live-exam-grants/{id}?reason=`, Master Admin only. Every access check ignores revoked grants. |
+| 4 Confirm or reject order (R-8) | done | `26f4948`. Confirm grants with source `ORDER`, channel `MANUAL-CONFIRMED`. `ORDER_NOT_PENDING`. The `PURCHASE_GRANTED` notice is A2's. |
+| 5 Answer release (R-4) | done | `5a13126`. Sets the flag only; the student review gating is A1's. |
+| 6 Student deletion blocked (R-10, S-021) | done | `f41b614`. `ACCOUNT_HAS_PAID_ORDERS`, for a SUCCEEDED order or any grant, active or revoked. |
+| 7 Permission narrowing (S-022) | done | `48d32db`. `STUDENT_STATUS` is Master Admin only. |
+| 8 Instructor status and delete (S-023) | done | `1e84219`. `ACCOUNT_HAS_MARKED_WORK` (new code). |
+| 9 Announcements (R-5, S-020) | **blocked** | Not committed. See the decision below. |
+| 10 Suspend and restore (R-2) | done | `7c5a1c1`. Audit `USER_SUSPENDED` and `USER_RESTORED`, replacing `USER_STATUS_CHANGED`. |
+
+**Item 9 is blocked on a schema decision.** Section 7 adds only `announcement_id` to `student_notices`. That table still has a `kind` CHECK limited to three kinds (`EXAM_REMINDER`, `MCQ_SCORE`, `WRITTEN_RESULT`), and `exam_id` is `NOT NULL`. An announcement has no exam and needs the new `ANNOUNCEMENT` kind, so its notice row cannot be written. The `announcements` table and the send route alone would give no notices, so nothing was committed. Options: (a) a V40 that widens the kind CHECK and makes `exam_id` nullable (this conflicts with the plan's rule that every schema change is V39, so it needs the integrator's approval); (b) a different notice storage for announcements, which changes the plan. Decision needed before item 9 can go on.
+
+**Notes for A1, A2 and A4:**
+- A1: `StudentAccessIT` (see the check note above) needs `source` on its two grant inserts. The staff access list now shows `via = MANUAL` for manual grants and excludes revoked grants. `LiveExamOrder` has `confirmed_by`, `confirm_reason`, `rejected_reason`. `LiveExam` has `answers_released_at` and `answers_released_by`, which the review gating should read.
+- A2: confirm writes no notice; `PURCHASE_GRANTED` on confirm (and on manual grant) is yours, from the grant path. The `ANNOUNCEMENT` kind waits on the item 9 decision.
+- A4: bundle orders are not handled by confirm or reject (only MODULE and EXAM exist today); `live_exam_grants.source` already allows `BUNDLE`.
+- Module assignments are not removed by instructor suspend or delete; the existing unassign route does that.
+
+**Contract changes (for the integrator):**
+- New routes: `POST /api/v1/live-exam-grants`; `DELETE /api/v1/live-exam-grants/{id}`; `POST /api/v1/live-exam-orders/{id}/confirm` and `/reject`; `PUT /api/v1/live-exams/{id}/answers-released`; `PATCH /api/v1/instructors/{id}/status`; `DELETE /api/v1/instructors/{id}`. All in `AuditLogIT`.
+- Changed: `DELETE /api/v1/students/{id}` (409 `ACCOUNT_HAS_PAID_ORDERS`); `PATCH /api/v1/students/{id}/status` (System Admin gets 403); the staff access list shows `MANUAL` rows; status changes audit `USER_SUSPENDED` / `USER_RESTORED`.
+- New error codes: `GRANT_ALREADY_ACTIVE`, `ORDER_NOT_PENDING`, `ACCOUNT_HAS_PAID_ORDERS`, `ACCOUNT_HAS_MARKED_WORK`.
+- New permissions (all Master Admin only except where noted): `LIVE_EXAM_GRANT` (Master Admin, System Admin), `LIVE_EXAM_REVOKE`, `LIVE_EXAM_ORDER_CONFIRM`, `LIVE_EXAM_RELEASE` (Master Admin, System Admin), `INSTRUCTOR_STATUS`, `INSTRUCTOR_DELETE`.
+- Documented in `current-api.md` under "Added for the phase 2 UI (API-ADMIN)".
+
+## Report — API-ACCESS
+
+Branch `ui/api-access`, worktree `F:\cc-wt\api-access`, rebased on `catalog-acquisition` at `134e687` (API-ADMIN merged). Plan: [student-purchase-lms-plan.md](student-purchase-lms-plan.md). No Flyway migration. Tests ran on the external test database from `api/.env` (`TEST_DB_*`), because Docker is not available on this machine.
+
+**Class names.** The student self-view is its own class, `StudentOwnAccessService` (used by `StudentAccessController` and the public catalog). `StudentLiveExamAccessService`, the staff access list, is exactly as on `catalog-acquisition`; no commit on this branch touches it or `LiveExamAccess`.
+
+**Checks**
+- After the rebase, touched classes under the lock: `StudentAccessIT` 2, `PublicAccessIT` 4 (new), `LivePublicCatalogIT` 6, `LiveSittingIT` 33, `AuditLogIT` 3. All 48 green.
+- Not rerun after the rebase: the full suite, and API-ADMIN's classes (`LiveGrantAdminIT`, `LiveExamPurchaseIT`, `ExamMailIT`, `LiveEvaluationIT`). The lock was taken by another agent as soon as I released it.
+- Full suite before the rebase (on `3fa6238`): 332 run, 15 failures and 10 errors, none from this branch. `BookOrderIT` and `CoursePurchaseIT` passed.
+  - 15 were the V39 `source` column with no value in the grant entity (`LiveExamPurchaseIT`, `ExamMailIT`, `LiveEvaluationIT`). API-ADMIN's merge fixes this.
+  - 10 were leftover rows in the shared test database: the bootstrap Master Admin login (401 or 429) in `ActivationMailIT`, `ActivationSendFailureIT`, `PasswordResetAudienceIT`, `BootstrapIT` and `InstructorDirectoryIT`, and `SEED_INSTRUCTOR_PHONE is already in use` in `DemoContentSeedIT`. This branch does not touch auth, users or the seed.
+
+| Item | Status | Note |
+|---|---|---|
+| S-003 (1) | done | `GET /api/v1/me/live-exam-access`. Roster, module and exam grants; `via` `ROSTER`, `MODULE`, `EXAM`, `MANUAL`; revoked grants and other students' rows never appear. |
+| S-003 (2) | done | `access { state, buyable, blockedReason }` on public module list, module, module exams and exam, for a signed-in student only. |
+| S-005, S-013 (3) | done | `GET /api/v1/public/exam-site/status` → `{ checkoutEnabled }`. |
+| S-012 (4) | done | `categoryPath` on public module rows, root first. |
+| S-027 (5) | done | `moduleOnly` on upcoming rows. |
+| S-018 (6) | done | `correct` and `explanation` withheld until `answers_released_at` is set and the sitting is over. Read through a native query (`LiveExamRepository.answersReleased`). |
+| S-024 (7) | done | Tests only. No behaviour change. |
+
+**Contract changes**
+- New: `GET /api/v1/me/live-exam-access`, `GET /api/v1/public/exam-site/status`. Both in `AuditLogIT`.
+- Added fields: `access` and `categoryPath` on `PublicModule`; `access` on `PublicExam`; `moduleOnly` on `UpcomingExam`.
+- Changed behaviour: the MCQ review hides `correct` and `explanation` until release. Existing `LiveSittingIT` cases now release the answers before they assert them.
+- Shapes are in `current-api.md` under "Added for the phase 2 UI (API-ACCESS)". A null field is left out of the body, as elsewhere, except `access.blockedReason`, which is always written.
+
+**Notes for the other agents**
+- STU-PUR: drop the 404 probes. Use `access.state` and `access.blockedReason` on the module and exam reads, and `/me/live-exam-access` for "my modules". `orderId` is left out for roster rows and manual grants. Owning one exam does not own its module: the module stays `NONE` and buyable. `blockedReason` order is `ALREADY_HAS_ACCESS`, `PRICE_REQUIRED`, `CHECKOUT_OFF`, `PHONE_REQUIRED`. Upcoming rows: show "শুধু মডিউলে কেনা যাবে" when `moduleOnly`.
+- STU-LMS: when a review has `questions` but no `correct` on any option, the answers are withheld. Show "উত্তর এখনো প্রকাশ হয়নি".
+- API-ADMIN: `LiveExamPublicService` and `StudentOwnAccessService` read grants directly (ignoring revoked ones), not through `LiveExamAccess`.
+
+
+## Report — API-NOTICE
+
+Branch `ui/api-notice`, worktree `F:\cc-wt\api-notice`. Rebased on `catalog-acquisition` at 0351a1e (V40 and API-ADMIN's grant code merged in 5d161e8).
+
+Checks, after the merge: `LiveEvaluationIT` 54 run, 0 failures; `LiveGrantAdminIT` 11 run, 0 failures; `LiveExamPurchaseIT` 15 run, 0 failures; `LiveSittingIT` 33 run, 0 failures; `AuditLogIT` 3 run, 0 failures. Total 116 run, 0 failures, 0 errors, `BUILD SUCCESS`. The full suite was not run, as instructed. The earlier failures (three failures and four errors, all in `LiveEvaluationIT`) cleared with V40 and the merged grant code.
+
+Items:
+- Item 1, S-017 `EXAM_STARTING_SOON`: done (`StudentReminderJob.scanSoon`, `StudentNoticeWriter.startingSoon`). Tested by `theOneHourNoticeGoesOnceInsideTheHourToStudentsWithAccessOnly`.
+- Item 2, S-004 `EXAM_OPEN`: done (`StudentReminderJob.scanOpened`). Tested by `theOpenNoticeGoesOnceWhenTheWindowOpensAndOnlyToStudentsWithAccess`.
+- Item 3, S-004 `PURCHASE_GRANTED`: done for exam scope. Hooks: `LiveExamOrderTx.writeGrant` (paid and confirmed orders) and `LiveExamGrantAdminService.grant` (manual grant, one line, its own commit). Tested by `purchaseGrantedNoticeGoesOncePerPaidOrderAndNeverForARefusedOne`, `aConfirmedPendingOrderWritesOnePurchaseNotice`, and `aManualExamGrantWritesOnePurchaseNoticeAndARepeatWritesNothing`.
+- Item 4, S-004 `EXAM_PUBLISHED`: done (`LiveExamService.publish`). Tested by `examPublishedNoticeGoesOnceToStudentsWithAccessToTheModule`.
+- Item 5, `RETAKE_AVAILABLE`: skipped. The retake rule exists, but a notice needs a scan at window end, which is new logic.
+- Item 6, S-004 labels and inbox: row shapes tested by `eachNewKindListsWithItsExamAndModuleAndCarriesNoMarks`. The inbox join is fixed: `StudentInboxService` now left-joins exams and announcements, so announcement and module-level rows show. Tested by `anAnnouncementShowsWithItsTitleAndBodyAndNoExam`.
+
+Contract notes for the web team:
+- An `ANNOUNCEMENT` row in `GET /api/v1/me/notices` has no `exam` key. It has `announcement` with `titleEn`, `titleBn`, `bodyEn`, `bodyBn`, `audience`, and `moduleId` for a module audience. Null fields are omitted from the JSON.
+- Exam rows are unchanged.
+
+Notes for the integrator:
+- The order confirm path needs no call of its own. `LiveExamOrderTx.confirm` goes through `writeGrant`, which already calls `purchaseGranted`. Adding a second call would duplicate it.
+- Module-scope purchases still write no `PURCHASE_GRANTED`. V40 made `exam_id` nullable and added `module_id`, so it is now possible. I have not implemented it. Say if you want it.
+- The manual grant call uses `LiveExamOrder.MODULE.equals(scope) ? moduleId : examId`, so a module grant passes its module id, and the writer skips it for now.
+- I took the Maven lock as `API-NOTICE <pid> <time>` and removed it when the run ended.
+
+## Report — API-ADMIN, update: V40 and item 9
+
+Approved by the integrator after the blocked report above. Item 9 is now done.
+
+- **V40** (`1907442`, its own commit): kind check widened to the nine plan 6.2 kinds, `exam_id` nullable, `module_id` added. Check from clean: all 40 migrations applied to an empty database, `DemoContentSeedIT` 4/4 and `AuditLogIT` 3/3 green. The check database was dropped afterwards.
+- **Item 9** (`a99e0cc`): `POST /api/v1/announcements`, Master Admin only. One announcement row and one `ANNOUNCEMENT` notice per target student, in one transaction. `ALL` targets active students. `MODULE` targets active students with a roster row or an active grant in that module (the grant reading of "access to one module" is my interpretation; tell me if it should be roster only). Audit `ANNOUNCEMENT_SENT`. The notice inbox (`StudentInboxService`, A2's file) joins notices to exams with an inner join, so announcement notices are not shown there yet. A2 must change that join to a left join and map the module for module notices.
+- **Tests**: `LiveGrantAdminIT` 11/11, `AuditLogIT` 3/3, `LiveEvaluationIT` 46/46, `LiveSittingIT` 31/31, `LiveExamPurchaseIT` 15/15 on the test database.
+
+## Report — API-ADMIN, final
+
+Branch `ui/api-admin`, worktree `F:\cc-wt\api-admin`. Rebased on `catalog-acquisition` (includes API-ACCESS's merge `edce9c1`). The only conflict was in this file, where both reports were appended; both are kept. `StudentAccessIT`, `StudentLiveExamAccessService` and `LiveExamAccess` are as they are on main; my branch has no changes to them.
+
+Items: 2 to 10 done, V40 and item 9 included. Partly: none. Skipped: none.
+
+**Targeted tests after the rebase** (`mvn clean verify`, under the lock): 146 run, 0 failures, build successful. Classes: LiveGrantAdminIT 11, AuditLogIT 3, StudentAccessIT 2, AuthorizationIT 5, AuthorizationTest 4, LiveEvaluationIT 46, LiveSittingIT 33, LivePublicCatalogIT 6, PublicAccessIT 4, LiveExamPurchaseIT 15, ExamMailIT 13, DemoContentSeedIT 4. The full suite was not run, as instructed.
+
+**Item 9 decision (audience).** `MODULE` announcements go to active students with a roster row in the module, or an active grant (module or exam scope) in it. Revoked grants do not count. The rule is written in `current-api.md` and lives in one query, `TO_MODULE` in `AnnouncementService`, so the integrator can change it there.
+
+**Still open, outside this branch:** the notice inbox (`StudentInboxService`, A2) joins notices to exams with an inner join, so announcement notices do not appear in the notice box until A2 changes that join.

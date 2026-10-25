@@ -170,6 +170,16 @@ public class LiveExamOrderService {
 		return view(tx.cancel(orderId, studentId));
 	}
 
+	/** Master Admin confirms a pending order (R-8). The reason is required by the caller. */
+	public OrderView confirm(UUID orderId, UUID actorId, String reason) {
+		return view(tx.confirm(orderId, actorId, reason));
+	}
+
+	/** Master Admin rejects a pending order (R-8). The reason is required by the caller. */
+	public OrderView reject(UUID orderId, String reason) {
+		return view(tx.reject(orderId, reason));
+	}
+
 	@Transactional(readOnly = true)
 	public PaymentStatus paymentStatus(String tranId, UUID studentId) {
 		LiveExamOrder order = orders.findByTranId(tranId).orElseThrow(this::notFound);
@@ -237,11 +247,11 @@ public class LiveExamOrderService {
 
 	private void rejectOwned(UUID studentId, Target target) {
 		if (roster.existsByModuleIdAndStudentId(target.moduleId(), studentId)
-				|| grants.existsByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, target.moduleId())) {
+				|| grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(studentId, LiveExamOrder.MODULE, target.moduleId())) {
 			throw alreadyPurchased();
 		}
 		if (target.examId() != null
-				&& grants.existsByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, target.examId())) {
+				&& grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, target.examId())) {
 			throw alreadyPurchased();
 		}
 	}

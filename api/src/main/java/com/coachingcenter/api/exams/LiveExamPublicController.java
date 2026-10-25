@@ -6,11 +6,15 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.coachingcenter.api.auth.Role;
+import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.web.PageResponse;
@@ -20,8 +24,11 @@ public class LiveExamPublicController {
 
 	private final LiveExamPublicService catalog;
 
-	public LiveExamPublicController(LiveExamPublicService catalog) {
+	private final StudentOwnAccessService access;
+
+	public LiveExamPublicController(LiveExamPublicService catalog, StudentOwnAccessService access) {
 		this.catalog = catalog;
+		this.access = access;
 	}
 
 	@GetMapping("/api/v1/public/live-exam-categories")
@@ -34,7 +41,7 @@ public class LiveExamPublicController {
 	public PageResponse<LiveExamPublicService.PublicModule> modules(@RequestParam(required = false) UUID categoryId,
 			@RequestParam(required = false) String examType, @RequestParam(required = false) String q,
 			@PageableDefault(size = 20) Pageable pageable) {
-		return PageResponse.from(catalog.modules(categoryId, LiveExamTypeFilter.parse(examType), q, pageable));
+		return PageResponse.from(catalog.modules(categoryId, LiveExamTypeFilter.parse(examType), q, pageable, viewer()));
 	}
 
 	/** Upcoming exams across the catalog. Only {@code upcoming=true} is served; {@code examType} filters the door. */
@@ -50,18 +57,28 @@ public class LiveExamPublicController {
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}")
 	public LiveExamPublicService.PublicModule module(@PathVariable UUID id) {
-		return catalog.module(id);
+		return catalog.module(id, viewer());
 	}
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}/exams")
 	public PageResponse<LiveExamPublicService.PublicExam> exams(@PathVariable UUID id,
 			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
-		return PageResponse.from(catalog.exams(id, LiveExamTypeFilter.parse(examType), pageable));
+		return PageResponse.from(catalog.exams(id, LiveExamTypeFilter.parse(examType), pageable, viewer()));
 	}
 
 	@GetMapping("/api/v1/public/live-exams/{id}")
 	public LiveExamPublicService.PublicExam exam(@PathVariable UUID id) {
-		return catalog.exam(id);
+		return catalog.exam(id, viewer());
+	}
+
+	/** The signed-in student, or null for a visitor and for staff. A visitor's response has no {@code access}. */
+	private StudentOwnAccessService.Viewer viewer() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication != null && authentication.getPrincipal() instanceof CurrentActor actor
+				&& actor.role() == Role.STUDENT) {
+			return access.viewer(actor.userId());
+		}
+		return null;
 	}
 
 }

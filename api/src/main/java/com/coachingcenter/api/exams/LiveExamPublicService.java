@@ -70,6 +70,7 @@ public class LiveExamPublicService {
 			}
 		}
 		Map<UUID, Counts> counts = counts(visible.stream().map(LiveExamModule::getId).toList());
+		Map<UUID, LiveExamCategory> categoriesById = LiveExamStaffModuleService.categoriesById(categories);
 		boolean filtered = !LiveExamTypeFilter.ANY.equals(examType);
 		Map<UUID, List<PublicModule>> modulesByCategory = new HashMap<>();
 		Set<UUID> categoriesWithModules = new HashSet<>();
@@ -80,14 +81,14 @@ public class LiveExamPublicService {
 				continue;
 			}
 			modulesByCategory.computeIfAbsent(module.getCategoryId(), ignored -> new ArrayList<>())
-				.add(moduleView(module, count));
+				.add(moduleView(module, count, categoriesById, null));
 		}
 		for (List<PublicModule> placed : modulesByCategory.values()) {
 			placed.sort(Comparator.comparingInt(PublicModule::position).thenComparing(PublicModule::id));
 		}
 		Map<UUID, PublicCategory> nodes = new HashMap<>();
 		List<PublicCategory> roots = new ArrayList<>();
-		for (LiveExamCategory category : categories.findByDeletedAtIsNull()) {
+		for (LiveExamCategory category : categoriesById.values()) {
 			if (hidden.contains(category.getId())) {
 				continue;
 			}
@@ -115,7 +116,8 @@ public class LiveExamPublicService {
 	}
 
 	@Transactional(readOnly = true)
-	public Page<PublicModule> modules(UUID categoryId, String examType, String q, Pageable pageable) {
+	public Page<PublicModule> modules(UUID categoryId, String examType, String q, Pageable pageable,
+			StudentOwnAccessService.Viewer viewer) {
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		Pageable ordered = orderedModules(pageable);
 		if (categoryId != null && hidden.contains(categoryId)) {
@@ -127,7 +129,9 @@ public class LiveExamPublicService {
 					anyCategory, anyCategory ? NO_HIDDEN_CATEGORY : categoryId, "%" + q.trim().toLowerCase() + "%",
 					LiveExamTypeFilter.ANY.equals(examType), examType, ordered);
 			Map<UUID, Counts> matchCounts = counts(matches.getContent().stream().map(LiveExamModule::getId).toList());
-			return matches.map(module -> moduleView(module, matchCounts.getOrDefault(module.getId(), Counts.NONE)));
+			Map<UUID, LiveExamCategory> matchCategories = LiveExamStaffModuleService.categoriesById(categories);
+			return matches.map(module -> moduleView(module, matchCounts.getOrDefault(module.getId(), Counts.NONE),
+					matchCategories, viewer));
 		}
 		Page<LiveExamModule> page;
 		if (!LiveExamTypeFilter.ANY.equals(examType)) {
@@ -145,7 +149,9 @@ public class LiveExamPublicService {
 			page = modules.findByStatusAndDeletedAtIsNullAndCategoryIdNotIn(LiveExamModule.PUBLISHED, hidden, ordered);
 		}
 		Map<UUID, Counts> counts = counts(page.getContent().stream().map(LiveExamModule::getId).toList());
-		return page.map(module -> moduleView(module, counts.getOrDefault(module.getId(), Counts.NONE)));
+		Map<UUID, LiveExamCategory> categoriesById = LiveExamStaffModuleService.categoriesById(categories);
+		return page.map(module -> moduleView(module, counts.getOrDefault(module.getId(), Counts.NONE), categoriesById,
+				viewer));
 	}
 
 	/**
@@ -173,36 +179,38 @@ public class LiveExamPublicService {
 			LiveExamModule module = moduleById.get(exam.getModuleId());
 			return new UpcomingExam(exam.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(), exam.getModuleId(),
 					module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(), exam.getLiveAt(),
-					end(exam), exam.getPrice());
+					end(exam), exam.getPrice(), exam.getPrice() == null && module != null && module.getPrice() != null);
 		}).toList();
 		return new PageImpl<>(content, pageable, live.size());
 	}
 
 	@Transactional(readOnly = true)
-	public PublicModule module(UUID id) {
+	public PublicModule module(UUID id, StudentOwnAccessService.Viewer viewer) {
 		LiveExamModule module = requireModule(id);
-		return moduleView(module, counts(List.of(module.getId())).getOrDefault(module.getId(), Counts.NONE));
+		return moduleView(module, counts(List.of(module.getId())).getOrDefault(module.getId(), Counts.NONE),
+				LiveExamStaffModuleService.categoriesById(categories), viewer);
 	}
 
 	@Transactional(readOnly = true)
-	public Page<PublicExam> exams(UUID moduleId, String examType, Pageable pageable) {
+	public Page<PublicExam> exams(UUID moduleId, String examType, Pageable pageable,
+			StudentOwnAccessService.Viewer viewer) {
 		requireModule(moduleId);
 		Pageable ordered = orderedExams(pageable);
 		Page<LiveExam> page = LiveExamTypeFilter.ANY.equals(examType)
 				? exams.findByModuleIdAndStatusAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED, ordered)
 				: exams.findByModuleIdAndStatusAndExamTypeAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED, examType,
 						ordered);
-		return page.map(this::examView);
+		return page.map(exam -> examView(exam, viewer));
 	}
 
 	@Transactional(readOnly = true)
-	public PublicExam exam(UUID id) {
+	public PublicExam exam(UUID id, StudentOwnAccessService.Viewer viewer) {
 		LiveExam exam = exams.findByIdAndDeletedAtIsNull(id).orElseThrow(this::notFound);
 		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
 			throw notFound();
 		}
 		requireModule(exam.getModuleId());
-		return examView(exam);
+		return examView(exam, viewer);
 	}
 
 	private LiveExamModule requireModule(UUID id) {
@@ -269,17 +277,20 @@ public class LiveExamPublicService {
 		return false;
 	}
 
-	private static PublicModule moduleView(LiveExamModule module, Counts counts) {
-		return new PublicModule(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
-				module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
-				counts.mcq(), counts.written());
+	/** {@code viewer} is the signed-in student, or null; only a student's view carries {@code access}. */
+	private static PublicModule moduleView(LiveExamModule module, Counts counts,
+			Map<UUID, LiveExamCategory> categoriesById, StudentOwnAccessService.Viewer viewer) {
+		return new PublicModule(module.getId(), module.getCategoryId(),
+				LiveExamStaffModuleService.pathOf(module.getCategoryId(), categoriesById), module.getTitleEn(),
+				module.getTitleBn(), module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
+				counts.mcq(), counts.written(), viewer == null ? null : viewer.module(module));
 	}
 
-	private PublicExam examView(LiveExam exam) {
+	private PublicExam examView(LiveExam exam, StudentOwnAccessService.Viewer viewer) {
 		return new PublicExam(exam.getId(), exam.getModuleId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
 				exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(),
 				exam.getPaperLanguage(), format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(),
-				exam.getPrice());
+				exam.getPrice(), viewer == null ? null : viewer.exam(exam));
 	}
 
 	private static Pageable orderedModules(Pageable pageable) {
@@ -327,13 +338,18 @@ public class LiveExamPublicService {
 			List<PublicCategory> children, List<PublicModule> modules) {
 	}
 
-	public record PublicModule(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
-			String descriptionBn, int position, BigDecimal price, int mcqCount, int writtenCount) {
+	/** {@code categoryPath} runs from the root category down to the module's own, the same shape as the staff read. */
+	public record PublicModule(UUID id, UUID categoryId, List<LiveExamModuleService.CategoryRef> categoryPath,
+			String titleEn, String titleBn, String descriptionEn, String descriptionBn, int position, BigDecimal price,
+			int mcqCount, int writtenCount, StudentOwnAccessService.Access access) {
 	}
 
-	/** One upcoming exam, with its module's titles. Price is null when the exam is not sold on its own. */
+	/**
+	 * One upcoming exam, with its module's titles. Price is null when the exam is not sold on its own; {@code moduleOnly}
+	 * is then true when its module is priced, so the exam can be bought only with the module.
+	 */
 	public record UpcomingExam(UUID id, String examType, String titleEn, String titleBn, UUID moduleId, String moduleTitleEn,
-			String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price) {
+			String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price, boolean moduleOnly) {
 	}
 
 	private record Counts(int mcq, int written) {
@@ -348,7 +364,8 @@ public class LiveExamPublicService {
 
 	public record PublicExam(UUID id, UUID moduleId, String examType, String titleEn, String titleBn,
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String paperLanguage,
-			String liveAt, String endAt, int durationMinutes, BigDecimal price) {
+			String liveAt, String endAt, int durationMinutes, BigDecimal price,
+			StudentOwnAccessService.Access access) {
 	}
 
 }

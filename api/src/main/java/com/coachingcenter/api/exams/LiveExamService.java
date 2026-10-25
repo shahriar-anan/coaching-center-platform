@@ -77,11 +77,13 @@ public class LiveExamService {
 
 	private final LiveExamParticipantRepository participants;
 
+	private final StudentNoticeWriter notices;
+
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
 			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
 			LiveExamAccess access, LiveExamCatalogVisibility visibility, LocalFileStorage files, ExamMailService examMail,
 			AfterCommit afterCommit, Clock clock, AuditRecorder audit,
-			LiveExamParticipantRepository participants) {
+			LiveExamParticipantRepository participants, StudentNoticeWriter notices) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
@@ -95,6 +97,7 @@ public class LiveExamService {
 		this.clock = clock;
 		this.audit = audit;
 		this.participants = participants;
+		this.notices = notices;
 	}
 
 	@Transactional
@@ -369,6 +372,7 @@ public class LiveExamService {
 		visibility.requireOpen(requireModule(exam.getModuleId()).getCategoryId());
 		exam.setStatus(LiveExam.PUBLISHED);
 		UUID examId = exam.getId();
+		notices.published(examId, exams.findActiveStudentsWithAccess(exam.getModuleId(), examId));
 		afterCommit.run(() -> examMail.onExamPublished(examId));
 		return view(exam, true);
 	}

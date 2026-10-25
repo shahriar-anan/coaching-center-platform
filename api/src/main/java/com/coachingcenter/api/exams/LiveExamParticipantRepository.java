@@ -28,6 +28,8 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 
 	boolean existsByExamId(UUID examId);
 
+	boolean existsByEvaluatedBy(UUID evaluatedBy);
+
 	List<LiveExamParticipant> findByStudentIdAndExamIdInAndDeletedAtIsNull(UUID studentId,
 			java.util.Collection<UUID> examIds);
 
