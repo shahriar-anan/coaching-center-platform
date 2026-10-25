@@ -1,5 +1,87 @@
 @import "tailwindcss";
 
+/* Self-hosted fonts (WS9 F8): the same families, weights and subsets as before, from web/src/app/fonts. */
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-bengali-400.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED, U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1, U+11DF0-11DF1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-latin-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-bengali-500.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED, U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1, U+11DF0-11DF1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-latin-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-bengali-600.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED, U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1, U+11DF0-11DF1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-bengali-700.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED, U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1, U+11DF0-11DF1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/hind-siliguri-latin-700.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/noto-sans-bengali-bengali.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED, U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1, U+11DF0-11DF1;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("./fonts/inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /*
  * Two surfaces, two palettes. Components use tokens only (bg-card, text-muted,
  * ...), never hard-coded colors. The student surface sets data-surface="site",
@@ -19,6 +101,7 @@
   --color-on-accent: var(--on-accent);
   --color-action: var(--action);
   --color-on-action: var(--on-action);
+  --color-on-warn: var(--on-warn);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-warn-fill: var(--warn-fill);
@@ -31,6 +114,75 @@
   --font-bn: var(--font-bengali), var(--font-hind), system-ui, sans-serif;
   --font-latin: var(--font-inter), system-ui, sans-serif;
   --font-sans: var(--font-site);
+}
+
+/*
+ * Named type scale (WS9 P1). Student values are the defaults; the staff panel
+ * overrides the same variables below, so one class (text-body) reads right on
+ * both surfaces. Bangla text never gets uppercase or letter-spacing.
+ */
+@theme {
+  --text-display: clamp(64px, 22vw, 110px);
+  --text-display--line-height: 1.05;
+  --text-display--font-weight: 800;
+
+  --text-title: 22px;
+  --text-title--line-height: 1.3;
+  --text-title--font-weight: 700;
+
+  --text-section: 20px;
+  --text-section--line-height: 1.35;
+  --text-section--font-weight: 700;
+
+  --text-card: 17px;
+  --text-card--line-height: 1.4;
+  --text-card--font-weight: 700;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.6;
+  --text-body--font-weight: 400;
+
+  --text-meta: 14px;
+  --text-meta--line-height: 1.5;
+  --text-meta--font-weight: 400;
+
+  --text-label: 15px;
+  --text-label--line-height: 1.3;
+  --text-label--font-weight: 600;
+
+  --text-pill: 12px;
+  --text-pill--line-height: 1.2;
+  --text-pill--font-weight: 700;
+}
+
+[data-surface="staff"] {
+  --text-title: 22px;
+  --text-title--font-weight: 600;
+
+  --text-section: 18px;
+  --text-section--font-weight: 600;
+
+  --text-card: 16px;
+  --text-card--font-weight: 600;
+
+  --text-body: 14px;
+  --text-body--line-height: 1.45;
+  --text-body--font-weight: 400;
+
+  --text-meta: 13px;
+  --text-meta--line-height: 1.45;
+
+  --text-label: 14px;
+  --text-label--font-weight: 500;
+
+  --text-pill--font-weight: 600;
+}
+
+/* Font families. The faces are self-hosted above, so builds never fetch fonts. */
+:root {
+  --font-hind: "Hind Siliguri";
+  --font-bengali: "Noto Sans Bengali";
+  --font-inter: "Inter";
 }
 
 /* Student site, light. */
@@ -52,6 +204,8 @@
   --radius-control-value: 12px;
   --action: #c8962e;
   --on-action: #14213d;
+  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  --on-warn: #ffffff;
 }
 
 /* Admin panel, light. */
@@ -92,6 +246,8 @@
     --danger: #f97066;
     --action: #e0b254;
     --on-action: #14213d;
+  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  --on-warn: #ffffff;
   }
 
   :root:not([data-theme="light"]) [data-surface="staff"] {
@@ -127,6 +283,8 @@
   --danger: #f97066;
   --action: #e0b254;
   --on-action: #14213d;
+  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  --on-warn: #ffffff;
 }
 
 :root[data-theme="dark"] [data-surface="staff"] {
@@ -171,4 +329,27 @@ body {
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Print (WS9 PrintArea): only the marked area prints, the shell and controls do not. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  [data-print-area],
+  [data-print-area] * {
+    visibility: visible;
+  }
+  [data-print-area] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+}
+
+/* Phones: a page with a sticky action bar keeps its last content clear of the bar and the tab bar (WS9 FN-2). */
+@media (max-width: 767.98px) {
+  [data-surface]:has([data-sticky-bar]) {
+    padding-bottom: calc(var(--tabbar-h, 0px) + 5rem + env(safe-area-inset-bottom));
+  }
 }

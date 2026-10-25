@@ -31,7 +31,7 @@ export function OneTimeCodeDialog({
       footer={<Button onClick={onClose}>{t("common.oneTimeCode.done")}</Button>}
     >
       <CopyField value={code} label={t("common.oneTimeCode.label")} />
-      <p className="rounded-control bg-warn/10 px-3.5 py-2.5 text-sm text-warn">
+      <p className="rounded-control bg-warn/10 px-3.5 py-2.5 text-meta text-warn">
         {t("common.oneTimeCode.once")}
       </p>
     </Dialog>

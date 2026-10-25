@@ -162,6 +162,28 @@ const common = {
     region: "বার্তা",
     dismiss: "বার্তাটি বন্ধ করুন",
   },
+  shortcuts: {
+    open: "কী-বোর্ড শর্টকাট",
+    title: "কী-বোর্ড শর্টকাট",
+  },
+  sectionNav: {
+    label: "সূচি",
+  },
+  quickSearch: {
+    open: "খুঁজুন",
+    label: "দ্রুত অনুসন্ধান",
+    placeholder: "শিক্ষার্থী বা মডিউল খুঁজুন (/)",
+    students: "শিক্ষার্থী",
+    modules: "মডিউল",
+    loading: "খোঁজা হচ্ছে…",
+    empty: "কোনো মিল পাওয়া যায়নি",
+  },
+  unsaved: {
+    title: "সেভ না করে চলে যাবেন?",
+    body: "আপনার করা পরিবর্তন এখনও সেভ হয়নি।",
+    leave: "চলে যান",
+  },
+  unreadNotices: "{count}টি অপঠিত নোটিশ",
   pdf: {
     placeholder: "পিডিএফ",
     loading: "পিডিএফ লোড হচ্ছে…",

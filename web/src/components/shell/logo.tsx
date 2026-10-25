@@ -14,7 +14,7 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
     <Link
       href={href}
       aria-label={t("common.brand.home")}
-      className={cn("inline-flex items-center gap-1.5 text-[19px] font-bold text-text", className)}
+      className={cn("inline-flex items-center gap-1.5 text-section text-text", className)}
     >
       <span aria-hidden="true">⚖️</span>
       <span>

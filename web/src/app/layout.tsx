@@ -1,28 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Hind_Siliguri, Inter, Noto_Sans_Bengali } from "next/font/google";
 import { Providers } from "@/app/providers";
 import "./globals.css";
-
-const hind = Hind_Siliguri({
-  variable: "--font-hind",
-  subsets: ["bengali", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const notoBengali = Noto_Sans_Bengali({
-  variable: "--font-bengali",
-  subsets: ["bengali"],
-  weight: ["400", "700"],
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -45,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="bn"
-      className={`${hind.variable} ${notoBengali.variable} ${inter.variable} h-full antialiased`}
+      className="h-full antialiased"
       suppressHydrationWarning
     >
       <head>

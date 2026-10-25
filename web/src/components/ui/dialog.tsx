@@ -42,9 +42,9 @@ export function Dialog({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="grid gap-1">
-              <RadixDialog.Title className="text-lg font-semibold">{title}</RadixDialog.Title>
+              <RadixDialog.Title className="text-section font-semibold">{title}</RadixDialog.Title>
               {description ? (
-                <RadixDialog.Description className="text-[15px] text-muted">
+                <RadixDialog.Description className="text-body text-muted">
                   {description}
                 </RadixDialog.Description>
               ) : null}

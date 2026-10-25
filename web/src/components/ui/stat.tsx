@@ -5,8 +5,8 @@ import { cn } from "@/components/ui/cn";
 export function Stat({ value, label }: { value: ReactNode; label: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5 px-2 py-3 text-center">
-      <span className="text-xl font-bold tabular-nums text-text">{value}</span>
-      <span className="text-xs text-muted">{label}</span>
+      <span className="text-section font-bold tabular-nums text-text">{value}</span>
+      <span className="text-meta text-muted">{label}</span>
     </div>
   );
 }

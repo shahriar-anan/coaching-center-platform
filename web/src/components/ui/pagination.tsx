@@ -31,7 +31,7 @@ export function Pagination({
         <ChevronLeft aria-hidden="true" className="size-4" />
         <span className="hidden sm:inline">{t("common.pagination.prev")}</span>
       </Button>
-      <p className="text-sm text-muted tabular-nums" aria-live="polite">
+      <p className="text-meta text-muted tabular-nums" aria-live="polite">
         {t("common.pagination.of", { page: shown(page), total: formatNumber(totalPages, locale) })}
       </p>
       <Button

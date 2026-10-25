@@ -58,7 +58,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={item.id}
             className={cn(
-              "pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-control border-s-4 bg-card py-2 ps-4 pe-2 text-[15px] text-text shadow-lg",
+              "pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-control border-s-4 bg-card py-2 ps-4 pe-2 text-label text-text shadow-lg",
               toneClass[item.tone ?? "info"],
             )}
           >

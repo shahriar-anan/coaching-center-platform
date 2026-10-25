@@ -60,7 +60,7 @@ export function DateTimeInput({
         onChange={(e) => onChange(e.target.value ? fromDhakaLocal(e.target.value) : null)}
         className={cn(controlBase, controlBorder(invalid), "tabular-nums")}
       />
-      <span className="text-xs text-muted">{t("common.dateTime.zone")}</span>
+      <span className="text-meta text-muted">{t("common.dateTime.zone")}</span>
     </div>
   );
 }

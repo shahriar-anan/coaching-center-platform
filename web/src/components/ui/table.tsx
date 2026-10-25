@@ -38,7 +38,7 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
   return (
     <>
       <div className="hidden overflow-x-auto rounded-card border border-border bg-card sm:block">
-        <table className="w-full min-w-[32rem] border-collapse text-[14px]">
+        <table className="w-full min-w-[32rem] border-collapse text-body">
           <thead className="sticky top-0 bg-card">
             <tr className="border-b border-border text-start text-muted">
               {columns.map((col) => (
@@ -83,7 +83,7 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
             )}
           >
             {columns.map((col) => (
-              <div key={col.key} className="flex items-start justify-between gap-3 text-[14px]">
+              <div key={col.key} className="flex items-start justify-between gap-3 text-body">
                 <span className="shrink-0 text-muted">
                   {col.mobileLabel ?? (typeof col.header === "string" ? col.header : null)}
                 </span>
