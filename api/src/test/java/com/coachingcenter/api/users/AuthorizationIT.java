@@ -74,6 +74,21 @@ class AuthorizationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void systemAdminCannotSuspendAStudentButMasterAdminCan() throws Exception {
+		String system = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID student = seed("STUDENT");
+		mockMvc.perform(patch("/api/v1/students/" + student + "/status").header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"status\":\"INACTIVE\"}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(patch("/api/v1/students/" + student + "/status").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"status\":\"INACTIVE\"}"))
+			.andExpect(status().isNoContent());
+	}
+
+	@Test
 	void studentCannotReadAnotherStudentOrCallAdminEndpoints() throws Exception {
 		String phone = uniquePhone();
 		register(phone);
