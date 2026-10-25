@@ -1,0 +1,60 @@
+# WS4 — Sitting, results, leaderboard
+
+Branch `ui/ws4-student-sitting`, cut after WS0 merges. Read [README.md](README.md) and [ws0-foundation.md](ws0-foundation.md). States follow Prompt 3 of [../../ui/student-flow-prompts.md](../../ui/student-flow-prompts.md), except the MCQ layout (U11) and the saved-selection behavior (D-a). The rules in "Rules the API enforces" there are binding.
+
+## Owns
+
+- `web/src/app/(site)/exam/[examId]/sit/**`, `.../result/**`, `.../leaderboard/**`
+- `web/src/components/student/sitting/**`, `web/src/components/student/result/**`, `web/src/components/pdf/**` (replace WS0's `PdfViewer` stub and keep its props, because WS5 and WS6 already import it; `allowDownload` is false for students and true for staff answer scripts)
+- `web/src/lib/api/exam/sitting.ts`
+- `web/public/pdf.worker.min.mjs` (copied from `pdfjs-dist` by a `postinstall`-free script or a checked-in copy; must work in the standalone build)
+- `web/src/i18n/messages/{bn,en}/{sitting,result}.ts`
+- Tests under `web/tests/ws4/**`
+
+## Entry
+
+`/exam/[examId]/sit?start=live|retake` comes from the exam page (WS3). With `start=live` call `POST /api/v1/live-exams/{id}/take`; with `start=retake` call `POST .../retake`; then replace the URL with `/exam/[examId]/sit`. Without `start`, read `GET /api/v1/live-exams/{id}`: an open sitting renders; anything else returns to `/exam/[examId]` (or to the result when the sitting has ended). Requires a signed-in student (`RequireStudent`) with a phone. Map errors: `SITTING_NOT_OPEN` (window closed or not started) back to the exam page with the reason; not owned (404) back to the exam page.
+
+## MCQ paper (U11)
+
+- **Sticky bar** under the header (a card, not a new color): exam title, `Countdown` from the sitting deadline and `serverNow()`, save state ("সংরক্ষিত", "সংরক্ষণ হচ্ছে…", "সংরক্ষণ হয়নি · আবার চেষ্টা"), answered count "১২/৫০", and a "প্রশ্ন" button that opens the jump grid.
+- **Jump grid**: numbers in a grid, answered filled gold, unanswered outlined; tap scrolls to that question. On desktop it can sit under the bar; on phones it is a bottom sheet.
+- **Paper**: all questions on one page, numbered, the stem in the paper's typeface (`BN` uses Noto Sans Bengali, `EN` uses Inter), options as full-width 44 px+ rows labeled ক খ গ ঘ (Bangla paper) or A B C D. The selected option has a gold border and the word "নির্বাচিত". Tapping the selected option again clears it.
+- **Autosave**: every change sends the whole selection with `PUT /api/v1/live-exams/{id}/answers`, debounced 400 ms, one request in flight, the latest selection always wins, retry with backoff (1 s, 2 s, 4 s, then show the retry button). Keep a backup of the selection in `localStorage` keyed by exam, student and sitting start, and merge it with the server's saved `selected` on load (server wins when they differ and the server copy is newer). Clear the backup when the sitting ends. Warn before leaving the page while a save is pending.
+- **Submit**: primary "জমা দিন" at the end of the paper and in the bar. The confirm dialog shows answered and unanswered counts. `POST .../submit` returns the score: show "৩৮ / ৫০ · উত্তীর্ণ" and "সময় শেষ হওয়া পর্যন্ত উত্তর বদলানো যাবে।" The paper stays editable until the deadline, without any answer key.
+- **Deadline**: when the countdown reaches zero, stop accepting taps, flush the last save, and move to `/exam/[id]/result` without asking the student to refresh. The server posts saved answers anyway.
+- **Later attempt**: the banner "এটি পরে দেওয়া চেষ্টা। মেধাতালিকায় উঠবে না।" and the timer labeled "আপনার সময়".
+- Focus stays on the chosen option; the countdown never steals focus and announces only each minute.
+
+## Written sitting
+
+- Sticky bar with the countdown.
+- **Question PDF**: `GET /api/v1/live-exams/{id}/question-pdf` as a blob with the auth header, rendered with `pdfjs-dist` into canvases (dynamic import; the worker from `/pdf.worker.min.mjs`). Fit to width, page controls, pinch and button zoom, lazy-render pages near the viewport. A watermark layer over the canvas repeats "নাঈম হাসান · S18492017" (the student's name and code from `/me`) diagonally at low contrast. No download, no open-in-new-tab, no print control, and the context menu is suppressed on the viewer. Do not claim screenshots are blocked.
+- **Answer upload**: the mockup's dashed drop zone, "খাতার পিডিএফ এখানে আপলোড করুন", "শুধু পিডিএফ, সর্বোচ্চ ৮০ এমবি". Check the `%PDF` header and size before sending. Upload with progress (use `XMLHttpRequest` through a helper that adds the token and refresh handling, since `fetch` has no upload progress). After storing: file name, size, upload time, and "বদলে দিন". Replacement is allowed until the deadline. An image shows "শুধু পিডিএফ।" and the zone stays ready.
+- **Deadline**: as MCQ, move to the result.
+
+## Result (`/exam/[examId]/result`)
+
+`GET /api/v1/live-exams/{id}/result`. Mockup stat row of three cells.
+
+- MCQ: নম্বর "৩৮ / ৫০", ফল উত্তীর্ণ or অনুত্তীর্ণ (from the server), মেধাক্রম (from the leaderboard row when it is open, else "—"). Review list after the deadline: each question with "আপনার উত্তর" (orange border) and "সঠিক" (green border) as words and borders, and the explanation. Later attempts are labeled as such.
+- Written, failed to submit: নম্বর "০", ফল "জমা হয়নি", মেধাক্রম "—".
+- Written, stored and not published: প্রাপ্ত নম্বর "—", মেধাক্রম "—", খাতা মূল্যায়ন "অপেক্ষমাণ". No comment and no marked script.
+- Written, published: marks, pass, rank, the comment without any name, and "মূল্যায়িত খাতা দেখুন" opening the same PDF viewer on `GET .../evaluated-pdf`.
+- Link "মেধাতালিকা".
+
+## Leaderboard (`/exam/[examId]/leaderboard`)
+
+`GET /api/v1/live-exams/{id}/leaderboard`. Closed: "মেধাতালিকা দুপুর ১২:৪৫ এ খুলবে।" (five minutes after the end) or the undated sentence. Open: table নাম, ক্রম, নম্বর, পূর্ণমান, ফল; ties share a rank and the next rank skips; the student's own row is highlighted; no phone column. Paged if the response is paged.
+
+## Performance
+
+The PDF viewer and `pdfjs-dist` load only on the written sitting and on "মূল্যায়িত খাতা দেখুন". The MCQ paper must stay smooth with 100 questions on a mid-range phone: memoize question rows, update only the changed row on a tap.
+
+## Tests
+
+Take and retake entry and error redirects, autosave debounce and latest-wins, backup merge with server `selected`, submit dialog counts and score card, deadline transition, PDF file checks (image rejected, size), upload replace state, each result state, leaderboard closed and ties.
+
+## Report
+
+(Agent fills this in.)
