@@ -57,6 +57,7 @@ const account = {
     open: "View receipt",
     title: "Payment receipt",
     site: "Exam Portal",
+    student: "Student",
     item: "Purchased",
     amount: "Amount",
     method: "Payment method",

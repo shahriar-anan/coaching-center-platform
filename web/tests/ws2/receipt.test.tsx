@@ -22,8 +22,9 @@ const order = {
 
 describe("payment receipt", () => {
   it("shows the site, the item, the amount and the transaction number", () => {
-    renderWithProviders(<ReceiptView order={order} />);
+    renderWithProviders(<ReceiptView order={order} studentName="নাঈম হাসান" />);
     expect(screen.getByText("এক্সাম পোর্টাল")).toBeInTheDocument();
+    expect(screen.getByText("নাঈম হাসান")).toBeInTheDocument();
     expect(screen.getByText("বিজেএস মক ১")).toBeInTheDocument();
     expect(screen.getByText("৳৪০০")).toBeInTheDocument();
     expect(screen.getByText("TRX123")).toBeInTheDocument();

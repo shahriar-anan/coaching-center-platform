@@ -6,6 +6,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/i18n/locale-context";
+import { useSession } from "@/lib/auth/session-context";
 import { RequireStudent } from "@/lib/auth/guards";
 import { useMyOrders } from "@/lib/api/exam/account";
 import { useListParams } from "@/lib/url/list-params";
@@ -23,6 +24,8 @@ export default function ReceiptPage() {
 
 function ReceiptRoute() {
   const { t } = useLocale();
+  const { session } = useSession();
+  const studentName = session.status === "authenticated" ? session.user.fullName : "";
   const [params] = useListParams({ order: "", page: 0 });
   const query = useMyOrders(params.page);
 
@@ -54,7 +57,7 @@ function ReceiptRoute() {
   return (
     <>
       <PageHeader title={t("account.receipt.title")} />
-      <ReceiptView order={order} />
+      <ReceiptView order={order} studentName={studentName} />
     </>
   );
 }
