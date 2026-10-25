@@ -654,11 +654,11 @@ Items: 2 to 10 done, V40 and item 9 included. Partly: none. Skipped: none.
 
 Branch `ui/stu-pur`, worktree `F:\cc-wt\stu-pur`, rebased on `catalog-acquisition` at `edce9c1` (API-ACCESS merged). The start was `3fa6238`; the README's `a6984f7` is not the head. Plan: [student-purchase-lms-plan.md](student-purchase-lms-plan.md). Prompt: [agent-STU-PUR.md](prompts/phase2/agent-STU-PUR.md).
 
-**Checks** (this head, `e789796`)
+**Checks** (this head, `8bdcf49` on top of `c228315`, the STU-LMS merge)
 - `npm run lint`: 0 errors. Two warnings remain, both in files this agent does not own (`authorized-file.tsx`, `book-details-form.tsx`).
 - `npx tsc --noEmit`: clean.
-- `npm test`: 54 files, 331 tests passed.
-- `npm run build`: passed under the lock `STUPUR`; the lock is released.
+- `npm test`: 72 files, 420 tests passed.
+- `npm run build`: passed under the lock `STUPUR` (BUILD_EXIT 0); the lock is released.
 
 | Item | Status | Commit | Note |
 |---|---|---|---|
@@ -666,10 +666,14 @@ Branch `ui/stu-pur`, worktree `F:\cc-wt\stu-pur`, rebased on `catalog-acquisitio
 | S-005 (config notice) | done | `028c0ac` | Unchanged in this session. |
 | S-001 (bundle selection) | done, flag off | `96ae1f5` | Behind `bundleOrders` (default false). Turn it on after the integrator says A4 is merged. |
 | S-010 (upcoming row) | done | `b31466b` | `moduleOnly` is now sent (S-027), so the "no note until A1" fallback is no longer live. |
-| S-011 (search by door type) | not re-checked in this session | — | |
-| Confirm sheet copy | not re-checked in this session | — | |
-| Blocked reasons | partly | `47f7036` | `PHONE_REQUIRED` and `buyable` now drive the buy controls. `PRICE_REQUIRED` still uses the catalog copy "মূল্য এখনো ঠিক হয়নি", while the spec text is "দাম এখনো নির্ধারণ হয়নি।". Not changed. |
-| Module page exam list | partly | `47f7036` | Owned rows show `AccessBadge`, not a buy link. Rows without a price show "মূল্য এখনো ঠিক হয়নি" and no link. |
+| Switch to PUR-FND components | done | `30f9d61`, `f2992ce` | Imports swapped in four files, then the stand-in folder deleted. Props matched, so no call site changed. |
+| 404 probes gone | done (confirmed) | `25b5781` | Module and exam reads are gated by the access object: the student's module-exam list and `useMyExam` run only when the student owns something there. A non-owner makes no student read (`ownership.test.tsx`). |
+| Owned exam, module `NONE` and buyable | done (tested) | existing | `ownership.test.tsx`: owning one exam leaves the module `NONE`, the module buy enabled, and the owned row shows the badge. |
+| S-011 (search by door type) | done (re-checked) | existing | `searchMatches` keeps modules whose count for this door's type is above zero. The API always sends `mcqCount` and `writtenCount`; an unknown count is kept only for an older API. `tests/ws3/door-discovery.test.tsx`. |
+| Confirm sheet copy | done | `a513fb4` | Unlock lines: "শুধু এই পরীক্ষাটি খুলবে।" and "এই মডিউলের বর্তমান ও ভবিষ্যতের সব পরীক্ষা খুলবে।". Primary "পেমেন্টে যান". Tests open both sheets. See the copy-guide note below. |
+| Blocked reasons | done | `cd91957` | `PRICE_REQUIRED` (the blocked reason and the sheet's message) reads "দাম এখনো নির্ধারণ হয়নি।". English: "Price not set yet.". Tests in `access.test.ts`. |
+| Module page exam list | done | `cd91957` | Rows with no price read "দাম এখনো নির্ধারণ হয়নি।" and have no buy link. |
+| Bundle flag | off, confirmed | — | `NEXT_PUBLIC_BUNDLE_ORDERS` is not set in any tracked file; `bundle.test.tsx` asserts `bundleOrders` is `false`. |
 | `useOrder` unused export | done | `29e741a` | Removed; no caller. |
 | `text-2xl` on module page | done | `29e741a` | Now `text-title`. |
 | `ProductCard` on cards | partly | `e789796` | Done on the door page. The category pages were not checked. |
@@ -678,8 +682,9 @@ Branch `ui/stu-pur`, worktree `F:\cc-wt\stu-pur`, rebased on `catalog-acquisitio
 - `useMyModules` (`catalog.ts`) still reads `/api/v1/live-exam-modules?size=100`. Two STU-LMS files use it: `components/student/home/home-page.tsx` and `components/student/catalog/my-modules-page.tsx`. The new `/api/v1/me/live-exam-access` gives module IDs and sources, not titles. So those files need an answer on how to get titles before they can switch. I did not change them.
 - An exam-only owner on the module page: the student module-exam list may answer 403 or 404 for them. `orNull` turns that into an empty list, so their owned rows get the badge from the row's `access`, but no status pill. Confirm the API's answer for this case.
 
-**Stand-ins still in use:** `web/src/components/student/stand-ins-pur/` (`access-badge.tsx`, `config-notice.tsx`, `confirm-sheet.tsx`, `price-bar.tsx`, `product-card.tsx`, `selectable-exam-list.tsx`). They are deleted at the switch to PUR-FND.
+**Stand-ins:** none. `web/src/components/student/stand-ins-pur/` is deleted (`f2992ce`). Its `ConfirmSheet` and `PriceBar` were never imported; the app's confirm sheet is `purchase/purchase-sheet.tsx`, which is unchanged apart from its copy.
 
 **Notes for other agents**
 - The tests in `tests/pur-stu/` mock fetch with the API-ACCESS shapes. No probe request is made for a non-owner.
 - `bundleOrders` stays off until the integrator confirms A4.
+- **Copy guide conflict.** `bangla-copy.md` lists "মূল্য এখনো ঠিক হয়নি" as the use for "Price not set", and "শুধু এই পরীক্ষাটি চালু হবে।" and "এই মডিউলের সব পরীক্ষা চালু হবে…" as what to write instead of the brief's "খুলবে" lines. This branch follows the brief for these lines, and for the sheet button it follows WS3's "পেমেন্টে যান" over the guide's "পেমেন্ট করুন". The owner of the copy guide should decide, and the two sources should be brought in line.
