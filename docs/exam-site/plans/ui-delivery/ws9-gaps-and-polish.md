@@ -372,6 +372,24 @@ Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 - **Build:** the app code has not changed since the build that passed under the lock (BUILD_EXIT 0); later commits only add tests and docs.
 - **Checks:** `tsc` clean; lint 0 errors; `npm test` (single process) 245 passed in 39 files.
 
+
+### Addendum 3 — STU, integrator review fixes
+
+- **ST-1 (module search by door type):** the rule is now `searchMatches` (title match and modules with exams of this door's type; an unknown count from an older API is kept), tested directly.
+- **ST-2 (upcoming price):** a row shows a price only when one is set. Module-only exams have no price field in the upcoming data, so they show no price line rather than "price not set". To show the right line, the API should send whether an exam is sold only inside a module.
+- **ST-3 (receipt name):** the receipt shows the signed-in student's name.
+- **ST-4 (name save):** field errors from the server show under the name field. A 405, or a bare 404 that the client maps to `INTERNAL_ERROR`, shows "coming soon". `ApiError` carries no HTTP status, so this matches on the status text; the cleaner fix is to put the status on `ApiError` in `client.ts` (not STU's file).
+- **ST-5 (pills):** the status and type pills wrap in a no-wrap span.
+- **ST-7 (sticky bar):** the exam page uses FND's `StickyActionBar`; the stand-in is deleted.
+- **ST-8 (print):** the receipt sheet is wrapped in FND's `PrintArea`.
+- **Notice bell:** `text-white` changed to `text-on-warn`.
+- **Merge:** `catalog-acquisition` (with FND) merged; the one conflict was in this plan doc, and both report sections are kept.
+### Addendum 4 — STU, open items fixed
+
+- **Done:** the deadline passing during a written upload is now tested (the earlier harness problem did not come back). The result-page stat numbers are gold.
+- **Still open, not STU's to fix:** the API flag for module-only exams (ST-2), and the HTTP status on `ApiError` in `client.ts`, which would replace the status-text match in `isNotDeployed`.
+- **Still open, a decision:** the sitting jump grid stays at 44 px, the README's student target, instead of the 40 px in P4.
+
 ## Report — FND
 
 Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit. Ready to merge, with one known gap below (P2/P3 component list).
@@ -405,17 +423,6 @@ Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit.
 - `useListPrefs(key)` returns `[prefs, setPrefs]`. `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`.
 - `common` gains: `shortcuts`, `sectionNav`, `quickSearch`, `unsaved`, `unreadNotices` (bn and en).
 
-### Addendum 3 — STU, integrator review fixes
-
-- **ST-1 (module search by door type):** the rule is now `searchMatches` (title match and modules with exams of this door's type; an unknown count from an older API is kept), tested directly.
-- **ST-2 (upcoming price):** a row shows a price only when one is set. Module-only exams have no price field in the upcoming data, so they show no price line rather than "price not set". To show the right line, the API should send whether an exam is sold only inside a module.
-- **ST-3 (receipt name):** the receipt shows the signed-in student's name.
-- **ST-4 (name save):** field errors from the server show under the name field. A 405, or a bare 404 that the client maps to `INTERNAL_ERROR`, shows "coming soon". `ApiError` carries no HTTP status, so this matches on the status text; the cleaner fix is to put the status on `ApiError` in `client.ts` (not STU's file).
-- **ST-5 (pills):** the status and type pills wrap in a no-wrap span.
-- **ST-7 (sticky bar):** the exam page uses FND's `StickyActionBar`; the stand-in is deleted.
-- **ST-8 (print):** the receipt sheet is wrapped in FND's `PrintArea`.
-- **Notice bell:** `text-white` changed to `text-on-warn`.
-- **Merge:** `catalog-acquisition` (with FND) merged; the one conflict was in this plan doc, and both report sections are kept.
 ## Report — API
 
 Branch `ui/w9-api`, worktree `F:\cc-wt\w9-api`. Checks: full suite from clean, alone, under the lock: 322 run, only `BookOrderIT` and `CoursePurchaseIT` failing (both expected, not caused by this work). `LiveEvaluationIT` 44 of 44 green. `LiveExamIT`, `LiveSittingIT`, `LivePublicCatalogIT`, `LiveExamPurchaseIT`, `AuditLogIT` green in the targeted run. Dev guide boot-verified (API on `coaching_center_qa`, web `/`, `/mcq`, `/staff` 200).
