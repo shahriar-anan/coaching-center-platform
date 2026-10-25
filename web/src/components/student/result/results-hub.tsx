@@ -131,6 +131,9 @@ export function ResultsHub() {
                 <Card href={`/exam/${exam.id}/result`}>
                   <p className="text-body text-muted">{moduleTitle.get(exam.moduleId) ?? ""}</p>
                   <p className="font-semibold text-text">{pickTitle(exam, locale)}</p>
+                  {exam.passPercent !== null && exam.passPercent !== undefined ? (
+                    <p className="text-meta text-muted">{t("result.hub.passLine", { p: n(exam.passPercent) })}</p>
+                  ) : null}
                   <p className="mt-1 flex flex-wrap items-center gap-2 text-body text-muted">
                     <span>{exam.examType === "MCQ" ? t("result.hub.mcq") : t("result.hub.written")}</span>
                     <span aria-hidden="true">·</span>
