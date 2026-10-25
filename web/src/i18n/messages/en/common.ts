@@ -169,6 +169,14 @@ const common = {
   sectionNav: {
     label: "Sections",
   },
+  quickSearch: {
+    label: "Quick search",
+    placeholder: "Find a student or module (/)",
+    students: "Students",
+    modules: "Modules",
+    loading: "Searching…",
+    empty: "No matches",
+  },
   pdf: {
     placeholder: "PDF",
     loading: "Loading PDF…",

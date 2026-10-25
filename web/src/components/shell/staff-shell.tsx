@@ -10,6 +10,7 @@ import { Logo } from "@/components/shell/logo";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { staffNavFor, type StaffNavItem } from "@/components/shell/staff-nav";
 import { Button } from "@/components/ui/button";
+import { StaffQuickSearch } from "@/components/shell/staff-quick-search";
 import { Dialog } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/components/ui/cn";
@@ -97,6 +98,9 @@ export function StaffShell({ children }: { children: ReactNode }) {
             />
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <Logo href="/staff" className="text-base md:hidden" />
+              <div className="hidden min-w-0 flex-1 md:block">
+                <StaffQuickSearch />
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <LocalePill />

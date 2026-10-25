@@ -169,6 +169,14 @@ const common = {
   sectionNav: {
     label: "সূচি",
   },
+  quickSearch: {
+    label: "দ্রুত অনুসন্ধান",
+    placeholder: "শিক্ষার্থী বা মডিউল খুঁজুন (/)",
+    students: "শিক্ষার্থী",
+    modules: "মডিউল",
+    loading: "খোঁজা হচ্ছে…",
+    empty: "কোনো মিল পাওয়া যায়নি",
+  },
   pdf: {
     placeholder: "পিডিএফ",
     loading: "পিডিএফ লোড হচ্ছে…",
