@@ -85,6 +85,33 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			""")
 	Page<LiveExamModule> findAssignedToInstructor(@Param("instructorId") UUID instructorId, Pageable pageable);
 
+	/** Staff list. {@code status} is empty for any status, {@code pattern} is a lower-case LIKE pattern on either title. */
+	@Query("""
+			SELECT m FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND (:anyCategory = true OR m.categoryId = :categoryId)
+			AND (:status = '' OR m.status = :status)
+			AND (lower(m.titleEn) LIKE :pattern OR lower(m.titleBn) LIKE :pattern)
+			""")
+	Page<LiveExamModule> searchForStaff(@Param("anyCategory") boolean anyCategory, @Param("categoryId") UUID categoryId,
+			@Param("status") String status, @Param("pattern") String pattern, Pageable pageable);
+
+	/**
+	 * Public search with a title pattern. Hidden categories are left out. {@code examType} applies only when
+	 * {@code anyType} is false, and keeps a module that has a published exam of that type.
+	 */
+	@Query("""
+			SELECT m FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
+			AND (:anyCategory = true OR m.categoryId = :categoryId)
+			AND (lower(m.titleEn) LIKE :pattern OR lower(m.titleBn) LIKE :pattern)
+			AND (:anyType = true OR EXISTS (SELECT e.id FROM LiveExam e WHERE e.moduleId = m.id AND e.deletedAt IS NULL
+			     AND e.status = 'PUBLISHED' AND e.examType = :examType))
+			""")
+	Page<LiveExamModule> searchPublished(@Param("hidden") java.util.Set<UUID> hidden,
+			@Param("anyCategory") boolean anyCategory, @Param("categoryId") UUID categoryId,
+			@Param("pattern") String pattern, @Param("anyType") boolean anyType, @Param("examType") String examType,
+			Pageable pageable);
+
 	/** {@code examType} is {@link LiveExamTypeFilter#ANY} for every type. */
 	@Query(value = """
 			SELECT m FROM LiveExamModule m
