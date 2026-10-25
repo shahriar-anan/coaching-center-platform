@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -507,6 +508,85 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/answer-pdf")
 			.header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void theStaffReadsTheMarkedPdfOfTheirModulesAndNoOneElse() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Admin"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Marked reads");
+		Instructor marker = instructor(master, "Marked Marker");
+		Instructor stranger = instructor(master, "Stranger Marker");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Marked Read Student");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "7")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk());
+
+		for (String reader : List.of(master, system, marker.token())) {
+			mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/evaluated-pdf")
+				.header("Authorization", "Bearer " + reader))
+				.andExpect(status().isOk())
+				.andExpect(content().contentType(MediaType.APPLICATION_PDF))
+				.andExpect(result -> assertThat(result.getResponse().getContentAsByteArray()).startsWith("%PDF".getBytes()));
+		}
+		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/evaluated-pdf")
+			.header("Authorization", "Bearer " + stranger.token()))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/evaluated-pdf")
+			.header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void theMarkedPdfIsReadableBeforePublishAndIsNotFoundWithoutOne() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Unpublished marks");
+		Instructor marker = instructor(master, "Draft Marker");
+		assign(master, module, marker.id());
+		UUID exam = writtenExam(staff, module);
+		Student marked = seedStudent("Unpublished Student");
+		Student unmarked = seedStudent("Unmarked Student");
+		mark(master, module, marked.id());
+		mark(master, module, unmarked.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID markedId = take(marked, exam);
+		upload(marked, exam);
+		UUID unmarkedId = take(unmarked, exam);
+		upload(unmarked, exam);
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + marked.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + unmarked.token()))
+			.andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + markedId + "/evaluation").file(sheet("draft.pdf"))
+			.param("marks", "5")
+			.header("Authorization", "Bearer " + marker.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.published").value(false));
+
+		mockMvc.perform(get("/api/v1/live-exam-participants/" + markedId + "/evaluated-pdf")
+			.header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk())
+			.andExpect(content().contentType(MediaType.APPLICATION_PDF));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/evaluated-pdf").header("Authorization", "Bearer " + marked.token()))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/live-exam-participants/" + unmarkedId + "/evaluated-pdf")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
 	}
 
 	@Test

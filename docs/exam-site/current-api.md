@@ -212,3 +212,9 @@ Every kind uses the existing `GET /api/v1/me/notices` and `POST /api/v1/me/notic
 `ANNOUNCEMENT` is written by API-ADMIN's `AnnouncementService`, one row per recipient. The inbox joins exams and announcements with left joins, so these rows show.
 
 **Announcement audience rule (decision, item 9).** `POST /api/v1/announcements` with `audience` = `MODULE` sends to the students who have access to that module: active students with a roster row in the module, or an active grant (module or exam scope) in it. Revoked grants do not count. Exam-only buyers are included, because they are in the module's grants. To narrow this to roster only, or to widen it, change the `TO_MODULE` query in `AnnouncementService`; the tests in `LiveGrantAdminIT` check the rule. Accounts that are suspended or deleted never receive a notice.
+
+## Added for the API staff read
+
+| Call | Who | Notes |
+|---|---|---|
+| `GET /api/v1/live-exam-participants/{id}/evaluated-pdf` | Master Admin, System Admin, assigned Instructor | The stored marked PDF, `application/pdf`. Returned whether or not the result is published. Same gate as the other staff reads (`LIVE_EXAM_EVALUATE` or `EXAM_READ`, then the module check). An unassigned instructor gets `404`, as does an unknown or deleted participant and a paper with no stored marked PDF. A student or other role gets `403`. The student route `GET /api/v1/live-exams/{id}/evaluated-pdf` is unchanged. |

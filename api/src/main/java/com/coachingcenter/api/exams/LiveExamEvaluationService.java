@@ -340,6 +340,25 @@ public class LiveExamEvaluationService {
 		}
 	}
 
+	/** The marked PDF for staff readers, published or not. An unassigned instructor gets 404, not 403. */
+	@Transactional(readOnly = true)
+	public byte[] staffEvaluatedPdf(UUID participantId, CurrentActor actor) {
+		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
+		if (participant.getDeletedAt() != null) {
+			throw notFound();
+		}
+		LiveExam exam = requireExam(participant.getExamId());
+		if (!readerOf(exam.getModuleId(), actor) || participant.getEvaluatedStoredFileName() == null) {
+			throw notFound();
+		}
+		try {
+			return Files.readAllBytes(files.resolve(participant.getEvaluatedStoredFileName()));
+		}
+		catch (IOException exception) {
+			throw notFound();
+		}
+	}
+
 	/** The written question paper for staff readers. An unassigned instructor gets 404, not 403. */
 	@Transactional(readOnly = true)
 	public byte[] questionPdf(UUID examId, CurrentActor actor) {
