@@ -78,6 +78,8 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_GRANT = "LIVE_EXAM_GRANT";
 
+	public static final String LIVE_EXAM_REVOKE = "LIVE_EXAM_REVOKE";
+
 	private Permissions() {
 	}
 

@@ -237,11 +237,11 @@ public class LiveExamOrderService {
 
 	private void rejectOwned(UUID studentId, Target target) {
 		if (roster.existsByModuleIdAndStudentId(target.moduleId(), studentId)
-				|| grants.existsByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, target.moduleId())) {
+				|| grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(studentId, LiveExamOrder.MODULE, target.moduleId())) {
 			throw alreadyPurchased();
 		}
 		if (target.examId() != null
-				&& grants.existsByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, target.examId())) {
+				&& grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, target.examId())) {
 			throw alreadyPurchased();
 		}
 	}

@@ -104,6 +104,27 @@ public class LiveExamGrantAdminService {
 		return view(grant);
 	}
 
+	/**
+	 * Takes back access from a purchase or a manual grant (R-2). The row stays for the audit trail, and no money moves.
+	 * A grant that is already revoked is not found.
+	 */
+	@Transactional
+	public GrantView revoke(CurrentActor actor, UUID grantId, String reason) {
+		String text = reason == null ? "" : reason.trim();
+		if (text.isEmpty() || text.length() > 500) {
+			throw validationFailed();
+		}
+		LiveExamGrant grant = grants.findById(grantId)
+			.filter(found -> found.getRevokedAt() == null)
+			.orElseThrow(this::notFound);
+		grant.setRevokedAt(clock.instant());
+		grant.setRevokedBy(actor.userId());
+		grant.setRevokeReason(text);
+		grants.saveAndFlush(grant);
+		audit.record(AuditRecorder.ACCESS_REVOKED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grant.getId());
+		return view(grant);
+	}
+
 	static GrantView view(LiveExamGrant grant) {
 		return new GrantView(grant.getId(), grant.getStudentId(), grant.getScope(), grant.getModuleId(), grant.getExamId(),
 				grant.getSource(), grant.getGrantedBy(), grant.getReason(), grant.getCreatedAt(), grant.getRevokedAt(),

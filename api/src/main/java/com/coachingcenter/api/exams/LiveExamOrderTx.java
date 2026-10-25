@@ -110,8 +110,8 @@ class LiveExamOrderTx {
 
 	private void writeGrant(LiveExamOrder order) {
 		boolean held = LiveExamOrder.MODULE.equals(order.getScope())
-				? grants.existsByStudentIdAndScopeAndModuleId(order.getStudentId(), LiveExamOrder.MODULE, order.getModuleId())
-				: grants.existsByStudentIdAndScopeAndExamId(order.getStudentId(), LiveExamOrder.EXAM, order.getExamId());
+				? grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.MODULE, order.getModuleId())
+				: grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.EXAM, order.getExamId());
 		if (held || grants.existsByOrderId(order.getId())) {
 			return;
 		}

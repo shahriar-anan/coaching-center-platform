@@ -2,6 +2,7 @@ package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -157,6 +158,64 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(body(student, "MODULE", module, null, "a".repeat(501))))
 			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void aRevokedGrantStopsAccessAndANewGrantRestoresIt() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID student = seed("STUDENT", "Revoked Student");
+		String learner = token(student);
+		UUID module = module(system, "Revoke");
+		publish(system, module);
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + learner))
+			.andExpect(status().isNotFound());
+
+		MvcResult first = mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body(student, "MODULE", module, null, "First grant")))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID grant = UUID.fromString(json.readTree(first.getResponse().getContentAsString()).get("id").asText());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + learner))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grant).param("reason", "Entered by mistake")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.revokedAt").isNotEmpty())
+			.andExpect(jsonPath("$.revokedBy").isNotEmpty())
+			.andExpect(jsonPath("$.revokeReason").value("Entered by mistake"));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + learner))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/students/" + student + "/live-exam-access").header("Authorization", "Bearer " + master))
+			.andExpect(jsonPath("$.totalElements").value(0));
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ACCESS_REVOKED' and entity_id = ?",
+				Integer.class, grant)).isEqualTo(1);
+
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grant).param("reason", "Again")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grant).header("Authorization", "Bearer " + master))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grant).param("reason", "Trying")
+			.header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+
+		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body(student, "MODULE", module, null, "Granted again")))
+			.andExpect(status().isCreated());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + learner))
+			.andExpect(status().isOk());
+	}
+
+	private void publish(String token, UUID module) throws Exception {
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
 	}
 
 	private UUID module(String token, String title) throws Exception {

@@ -1,10 +1,14 @@
 package com.coachingcenter.api.exams;
 
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.coachingcenter.api.auth.permission.CurrentActor;
@@ -32,6 +36,14 @@ public class LiveExamGrantAdminController {
 			@Valid @RequestBody LiveExamGrantAdminService.GrantRequest request) {
 		require(Permissions.LIVE_EXAM_GRANT);
 		return ResponseEntity.status(HttpStatus.CREATED).body(grants.grant(actor(), request));
+	}
+
+	/** {@code reason} is required, 1 to 500 characters. Master Admin only. */
+	@DeleteMapping("/api/v1/live-exam-grants/{id}")
+	public LiveExamGrantAdminService.GrantView revoke(@PathVariable UUID id,
+			@RequestParam(required = false) String reason) {
+		require(Permissions.LIVE_EXAM_REVOKE);
+		return grants.revoke(actor(), id, reason);
 	}
 
 	private void require(String permission) {

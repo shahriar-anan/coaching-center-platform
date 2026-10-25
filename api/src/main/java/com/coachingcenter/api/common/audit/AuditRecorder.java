@@ -95,6 +95,8 @@ public class AuditRecorder {
 
 	public static final String ACCESS_GRANTED = "ACCESS_GRANTED";
 
+	public static final String ACCESS_REVOKED = "ACCESS_REVOKED";
+
 	public static final String LIVE_EXAM_GRANT_ENTITY = "LIVE_EXAM_GRANT";
 
 	private final AuditLogRepository auditLogs;
