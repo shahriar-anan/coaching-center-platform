@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
@@ -9,12 +9,15 @@ import { useRole } from "@/lib/auth/guards";
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/lib/api/exam/types";
 import { cn } from "@/components/ui/cn";
+import { Pill, type PillTone } from "@/components/ui/pill";
 
 const DEBOUNCE_MS = 300;
 const MIN_CHARS = 2;
 
 type StudentHit = { id: string; fullName: string; phone: string; studentCode: string | null };
 type ModuleHit = { id: string; titleEn: string; titleBn: string; status: string };
+
+const STATUS_TONE: Record<string, PillTone> = { DRAFT: "muted", PUBLISHED: "ok", ARCHIVED: "muted" };
 
 /** Keys that mean "typing in a field", so `/` must not steal them. */
 function isEditable(target: EventTarget | null): boolean {
@@ -142,7 +145,9 @@ export function StaffQuickSearch() {
                   key={row.id}
                   href={`/staff/modules/${row.id}`}
                   primary={locale === "bn" ? row.titleBn : row.titleEn}
-                  secondary={row.status}
+                  secondary={
+                    <Pill tone={STATUS_TONE[row.status] ?? "muted"}>{t(`staffCatalog.status.${row.status}`)}</Pill>
+                  }
                   onPick={() => setOpen(false)}
                 />
               ))}
@@ -171,7 +176,7 @@ function Hit({
 }: {
   href: string;
   primary: string;
-  secondary: string;
+  secondary: ReactNode;
   onPick: () => void;
 }) {
   return (

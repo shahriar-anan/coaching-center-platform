@@ -20,6 +20,8 @@ describe("StaffQuickSearch (U8)", () => {
     expect(student).toHaveAttribute("href", "/staff/students/s-1");
     const moduleHit = await screen.findByRole("option", { name: /HSC Physics/ });
     expect(moduleHit).toHaveAttribute("href", "/staff/modules/m-1");
+    expect(moduleHit).toHaveTextContent("Published");
+    expect(moduleHit).not.toHaveTextContent("PUBLISHED");
   });
 
   it("says so when nothing matches", async () => {
