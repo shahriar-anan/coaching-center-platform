@@ -84,6 +84,10 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_RELEASE = "LIVE_EXAM_RELEASE";
 
+	public static final String INSTRUCTOR_STATUS = "INSTRUCTOR_STATUS";
+
+	public static final String INSTRUCTOR_DELETE = "INSTRUCTOR_DELETE";
+
 	private Permissions() {
 	}
 

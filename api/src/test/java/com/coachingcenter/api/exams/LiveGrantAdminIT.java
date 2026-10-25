@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -381,6 +382,44 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 		mockMvc.perform(delete("/api/v1/students/" + plain).header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
 		assertThat(jdbc.queryForObject("select count(*) from users where id = ? and deleted_at is not null", Integer.class, plain))
+			.isOne();
+	}
+
+	@Test
+	void masterAdminSuspendsAndDeletesAnInstructorUnlessTheyMarkedWork() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID teacher = seed("INSTRUCTOR", "Suspended Teacher");
+		UUID marker = seed("INSTRUCTOR", "Marking Teacher");
+		UUID student = seed("STUDENT", "Marked Student");
+		UUID module = module(system, "Instructor");
+		UUID exam = exam(system, module);
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("""
+				INSERT INTO live_exam_participants (id, exam_id, student_id, kind, started_at, deadline_at, status,
+				  evaluated_by, created_at, updated_at)
+				VALUES (?, ?, ?, 'LIVE', now(), now(), 'SUBMITTED', ?, now(), now())
+				""", UUID.randomUUID(), exam, student, marker);
+
+		mockMvc.perform(patch("/api/v1/instructors/" + teacher + "/status").header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"INACTIVE\"}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(patch("/api/v1/instructors/" + teacher + "/status").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"INACTIVE\"}"))
+			.andExpect(status().isNoContent());
+		assertThat(jdbc.queryForObject("select status from users where id = ?", String.class, teacher)).isEqualTo("INACTIVE");
+		mockMvc.perform(patch("/api/v1/instructors/" + teacher + "/status").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+			.andExpect(status().isNoContent());
+
+		mockMvc.perform(delete("/api/v1/instructors/" + marker).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ACCOUNT_HAS_MARKED_WORK"));
+		mockMvc.perform(delete("/api/v1/instructors/" + teacher).header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/instructors/" + teacher).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		assertThat(jdbc.queryForObject("select count(*) from users where id = ? and deleted_at is not null", Integer.class, teacher))
 			.isOne();
 	}
 

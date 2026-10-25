@@ -58,6 +58,22 @@ public class AccountController {
 		return PageResponse.from(accounts.listInstructors(q, status, assigned, capped(pageable)));
 	}
 
+	/** Suspend and restore an instructor (Master Admin only). */
+	@PatchMapping("/api/v1/instructors/{id}/status")
+	public ResponseEntity<Void> changeInstructorStatus(@PathVariable UUID id, @Valid @RequestBody StatusRequest request) {
+		require(Permissions.INSTRUCTOR_STATUS);
+		accounts.changeStatus(id, request.status(), Role.INSTRUCTOR);
+		return ResponseEntity.noContent().build();
+	}
+
+	/** Delete an instructor (Master Admin only). Refused with 409 once the instructor has marked a paper. */
+	@DeleteMapping("/api/v1/instructors/{id}")
+	public ResponseEntity<Void> deleteInstructor(@PathVariable UUID id) {
+		require(Permissions.INSTRUCTOR_DELETE);
+		accounts.delete(id, Role.INSTRUCTOR);
+		return ResponseEntity.noContent().build();
+	}
+
 	@PostMapping("/api/v1/instructors/{id}/activation-code")
 	public ActivationCodeResponse reissueInstructorCode(@PathVariable UUID id) {
 		require(Permissions.ADMIN_MANAGE);

@@ -23,6 +23,7 @@ import com.coachingcenter.api.exams.LiveExamGrantRepository;
 import com.coachingcenter.api.exams.LiveExamInstructorModules;
 import com.coachingcenter.api.exams.LiveExamOrder;
 import com.coachingcenter.api.exams.LiveExamOrderRepository;
+import com.coachingcenter.api.exams.LiveExamParticipantRepository;
 
 @Service
 public class AccountService {
@@ -45,10 +46,12 @@ public class AccountService {
 
 	private final LiveExamGrantRepository grants;
 
+	private final LiveExamParticipantRepository participants;
+
 	public AccountService(UserRepository users, StudentProfileRepository studentProfiles,
 			AdminProfileRepository adminProfiles, AuthService auth, MasterAdminGuard masterAdminGuard,
 			AuditRecorder audit, LiveExamInstructorModules assignments, LiveExamOrderRepository orders,
-			LiveExamGrantRepository grants) {
+			LiveExamGrantRepository grants, LiveExamParticipantRepository participants) {
 		this.users = users;
 		this.studentProfiles = studentProfiles;
 		this.adminProfiles = adminProfiles;
@@ -58,6 +61,7 @@ public class AccountService {
 		this.assignments = assignments;
 		this.orders = orders;
 		this.grants = grants;
+		this.participants = participants;
 	}
 
 	@Transactional
@@ -171,6 +175,11 @@ public class AccountService {
 						|| grants.existsByStudentId(user.getId()))) {
 			throw new ApiException(ErrorCode.ACCOUNT_HAS_PAID_ORDERS, HttpStatus.CONFLICT,
 					"This student has paid or has access, so the account cannot be deleted. Suspend it instead.");
+		}
+		// An instructor who has marked a paper keeps the record of that mark (S-023).
+		if (expectedRole == Role.INSTRUCTOR && participants.existsByEvaluatedBy(user.getId())) {
+			throw new ApiException(ErrorCode.ACCOUNT_HAS_MARKED_WORK, HttpStatus.CONFLICT,
+					"This instructor has marked papers, so the account cannot be deleted. Suspend it instead.");
 		}
 		user.setDeletedAt(Instant.now());
 		audit.record(AuditRecorder.USER_DELETED, user.getId());
