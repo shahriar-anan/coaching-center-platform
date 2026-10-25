@@ -21,3 +21,18 @@ export function isKnownNoticeKind(kind: string): kind is KnownNoticeKind {
 export function noticeKindLabelKey(kind: string): string {
   return isKnownNoticeKind(kind) ? `notices.kind.${kind}` : "notices.kind.other";
 }
+
+/** The part of a notice the link needs. */
+export type NoticeTarget = { kind: string; exam: { id: string } | null };
+
+/**
+ * Where a notice row opens. Exam kinds open the exam offer. A purchase opens the
+ * purchased exam, or the student's modules when the notice names no exam. An
+ * announcement has no link: it is read in place.
+ */
+export function noticeHref(notice: NoticeTarget): string | null {
+  if (notice.kind === "ANNOUNCEMENT") return null;
+  if (notice.exam) return `/exam/${notice.exam.id}`;
+  if (notice.kind === "PURCHASE_GRANTED") return "/my-modules";
+  return null;
+}

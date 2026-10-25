@@ -16,7 +16,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/cn";
-import { noticeKindLabelKey } from "./_components/notice-kind";
+import { noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
 
 export default function NoticesPage() {
   return (
@@ -68,14 +68,15 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice
   const className =
     "flex items-start gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent";
 
-  if (!notice.exam) {
+  const href = noticeHref(notice);
+  if (!href) {
     return <div className={className}>{content}</div>;
   }
   return (
     <Link
-      href={`/exam/${notice.exam.id}`}
+      href={href}
       prefetch
-      aria-label={`${title}. ${t("notices.openExam")}`}
+      aria-label={`${title || kindWord(notice.kind, t)}. ${t("notices.openExam")}`}
       onClick={() => onOpen(notice)}
       className={className}
     >
