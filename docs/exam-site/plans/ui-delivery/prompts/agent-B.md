@@ -7,6 +7,9 @@ You are **agent B** in a team of five agents building the exam website in parall
 - Phase 1 brief: `docs/exam-site/plans/ui-delivery/ws1-api.md`
 - Phase 2 brief (after the integrator merges WS1): `docs/exam-site/plans/ui-delivery/ws6-staff-ops.md`, the **WS6b** part only (payments, payment detail, audit log, staff account, staff leaderboard).
 
+**Write only inside your working folder above.** Every path you create or edit must be inside it (use paths relative to it). Never write under `F:aching-center-platform` — that is the integrator's checkout — except the `.heavy.lock` file. Check with `git rev-parse --show-toplevel` before your first edit.
+
+
 ## Read first, in this order
 
 1. `docs/exam-site/plans/ui-delivery/README.md` — the whole plan and "Rules for every agent".
