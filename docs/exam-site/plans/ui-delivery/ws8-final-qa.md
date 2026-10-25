@@ -19,6 +19,25 @@ The goal is the check a production team does before a launch. Nothing is assumed
 4. **Time travel.** Exams have fixed windows. Use the staff exam editor (as Master Admin) to move a demo exam's start a few minutes ahead and set a short duration (2–5 minutes) to test the open window, the deadline, the review and the leaderboard opening five minutes later. Write down every change in the report.
 5. **Payments locally.** The sandbox cannot call back to `localhost`, so locally a student gets access through the roster or the seed. The real checkout runs in Part C on staging.
 
+## Known gaps reported by the building agents
+
+Verify each one, classify it, and fix it when the fix is contained (an API field plus the page that reads it counts as contained; follow `api-completion/README.md` practices, add tests, and never edit `V1`–`V38`). List the outcome of each in the report.
+
+| # | From | Gap | Suggested fix |
+|---|---|---|---|
+| G1 | WS6a | The submission read (`SubmissionView`) has no saved comment, so a reopened paper does not show the teacher's comment. | Add `comment` to the staff submission read; prefill the form. Likely **Major** (a teacher saving again would erase it). |
+| G2 | WS6a | The submission read has no exam title or module id; the paper page reads them from `?m=`, so a paper opened without it shows no exam name. | Add `examId`, `examTitleEn/Bn`, `moduleId` to the read. |
+| G3 | WS5 | The five-minute clash error cannot name the other exam. | Include the clashing exam's id and titles in the error body (`fieldErrors` or details), show them in the message. |
+| G4 | WS5 | The current instructor of a module is found by scanning `GET /instructors?assigned=true`. | Add `instructor` (id, name, phone) to the staff module read, or a `moduleId` filter. |
+| G5 | WS5 | The module list applies search and status only to the loaded page (up to 100 rows); exam counts are not shown. | Add server-side `q` and `status` to the staff module list and counts per type, or accept for the demo size. |
+| G6 | WS5 | The written question PDF limit is 20 MB in the browser and is not checked against the server's real limit. | Read the API's limit (`app.files.*`) and make the client match it. |
+| G7 | WS2 | No endpoint for a student to change their own display name; the account page shows it read-only. | Add `PATCH /api/v1/me` with `fullName` for students, and the edit on `/account`, or accept as read-only. |
+| G8 | WS2 | The phone tab bar has no unread-notices badge. | Reuse `useUnreadCount` in `StudentShell`. Polish. |
+| G9 | WS2 | Login goes straight to the destination; no "লগইন সফল হয়েছে" card. | Accept (a redirect is the modern pattern) unless Shahriar wants it. |
+| G10 | WS6b | No single-payment read for staff; the detail page filters the list by `tranId`. | Accept. |
+| G11 | WS4 | Upload replace state, the written deadline transition, the offline flush, and take/retake redirects were not covered by unit tests. | Cover them in the Playwright flows (B3 items 4–6, B4). |
+| G12 | WS6a | The default Turbopack build failed in one worktree on the Google Font loader; the merged build passes. | Confirm the merged build is clean on a fresh clone of the branch; if fonts fail offline, consider self-hosted font files. |
+
 ## Part A — Static audit (no browser)
 
 ### A1. API ↔ UI coverage matrix
