@@ -85,3 +85,28 @@ describe("useUnsavedChangesGuard", () => {
     expect(again.defaultPrevented).toBe(false);
   });
 });
+
+describe("useDraftForm: the offered draft is kept (FN-9)", () => {
+  it("keeps the saved draft while the user types, and offers the newest edit after a reload", () => {
+    window.localStorage.setItem("draft:question:9", JSON.stringify({ text: "আগের খসড়া" }));
+    const { result, unmount } = renderHook(() => useDraftForm("question:9", { text: "" }));
+    expect(result.current.hasDraft).toBe(true);
+    act(() => result.current.setValue({ text: "নতুন লেখা" }));
+    expect(result.current.hasDraft).toBe(true);
+    expect(JSON.parse(window.localStorage.getItem("draft:question:9") ?? "null")).toEqual({ text: "আগের খসড়া" });
+    unmount();
+
+    const reloaded = renderHook(() => useDraftForm("question:9", { text: "" }));
+    expect(reloaded.result.current.hasDraft).toBe(true);
+    act(() => reloaded.result.current.restore());
+    expect(reloaded.result.current.value).toEqual({ text: "নতুন লেখা" });
+  });
+
+  it("restores the older draft when the user does not type first", () => {
+    window.localStorage.setItem("draft:question:10", JSON.stringify({ text: "খসড়া" }));
+    const { result } = renderHook(() => useDraftForm("question:10", { text: "" }));
+    act(() => result.current.restore());
+    expect(result.current.value).toEqual({ text: "খসড়া" });
+    expect(result.current.hasDraft).toBe(false);
+  });
+});
