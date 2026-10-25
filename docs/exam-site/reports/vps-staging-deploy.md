@@ -2,6 +2,8 @@
 
 Running record for [../plans/vps-staging-deploy.md](../plans/vps-staging-deploy.md). One entry per slice. No secret values.
 
+**Later the same day.** This report describes the box up to about 07:30 Asia/Dhaka on 25 October 2026. At 08:00 the database was rebuilt with only the client's Master Admin, so the seed system admin, the seed student, Shahriar's test student and the four test orders below no longer exist. At 08:45 the API moved to jar `aa3a61fd…` (A7 staff payments, own-phone change, A8 purchase email), Flyway 38. The current state is in [master-admin-handover.md](master-admin-handover.md).
+
 ## Slice 0 — Local gate
 
 Done 25 October 2026, about 05:15 Asia/Dhaka.

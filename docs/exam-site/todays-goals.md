@@ -35,7 +35,7 @@ Status 25 October 2026: S1–S5 done, S6 half done. Plan: [plans/vps-staging-dep
 
 | # | Goal | Status |
 |---|---|---|
-| S1 | Deploy the current jar. The jar running now reads `EMAIL_HOST` and fails registration with HTTP 500. | Done. Jar from `fea6d12`, Flyway 36. |
+| S1 | Deploy the current jar. The jar running now reads `EMAIL_HOST` and fails registration with HTTP 500. | Done with `fea6d12`. Since 08:45 Asia/Dhaka the box runs jar `aa3a61fd…` (A7, own-phone change and A8), Flyway 38. The database was rebuilt at 08:00 with only the client's Master Admin, so the seed data and test orders are gone. See [reports/master-admin-handover.md](reports/master-admin-handover.md). |
 | S2 | Env: `WEB_ORIGIN=https://srv2089893.hstgr.cloud`, Brevo `MAIL_*`, sandbox `SSLCZ_*` with `SSLCZ_CALLBACK_BASE_URL=https://srv2089893.hstgr.cloud`, `SPRING_PROFILES_ACTIVE=staging`, `SEED_ENABLED=true` for the test exam. | Done. Seed ran once, `SEED_ENABLED` back to `false`. |
 | S3 | Real mail check: one verification and one reset email to an inbox Shahriar can open. | Done, both in the inbox. Needed a code fix: SMTP connected with no credentials (`fea6d12`). |
 | S4 | Install Node and a process manager. Nginx sends `/` to Next.js and keeps `/api/` on 8080. Build on the PC, not on the box. | Done. Node 22, `coaching-web.service`, standalone build with Linux `sharp`. |

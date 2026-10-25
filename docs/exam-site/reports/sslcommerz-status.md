@@ -8,9 +8,9 @@
 
 | | |
 |---|---|
-| API code | Implemented. Flyway `V32`. `V37` stores the payment channel. The server schema is at `37` after the next deploy (`36` today). |
+| API code | Implemented. Flyway `V32`. `V37` stores the payment channel. `V38` adds the Master Admin's purchase email. The server is at Flyway `38` since 25 October 2026, 02:45 UTC. |
 | Automated tests | `LiveExamPurchaseIT` passes against a fake gateway. `SslCommerzGatewayTest` covers the real gateway class against a local stub. |
-| Sandbox payments through this API | Done on `https://srv2089893.hstgr.cloud`: VISA test card and bKash succeeded with an IPN, plus a failed and a cancelled order. Receipt mail sent. |
+| Sandbox payments through this API | Done on `https://srv2089893.hstgr.cloud`: VISA test card and bKash succeeded with an IPN, plus a failed and a cancelled order. Receipt mail sent. Those orders were removed when the database was rebuilt at 02:00 UTC the same day. Each successful payment now also emails the client's Master Admin. |
 | IPN | Delivered to the per-payment `ipn_url`. No panel IPN URL overrides it on the sandbox store. |
 | Live store | Present in the old site's env. Not copied to the new server. Not used. |
 | New server | `staging` profile with the sandbox store and `SSLCZ_CALLBACK_BASE_URL=https://srv2089893.hstgr.cloud`. |

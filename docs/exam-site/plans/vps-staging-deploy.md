@@ -2,7 +2,7 @@
 
 Written 25 October 2026 from the code on branch `catalog-acquisition` and [../reports/new-vps-provision-audit.md](../reports/new-vps-provision-audit.md). Goals come from [../todays-goals.md](../todays-goals.md) section 3. [../decisions.md](../decisions.md) still wins where this file is silent.
 
-**Status, 25 October 2026:** slices 0–8 and 10 done, plus the reboot. Slice 9's nightly backup is deferred. The record is [../reports/vps-staging-deploy.md](../reports/vps-staging-deploy.md).
+**Status, 25 October 2026:** slices 0–8 and 10 done, plus the reboot. Slice 9's nightly backup is deferred. Later that day the database was rebuilt for the Master Admin handover and a newer jar went out ([../reports/master-admin-handover.md](../reports/master-admin-handover.md)). For the next deploy, reuse slices 0, 2 and 4: clean build, backup, install. Skip slice 7 unless Shahriar wants seed data back. The record is [../reports/vps-staging-deploy.md](../reports/vps-staging-deploy.md).
 
 **Audience:** the agent helping Shahriar. **Outcome:** by the night of 26 October the current API and website run on the new VPS at `https://srv2089893.hstgr.cloud` on the `staging` profile. One real verification mail and one reset mail have arrived. One sandbox payment has been granted through an IPN. `symamlaw.com` stays on the old VPS.
 
