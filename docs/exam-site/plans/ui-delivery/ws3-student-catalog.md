@@ -117,24 +117,25 @@ Start confirm copy (live MCQ forfeits the later attempt, retake wording, written
 
 ## Report
 
-**Status: built, not yet merged. Build not run (lock held by agent B at the time). Browser and 320/1440 px pass not done (Shahriar's).**
+**Status: ready to merge.** Branch ui/ws3-student-catalog, merged with catalog-acquisition (877fad7). Checks: 
+pm run lint 0 errors (2 existing warnings in files I do not own); 
+pm test 111 passed in 13 files; 
+pm run build passed under the lock. Browser pass, 320/1440 px, dark mode and keyboard use are not checked yet (Shahriar's pass).
 
-Done (P0): `/`, `/mcq`, `/written` (doors), category pages, module pages with strip, price bar, routine table and exam list, exam page with one primary action per state, start confirm, purchase confirm sheet, payment result (pending, paid, failed, cancelled, not signed in, missing ref).
+Done (P0): / (signed-out hero and doors; signed-in dashboard with next-exam countdown, live, upcoming and my modules), /mcq and /written doors, category pages, module pages (strip, price bar, routine table, exam list filtered by type), exam page with one primary action per state, start confirm, purchase sheet, payment result (pending, paid, failed, cancelled, not signed in, missing reference).
 
-Done (P1): module progress bar (`ProgressBar`), `/my-modules` with progress and next rows, `/routine` grouped by Dhaka day with `.ics` download, the module-vs-exam comparison line, home nudges (resume, email, phone) dismissible per session.
+Done (P1): module progress bar, /my-modules with progress and next rows, /routine grouped by Dhaka day with .ics download, module-vs-exam price comparison line, home nudges (resume, email, phone; dismissible per session), welcome card (reads WS2's exam-portal.welcome once, then clears it).
 
-Skipped: welcome card (P1; needs WS2's `exam-portal.welcome` flag). P2: none.
+Skipped: none in P1. P2: none.
 
-Tests: `web/tests/ws3/**`, 18 tests (helpers, start-confirm copy, payment result states, door filter and module price states). `npm test` 54 passed; `npm run lint` 0 errors. The old `purchase-result.test.tsx` was removed with its page. The polling timing test (3 s steps, 60 s stop) is not covered by a test yet; the stop-after-a-minute is in `usePaymentStatus`.
+Round 2 changes: switched to the real WS0 modules (@/lib/format, @/lib/config, @/lib/time/clock, @/i18n/locale-context, @/components/ui/*) and deleted components/student/catalog/_tmp/. Types come from @/lib/api/exam/types (Me, StudentExam, PublicModule, CategoryNode, PublicExam, MyStatus); no casts. The payment-status type is named PaymentState (PENDING/PAID/FAILED/CANCELLED) because the status endpoint does not use the shared OrderStatus values. The examType retry fallback stays (harmless against the merged WS1 API). Bangla copy checked against the glossary (চালু আছে, পুরো মডিউল কিনুন, পেমেন্ট করুন, মূল্য এখনো ঠিক হয়নি, তারিখ পরে জানানো হবে, অনুশীলন হিসেবে দিন, নিরাপদ পেমেন্ট, রিফান্ড নীতি). Not read aloud yet by a second reviewer; the integrator's Bangla pass still applies.
 
-Contract issues and notes for the integrator:
+Tests: web/tests/ws3/**, 20 tests (catalog helpers, start-confirm copy, payment result states, door and module states, home welcome card). Tests pin the locale to English because the app default is Bangla.
 
-1. **Dependency:** `@tanstack/react-query` is imported but not in `package.json` on this branch (I used `--no-save` for local tests). WS0 must add it; `npm ci` after the merge.
-2. **Stand-ins to delete after WS0:** `web/src/components/student/catalog/_tmp/` (format, config, clock, clsx, ui, locale, guards). Each wraps a WS0 contract. The real `useLocale` already merges namespaces, so `_tmp/locale.tsx` can go outright.
-3. **Duplicate `/` route:** `web/src/app/page.tsx` (old redirect) still exists here and conflicts with `(site)/page.tsx`. WS0 deletes it; the build fails until then.
-4. **`phoneRequired` and `emailVerifiedAt`** are on the API `MeView` but missing from `lib/api/types.ts`'s `MeView`. I read them through a cast. WS0's `types.ts` should carry them.
-5. **WS1 filter fallback:** the hooks retry without `examType` on `VALIDATION_FAILED`, so an API without WS1 still renders. The client also filters the exam list by type, so mixed modules show only the right type either way.
-6. **Terms:** the purchase copy uses "Refund policy", "Secure payment through SSLCommerz", "Buy the whole module", "Payment not completed". Added to the copy in `bn/catalog.ts`, `bn/purchase.ts`, `bn/home.ts` (the Bangla terms follow the glossary; "নিরাপদ পেমেন্ট" and "মডিউল কিনুন" are not in the glossary yet).
-7. **Bangla review:** written from the guide, not read aloud as the guide asks. Needs one pass by the integrator.
-8. **Start confirm:** links to WS4's `/exam/[id]/sit?start=live|retake`. WS4 must accept that `start` parameter.
-9. **Staff-side links** use `staffHref("/staff")` from the stand-in config, which is the path WS0 will replace with the real host-aware helper.
+Contract issues: none in WS3's contracts. Notes for the integrator and other agents:
+1. 
+px tsc --noEmit reports 16 errors, all in WS0 files (components/shell/*, components/ui/*). 
+ext build's TypeScript step passes, so they are not build blockers, but WS0 should look at them.
+2. Payment status: the API sends PENDING/PAID/FAILED/CANCELLED from /api/v1/live-exam-orders/status, but the shared OrderStatus type in 	ypes.ts is INITIATED/SUCCEEDED/.... Whoever owns 	ypes.ts should align it with the API.
+3. Start confirm links to /exam/[id]/sit?start=live|retake. WS4's sitting page must accept that parameter.
+4. The payment result reads a sessionStorage memo written before redirect (exam-portal.order.<tranId>), used only to pick the return links.
