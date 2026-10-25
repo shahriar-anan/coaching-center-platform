@@ -156,7 +156,7 @@ export function ResultPage({ examId }: { examId: string }) {
         <Pill tone="warn">{t("result.page.practice")}</Pill>
       ) : null}
 
-      <StatRow>
+      <StatRow className="[&>div>span:first-child]:text-accent">
         <Stat value={written && awaiting ? t("result.stat.none") : scoreCell} label={t("result.stat.obtained")} />
         <Stat
           value={awaiting ? t("result.stat.none") : outcome}
