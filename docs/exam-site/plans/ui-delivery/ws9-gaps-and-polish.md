@@ -404,3 +404,15 @@ Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit.
 - None to existing props. Additive only: `Button` gets `size`; `Skeleton` gets `height`; `useUnsavedChangesGuard` keeps its signature and the shells mount `UnsavedChangesDialog`.
 - `useListPrefs(key)` returns `[prefs, setPrefs]`. `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`.
 - `common` gains: `shortcuts`, `sectionNav`, `quickSearch`, `unsaved`, `unreadNotices` (bn and en).
+
+### Addendum 3 — STU, integrator review fixes
+
+- **ST-1 (module search by door type):** the rule is now `searchMatches` (title match and modules with exams of this door's type; an unknown count from an older API is kept), tested directly.
+- **ST-2 (upcoming price):** a row shows a price only when one is set. Module-only exams have no price field in the upcoming data, so they show no price line rather than "price not set". To show the right line, the API should send whether an exam is sold only inside a module.
+- **ST-3 (receipt name):** the receipt shows the signed-in student's name.
+- **ST-4 (name save):** field errors from the server show under the name field. A 405, or a bare 404 that the client maps to `INTERNAL_ERROR`, shows "coming soon". `ApiError` carries no HTTP status, so this matches on the status text; the cleaner fix is to put the status on `ApiError` in `client.ts` (not STU's file).
+- **ST-5 (pills):** the status and type pills wrap in a no-wrap span.
+- **ST-7 (sticky bar):** the exam page uses FND's `StickyActionBar`; the stand-in is deleted.
+- **ST-8 (print):** the receipt sheet is wrapped in FND's `PrintArea`.
+- **Notice bell:** `text-white` changed to `text-on-warn`.
+- **Merge:** `catalog-acquisition` (with FND) merged; the one conflict was in this plan doc, and both report sections are kept.
