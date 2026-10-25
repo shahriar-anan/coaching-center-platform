@@ -1,6 +1,8 @@
 # WS0 — Foundation
 
-Branch `ui/ws0-foundation`. Starts first. WS2–WS6 cut their branches from `catalog-acquisition` after this merges, so finish fast and keep the contracts stable. Read [README.md](README.md) first.
+Branch `ui/ws0-foundation`, agent A. Starts with everyone else. WS3, WS4 and WS5 build against the **Contracts** below until this merges, then merge `catalog-acquisition` into their branches. Publish the contracts as code first, then fill in the details, and keep the contracts stable. When this is merged, agent A moves to WS2. Read [README.md](README.md) first.
+
+Add every dependency in the README list in your first commit (including `pdfjs-dist` for WS4), so nobody else touches `package.json`.
 
 ## Goal
 
@@ -17,11 +19,70 @@ Give every page workstream the same tokens, shells, components, data helpers, fo
 - `web/src/components/ui/**` (shared components)
 - `web/src/components/shell/**` (`StudentShell`, `StaffShell`, `Logo`, `LocalePill`, `ThemePill`, `NoticeBell` slot)
 - `web/src/lib/format/**`, `web/src/lib/time/**`, `web/src/lib/url/**`
-- `web/src/lib/api/query-client.ts`, `web/src/lib/api/exam/types.ts`, `web/src/lib/api/exam/keys.ts`
+- `web/tests/helpers/**` (test helpers and fixtures)
+- `web/src/lib/api/client.ts` (add `apiUpload` and `apiBlob`; keep `apiRequest` unchanged)
+- `web/src/lib/api/query-client.ts`, `web/src/lib/api/exam/types.ts`
 - `web/src/lib/auth/session-context.tsx`, `web/src/lib/auth/guards.tsx`, `web/src/components/require-auth.tsx`
 - `web/src/i18n/locale-context.tsx`, `web/src/i18n/messages/index.ts`, `web/src/i18n/messages/{bn,en}/common.ts`, and an empty stub per namespace below
 - `web/src/components/admin-shell.tsx` (nav only: hide course, book, book-order and course-payment items, per U2)
+- `web/src/proxy.ts` (remove the `/` redirect; add host routing, section 9)
+- `web/src/lib/config.ts`, `web/.env.example` (section 9)
 - Delete `web/src/app/sandbox/`, `web/src/app/live-exams/`, and their tests
+
+## Contracts (frozen at the start)
+
+WS3, WS4 and WS5 build against this list before WS0 merges. Implement exactly these paths, names and props. Adding optional props is fine; renaming or removing is a contract change: tell the integrator first.
+
+**Tailwind token classes** (from `@theme`, both surfaces): `bg-bg`, `bg-card`, `text-text`, `text-muted`, `border-border`, `bg-accent`, `text-accent`, `text-on-accent`, `bg-action`, `text-on-action`, `text-ok`, `bg-ok`, `text-warn`, `bg-warn`, `text-danger`, `font-site` (Hind Siliguri), `font-bn` (Noto Sans Bengali), `font-latin` (Inter). Radii `rounded-card` (16 px site, 8 px staff), `rounded-control` (12 px site, 8 px staff).
+
+**Components** (`@/components/ui/<file>`; one component per file, named export):
+
+| Export | Key props |
+|---|---|
+| `Button` | `variant: "primary" \| "secondary" \| "ghost" \| "danger"`, `loading?`, `fullWidth?`, `href?` (renders a link), native button props |
+| `IconButton` | `label` (required), `icon`, `onClick` |
+| `Card` | `href?` (link card with chevron), `as?`, `className?`, `padding?: "md" \| "lg"` |
+| `Field` | `label`, `hint?`, `error?`, `required?`, `children` (one input) |
+| `TextInput`, `PasswordInput`, `Textarea`, `NumberInput`, `Select`, `Checkbox`, `Switch` | native props plus `invalid?` |
+| `DateTimeInput` | `value: string \| null` (ISO UTC), `onChange(iso \| null)`, shows Asia/Dhaka |
+| `FileDrop` | `accept: "pdf"`, `maxBytes`, `file?: { name; size; uploadedAt? }`, `onFile(file)`, `uploading?`, `progress?` (0–100), `error?` |
+| `Pill` | `tone: "muted" \| "accent" \| "warn" \| "ok" \| "danger"`, `pulse?`, `children` (words) |
+| `Badge` | `count` |
+| `StatRow`, `Stat` | `Stat({ value, label })` inside `StatRow` |
+| `Table<T>` | `columns: { key; header; cell(row) ; mobileLabel?; align? }[]`, `rows: T[]`, `rowKey(row)`, `onRowClick?`, `loading?`, `empty?: ReactNode` (cards under 640 px) |
+| `Pagination` | `page`, `totalPages`, `onPage(page)` |
+| `SearchInput` | `value`, `onChange` (already debounced 300 ms), `placeholder` |
+| `Tabs` | `tabs: { value; label; badge? }[]`, `value`, `onChange` |
+| `Dialog`, `ConfirmDialog` | `open`, `onOpenChange`; confirm adds `title`, `body`, `confirmLabel`, `tone?: "danger"`, `typeToConfirm?: string`, `onConfirm(): Promise<void>` |
+| `Sheet` | `open`, `onOpenChange`, `title`, `children` (bottom sheet on phones) |
+| `useToast()` | `toast({ title, tone?: "ok" \| "danger" \| "info" })` |
+| `Skeleton` | `variant: "text" \| "card" \| "rows"`, `count?` |
+| `EmptyState` | `title`, `body?`, `action?: ReactNode`, `icon?` |
+| `ErrorState` | `onRetry`, `message?` |
+| `PageHeader` | `title`, `breadcrumbs?: { label; href? }[]`, `actions?` |
+| `Countdown` | `deadline: string` (ISO), `onEnd?()`, `variant?: "inline" \| "bar"`, `warnAt?: number[]` (minutes) |
+| `CopyField` | `value`, `label` |
+| `OneTimeCodeDialog` | `open`, `code`, `personName`, `onClose` |
+| `OfflineBanner` | none (shows when `navigator.onLine` is false) |
+
+**Shell** (`@/components/shell/…`): `StudentShell` and `StaffShell` are applied by the route-group layouts; pages never render a shell. Pages render `PageHeader` and content only. `Logo` (one place to swap in a logo file later).
+
+**Hooks and helpers:**
+
+- `@/lib/auth/session-context`: `useSession()` → `{ session: { status: "loading" \| "anonymous" \| "authenticated"; user? }, login, logout, refreshMe }`; `useUser()`.
+- `@/lib/auth/guards`: `RequireStudent`, `RequireStaff({ roles })`, `useRole()` → `{ role, isStudent, isMasterAdmin, isSystemAdmin, isInstructor, canEditPrice, canDelete, canManageRoster, canAssignInstructor, canEvaluate, canPublishResult, canSeePayments, canSeeAudit, canManageStaff }`.
+- `@/lib/config`: `apiBaseUrl`, `apiUrl(path)`, `siteUrl`, `staffUrl`, `splitHosts`, `siteHref(path)`, `staffHref(path)`, `studentHome`, `staffHome`, `studentLogin`, `staffLogin`, `googleEnabled` (section 9). Every link or redirect between the student site and the admin panel goes through these.
+- `@/lib/api/client`: `apiRequest<T>(path, { method?, body?, signal? })` (existing), plus `apiUpload<T>(path, formData, { onProgress? })` (XHR with the token and refresh) and `apiBlob(path)` (authorized file as a `Blob`).
+- `@/lib/api/query-client`: the configured `QueryClient`; use `useQuery` and `useMutation` from `@tanstack/react-query` directly.
+- `@/lib/api/exam/types`: `PageResponse<T>`, `Me`, `CategoryNode`, `PublicModule`, `PublicExam`, `StudentExam`, `MyStatus` (the nine statuses), `ExamType`, `PaperLanguage`, `OrderStatus`, `ApiErrorCode`.
+- `@/lib/format`: `formatNumber`, `formatMoney`, `formatDate`, `formatTime`, `formatDateTime`, `formatDuration`, `formatRelative`, `pickTitle`, `pickText(record, field)`, all taking the locale from `useLocale()` or an explicit argument.
+- `@/lib/time/clock`: `serverNow(): number`, `useServerNow(intervalMs)`.
+- `@/lib/url/list-params`: `useListParams(defaults)` → `[params, setParams]`.
+- `@/i18n/locale-context`: `useLocale()` → `{ locale, setLocale, t(key, params?) }`; keys are `namespace.key`.
+
+**Test helpers** (`web/tests/helpers/`): `renderWithProviders(ui, { user?, locale?, route? })` (session, locale, query client, router mock), `mockApi({ "GET /api/v1/...": body | (req) => body, ... })` over `fetch`, and fixtures `fixtures.student`, `fixtures.masterAdmin`, `fixtures.systemAdmin`, `fixtures.instructor`, `fixtures.categoryTree`, `fixtures.module`, `fixtures.mcqExam`, `fixtures.writtenExam`.
+
+Publish this section's code first (stubs are fine), commit it, and tell the integrator, so the phase-1 page agents can merge it early if they want.
 
 ## Tasks
 
@@ -60,9 +121,11 @@ Each is small, typed, themed by tokens, keyboard-usable, and has one test. Varia
 
 ### 3. Shells
 
-`StudentShell` (site surface): 760 px column; header with `Logo`, then on the right the `NoticeBell` (signed-in students only; WS2 supplies it through a slot), `LocalePill` (shows `EN` in Bangla), `ThemePill`, and either the student's first name (opens a small menu: হোম, অ্যাকাউন্ট, নোটিশ, বেরিয়ে যান) or "প্রবেশ". Footer with links to আমাদের সম্পর্কে, যোগাযোগ, শর্তাবলি, গোপনীয়তা, ফেরত নীতি, and "© এক্সাম পোর্টাল". Page transitions fade up 6 px.
+`StudentShell` (site surface): 760 px column; header with `Logo`, then on the right the `NoticeBell` (signed-in students only; WS2 supplies it through a slot), `LocalePill` (shows `EN` in Bangla), `ThemePill`, and either the student's first name (opens a small menu: হোম, আমার অ্যাকাউন্ট, নোটিশ, লগআউট) or "লগইন". Footer with links to সাহায্য ও প্রশ্নোত্তর, আমাদের সম্পর্কে, যোগাযোগ, শর্তাবলি, গোপনীয়তা নীতি, রিফান্ড নীতি, and "© এক্সাম পোর্টাল". All copy follows [bangla-copy.md](bangla-copy.md). Page transitions fade up 6 px.
 
-`StaffShell` (staff surface): left sidebar with `Logo`, role chip (মাস্টার অ্যাডমিন, সিস্টেম অ্যাডমিন, ইনস্ট্রাক্টর) and the nav for that role; top bar with page title, breadcrumbs, `LocalePill`, `ThemePill`, the person's name, and logout. Under 768 px the sidebar is a drawer behind a menu button.
+On phones (under 768 px), a signed-in student also gets a fixed **bottom tab bar** (LMS standard): হোম `/`, আমার পরীক্ষা `/my-modules`, রেজাল্ট `/results`, নোটিশ `/notices` (with the unread badge from `NoticeBell`'s query), অ্যাকাউন্ট `/account`. 56 px tall, icons with labels, active tab in gold, safe-area padding, hidden on `/exam/[id]/sit` so it never covers the paper. Page content gets bottom padding equal to the bar. On desktop the same items sit in the header menu.
+
+`StaffShell` (staff surface): left sidebar with `Logo`, role chip (মাস্টার অ্যাডমিন, সিস্টেম অ্যাডমিন, শিক্ষক) and the nav for that role; top bar with page title, breadcrumbs, `LocalePill`, `ThemePill`, the person's name, and logout. Under 768 px the sidebar is a drawer behind a menu button.
 
 Staff navigation (one config file in `components/shell/staff-nav.ts`; pages link to routes their workstream builds):
 
@@ -74,11 +137,11 @@ Staff navigation (one config file in `components/shell/staff-nav.ts`; pages link
 | অংশগ্রহণ | `/staff/participation` | yes | yes | yes |
 | খাতা মূল্যায়ন | `/staff/submissions` | yes | yes (read only) | yes |
 | শিক্ষার্থী | `/staff/students` | yes | yes | |
-| ইনস্ট্রাক্টর | `/staff/instructors` | yes | | |
+| শিক্ষক | `/staff/instructors` | yes | | |
 | সিস্টেম অ্যাডমিন | `/staff/admins` | yes | | |
 | পেমেন্ট | `/staff/payments` | yes | yes (read only) | |
-| অডিট লগ | `/staff/audit` | yes | | |
-| অ্যাকাউন্ট | `/staff/account` | yes | yes | yes |
+| কার্যক্রম লগ | `/staff/audit` | yes | | |
+| আমার অ্যাকাউন্ট | `/staff/account` | yes | yes | yes |
 
 The menu badges on খাতা মূল্যায়ন come from `GET /api/v1/live-exam-participation/summary`: the instructor sees papers awaiting a mark, the Master Admin drafts awaiting publish.
 
@@ -86,16 +149,16 @@ The menu badges on খাতা মূল্যায়ন come from `GET /api/
 
 Change `session-context.tsx` and add `lib/auth/guards.tsx`:
 
-- After login: a student goes to `?next=` when it is a same-site student path, else `/`. Staff go to `/staff`. Remove the old redirects to `/purchase/result`, `/account` and `/students`.
-- `RequireStudent` (sitting, notices, account, payment history, purchase result): signed-out users go to `/login?next=<current>`. Staff see "এই অংশ শিক্ষার্থীদের জন্য" and a link to `/staff`.
-- `RequireStaff roles=[...]`: signed-out users go to `/login?next=`. A student sees "এই অংশ কর্মীদের জন্য" and a link home. A staff role not in `roles` sees a not-found page.
+- After login: a student goes to `?next=` when it is a same-site student path, else the student home. Staff go to the staff home. Both destinations come from `lib/config` (section 9), never a hard-coded path or host. Remove the old redirects to `/purchase/result`, `/account` and `/students`.
+- `RequireStudent` (sitting, notices, account, payment history, purchase result): signed-out users go to `/login?next=<current>`. Staff see "এই পাতাটি শুধু শিক্ষার্থীদের জন্য" and a link to the staff home.
+- `RequireStaff roles=[...]`: signed-out users go to `/login?next=`. A student sees "এই পাতাটি শুধু অ্যাডমিন ও শিক্ষকদের জন্য" and a link to the student home. A staff role not in `roles` sees a not-found page.
 - `useRole()` returns the role and helpers (`isMasterAdmin`, `canEditPrice`, `canPublishResult`, `canSeePayments`, ...) from one table, so pages never compare role strings.
-- An expired session returns to `/login?next=` with "আবার প্রবেশ করুন".
+- An expired session returns to `/login?next=` with "সেশন শেষ হয়েছে। আবার লগইন করুন।"
 - Logout calls `POST /api/v1/auth/logout`, clears the query cache, and goes to `/`.
 
 ### 5. Data layer
 
-`providers.tsx` adds the `QueryClientProvider` with the defaults in README. `lib/api/exam/types.ts` declares the shared response types used by more than one workstream (category tree, module, exam, `myStatus`, order status, `PageResponse<T>`, me). Each page workstream owns its own hooks file (`lib/api/exam/<area>.ts`) and adds its keys to `keys.ts` only through its own exported object in that file: WS0 creates `keys.ts` with one empty object per area so nobody edits another's keys.
+`providers.tsx` adds the `QueryClientProvider` with the defaults in README. `lib/api/exam/types.ts` declares the shared response types used by more than one workstream (category tree, module, exam, `myStatus`, order status, `PageResponse<T>`, me). Each page workstream owns its own hooks file (`lib/api/exam/<area>.ts`) and declares its query keys inside it, prefixed with the area (`["catalog", ...]`, `["sitting", ...]`). There is no shared keys file. To invalidate another area's cache after a mutation (for example a payment making the catalog stale), call `queryClient.invalidateQueries({ queryKey: ["catalog"] })` by prefix; never import another area's file.
 
 `lib/time/clock.ts` records the offset between the API's `Date` header and the device clock on every response, and exposes `serverNow()`.
 
@@ -107,11 +170,53 @@ Change `session-context.tsx` and add `lib/auth/guards.tsx`:
 
 ### 7. Messages
 
-Split the catalogs: `messages/{bn,en}/<namespace>.ts` merged by `messages/index.ts`. Keep the existing keys working (move them into `legacy.ts`). Namespaces and owners: `common` (WS0), `auth`, `account`, `notices`, `legal` (WS2), `catalog`, `purchase`, `home` (WS3), `sitting`, `result` (WS4), `staffCatalog` (WS5), `staffPeople`, `staffOps` (WS6). WS0 creates each file as an empty object.
+Split the catalogs: `messages/{bn,en}/<namespace>.ts` merged by `messages/index.ts`. Keep the existing keys working (move them into `legacy.ts`). Namespaces and owners: `common` (WS0), `auth`, `account`, `notices`, `legal` (WS2), `catalog`, `purchase`, `home` (WS3), `sitting`, `result` (WS4), `staffCatalog` (WS5), `staffPeople` (WS6a), `staffOps` (WS6b). WS0 creates each file in both languages as an empty object and imports all of them in `messages/index.ts`, so no other workstream ever edits `index.ts`. A missing key renders the key itself in development so gaps are visible.
 
 ### 8. Old admin and stubs
 
-`admin-shell.tsx`: keep only items that are not courses, books, book orders or course payments. Delete `app/page.tsx` (the redirect) and create the placeholder `app/(site)/page.tsx`. Delete `/sandbox`, `/live-exams` and their tests.
+`admin-shell.tsx`: keep only items that are not courses, books, book orders or course payments. Delete `app/page.tsx` (the redirect) and create the placeholder `app/(site)/page.tsx`. **Also remove the `/` → `/students` redirect in `web/src/proxy.ts`** (the Next 16 middleware); otherwise the new home never renders. Keep the file only if something else needs it. Delete `/sandbox`, `/live-exams` and their tests.
+
+### 9. Environments, URLs, and the two sites
+
+At launch the student site and the admin panel will have **different URLs** (for example `https://exam.example.com` for students and `https://admin.exam.example.com` for staff; the names are not decided). Tonight on staging they share one host, `https://srv2089893.hstgr.cloud`, with staff under `/staff`. The same code must work in both setups, switched only by environment values. Agents must never hard-code a host, and must build cross-site links only through `lib/config`.
+
+**Environment values (web):**
+
+| Name | Read | Staging tonight | Later (two hosts) | Meaning |
+|---|---|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | build time | `https://srv2089893.hstgr.cloud` | `https://exam.example.com` | Student site origin |
+| `NEXT_PUBLIC_STAFF_URL` | build time | `https://srv2089893.hstgr.cloud` | `https://admin.exam.example.com` | Admin panel origin. Equal to the site URL means one host. |
+| `NEXT_PUBLIC_API_BASE_URL` | build time | empty | empty | Empty means same origin: the browser calls `/api/...` on whichever host it is on, and that host's Nginx forwards `/api/` to the API. Set it only for local development (`http://localhost:8080`). |
+| `NEXT_PUBLIC_GOOGLE_ENABLED` | build time | `false` | `true` once configured | Turns the disabled Google button into a working one (U10) without code changes. |
+
+Write them in `web/.env.example` with comments, and keep `web/.env.local` for development only (`http://localhost:8080` and `http://localhost:3000`). Check in `node_modules/next/dist/docs/` whether `proxy.ts` can read plain runtime variables in a standalone server; if it can, also accept `SITE_URL` and `STAFF_URL` at runtime so one build can move between hosts. If not, the build is made per environment, and WS7 documents that.
+
+**`lib/config.ts` contract** (replaces today's single `apiBaseUrl` export, and keeps it):
+
+- `apiBaseUrl` (`""` means same origin), `apiUrl(path)`.
+- `siteUrl`, `staffUrl`, `splitHosts` (true when the two origins differ).
+- `siteHref(path)`: a relative path when the visitor is already on the student site or the hosts are not split; otherwise the absolute student URL.
+- `staffHref(path)`: the same for the admin panel. Staff routes always start with `/staff`, on both setups.
+- `studentHome` = `siteHref("/")`, `staffHome` = `staffHref("/staff")`, `staffLogin` = `staffHref("/login")`, `studentLogin` = `siteHref("/login")`.
+
+Rules for every workstream: links inside one surface use `next/link` with relative paths. Any link or redirect from the student site to the admin panel, or back, uses `siteHref` or `staffHref`: post-login routing, the "শুধু শিক্ষার্থীদের জন্য" and "শুধু অ্যাডমিন ও শিক্ষকদের জন্য" pages, "অ্যাডমিন প্যানেল" links for signed-in staff, and staff links to a student's public exam page.
+
+**Host routing in `proxy.ts`** (only when `splitHosts`):
+
+- On the admin host: `/` redirects to `/staff`. `/staff/**`, the auth pages (`/login`, `/forgot-password`, `/reset-password`, `/activate`), `/_next/**` and static files are served. Any student route redirects to the same path on the student site.
+- On the student host: `/staff/**` redirects to the same path on the admin host.
+- With one host, no host routing: both surfaces live side by side.
+- The staff layout always sends `<meta name="robots" content="noindex, nofollow">`; the student site stays indexable.
+
+**Sessions across two hosts.** The refresh cookie belongs to the host the user signed in on, so a student session and a staff session never mix. With split hosts, each login page accepts its own audience: on the student site a staff account sees "অ্যাডমিন প্যানেলে লগইন করুন" with a link to `staffLogin` instead of being signed in; on the admin host a student sees "শিক্ষার্থীদের সাইটে লগইন করুন" with a link to `studentLogin`. With one host, the login page accepts everyone and routes by role.
+
+**What the API and server need** (WS7 sets them at deploy; listed here so the foundation matches):
+
+- `WEB_ORIGIN` lists both origins, **student site first** (`https://exam.example.com,https://admin.exam.example.com`): the API sends the browser back to the first origin after a payment.
+- `SSLCZ_CALLBACK_BASE_URL` and the Google redirect URI use the student origin.
+- Nginx has a server block for each host name. Both forward `/` to the Next server on `127.0.0.1:3000` and `/api/` to the API on `127.0.0.1:8080`. One certificate covers both names.
+
+**Tests:** `lib/config` helpers in both modes; proxy routing on the admin host, on the student host, and with one host; login audience messages with split hosts.
 
 ## Acceptance
 

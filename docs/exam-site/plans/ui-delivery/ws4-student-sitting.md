@@ -1,10 +1,12 @@
 # WS4 — Sitting, results, leaderboard
 
-Branch `ui/ws4-student-sitting`, cut after WS0 merges. Read [README.md](README.md) and [ws0-foundation.md](ws0-foundation.md). States follow Prompt 3 of [../../ui/student-flow-prompts.md](../../ui/student-flow-prompts.md), except the MCQ layout (U11) and the saved-selection behavior (D-a). The rules in "Rules the API enforces" there are binding.
+Branch `ui/ws4-student-sitting`, agent D, from the start. Build against the WS0 and WS1 **Contracts** until those merge, then merge `catalog-acquisition` into your branch. Finish the `PdfViewer` early: WS5 and WS6 reuse it, and WS4 merges before them. Read [README.md](README.md) and [ws0-foundation.md](ws0-foundation.md). States follow Prompt 3 of [../../ui/student-flow-prompts.md](../../ui/student-flow-prompts.md), except the MCQ layout (U11) and the saved-selection behavior (D-a). The rules in "Rules the API enforces" there are binding.
+
+**Copy:** Bangla quoted in this file shows intent only. Write the final Bangla by [bangla-copy.md](bangla-copy.md) (its glossary and rewrites win, for example লগইন not প্রবেশ, সরাসরি ভর্তি not রোস্টার, শিক্ষক not ইনস্ট্রাক্টর, তারিখ পরে জানানো হবে). Build every link to the other surface with `siteHref()` or `staffHref()` from `lib/config`.
 
 ## Owns
 
-- `web/src/app/(site)/exam/[examId]/sit/**`, `.../result/**`, `.../leaderboard/**`
+- `web/src/app/(site)/exam/[examId]/sit/**`, `.../result/**`, `.../leaderboard/**`, `web/src/app/(site)/results/**`
 - `web/src/components/student/sitting/**`, `web/src/components/student/result/**`, `web/src/components/pdf/**` (replace WS0's `PdfViewer` stub and keep its props, because WS5 and WS6 already import it; `allowDownload` is false for students and true for staff answer scripts)
 - `web/src/lib/api/exam/sitting.ts`
 - `web/public/pdf.worker.min.mjs` (copied from `pdfjs-dist` by a `postinstall`-free script or a checked-in copy; must work in the standalone build)
@@ -24,6 +26,11 @@ Branch `ui/ws4-student-sitting`, cut after WS0 merges. Read [README.md](README.m
 - **Submit**: primary "জমা দিন" at the end of the paper and in the bar. The confirm dialog shows answered and unanswered counts. `POST .../submit` returns the score: show "৩৮ / ৫০ · উত্তীর্ণ" and "সময় শেষ হওয়া পর্যন্ত উত্তর বদলানো যাবে।" The paper stays editable until the deadline, without any answer key.
 - **Deadline**: when the countdown reaches zero, stop accepting taps, flush the last save, and move to `/exam/[id]/result` without asking the student to refresh. The server posts saved answers anyway.
 - **Later attempt**: the banner "এটি পরে দেওয়া চেষ্টা। মেধাতালিকায় উঠবে না।" and the timer labeled "আপনার সময়".
+- **Flag for review** (LMS standard): a "পরে দেখব" toggle on each question, kept in the same `localStorage` backup (never sent to the server). Flagged numbers show a marker in the jump grid, and the submit dialog lists them. *(P1)*
+- **Time warnings**: toasts and a polite screen-reader announcement at 10, 5 and 1 minute left (`Countdown warnAt`). In the last minute the bar turns to the warning tone.
+- **Connection**: `OfflineBanner` "ইন্টারনেট সংযোগ নেই · উত্তর এই ডিভাইসে রাখা হচ্ছে" while offline; saving resumes and flushes when back online.
+- **Text size**: A− / A+ in the bar, three steps, remembered per device. *(P2)*
+- No bottom tab bar on this page (WS0 hides it) and no links that leave the paper except through the leave guard.
 - Focus stays on the chosen option; the countdown never steals focus and announces only each minute.
 
 ## Written sitting
@@ -43,6 +50,15 @@ Branch `ui/ws4-student-sitting`, cut after WS0 merges. Read [README.md](README.m
 - Written, published: marks, pass, rank, the comment without any name, and "মূল্যায়িত খাতা দেখুন" opening the same PDF viewer on `GET .../evaluated-pdf`.
 - Link "মেধাতালিকা".
 
+## Results hub (`/results`) — the student's gradebook
+
+The bottom tab "ফলাফল" opens this. Data: the student's modules (`GET /api/v1/live-exam-modules`) and each module's exams (`GET /api/v1/live-exam-modules/{id}/exams`; the student owns few modules, so one request per module is fine, run in parallel and cached). Show exams whose `myStatus` is `SUBMITTED` (after the window), `AWAITING_RESULT`, `RESULT_READY` or `FAILED_TO_SUBMIT`, newest first, in two tabs:
+
+- **ফলাফল**: `RESULT_READY` and `FAILED_TO_SUBMIT` rows with title, module, type, date, marks "৩৮ / ৫০" and the pass pill (from `GET .../result`, fetched for the visible rows only), linking to the result page.
+- **মূল্যায়ন চলছে**: `AWAITING_RESULT` written rows with "খাতা অপেক্ষমাণ".
+
+Summary strip on top (P1): exams taken, passed, results waiting. Empty: "এখনো কোনো ফলাফল নেই" with a link to `/routine`.
+
 ## Leaderboard (`/exam/[examId]/leaderboard`)
 
 `GET /api/v1/live-exams/{id}/leaderboard`. Closed: "মেধাতালিকা দুপুর ১২:৪৫ এ খুলবে।" (five minutes after the end) or the undated sentence. Open: table নাম, ক্রম, নম্বর, পূর্ণমান, ফল; ties share a rank and the next rank skips; the student's own row is highlighted; no phone column. Paged if the response is paged.
@@ -53,7 +69,7 @@ The PDF viewer and `pdfjs-dist` load only on the written sitting and on "মূ�
 
 ## Tests
 
-Take and retake entry and error redirects, autosave debounce and latest-wins, backup merge with server `selected`, submit dialog counts and score card, deadline transition, PDF file checks (image rejected, size), upload replace state, each result state, leaderboard closed and ties.
+Results hub tabs and empty state, flag markers in the grid and submit dialog, time-warning thresholds, offline flush, take and retake entry and error redirects, autosave debounce and latest-wins, backup merge with server `selected`, submit dialog counts and score card, deadline transition, PDF file checks (image rejected, size), upload replace state, each result state, leaderboard closed and ties.
 
 ## Report
 

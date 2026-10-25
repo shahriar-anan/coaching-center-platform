@@ -1,14 +1,21 @@
 # WS6 — Staff people, participation, marking, payments, audit
 
-Branch `ui/ws6-staff-ops`, cut after WS0 merges. Read [README.md](README.md) and [ws0-foundation.md](ws0-foundation.md). Pages 4 and 17–29 of [../../ui/admin-prompt.md](../../ui/admin-prompt.md) are the spec, with its server rules for accounts, participation, marking and payments. Differences are listed here. The old course-admin student pages under `(admin)` show which student calls exist; build new pages, do not edit those.
+Two branches, both cut from `catalog-acquisition` in phase 2 (after WS0 and WS1 are merged, so the real contracts are in the tree):
+
+**Copy:** Bangla quoted in this file shows intent only. Write the final Bangla by [bangla-copy.md](bangla-copy.md) (its glossary and rewrites win, for example লগইন not প্রবেশ, সরাসরি ভর্তি not রোস্টার, শিক্ষক not ইনস্ট্রাক্টর, তারিখ পরে জানানো হবে). Build every link to the other surface with `siteHref()` or `staffHref()` from `lib/config`.
+
+- **WS6a** `ui/ws6a-staff-people`, agent E after WS5 merges: students, instructors, system admins, participation, submissions and marking.
+- **WS6b** `ui/ws6b-staff-ops`, agent B after WS1 merges: payments and payment detail, audit log, staff account, staff leaderboard.
+
+The page table below marks each row 6a or 6b. Read [README.md](README.md) and [ws0-foundation.md](ws0-foundation.md). Pages 4 and 17–29 of [../../ui/admin-prompt.md](../../ui/admin-prompt.md) are the spec, with its server rules for accounts, participation, marking and payments. Differences are listed here. The old course-admin student pages under `(admin)` show which student calls exist; build new pages, do not edit those.
 
 ## Owns
 
-- `web/src/app/(staff)/staff/students/**`, `.../instructors/**`, `.../admins/**`, `.../participation/**`, `.../submissions/**`, `.../payments/**`, `.../audit/**`, `.../account/**`, `.../exams/[examId]/leaderboard/**`
-- `web/src/components/staff/people/**`, `web/src/components/staff/ops/**`
-- `web/src/lib/api/exam/staff-people.ts`, `web/src/lib/api/exam/staff-ops.ts`
-- `web/src/i18n/messages/{bn,en}/{staffPeople,staffOps}.ts`
-- Tests under `web/tests/ws6/**`
+**WS6a:** `web/src/app/(staff)/staff/students/**`, `.../instructors/**`, `.../admins/**`, `.../participation/**`, `.../submissions/**`; `web/src/components/staff/people/**`; `web/src/lib/api/exam/staff-people.ts`; `web/src/i18n/messages/{bn,en}/staffPeople.ts`; tests under `web/tests/ws6a/**`.
+
+**WS6b:** `web/src/app/(staff)/staff/payments/**`, `.../audit/**`, `.../account/**`, `.../exams/[examId]/leaderboard/**`; `web/src/components/staff/ops/**`; `web/src/lib/api/exam/staff-ops.ts`; `web/src/i18n/messages/{bn,en}/staffOps.ts`; tests under `web/tests/ws6b/**`.
+
+A payment row links to a student (`/staff/students/[id]`, WS6a) and a student's access list links to a payment (`/staff/payments?tranId=`, WS6b): link by URL only, never import across.
 
 ## Pages
 
@@ -27,6 +34,15 @@ Branch `ui/ws6-staff-ops`, cut after WS0 merges. Read [README.md](README.md) and
 | Payment detail | MA, SA | Page 26 as a side panel or `/staff/payments/[tranId]` reading the list with `tranId=`. Adds updated time, `valId`, links to the student and the module or exam, and the access line. MA only: "পেমেন্ট ছাড়া দিতে রোস্টার খুলুন". No refund button. | same |
 | `/staff/audit` | MA | Page 28. Paged, newest first, columns time, action (translated label), entity type, entity id, actor. No search. | `GET /audit-log` |
 | `/staff/account` | all staff | Page 4, updated: name and role read-only, email with verification (resend and code), phone with "বদলান" (own-phone change), change password, logout. | `GET /me`, `POST /auth/change-password`, `POST /auth/change-phone`, verify-email calls |
+
+**Split:** students, student detail, instructors, admins, participation, submissions (all three) are **WS6a**. Staff leaderboard, payments, payment detail, audit and staff account are **WS6b**.
+
+## LMS additions
+
+- **Marking queue** (WS6a): on a submission, "আগের" and "পরের" move through the module's list in its current filter order, and "সেভ করে পরেরটি" saves the draft and opens the next paper that has an answer and no draft. Keyboard: `J`/`K` for next and previous when focus is not in a field. A small progress line "৬২টির মধ্যে ১৮টি মূল্যায়িত". *(P1)*
+- **Side-by-side marking** on desktop (WS6a): the answer PDF on the left, the mark form on the right, stacked on phones. *(P1)*
+- **Payments at a glance** (WS6b): a strip above the list with today's paid count and total, and pending count, computed from the list endpoint with `status` filters (no new API). *(P2)*
+- **Copy-friendly support** (WS6b): transaction id, `valId` and phone each have a copy button; the payment detail has "শিক্ষার্থীর পাতা খুলুন". *(P1)*
 
 ## Rules
 

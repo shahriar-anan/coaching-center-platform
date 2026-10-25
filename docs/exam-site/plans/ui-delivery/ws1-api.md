@@ -1,6 +1,6 @@
 # WS1 — API additions and demo seed
 
-Branch `ui/ws1-api`, cut now. Runs beside WS0. API only: `api/` and the API docs. Follow [../api-completion/README.md](../api-completion/README.md) practices (Flyway only, `PageResponse`, one `ErrorCode` per condition, `404` for what a caller may not see, `*IT` on real PostgreSQL, routes added to `AuditLogIT`, `current-api.md` updated). The next Flyway version is `V39`. **Never edit `V1`–`V38`;** `V37` and `V38` are applied on the staging box.
+Branch `ui/ws1-api`, agent B, from the start. When this is merged, agent B moves to WS6b. The JSON shapes in tasks A–F are the **Contracts** web agents build against; change one only through the integrator. API only: `api/` and the API docs. Follow [../api-completion/README.md](../api-completion/README.md) practices (Flyway only, `PageResponse`, one `ErrorCode` per condition, `404` for what a caller may not see, `*IT` on real PostgreSQL, routes added to `AuditLogIT`, `current-api.md` updated). The next Flyway version is `V39`. **Never edit `V1`–`V38`;** `V37` and `V38` are applied on the staging box.
 
 Web workstreams code against the contracts below with mocked `fetch`. Keep them exactly, or write the change in **Report** before WS3, WS5 and WS6 merge.
 
