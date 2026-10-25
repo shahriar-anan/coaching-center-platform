@@ -27,6 +27,7 @@ import com.coachingcenter.api.auth.CapturingEmailConfig;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -58,7 +59,9 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 
 		String anonymousExam = publicExam(null, exam);
 		String studentExam = publicExam(student, exam);
-		assertThat(studentExam).isEqualTo(anonymousExam);
+		assertThat(withoutAccess(studentExam)).isEqualTo(json.readTree(anonymousExam));
+		assertThat(json.readTree(anonymousExam).has("access")).isFalse();
+		assertAccess(json.readTree(studentExam), "NONE", false, "PRICE_REQUIRED");
 		JsonNode body = json.readTree(anonymousExam);
 		assertThat(body.get("paperLanguage").asText()).isEqualTo("EN");
 		assertThat(body.get("titleEn").asText()).isEqualTo("Public paper");
@@ -71,7 +74,10 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/public/live-exams/" + exam + "/question-pdf")).andExpect(status().isNotFound());
 
 		String anonymousModule = publicModule(null, module);
-		assertThat(publicModule(student, module)).isEqualTo(anonymousModule);
+		assertThat(withoutAccess(publicModule(student, module))).isEqualTo(json.readTree(anonymousModule));
+		assertAccess(json.readTree(publicModule(student, module)), "NONE", false, "PRICE_REQUIRED");
+		new JdbcTemplate(dataSource).update("update live_exam_modules set price = 500.00 where id = ?", module);
+		assertAccess(json.readTree(publicModule(student, module)), "NONE", false, "CHECKOUT_OFF");
 		assertThat(json.readTree(anonymousModule).get("descriptionEn").asText()).isEqualTo("English description");
 		assertThat(json.readTree(anonymousModule).has("accessMode")).isFalse();
 
@@ -99,7 +105,8 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student))
 			.andExpect(status().isNotFound());
 		mark(module, studentId);
-		assertThat(publicExam(student, exam)).isEqualTo(anonymousExam);
+		assertThat(withoutAccess(publicExam(student, exam))).isEqualTo(json.readTree(anonymousExam));
+		assertAccess(json.readTree(publicExam(student, exam)), "ROSTER", false, "ALREADY_HAS_ACCESS");
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.paperLanguage").value("EN"))
@@ -108,6 +115,20 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].stem").value("SECRET-STEM-TOKEN"));
+	}
+
+	@Test
+	void checkoutIsReportedOffWithoutAGatewayAndNeedsNoSignIn() throws Exception {
+		String body = mockMvc.perform(get("/api/v1/public/exam-site/status"))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(json.readTree(body).get("checkoutEnabled").asBoolean()).isFalse();
+		assertThat(json.readTree(body).size()).isEqualTo(1);
+		mockMvc.perform(get("/api/v1/public/exam-site/status").header("Authorization", "Bearer " + token(seed("STUDENT"))))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.checkoutEnabled").value(false));
 	}
 
 	@Test
@@ -360,6 +381,19 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 		}
+	}
+
+	private JsonNode withoutAccess(String body) {
+		ObjectNode node = (ObjectNode) json.readTree(body);
+		node.remove("access");
+		return node;
+	}
+
+	private static void assertAccess(JsonNode body, String state, boolean buyable, String blockedReason) {
+		JsonNode access = body.get("access");
+		assertThat(access.get("state").asText()).isEqualTo(state);
+		assertThat(access.get("buyable").asBoolean()).isEqualTo(buyable);
+		assertThat(access.get("blockedReason").asText()).isEqualTo(blockedReason);
 	}
 
 	private JsonNode categories(String examType) throws Exception {

@@ -134,6 +134,10 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	@Query("SELECT coalesce(max(e.durationMinutes), 0) FROM LiveExam e WHERE e.deletedAt IS NULL")
 	int maxDurationMinutes();
 
+	/** True once staff released the MCQ correct answers for the exam (V39, R-4). */
+	@Query(value = "SELECT answers_released_at IS NOT NULL FROM live_exams WHERE id = :id", nativeQuery = true)
+	boolean answersReleased(@Param("id") UUID id);
+
 	/**
 	 * Published, dated exams in published modules outside hidden categories, starting at or after {@code since}, soonest
 	 * first. The caller drops the ones that have already ended.

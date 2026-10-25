@@ -246,4 +246,28 @@ public class LiveExam extends BaseEntity {
 		this.price = price;
 	}
 
+
+	/** When Master Admin or System Admin released the MCQ correct answers for this exam (V39, R-4). Null means withheld. */
+	@Column(name = "answers_released_at")
+	private Instant answersReleasedAt;
+
+	@Column(name = "answers_released_by")
+	private UUID answersReleasedBy;
+
+	public Instant getAnswersReleasedAt() {
+		return answersReleasedAt;
+	}
+
+	public void setAnswersReleasedAt(Instant answersReleasedAt) {
+		this.answersReleasedAt = answersReleasedAt;
+	}
+
+	public UUID getAnswersReleasedBy() {
+		return answersReleasedBy;
+	}
+
+	public void setAnswersReleasedBy(UUID answersReleasedBy) {
+		this.answersReleasedBy = answersReleasedBy;
+	}
+
 }

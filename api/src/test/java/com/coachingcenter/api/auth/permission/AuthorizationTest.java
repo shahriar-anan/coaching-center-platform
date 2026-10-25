@@ -55,7 +55,8 @@ class AuthorizationTest {
 		SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
 				new CurrentActor(UUID.randomUUID(), Role.SYSTEM_ADMIN), null, List.of()));
 
-		assertThat(checker.has(Permissions.STUDENT_STATUS)).isTrue();
+		assertThat(checker.has(Permissions.STUDENT_STATUS)).isFalse();
+		assertThat(checker.has(Permissions.STUDENT_UPDATE)).isTrue();
 		assertThat(checker.has(Permissions.STUDENT_DELETE)).isFalse();
 	}
 

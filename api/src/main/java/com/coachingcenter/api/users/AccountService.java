@@ -19,7 +19,11 @@ import com.coachingcenter.api.auth.permission.MasterAdminGuard;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.exams.LiveExamGrantRepository;
 import com.coachingcenter.api.exams.LiveExamInstructorModules;
+import com.coachingcenter.api.exams.LiveExamOrder;
+import com.coachingcenter.api.exams.LiveExamOrderRepository;
+import com.coachingcenter.api.exams.LiveExamParticipantRepository;
 
 @Service
 public class AccountService {
@@ -38,9 +42,16 @@ public class AccountService {
 
 	private final LiveExamInstructorModules assignments;
 
+	private final LiveExamOrderRepository orders;
+
+	private final LiveExamGrantRepository grants;
+
+	private final LiveExamParticipantRepository participants;
+
 	public AccountService(UserRepository users, StudentProfileRepository studentProfiles,
 			AdminProfileRepository adminProfiles, AuthService auth, MasterAdminGuard masterAdminGuard,
-			AuditRecorder audit, LiveExamInstructorModules assignments) {
+			AuditRecorder audit, LiveExamInstructorModules assignments, LiveExamOrderRepository orders,
+			LiveExamGrantRepository grants, LiveExamParticipantRepository participants) {
 		this.users = users;
 		this.studentProfiles = studentProfiles;
 		this.adminProfiles = adminProfiles;
@@ -48,6 +59,9 @@ public class AccountService {
 		this.masterAdminGuard = masterAdminGuard;
 		this.audit = audit;
 		this.assignments = assignments;
+		this.orders = orders;
+		this.grants = grants;
+		this.participants = participants;
 	}
 
 	@Transactional
@@ -148,13 +162,25 @@ public class AccountService {
 		User user = requireRole(id, expectedRole);
 		masterAdminGuard.rejectIfMasterAdmin(Role.valueOf(user.getRole()));
 		user.setStatus(status);
-		audit.record(AuditRecorder.USER_STATUS_CHANGED, user.getId());
+		audit.record("INACTIVE".equals(status) ? AuditRecorder.USER_SUSPENDED : AuditRecorder.USER_RESTORED, user.getId());
 	}
 
 	@Transactional
 	public void delete(UUID id, Role expectedRole) {
 		User user = requireRole(id, expectedRole);
 		masterAdminGuard.rejectIfMasterAdmin(Role.valueOf(user.getRole()));
+		// A student who paid, or who was ever granted access, keeps the record: they can be suspended instead (R-10).
+		if (expectedRole == Role.STUDENT
+				&& (orders.existsByStudentIdAndStatus(user.getId(), LiveExamOrder.SUCCEEDED)
+						|| grants.existsByStudentId(user.getId()))) {
+			throw new ApiException(ErrorCode.ACCOUNT_HAS_PAID_ORDERS, HttpStatus.CONFLICT,
+					"This student has paid or has access, so the account cannot be deleted. Suspend it instead.");
+		}
+		// An instructor who has marked a paper keeps the record of that mark (S-023).
+		if (expectedRole == Role.INSTRUCTOR && participants.existsByEvaluatedBy(user.getId())) {
+			throw new ApiException(ErrorCode.ACCOUNT_HAS_MARKED_WORK, HttpStatus.CONFLICT,
+					"This instructor has marked papers, so the account cannot be deleted. Suspend it instead.");
+		}
 		user.setDeletedAt(Instant.now());
 		audit.record(AuditRecorder.USER_DELETED, user.getId());
 	}
