@@ -89,6 +89,10 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_INSTRUCTOR_UNASSIGN = "LIVE_EXAM_INSTRUCTOR_UNASSIGN";
 
+	public static final String LIVE_EXAM_RESULT_PUBLISH = "LIVE_EXAM_RESULT_PUBLISH";
+
+	public static final String LIVE_EXAM_PARTICIPANT_ENTITY = "LIVE_EXAM_PARTICIPANT";
+
 	private final AuditLogRepository auditLogs;
 
 	public AuditRecorder(AuditLogRepository auditLogs) {

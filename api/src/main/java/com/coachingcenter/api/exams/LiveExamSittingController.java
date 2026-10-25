@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.auth.permission.PermissionChecker;
 import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.config.AppProperties;
@@ -34,14 +35,17 @@ public class LiveExamSittingController {
 
 	private final LiveExamService exams;
 
+	private final LiveExamEvaluationService evaluations;
+
 	private final PermissionChecker permissions;
 
 	private final AppProperties appProperties;
 
-	public LiveExamSittingController(LiveExamSittingService sittings, LiveExamService exams, PermissionChecker permissions,
-			AppProperties appProperties) {
+	public LiveExamSittingController(LiveExamSittingService sittings, LiveExamService exams,
+			LiveExamEvaluationService evaluations, PermissionChecker permissions, AppProperties appProperties) {
 		this.sittings = sittings;
 		this.exams = exams;
+		this.evaluations = evaluations;
 		this.permissions = permissions;
 		this.appProperties = appProperties;
 	}
@@ -85,14 +89,21 @@ public class LiveExamSittingController {
 
 	@GetMapping("/api/v1/live-exams/{id}/question-pdf")
 	public ResponseEntity<byte[]> questionPdf(@PathVariable UUID id) {
-		requireStudent();
+		byte[] pdf;
+		if (permissions.has(Permissions.EXAM_READ) || permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
+			pdf = evaluations.questionPdf(id, actor());
+		}
+		else {
+			requireStudent();
+			pdf = sittings.questionPdf(id, actorId());
+		}
 		return ResponseEntity.ok()
 			.contentType(MediaType.APPLICATION_PDF)
 			.header(HttpHeaders.CONTENT_DISPOSITION, "inline")
 			.header(HttpHeaders.CACHE_CONTROL, "no-store")
 			.header("X-Content-Type-Options", "nosniff")
 			.header("Content-Security-Policy", frameAncestors())
-			.body(sittings.questionPdf(id, actorId()));
+			.body(pdf);
 	}
 
 	@PostMapping(value = "/api/v1/live-exams/{id}/answer-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -121,10 +132,13 @@ public class LiveExamSittingController {
 	}
 
 	private static UUID actorId() {
+		return actor().userId();
+	}
+
+	private static CurrentActor actor() {
 		var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-		if (authentication != null
-				&& authentication.getPrincipal() instanceof com.coachingcenter.api.auth.permission.CurrentActor actor) {
-			return actor.userId();
+		if (authentication != null && authentication.getPrincipal() instanceof CurrentActor actor) {
+			return actor;
 		}
 		throw new ApiException(ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED, "Authentication is required.");
 	}

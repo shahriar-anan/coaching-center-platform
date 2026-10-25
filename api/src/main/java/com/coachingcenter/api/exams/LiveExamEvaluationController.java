@@ -85,6 +85,12 @@ public class LiveExamEvaluationController {
 		return evaluations.publish(id, actor());
 	}
 
+	@PostMapping("/api/v1/live-exams/{id}/publish-results")
+	public LiveExamEvaluationService.PublishedCount publishResults(@PathVariable UUID id) {
+		require(Permissions.LIVE_EXAM_PUBLISH);
+		return evaluations.publishAll(id, actor());
+	}
+
 	@GetMapping("/api/v1/live-exams/{id}/leaderboard")
 	public LiveExamEvaluationService.Leaderboard leaderboard(@PathVariable UUID id) {
 		if (permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {

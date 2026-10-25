@@ -124,8 +124,9 @@ public class LiveExamEvaluationService {
 				continue;
 			}
 			sittings.finalizeDue(exam.getId());
+			LiveExamModule module = moduleOf(exam);
 			for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(exam.getId())) {
-				views.add(view(participant, exam));
+				views.add(view(participant, exam, module));
 			}
 		}
 		views.sort(Comparator.comparing(SubmissionView::studentName));
@@ -141,7 +142,7 @@ public class LiveExamEvaluationService {
 		LiveExam exam = requireExam(participant.getExamId());
 		requireReader(exam.getModuleId(), actor);
 		sittings.settleParticipant(participantId);
-		return view(participant, exam);
+		return view(participant, exam, moduleOf(exam));
 	}
 
 	@Transactional
@@ -193,7 +194,7 @@ public class LiveExamEvaluationService {
 		participant.setEvaluatedContentType("application/pdf");
 		participant.setPublishedAt(null);
 		files.commitReplacement(stored.storedFileName(), previous);
-		return view(participant, exam);
+		return view(participant, exam, moduleOf(exam));
 	}
 
 	@Transactional
@@ -218,8 +219,36 @@ public class LiveExamEvaluationService {
 		if (participant.getPublishedAt() == null) {
 			participant.setPublishedAt(clock.instant());
 			notices.writtenResult(participant.getStudentId(), exam.getId(), participant.getId(), participant.getPublishedAt());
+			audit.record(AuditRecorder.LIVE_EXAM_RESULT_PUBLISH, AuditRecorder.LIVE_EXAM_PARTICIPANT_ENTITY, participant.getId());
 		}
-		return view(participant, exam);
+		return view(participant, exam, moduleOf(exam));
+	}
+
+	/** Publishes every draft of one written exam in one transaction. Only the Master Admin reaches this. */
+	@Transactional
+	public PublishedCount publishAll(UUID examId, CurrentActor actor) {
+		if (actor.role() != Role.MASTER_ADMIN) {
+			throw denied();
+		}
+		LiveExam exam = requireExam(examId);
+		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
+			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is published.");
+		}
+		int published = 0;
+		Instant now = clock.instant();
+		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(examId)) {
+			boolean draft = LiveExamParticipant.SUBMITTED.equals(participant.getStatus())
+					&& participant.getAnswerStoredFileName() != null && participant.getEvaluatedAt() != null
+					&& participant.getScore() != null && participant.getPublishedAt() == null;
+			if (!draft) {
+				continue;
+			}
+			participant.setPublishedAt(now);
+			notices.writtenResult(participant.getStudentId(), exam.getId(), participant.getId(), now);
+			audit.record(AuditRecorder.LIVE_EXAM_RESULT_PUBLISH, AuditRecorder.LIVE_EXAM_PARTICIPANT_ENTITY, participant.getId());
+			published++;
+		}
+		return new PublishedCount(published);
 	}
 
 	@Transactional
@@ -311,7 +340,22 @@ public class LiveExamEvaluationService {
 		}
 	}
 
-	private SubmissionView view(LiveExamParticipant participant, LiveExam exam) {
+	/** The written question paper for staff readers. An unassigned instructor gets 404, not 403. */
+	@Transactional(readOnly = true)
+	public byte[] questionPdf(UUID examId, CurrentActor actor) {
+		LiveExam exam = requireExam(examId);
+		if (!readerOf(exam.getModuleId(), actor) || exam.getQuestionStoredFileName() == null) {
+			throw notFound();
+		}
+		try {
+			return Files.readAllBytes(files.resolve(exam.getQuestionStoredFileName()));
+		}
+		catch (IOException exception) {
+			throw notFound();
+		}
+	}
+
+	private SubmissionView view(LiveExamParticipant participant, LiveExam exam, LiveExamModule module) {
 		String evaluatorName = null;
 		if (participant.getEvaluatedBy() != null) {
 			evaluatorName = admins.findById(participant.getEvaluatedBy()).map(profile -> profile.getFullName()).orElse(null);
@@ -320,7 +364,13 @@ public class LiveExamEvaluationService {
 				studentName(participant.getStudentId()), participant.getStatus(), participant.getScore(), maximum(exam),
 				participant.getPassed(), participant.getKind(), participant.getAnswerStoredFileName() != null,
 				participant.getEvaluatedStoredFileName() == null ? null : Boolean.TRUE, evaluatorName,
-				participant.getPublishedAt() != null);
+				participant.getPublishedAt() != null, participant.getComment(), participant.getEvaluatedOriginalFileName(),
+				module.getId(), module.getTitleEn(), module.getTitleBn(), exam.getTitleEn(), exam.getTitleBn(),
+				participant.getSubmittedAt(), participant.getEvaluatedAt(), participant.getPublishedAt());
+	}
+
+	private LiveExamModule moduleOf(LiveExam exam) {
+		return modules.findById(exam.getModuleId()).orElseThrow(this::notFound);
 	}
 
 	private void requireMarker(UUID moduleId, CurrentActor actor) {
@@ -334,13 +384,13 @@ public class LiveExamEvaluationService {
 	}
 
 	private void requireReader(UUID moduleId, CurrentActor actor) {
-		if (actor.role() == Role.MASTER_ADMIN || actor.role() == Role.SYSTEM_ADMIN) {
-			return;
+		if (!readerOf(moduleId, actor)) {
+			throw denied();
 		}
-		if (assignedInstructor(moduleId, actor)) {
-			return;
-		}
-		throw denied();
+	}
+
+	private boolean readerOf(UUID moduleId, CurrentActor actor) {
+		return actor.role() == Role.MASTER_ADMIN || actor.role() == Role.SYSTEM_ADMIN || assignedInstructor(moduleId, actor);
 	}
 
 	private boolean assignedInstructor(UUID moduleId, CurrentActor actor) {
@@ -366,7 +416,7 @@ public class LiveExamEvaluationService {
 		return sum;
 	}
 
-	private static boolean passed(int score, LiveExam exam, int maximum) {
+	static boolean passed(int score, LiveExam exam, int maximum) {
 		int percent = exam.getPassPercent() == null ? 0 : exam.getPassPercent();
 		return (long) score * 100 >= (long) percent * maximum;
 	}
@@ -390,9 +440,14 @@ public class LiveExamEvaluationService {
 	public record Assignment(UUID moduleId, UUID instructorId) {
 	}
 
+	public record PublishedCount(int published) {
+	}
+
 	public record SubmissionView(UUID id, UUID examId, UUID studentId, String studentName, String status, Integer score,
 			int maximum, Boolean passed, String kind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
-			boolean published) {
+			boolean published, String comment, String evaluatedFileName, UUID moduleId, String moduleTitleEn,
+			String moduleTitleBn, String examTitleEn, String examTitleBn, Instant submittedAt, Instant evaluatedAt,
+			Instant publishedAt) {
 	}
 
 	public record Leaderboard(List<LeaderboardRow> rows) {
