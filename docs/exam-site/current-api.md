@@ -190,3 +190,21 @@ Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student
 | `GET /api/v1/public/live-exams?upcoming=true` rows gain `moduleOnly` | Public | `true` when the exam has no price of its own and its module is priced, so it is sold only inside the module (S-027). `false` otherwise, including an exam that is not sold at all. |
 | `GET /api/v1/live-exams/{id}/result` and the student `GET /api/v1/live-exams/{id}` review | Student | MCQ answer release (S-018, R-4). `correct` on each option and `explanation` on each question are left out of every review until `answers_released_at` is set on the exam (`PUT /api/v1/live-exams/{id}/answers-released`, API-ADMIN) and the student's own sitting is over. Before that the review still shows the questions, the options and `selected`. The shape is unchanged. Written papers are not affected. |
 | Written deadline (R-7, S-024) | Student | No change, now covered by `LiveSittingIT`: an upload at or after `deadlineAt` gets `409 DEADLINE_PASSED` and keeps the stored file; the latest upload before the deadline is posted as `SUBMITTED` by the deadline job without a submit click; no upload is posted as `FAILED_TO_SUBMIT` with score `0`. |
+
+## Added for the phase 2 UI (API-NOTICE)
+
+Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student-purchase-lms-plan.md) sections 6.2 and 8. Flyway: none. **Blocked:** `student_notices_kind_check` (V36) allows only `EXAM_REMINDER`, `MCQ_SCORE` and `WRITTEN_RESULT`, so every kind below except those three fails its insert until a migration widens the check. The module-scope purchase notice also needs `student_notices.exam_id` to be nullable.
+
+Every kind uses the existing `GET /api/v1/me/notices` and `POST /api/v1/me/notices/{id}/read` rows. No new route. Each row has `id`, `kind`, `createdAt`, `readAt`, and `exam` (`id`, `moduleId`, `examType`, `titleEn`, `titleBn`, `liveAt`, `endAt`). Only `MCQ_SCORE` and a published `WRITTEN_RESULT` carry `score`, `maximum` and `passed`.
+
+| Kind | Who gets it | When | Message key | Written by |
+|---|---|---|---|---|
+| `EXAM_REMINDER` | Students with access | 48 hours before start (unchanged) | `studentId:examId:liveAtMillis` | `StudentReminderJob.scan` |
+| `EXAM_STARTING_SOON` | Students with access | Within 60 minutes before start (S-017, in-app only, no mail) | `studentId:examId:liveAtMillis` | `StudentReminderJob.scanSoon` |
+| `EXAM_OPEN` | Students with access | When the exam's window opens; not after it closes | `studentId:examId:liveAtMillis` | `StudentReminderJob.scanOpened` |
+| `PURCHASE_GRANTED` | The buyer, or the student granted by hand | When an exam grant is created (module grants are not written yet) | `studentId:EXAM:examId` | `LiveExamOrderTx.writeGrant`; API-ADMIN's manual grant calls `StudentNoticeWriter.purchaseGranted(studentId, moduleOrExamId, scope)` |
+| `EXAM_PUBLISHED` | Students with access to the module or the exam | When the exam is published; publishing again adds nothing | `studentId:examId` | `LiveExamService.publish` |
+
+`RETAKE_AVAILABLE` is not written. The retake rule (`LiveExamStudentStatus`: a missed MCQ exam after its window) exists, but a notice needs a scan at window end, which is new logic.
+
+`ANNOUNCEMENT` is written by API-ADMIN's class. The inbox returns it as a kind like the others, but its row has no exam id today, while `student_notices.exam_id` is NOT NULL and the inbox joins on it.

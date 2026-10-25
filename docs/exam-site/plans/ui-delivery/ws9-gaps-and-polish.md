@@ -543,3 +543,35 @@ Branch `ui/api-access`, worktree `F:\cc-wt\api-access`, rebased on `catalog-acqu
 - STU-PUR: drop the 404 probes. Use `access.state` and `access.blockedReason` on the module and exam reads, and `/me/live-exam-access` for "my modules". `orderId` is left out for roster rows and manual grants. Owning one exam does not own its module: the module stays `NONE` and buyable. `blockedReason` order is `ALREADY_HAS_ACCESS`, `PRICE_REQUIRED`, `CHECKOUT_OFF`, `PHONE_REQUIRED`. Upcoming rows: show "শুধু মডিউলে কেনা যাবে" when `moduleOnly`.
 - STU-LMS: when a review has `questions` but no `correct` on any option, the answers are withheld. Show "উত্তর এখনো প্রকাশ হয়নি".
 - API-ADMIN: `LiveExamPublicService` and `StudentOwnAccessService` read grants directly (ignoring revoked ones), not through `LiveExamAccess`.
+
+## Report — API-NOTICE
+
+Branch `ui/api-notice`, worktree `F:\cc-wt\api-notice`, from `catalog-acquisition` (3fa6238). **Not ready to merge.** The new kinds are written but cannot be stored yet, for the three reasons under Blockers.
+
+Items:
+- Item 1, S-017 `EXAM_STARTING_SOON`: done in code (`StudentReminderJob.scanSoon`, `StudentNoticeWriter.startingSoon`). The 48-hour scan is unchanged. Test `theOneHourNoticeGoesOnceInsideTheHourToStudentsWithAccessOnly` fails on blocker 1.
+- Item 2, S-004 `EXAM_OPEN`: done in code (`StudentReminderJob.scanOpened`). Test `theOpenNoticeGoesOnceWhenTheWindowOpensAndOnlyToStudentsWithAccess` fails on blocker 1.
+- Item 3, S-004 `PURCHASE_GRANTED`: hook in `LiveExamOrderTx.writeGrant`, and `StudentNoticeWriter.purchaseGranted(studentId, moduleOrExamId, scope)` for API-ADMIN's manual grant. Exam scope only (blocker 2). Test `purchaseGrantedNoticeGoesOncePerPaidOrderAndNeverForARefusedOne` fails before reaching the notice, on blocker 3.
+- Item 4, S-004 `EXAM_PUBLISHED`: hook in `LiveExamService.publish`. Test `examPublishedNoticeGoesOnceToStudentsWithAccessToTheModule` fails: publish returns 500 when a student has access (blocker 1).
+- Item 5, `RETAKE_AVAILABLE`: skipped. The retake rule exists (`LiveExamStudentStatus`, a missed MCQ exam after its window), but a notice needs a scan at window end, which is new logic.
+- Item 6, S-004 labels: `eachNewKindListsWithItsExamAndModuleAndCarriesNoMarks` checks the row shape. It fails on blocker 1.
+
+Blockers (each needs a decision; none is fixable inside this branch under the launch rules):
+1. `student_notices_kind_check` (V36) allows only `EXAM_REMINDER`, `MCQ_SCORE` and `WRITTEN_RESULT`. V39 did not widen it, and `ANNOUNCEMENT` is blocked the same way. Effect: the job logs and skips `EXAM_STARTING_SOON` and `EXAM_OPEN`. The insert inside `publish` and inside the payment grant aborts that transaction, so publishing to a module with students returns 500, and, by the same mechanism, a paid order would fail to grant (not run). Fix: a migration after V39 (V40) that widens the check. The launch rules forbid me writing it.
+2. `student_notices.exam_id` is NOT NULL. A module-scope purchase has no exam to point to, so it writes nothing. Fix in the same migration: make `exam_id` nullable, or add `module_id`.
+3. The base branch cannot write a grant. V39 makes `live_exam_grants.source` NOT NULL with no default, but `LiveExamGrant` has no `source` field and `writeGrant` never sets one. API-ADMIN's branch (`ui/api-admin`) has the Java side. Until it is merged, paid orders fail on the base. Two existing tests, `theReminderGoesOncePerStudentWithAccessInsideTheTwoDayLeadAndNeverWithoutAGrant` and `deletedExamKeepsTheModuleGrantAndOrder`, fail with the same not-null error. Their grant inserts do not set `source`. They fail on the base as well; this branch did not change those statements.
+
+Checks:
+- Testcontainers could not start (no Docker). The run used the test database from the worktree's `.env`, mapped to `TEST_DB_URL`, `TEST_DB_USER` and `TEST_DB_PASSWORD` for the Maven process only. No value was printed.
+- `LiveEvaluationIT`: 51 run, 3 failures, 4 errors. Failures: the one-hour, open and publish tests (blocker 1). Errors: the purchase test (blocker 3), the two pre-existing grant tests (blocker 3), and the shape test (blocker 1). The other 44 pass.
+- Not run: the full suite and `AuditLogIT`. The full suite would fail on the same blockers. `AuditLogIT` is not affected, because no route was added.
+- The Maven lock was taken twice and released each time. `current-api.md` has the kinds table under "Added for the phase 2 UI (API-NOTICE)".
+
+Decisions needed:
+- Approve a V40 migration for blocker 1 and blocker 2, or name who writes it. Coordinate with API-ADMIN, whose `ANNOUNCEMENT` rows hit the same check and the same `exam_id` rule.
+- Merge API-ADMIN's grant-side Java changes before this branch, or it will not grant anything (blocker 3).
+- Do not merge the publish and grant hooks until blocker 1 is fixed.
+
+Notes for API-ADMIN and A4:
+- Manual grant call: `notices.purchaseGranted(studentId, moduleOrExamId, scope)`, with `scope` set to `EXAM` or `MODULE`. Only `EXAM` writes a row today.
+- Hook in `LiveExamOrderTx.writeGrant`: one call after `grants.saveAndFlush(grant)`. A4's bundle path should call the same method once per exam.
