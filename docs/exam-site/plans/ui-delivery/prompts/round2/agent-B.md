@@ -27,4 +27,6 @@ Contract issues: none | <list>
 Notes for other agents: <anything they must know>
 ```
 
+**Build tip from WS4:** `RequireStudent` and `RequireStaff` use `useSearchParams`, so wrap every route page that renders them in `<Suspense fallback={<Skeleton variant="card" />}>` (Skeleton from `@/components/ui/skeleton`), or the build fails on prerender.
+
 Do not run `next dev` or the API, do not open a browser, do not edit files outside your Owns list.

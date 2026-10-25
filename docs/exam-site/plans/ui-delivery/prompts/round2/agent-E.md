@@ -31,4 +31,6 @@ Notes for other agents: <anything they must know>
 
 7. **WS6a, only after the integrator says WS5 is merged:** in the same folder, `git switch -c ui/ws6a-staff-people catalog-acquisition`, then follow the "Phase 2" section of `prompts/agent-E.md` (students, instructors, admins, participation, submissions and marking). Report as `ui/ws6a-staff-people`.
 
+**Build tip from WS4:** `RequireStudent` and `RequireStaff` use `useSearchParams`, so wrap every route page that renders them in `<Suspense fallback={<Skeleton variant="card" />}>` (Skeleton from `@/components/ui/skeleton`), or the build fails on prerender.
+
 Do not run `next dev` or the API, do not open a browser, do not edit files outside your Owns list.
