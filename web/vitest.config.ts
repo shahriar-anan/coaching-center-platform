@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
+    // Tests call the API by absolute URL; the app default is same-origin ("").
+    env: { NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080" },
   },
   resolve: {
     alias: {

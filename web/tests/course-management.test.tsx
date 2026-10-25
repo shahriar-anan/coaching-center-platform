@@ -330,7 +330,7 @@ function posted(path: string, method = "POST"): Call[] {
 }
 
 function renderPage(ui: ReactNode) {
-  return render(<LocaleProvider>{ui}</LocaleProvider>);
+  return render(<LocaleProvider initialLocale="en">{ui}</LocaleProvider>);
 }
 
 beforeEach(() => {

@@ -6,6 +6,10 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession, useUser } from "@/lib/auth/session-context";
 
+/*
+ * The old admin pages (under app/(admin)). Course, library, book-order and
+ * course-payment links are hidden from navigation per U2; the routes stay.
+ */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { t } = useLocale();
   const { logout } = useSession();
@@ -29,48 +33,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 }
               >
                 {t("nav.students")}
-              </Link>
-              <Link
-                href="/courses"
-                className={
-                  pathname.startsWith("/courses")
-                    ? "font-medium text-zinc-900"
-                    : "text-zinc-600 hover:text-zinc-900"
-                }
-              >
-                {t("nav.courses")}
-              </Link>
-              <Link
-                href="/books"
-                className={
-                  pathname.startsWith("/books")
-                    ? "font-medium text-zinc-900"
-                    : "text-zinc-600 hover:text-zinc-900"
-                }
-              >
-                {t("nav.library")}
-              </Link>
-              {isMaster ? (
-                <Link
-                  href="/payments"
-                  className={
-                    pathname.startsWith("/payments")
-                      ? "font-medium text-zinc-900"
-                      : "text-zinc-600 hover:text-zinc-900"
-                  }
-                >
-                  {t("nav.payments")}
-                </Link>
-              ) : null}
-              <Link
-                href="/book-orders"
-                className={
-                  pathname.startsWith("/book-orders")
-                    ? "font-medium text-zinc-900"
-                    : "text-zinc-600 hover:text-zinc-900"
-                }
-              >
-                {t("nav.orders")}
               </Link>
               {isMaster ? (
                 <Link

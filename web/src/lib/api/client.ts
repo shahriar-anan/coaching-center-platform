@@ -1,7 +1,8 @@
-import { apiBaseUrl } from "@/lib/config";
+import { apiBaseUrl, apiUrl } from "@/lib/config";
 import { ApiError } from "@/lib/api/errors";
 import type { ApiErrorBody, CourseNodeView } from "@/lib/api/types";
 import { getAccessToken, setAccessToken } from "@/lib/auth/token-store";
+import { recordServerDate } from "@/lib/time/clock";
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
@@ -70,7 +71,9 @@ async function rawFetch(path: string, options: RequestOptions = {}): Promise<Res
             : JSON.stringify(options.body),
   };
 
-  return fetch(`${apiBaseUrl}${path}`, init);
+  const response = await fetch(apiUrl(path), init);
+  recordServerDate(response.headers?.get("Date"));
+  return response;
 }
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -125,6 +128,102 @@ export async function apiRequest<T>(
     return undefined as T;
   }
   return JSON.parse(text) as T;
+}
+
+/** Fetches an authorized file, such as a question or answer PDF, as a `Blob`. */
+export async function apiBlob(path: string, options: { signal?: AbortSignal } = {}): Promise<Blob> {
+  let response = await rawFetch(path, { signal: options.signal });
+  if (response.status === 401 && getAccessToken()) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      response = await rawFetch(path, { signal: options.signal });
+    }
+  }
+  if (response.status === 401) {
+    setAccessToken(null);
+    sessionLostHandler?.();
+  }
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return response.blob();
+}
+
+type UploadOptions = {
+  method?: "POST" | "PUT";
+  /** Called with 0–100 while the body is sent. */
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+};
+
+type UploadResult = { status: number; text: string; date: string | null };
+
+function sendUpload(path: string, formData: FormData, options: UploadOptions): Promise<UploadResult> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method ?? "POST", apiUrl(path));
+    xhr.withCredentials = false;
+    const token = getAccessToken();
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        options.onProgress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    xhr.onload = () =>
+      resolve({ status: xhr.status, text: xhr.responseText, date: xhr.getResponseHeader("Date") });
+    xhr.onerror = () => reject(new TypeError("Network request failed"));
+    xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+    options.signal?.addEventListener("abort", () => xhr.abort());
+    xhr.send(formData);
+  });
+}
+
+function uploadError(result: UploadResult): ApiError {
+  try {
+    const body = JSON.parse(result.text) as ApiErrorBody;
+    if (body.code) {
+      return new ApiError(body);
+    }
+  } catch {
+    /* fall through */
+  }
+  return new ApiError({
+    code: result.status === 413 ? "FILE_TOO_LARGE" : "INTERNAL_ERROR",
+    message: "Upload failed",
+    timestamp: new Date().toISOString(),
+    requestId: "",
+  });
+}
+
+/**
+ * Sends a multipart body with upload progress (XHR, because `fetch` has none),
+ * with the same token and one refresh retry as `apiRequest`.
+ */
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  options: UploadOptions = {},
+): Promise<T> {
+  let result = await sendUpload(path, formData, options);
+  if (result.status === 401 && getAccessToken()) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      result = await sendUpload(path, formData, options);
+    }
+  }
+  recordServerDate(result.date);
+  if (result.status === 401) {
+    setAccessToken(null);
+    sessionLostHandler?.();
+  }
+  if (result.status < 200 || result.status >= 300) {
+    throw uploadError(result);
+  }
+  options.onProgress?.(100);
+  return (result.text ? JSON.parse(result.text) : undefined) as T;
 }
 
 export const api = {
