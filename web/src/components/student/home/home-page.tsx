@@ -102,7 +102,7 @@ function Hero() {
   const { t } = useLocale();
   return (
     <div className="px-3 pb-6 pt-8 text-center">
-      <h1 className="bg-gradient-to-br from-accent to-text bg-clip-text text-[clamp(64px,22vw,110px)] font-extrabold leading-[1.05] text-transparent">
+      <h1 className="bg-gradient-to-br from-accent to-text bg-clip-text text-display font-extrabold text-transparent">
         {t("home.heroWord")}
       </h1>
       <p className="mt-1.5 text-muted">{t("home.tagline")}</p>
@@ -252,7 +252,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
         ) : (
           <Card>
             <p className="text-body text-muted">{t("home.startsIn", { title: pickTitle(next, locale) })}</p>
-            <p className="text-lg font-bold"><Countdown deadline={next.liveAt} /></p>
+            <p className="text-card font-bold"><Countdown deadline={next.liveAt} /></p>
             <p className="text-body text-muted">{formatDate(next.liveAt, locale, { year: "auto" })} · {formatTime(next.liveAt, locale)}</p>
           </Card>
         )}

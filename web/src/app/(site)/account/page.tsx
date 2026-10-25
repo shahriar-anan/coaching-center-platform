@@ -217,7 +217,7 @@ function AccountView() {
       </Card>
 
       <section className="mt-6 grid gap-3" aria-labelledby="account-password-title">
-        <h2 id="account-password-title" className="text-xl font-bold text-text">
+        <h2 id="account-password-title" className="text-section font-bold text-text">
           {t("account.password.title")}
         </h2>
         <Card padding="lg">

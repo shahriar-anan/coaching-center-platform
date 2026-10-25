@@ -88,7 +88,7 @@ function SignInForm() {
 function Outcome({ title, body, actions }: { title: string; body: string; actions: React.ReactNode }) {
   return (
     <div className="grid gap-4 rounded-card border border-border bg-card p-6 text-center">
-      <h2 className="text-xl font-bold">{title}</h2>
+      <h2 className="text-section font-bold">{title}</h2>
       <p className="text-muted">{body}</p>
       <div className="flex flex-wrap justify-center gap-2">{actions}</div>
     </div>

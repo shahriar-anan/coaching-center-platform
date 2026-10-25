@@ -46,8 +46,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-control bg-bg p-3 text-center">
-      <p className="text-lg font-bold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-card font-bold">{value}</p>
+      <p className="text-meta text-muted">{label}</p>
     </div>
   );
 }
@@ -190,7 +190,7 @@ export function ExamPage({ examId }: { examId: string }) {
         {owned && beforeStart && startsAt ? (
           <Card>
             <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>
-            <p className="text-lg font-bold"><Countdown deadline={startsAt} /></p>
+            <p className="text-card font-bold"><Countdown deadline={startsAt} /></p>
           </Card>
         ) : null}
       </div>

@@ -68,7 +68,7 @@ function StripChip({
         {icon}
       </span>
       <span className="block text-label font-bold">{label}</span>
-      <span className="mt-1 block text-xs text-muted">{children}</span>
+      <span className="mt-1 block text-meta text-muted">{children}</span>
     </button>
   );
 }
@@ -228,7 +228,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
           <p className="text-muted">{t("catalog.priceNotSet")}</p>
         ) : (
           <>
-            <p className="text-lg font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
+            <p className="text-card font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
             <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
             {!signedIn ? (
               <Button fullWidth className="mt-2" href={loginHref}>
@@ -321,7 +321,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                           <span className="text-accent">{t("catalog.buy")} ›</span>
                         </span>
                       ) : (
-                        <span className="block max-w-28 text-xs text-muted">{t("catalog.priceNotSet")}</span>
+                        <span className="block max-w-28 text-meta text-muted">{t("catalog.priceNotSet")}</span>
                       )}
                     </span>
                   </Link>

@@ -521,7 +521,7 @@ function SubmitDialog({
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 p-4 sm:items-center">
       <div role="dialog" aria-modal="true" aria-labelledby="submit-title" className="w-full max-w-md rounded-card bg-card p-5">
-        <h2 id="submit-title" className="text-lg font-semibold text-text">
+        <h2 id="submit-title" className="text-card font-semibold text-text">
           {t("sitting.submit.title")}
         </h2>
         <p className="mt-2 text-text">

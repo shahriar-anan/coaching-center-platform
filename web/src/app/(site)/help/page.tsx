@@ -55,7 +55,7 @@ export default function HelpPage() {
         <div className="grid gap-8">
           {sections.map(({ section, items }) => (
             <section key={section} aria-labelledby={`help-${section}`} className="grid gap-3">
-              <h2 id={`help-${section}`} className="text-xl font-bold text-text">
+              <h2 id={`help-${section}`} className="text-section font-bold text-text">
                 {t(`legal.help.sections.${section}.title`)}
               </h2>
               <Card padding="md" className="divide-y divide-border p-0">
@@ -77,7 +77,7 @@ export default function HelpPage() {
       )}
 
       <Card padding="lg" className="mt-10 grid gap-2">
-        <h2 className="text-lg font-bold text-text">{t("legal.help.contactTitle")}</h2>
+        <h2 className="text-card font-bold text-text">{t("legal.help.contactTitle")}</h2>
         <p className="text-body text-muted">{t("legal.help.contactBody")}</p>
         <Link href="/contact" prefetch className="font-semibold text-text-accent underline underline-offset-4">
           {t("legal.help.contactLink")}

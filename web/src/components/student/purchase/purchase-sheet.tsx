@@ -158,7 +158,7 @@ export function PurchaseSheet({
       <div className="grid gap-3">
         <div className="flex items-start justify-between gap-3 rounded-control bg-bg p-3">
           <p className="font-semibold">{item.title}</p>
-          <p className="whitespace-nowrap text-lg font-bold text-accent">
+          <p className="whitespace-nowrap text-card font-bold text-accent">
             {formatMoney(item.price, locale)}
           </p>
         </div>
