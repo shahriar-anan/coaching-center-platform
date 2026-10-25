@@ -1,8 +1,17 @@
-import type { ReactNode } from "react";
+"use client";
 
-/** The purchase confirmation. Stub until P-3 lands: renders its content inline when open. */
+import { useRef, type ReactNode } from "react";
+import { Dialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+/**
+ * The purchase confirmation. On phones it slides up from the bottom; on desktop
+ * it is a centred dialog (both from `Dialog`). Focus goes to the primary button
+ * on open and back to the trigger on close; Escape closes it.
+ */
 export function ConfirmSheet({
   open,
+  onOpenChange,
   title,
   amountLabel,
   unlock,
@@ -21,15 +30,26 @@ export function ConfirmSheet({
   leavingNote?: string;
   children?: ReactNode;
 }) {
-  if (!open) return null;
+  const footerRef = useRef<HTMLDivElement>(null);
   return (
-    <div role="dialog" aria-label={title}>
-      <p>{amountLabel}</p>
-      <p>{unlock}</p>
-      {children}
-      {primary}
-      <button type="button">{cancelLabel}</button>
-      {leavingNote ? <p>{leavingNote}</p> : null}
-    </div>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      initialFocus={() => footerRef.current?.querySelector<HTMLElement>("[data-primary] button, [data-primary] a[href]") ?? null}
+    >
+      <div className="grid gap-3">
+        <p className="text-card font-semibold tabular-nums text-text">{amountLabel}</p>
+        <p className="text-body text-muted">{unlock}</p>
+        {children}
+        <div ref={footerRef} className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+            {cancelLabel}
+          </Button>
+          <div data-primary="" className="w-full sm:w-auto">{primary}</div>
+        </div>
+        {leavingNote ? <p className="text-meta text-muted">{leavingNote}</p> : null}
+      </div>
+    </Dialog>
   );
 }
