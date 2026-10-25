@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { blockedMessageKey, resolveAccess } from "@/components/student/purchase/access";
 import bn from "@/i18n/messages/bn/purchase";
+import en from "@/i18n/messages/en/purchase";
 
 describe("access object (S-003)", () => {
   it.each(["MODULE", "EXAM", "ROSTER", "MANUAL"] as const)("%s is owned, with its source", (state) => {
@@ -45,5 +46,12 @@ describe("blocked reasons (copy)", () => {
 
   it("no reason, no copy", () => {
     expect(blockedMessageKey(null)).toBeNull();
+  });
+
+  it("PRICE_REQUIRED reads the spec wording in both languages, not the catalog's", () => {
+    expect(bn.blocked.PRICE_REQUIRED).toBe("দাম এখনো নির্ধারণ হয়নি।");
+    expect(bn.errors.priceRequired).toBe("দাম এখনো নির্ধারণ হয়নি।");
+    expect(bn.shared.priceNotSet).toBe("দাম এখনো নির্ধারণ হয়নি।");
+    expect(en.blocked.PRICE_REQUIRED).toBe("Price not set yet.");
   });
 });

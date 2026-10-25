@@ -34,7 +34,7 @@ const catalog = {
   buyModuleWithPrice: "পুরো মডিউল কিনুন · {price}",
   buyModuleCovers: "এই মডিউলের সব পরীক্ষা চালু হবে, পরে যোগ হওয়া পরীক্ষাসহ। এমসিকিউ ও রিটেন দুটোই।",
   unlocked: "চালু আছে",
-  priceNotSet: "মূল্য এখনো ঠিক হয়নি",
+  priceNotSet: "দাম এখনো নির্ধারণ হয়নি।",
   routineTitle: "পরীক্ষার রুটিন",
   colExam: "পরীক্ষা",
   colDate: "তারিখ",

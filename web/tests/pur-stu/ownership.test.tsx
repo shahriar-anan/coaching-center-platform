@@ -118,7 +118,7 @@ describe("module page ownership from the access object (S-003)", () => {
     modulePage(access("NONE", true, null), [examRow("ex-1", null, access("NONE", false, "PRICE_REQUIRED"))]);
     renderWithProviders(<ModulePage door="mcq" moduleId="m-1" />, { user: fixtures.student });
 
-    expect((await screen.findAllByText("মূল্য এখনো ঠিক হয়নি")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("দাম এখনো নির্ধারণ হয়নি।")).length).toBeGreaterThan(0);
     expect(screen.queryByText("কিনুন ›")).not.toBeInTheDocument();
   });
 });
