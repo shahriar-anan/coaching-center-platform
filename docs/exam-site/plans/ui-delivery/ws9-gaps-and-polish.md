@@ -322,7 +322,7 @@ Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 
 ## Report — FND
 
-Worktree `F:cc-wtw9-fnd`, branch `ui/w9-foundation`. Not ready to merge: F8, the in-app link guard of F2, and the remaining P2 and P3 work are open, and the build has not run yet (the heavy lock was held by API).
+Worktree `F:cc-wtw9-fnd`, branch `ui/w9-foundation`. Not ready to merge: F8, the in-app link guard of F2, and the remaining P2 and P3 work are open, and the build passed under the lock.
 
 **Done**
 - P1 type scale: named classes in `globals.css`. Every arbitrary size and `text-sm`/`text-xs`/`text-lg`/`text-xl`/`text-2xl` in `components/ui`, `components/shell` and `student/notice-bell` now uses the scale. Staff overrides live on `data-surface="staff"`.
@@ -338,12 +338,12 @@ Worktree `F:cc-wtw9-fnd`, branch `ui/w9-foundation`. Not ready to merge: F8, the
 
 **Skipped / open**
 - F8 (self-hosted fonts): the Google Fonts API is reachable, so the WOFF2 files can be fetched, but the subset split (Bangla and Latin) needs a `next/font/local` setup that has not been built yet.
-- Build: `npm run build` not run; it waits for the heavy lock.
+- Build: passed. The lock is released.
 
 **Checks (web, this worktree)**
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: 0 errors, 2 warnings (existing `<img>`).
 - `npx vitest run`: 33 files, 246 tests passing.
-- `npm run build`: not run.
+- `npm run build`: passed under the FND lock (lock released after).
 
 **Contract changes:** none. `useListPrefs(key)` returns `[prefs, setPrefs]`; `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`. Both are the new signatures in the stub commit.
