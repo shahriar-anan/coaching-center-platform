@@ -183,7 +183,7 @@ describe("instructor (Master Admin)", () => {
     };
     const page = { content: [instructorRow], page: 0, size: 20, totalElements: 1, totalPages: 1 };
     mockApi({
-      "GET /api/v1/instructors": (req) => (req.url.searchParams.get("assigned") === "true" ? { ...page, content: [] } : page),
+      "GET /api/v1/instructors": (req: { url: URL }) => (req.url.searchParams.get("assigned") === "true" ? { ...page, content: [] } : page),
       "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/instructor": () =>
         apiError(409, "INSTRUCTOR_ALREADY_ASSIGNED", "Already assigned."),
     });
