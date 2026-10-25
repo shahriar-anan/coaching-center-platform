@@ -579,6 +579,74 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.isNull();
 	}
 
+	/** R-7: uploads replace each other until the deadline, the last one counts without a submit, and none means zero. */
+	@Test
+	void aWrittenUploadAtTheDeadlineIsRefusedAndTheLastEarlierUploadCountsWithoutASubmit() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Deadline written");
+		UUID exam = createWritten(staff, module);
+		UUID uploaderId = seed("STUDENT");
+		UUID missingId = seed("STUDENT");
+		mark(master, module, uploaderId);
+		mark(master, module, missingId);
+		String uploader = token(uploaderId);
+		String missing = token(missingId);
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		for (String student : new String[] { uploader, missing }) {
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T13:25:00+06:00"));
+		}
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "first.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isNoContent());
+		clock.set(Instant.parse("2026-10-20T07:24:59Z"));
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "last.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isNoContent());
+		String last = storedAnswer(exam, uploaderId);
+
+		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "late.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("DEADLINE_PASSED"));
+		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(last);
+		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("IN_PROGRESS");
+
+		deadlineJob.settleDue();
+		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("SUBMITTED");
+		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(last);
+		assertThat(new JdbcTemplate(dataSource).queryForObject(
+				"select answer_original_file_name from live_exam_participants where exam_id = ? and student_id = ?",
+				String.class, exam, uploaderId)).isEqualTo("last.pdf");
+		assertThat(sittingStatus(exam, missingId)).isEqualTo("FAILED_TO_SUBMIT");
+		assertThat(sittingScore(exam, missingId)).isZero();
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + missing))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FAILED_TO_SUBMIT"))
+			.andExpect(jsonPath("$.score").value(0))
+			.andExpect(jsonPath("$.passed").value(false));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SUBMITTED"))
+			.andExpect(jsonPath("$.score").doesNotExist());
+
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "later.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + missing))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("DEADLINE_PASSED"));
+		assertThat(storedAnswer(exam, missingId)).isNull();
+	}
+
 	@Test
 	void theDeadlineJobSkipsADeletedSitting() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
