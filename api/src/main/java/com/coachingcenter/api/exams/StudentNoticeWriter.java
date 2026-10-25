@@ -11,13 +11,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Writes the three student notices. Each row is inserted once: the unique key makes a repeat a silent no-op instead of an
- * error that would abort the caller's transaction. A row stores no text and no marks; the inbox reads those at view time.
+ * Writes the student notices. Each row is inserted once: the unique key makes a repeat a silent no-op instead of an error
+ * that would abort the caller's transaction. A row stores no text and no marks; the inbox reads those at view time.
  */
 @Service
 class StudentNoticeWriter {
 
 	static final String EXAM_REMINDER = "EXAM_REMINDER";
+
+	static final String EXAM_STARTING_SOON = "EXAM_STARTING_SOON";
+
+	static final String EXAM_OPEN = "EXAM_OPEN";
+
+	static final String PURCHASE_GRANTED = "PURCHASE_GRANTED";
+
+	static final String EXAM_PUBLISHED = "EXAM_PUBLISHED";
 
 	static final String MCQ_SCORE = "MCQ_SCORE";
 
@@ -53,9 +61,46 @@ class StudentNoticeWriter {
 	/** One reminder per student, exam, and start time. Returns how many rows were new. */
 	@Transactional
 	int remind(UUID examId, Instant liveAt, Collection<UUID> studentIds) {
+		return startKeyed(EXAM_REMINDER, examId, liveAt, studentIds);
+	}
+
+	/** One in-app notice per student, exam, and start time, sent within the hour before it. Returns how many rows were new. */
+	@Transactional
+	int startingSoon(UUID examId, Instant liveAt, Collection<UUID> studentIds) {
+		return startKeyed(EXAM_STARTING_SOON, examId, liveAt, studentIds);
+	}
+
+	/** One notice per student, exam, and start time, once the exam's window opens. Returns how many rows were new. */
+	@Transactional
+	int opened(UUID examId, Instant liveAt, Collection<UUID> studentIds) {
+		return startKeyed(EXAM_OPEN, examId, liveAt, studentIds);
+	}
+
+	/**
+	 * Joins the caller's transaction. Called when an exam is published: one notice per student with access, once per exam,
+	 * so publishing it again adds nothing.
+	 */
+	void published(UUID examId, Collection<UUID> studentIds) {
+		for (UUID studentId : studentIds) {
+			insert(EXAM_PUBLISHED, studentId + ":" + examId, studentId, examId, null);
+		}
+	}
+
+	/**
+	 * Joins the caller's transaction. Called once a grant is created, by a paid order or by a manual grant (API-ADMIN calls
+	 * this with the same three values). Keyed by student, target and scope, so a grant repeated for the same target adds
+	 * nothing. A module grant writes nothing yet: the notice row needs an exam, and a module has none.
+	 */
+	void purchaseGranted(UUID studentId, UUID moduleOrExamId, String scope) {
+		if (LiveExamOrder.EXAM.equals(scope)) {
+			insert(PURCHASE_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId, null);
+		}
+	}
+
+	private int startKeyed(String kind, UUID examId, Instant liveAt, Collection<UUID> studentIds) {
 		int written = 0;
 		for (UUID studentId : studentIds) {
-			if (insert(EXAM_REMINDER, studentId + ":" + examId + ":" + liveAt.toEpochMilli(), studentId, examId, null)) {
+			if (insert(kind, studentId + ":" + examId + ":" + liveAt.toEpochMilli(), studentId, examId, null)) {
 				written++;
 			}
 		}

@@ -543,6 +543,32 @@ Branch `ui/api-access`, worktree `F:\cc-wt\api-access`, rebased on `catalog-acqu
 - STU-PUR: drop the 404 probes. Use `access.state` and `access.blockedReason` on the module and exam reads, and `/me/live-exam-access` for "my modules". `orderId` is left out for roster rows and manual grants. Owning one exam does not own its module: the module stays `NONE` and buyable. `blockedReason` order is `ALREADY_HAS_ACCESS`, `PRICE_REQUIRED`, `CHECKOUT_OFF`, `PHONE_REQUIRED`. Upcoming rows: show "শুধু মডিউলে কেনা যাবে" when `moduleOnly`.
 - STU-LMS: when a review has `questions` but no `correct` on any option, the answers are withheld. Show "উত্তর এখনো প্রকাশ হয়নি".
 - API-ADMIN: `LiveExamPublicService` and `StudentOwnAccessService` read grants directly (ignoring revoked ones), not through `LiveExamAccess`.
+
+
+## Report — API-NOTICE
+
+Branch `ui/api-notice`, worktree `F:\cc-wt\api-notice`. Rebased on `catalog-acquisition` at 0351a1e (V40 and API-ADMIN's grant code merged in 5d161e8).
+
+Checks, after the merge: `LiveEvaluationIT` 54 run, 0 failures; `LiveGrantAdminIT` 11 run, 0 failures; `LiveExamPurchaseIT` 15 run, 0 failures; `LiveSittingIT` 33 run, 0 failures; `AuditLogIT` 3 run, 0 failures. Total 116 run, 0 failures, 0 errors, `BUILD SUCCESS`. The full suite was not run, as instructed. The earlier failures (three failures and four errors, all in `LiveEvaluationIT`) cleared with V40 and the merged grant code.
+
+Items:
+- Item 1, S-017 `EXAM_STARTING_SOON`: done (`StudentReminderJob.scanSoon`, `StudentNoticeWriter.startingSoon`). Tested by `theOneHourNoticeGoesOnceInsideTheHourToStudentsWithAccessOnly`.
+- Item 2, S-004 `EXAM_OPEN`: done (`StudentReminderJob.scanOpened`). Tested by `theOpenNoticeGoesOnceWhenTheWindowOpensAndOnlyToStudentsWithAccess`.
+- Item 3, S-004 `PURCHASE_GRANTED`: done for exam scope. Hooks: `LiveExamOrderTx.writeGrant` (paid and confirmed orders) and `LiveExamGrantAdminService.grant` (manual grant, one line, its own commit). Tested by `purchaseGrantedNoticeGoesOncePerPaidOrderAndNeverForARefusedOne`, `aConfirmedPendingOrderWritesOnePurchaseNotice`, and `aManualExamGrantWritesOnePurchaseNoticeAndARepeatWritesNothing`.
+- Item 4, S-004 `EXAM_PUBLISHED`: done (`LiveExamService.publish`). Tested by `examPublishedNoticeGoesOnceToStudentsWithAccessToTheModule`.
+- Item 5, `RETAKE_AVAILABLE`: skipped. The retake rule exists, but a notice needs a scan at window end, which is new logic.
+- Item 6, S-004 labels and inbox: row shapes tested by `eachNewKindListsWithItsExamAndModuleAndCarriesNoMarks`. The inbox join is fixed: `StudentInboxService` now left-joins exams and announcements, so announcement and module-level rows show. Tested by `anAnnouncementShowsWithItsTitleAndBodyAndNoExam`.
+
+Contract notes for the web team:
+- An `ANNOUNCEMENT` row in `GET /api/v1/me/notices` has no `exam` key. It has `announcement` with `titleEn`, `titleBn`, `bodyEn`, `bodyBn`, `audience`, and `moduleId` for a module audience. Null fields are omitted from the JSON.
+- Exam rows are unchanged.
+
+Notes for the integrator:
+- The order confirm path needs no call of its own. `LiveExamOrderTx.confirm` goes through `writeGrant`, which already calls `purchaseGranted`. Adding a second call would duplicate it.
+- Module-scope purchases still write no `PURCHASE_GRANTED`. V40 made `exam_id` nullable and added `module_id`, so it is now possible. I have not implemented it. Say if you want it.
+- The manual grant call uses `LiveExamOrder.MODULE.equals(scope) ? moduleId : examId`, so a module grant passes its module id, and the writer skips it for now.
+- I took the Maven lock as `API-NOTICE <pid> <time>` and removed it when the run ended.
+
 ## Report — API-ADMIN, update: V40 and item 9
 
 Approved by the integrator after the blocked report above. Item 9 is now done.

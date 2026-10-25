@@ -36,14 +36,17 @@ public class LiveExamGrantAdminService {
 
 	private final Clock clock;
 
+	private final StudentNoticeWriter notices;
+
 	public LiveExamGrantAdminService(LiveExamGrantRepository grants, LiveExamModuleRepository modules,
-			LiveExamRepository exams, UserRepository users, AuditRecorder audit, Clock clock) {
+			LiveExamRepository exams, UserRepository users, AuditRecorder audit, Clock clock, StudentNoticeWriter notices) {
 		this.grants = grants;
 		this.modules = modules;
 		this.exams = exams;
 		this.users = users;
 		this.audit = audit;
 		this.clock = clock;
+		this.notices = notices;
 	}
 
 	/**
@@ -100,6 +103,7 @@ public class LiveExamGrantAdminService {
 		grant.setReason(request.reason().trim());
 		grant.setCreatedAt(clock.instant());
 		grants.saveAndFlush(grant);
+		notices.purchaseGranted(student.getId(), LiveExamOrder.MODULE.equals(scope) ? moduleId : examId, scope);
 		audit.record(AuditRecorder.ACCESS_GRANTED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grant.getId());
 		return view(grant);
 	}

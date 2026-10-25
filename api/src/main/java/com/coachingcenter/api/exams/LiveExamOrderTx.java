@@ -31,16 +31,19 @@ class LiveExamOrderTx {
 
 	private final AfterCommit afterCommit;
 
+	private final StudentNoticeWriter notices;
+
 	private final Clock clock;
 
 	private final AuditRecorder audit;
 
 	LiveExamOrderTx(LiveExamOrderRepository orders, LiveExamGrantRepository grants, ExamMailService examMail,
-			AfterCommit afterCommit, Clock clock, AuditRecorder audit) {
+			AfterCommit afterCommit, StudentNoticeWriter notices, Clock clock, AuditRecorder audit) {
 		this.orders = orders;
 		this.grants = grants;
 		this.examMail = examMail;
 		this.afterCommit = afterCommit;
+		this.notices = notices;
 		this.clock = clock;
 		this.audit = audit;
 	}
@@ -171,6 +174,8 @@ class LiveExamOrderTx {
 		grant.setSource(LiveExamGrant.SOURCE_ORDER);
 		grant.setCreatedAt(clock.instant());
 		grants.saveAndFlush(grant);
+		notices.purchaseGranted(order.getStudentId(),
+				LiveExamOrder.MODULE.equals(order.getScope()) ? order.getModuleId() : order.getExamId(), order.getScope());
 	}
 
 	private static boolean matches(LiveExamOrder order, LiveExamPaymentGateway.Verification verification) {
