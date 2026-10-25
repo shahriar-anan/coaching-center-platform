@@ -9,6 +9,7 @@ import { OneTimeCodeDialog } from "@/components/ui/one-time-code-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Pill } from "@/components/ui/pill";
+import { RowMenu } from "@/components/ui/row-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,17 +71,21 @@ function InstructorList() {
       align: "end",
       cell: (row) =>
         row.status === "PENDING_ACTIVATION" ? (
-          <Button
-            variant="secondary"
-            loading={reissue.isPending && reissue.variables === row.id}
-            onClick={async () => {
-              const result = await reissue.mutateAsync(row.id);
-              setCode({ code: result.activationCode, name: row.fullName });
-            }}
-          >
-            {t("staffPeople.instructors.reissue")}
-          </Button>
-        ) : null,
+          <RowMenu
+            label={t("staffPeople.instructors.rowMenu.label", { name: row.fullName })}
+            items={[
+              {
+                label: t("staffPeople.instructors.reissue"),
+                onClick: () =>
+                  reissue.mutate(row.id, {
+                    onSuccess: (result) => setCode({ code: result.activationCode, name: row.fullName }),
+                  }),
+              },
+            ]}
+          />
+        ) : (
+          <span className="text-muted">{t("staffResults.result.none")}</span>
+        ),
     },
   ];
 
@@ -92,7 +97,7 @@ function InstructorList() {
         actions={<Button onClick={() => setCreating(true)}>{t("staffPeople.instructors.new")}</Button>}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field label={t("staffPeople.students.searchLabel")}>
           <SearchInput id="instructors-q" value={params.q} onChange={(q) => setParams({ q })} placeholder={t("staffPeople.students.searchPlaceholder")} />
         </Field>

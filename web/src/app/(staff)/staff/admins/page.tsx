@@ -9,6 +9,7 @@ import { OneTimeCodeDialog } from "@/components/ui/one-time-code-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Pill } from "@/components/ui/pill";
+import { RowMenu } from "@/components/ui/row-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { NewPersonDialog } from "@/components/staff/people/new-person-dialog";
@@ -63,31 +64,25 @@ function AdminList() {
       header: "",
       align: "end",
       cell: (row) => (
-        <div className="flex flex-wrap justify-end gap-2">
-          {row.status === "PENDING_ACTIVATION" ? (
-            <Button
-              variant="secondary"
-              loading={reissue.isPending && reissue.variables === row.id}
-              onClick={async () => {
-                const result = await reissue.mutateAsync(row.id);
-                setCode({ code: result.activationCode, name: row.fullName });
-              }}
-            >
-              {t("staffPeople.admins.reissue")}
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              loading={setStatus.isPending && setStatus.variables?.id === row.id}
-              onClick={() => setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" })}
-            >
-              {row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate")}
-            </Button>
-          )}
-          <Button variant="ghost" onClick={() => setDeleting(row)}>
-            {t("staffPeople.admins.delete")}
-          </Button>
-        </div>
+        <RowMenu
+          label={t("staffPeople.admins.rowMenu.label", { name: row.fullName })}
+          items={[
+            row.status === "PENDING_ACTIVATION"
+              ? {
+                  label: t("staffPeople.admins.reissue"),
+                  onClick: () =>
+                    reissue.mutate(row.id, {
+                      onSuccess: (result) => setCode({ code: result.activationCode, name: row.fullName }),
+                    }),
+                }
+              : {
+                  label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
+                  onClick: () =>
+                    setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }),
+                },
+            { label: t("staffPeople.admins.delete"), tone: "danger", onClick: () => setDeleting(row) },
+          ]}
+        />
       ),
     },
   ];

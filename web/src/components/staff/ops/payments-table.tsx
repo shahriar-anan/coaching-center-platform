@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { CopyField } from "@/components/ui/copy-field";
 import { Pill } from "@/components/ui/pill";
+import { RowMenu } from "@/components/ui/row-menu";
 import { Table, type Column } from "@/components/ui/table";
 import { useFormat } from "@/lib/format/use-format";
 import type { StaffOrderRow } from "@/lib/api/exam/staff-ops";
@@ -88,16 +89,20 @@ export function PaymentsTable({
     {
       key: "tranId",
       header: t("staffOps.payments.columns.tranId"),
+      cell: (row) => <CopyField value={row.tranId} label={t("staffOps.payments.copyTranId")} />,
+    },
+    {
+      key: "menu",
+      header: "",
+      align: "end",
       cell: (row) => (
-        <div className="grid gap-1">
-          <CopyField value={row.tranId} label={t("staffOps.payments.copyTranId")} />
-          <Link
-            href={`/staff/payments/${encodeURIComponent(row.tranId)}`}
-            className="text-sm text-action underline-offset-4 hover:underline"
-          >
-            {t("staffOps.payments.openDetail")}
-          </Link>
-        </div>
+        <RowMenu
+          label={t("staffOps.payments.rowMenu.label", { id: row.tranId })}
+          items={[
+            { label: t("staffOps.payments.openDetail"), href: `/staff/payments/${encodeURIComponent(row.tranId)}` },
+            { label: t("staffOps.payments.rowMenu.openStudent"), href: `/staff/students/${row.studentId}` },
+          ]}
+        />
       ),
     },
   ];

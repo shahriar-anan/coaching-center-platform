@@ -44,6 +44,16 @@ const staffOps = {
     emptyBody: "Change the search or the status and look again.",
     openDetail: "View details",
     copyTranId: "Copy transaction id",
+    strip: {
+      today: "Successful today",
+      todayTotal: "Total today",
+      pending: "Pending",
+      error: "The totals could not load. The list below still works.",
+    },
+    rowMenu: {
+      label: "Actions for transaction {id}",
+      openStudent: "Open the student",
+    },
   },
   paymentDetail: {
     title: "Payment details",
@@ -51,7 +61,6 @@ const staffOps = {
     backToList: "Back to payments",
     updated: "Last updated",
     valId: "Validation id",
-    student: "Student",
     product: "Product",
     openStudent: "Open the student's page",
     openModule: "Open the module",
@@ -119,7 +128,6 @@ const staffOps = {
     readOnlyHint: "Name and role cannot be changed.",
     emailVerified: "Verified",
     emailNotVerified: "Not verified",
-    verifyTitle: "Verify email",
     verifyBody: "Enter the code we sent to your email.",
     verifyCode: "Code",
     verifyAction: "Verify",

@@ -10,6 +10,7 @@ import { OneTimeCodeDialog } from "@/components/ui/one-time-code-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
+import { RowMenu } from "@/components/ui/row-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
@@ -75,35 +76,28 @@ function StudentList() {
       header: "",
       align: "end",
       cell: (row) => (
-        <div className="flex flex-wrap justify-end gap-2">
-          {row.status === "PENDING_ACTIVATION" ? (
-            <Button
-              variant="secondary"
-              loading={reissue.isPending && reissue.variables === row.id}
-              onClick={async () => {
-                const result = await reissue.mutateAsync(row.id);
-                setCode({ code: result.activationCode, name: row.fullName });
-              }}
-            >
-              {t("staffPeople.students.reissue")}
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              loading={setStatus.isPending && setStatus.variables?.id === row.id}
-              onClick={() =>
-                setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" })
-              }
-            >
-              {row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate")}
-            </Button>
-          )}
-          {isMasterAdmin ? (
-            <Button variant="ghost" onClick={() => setDeleting(row)}>
-              {t("staffPeople.students.delete")}
-            </Button>
-          ) : null}
-        </div>
+        <RowMenu
+          label={t("staffPeople.students.rowMenu.label", { name: row.fullName })}
+          items={[
+            { label: t("staffPeople.students.rowMenu.open"), href: `/staff/students/${row.id}` },
+            row.status === "PENDING_ACTIVATION"
+              ? {
+                  label: t("staffPeople.students.reissue"),
+                  onClick: () =>
+                    reissue.mutate(row.id, {
+                      onSuccess: (result) => setCode({ code: result.activationCode, name: row.fullName }),
+                    }),
+                }
+              : {
+                  label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
+                  onClick: () =>
+                    setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }),
+                },
+            ...(isMasterAdmin
+              ? [{ label: t("staffPeople.students.delete"), tone: "danger" as const, onClick: () => setDeleting(row) }]
+              : []),
+          ]}
+        />
       ),
     },
   ];
