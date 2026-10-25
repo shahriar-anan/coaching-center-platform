@@ -1,6 +1,77 @@
-import type { MessageTree } from "../types";
-
-/** Owned by its workstream; see docs/exam-site/plans/ui-delivery. */
-const result = {} satisfies MessageTree;
+const result = {
+  page: {
+    title: "ফলাফল",
+    loading: "ফলাফল আনা হচ্ছে…",
+    notSat: "আপনি এই পরীক্ষায় অংশ নেননি।",
+    notReady: "সময় শেষ হলে ফলাফল দেখা যাবে।",
+    backToExam: "পরীক্ষার পাতায় ফিরুন",
+    leaderboard: "মেধাতালিকা দেখুন",
+    practice: "অনুশীলন · মেধাতালিকায় আসবে না",
+  },
+  stat: {
+    marks: "নম্বর",
+    obtained: "প্রাপ্ত নম্বর",
+    outcome: "ফল",
+    rank: "মেধাক্রম",
+    marking: "খাতা মূল্যায়ন",
+    score: "{score} / {maximum}",
+    none: "—",
+  },
+  outcome: {
+    passed: "উত্তীর্ণ",
+    failed: "অনুত্তীর্ণ",
+    notSubmitted: "জমা হয়নি",
+    pending: "অপেক্ষমাণ",
+  },
+  written: {
+    notSubmitted: "সময়ের মধ্যে খাতা জমা হয়নি, তাই নম্বর ০।",
+    awaiting: "আপনার খাতার মূল্যায়ন চলছে। ফলাফল প্রকাশ হলে এখানে দেখা যাবে।",
+    comment: "শিক্ষকের মন্তব্য",
+    viewMarked: "মূল্যায়ন করা খাতা দেখুন",
+    hideMarked: "খাতাটি বন্ধ করুন",
+    markedScript: "মূল্যায়ন করা খাতা",
+  },
+  review: {
+    title: "উত্তর মিলিয়ে দেখুন",
+    afterDeadline: "সময় শেষ হলে সঠিক উত্তর ও ব্যাখ্যা দেখা যাবে।",
+    yourAnswer: "আপনার উত্তর",
+    correct: "সঠিক উত্তর",
+    explanation: "ব্যাখ্যা",
+    notAnswered: "এই প্রশ্নের উত্তর দেননি।",
+    question: "প্রশ্ন {number}",
+  },
+  hub: {
+    title: "ফলাফল",
+    summaryTaken: "দেওয়া পরীক্ষা",
+    summaryPassed: "উত্তীর্ণ",
+    summaryWaiting: "ফলাফল বাকি",
+    tabResults: "ফলাফল",
+    tabMarking: "মূল্যায়ন চলছে",
+    empty: "এখনো কোনো ফলাফল নেই",
+    emptyBody: "পরীক্ষা দেওয়ার পর ফলাফল এখানে দেখা যাবে।",
+    emptyAction: "পরীক্ষার রুটিন দেখুন",
+    emptyMarking: "মূল্যায়নের অপেক্ষায় এখন কোনো খাতা নেই।",
+    awaiting: "খাতা অপেক্ষমাণ",
+    stored: "খাতা জমা দেওয়া হয়েছে",
+    notFinal: "সময় শেষে চূড়ান্ত হবে",
+    mcq: "এমসিকিউ",
+    written: "রিটেন",
+    undated: "তারিখ পরে জানানো হবে",
+  },
+  board: {
+    title: "মেধাতালিকা",
+    opensAt: "মেধাতালিকা প্রকাশ হবে {time}-এ।",
+    undated: "পরীক্ষার তারিখ এখনো ঠিক হয়নি, তাই মেধাতালিকাও নেই।",
+    empty: "মেধাতালিকায় এখনো কেউ নেই।",
+    liveOnly: "শুধু নির্ধারিত সময়ে দেওয়া পরীক্ষার নম্বর মেধাতালিকায় আসে।",
+    name: "নাম",
+    rank: "ক্রম",
+    score: "নম্বর",
+    maximum: "পূর্ণমান",
+    outcome: "ফল",
+    you: "আপনি",
+    myResult: "আমার ফলাফল",
+  },
+};
 
 export default result;

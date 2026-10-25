@@ -202,6 +202,7 @@ What students and staff expect from current learning and exam platforms (Moodle,
 
 10. Only one heavy job at a time across all agents: `npm run build`, `mvn test`, or `mvn package`. Before starting one, create the lock file `F:\coaching-center-platform\.heavy.lock` with your agent letter inside; if it exists, wait and retry every minute; delete it when your job ends. `npm run lint` and type checks are light and need no lock.
 10a. **Run web tests in one process**, always: `npx vitest run --pool=forks --poolOptions.forks.singleFork=true` (add a path to run only your tests, for example `tests/ws3`). Vitest's default worker pool ran out of memory on this PC while several agents were working (seen 25 October). In this mode tests need no lock. Once the integrator sets it as the default in `vitest.config.ts`, plain `npm test` does the same.
+10b. **Wrap guarded pages in `Suspense`.** `RequireStudent` and `RequireStaff` read the URL query (`useSearchParams`), so every route page that renders them must wrap its content in `<Suspense fallback={<Skeleton variant="card" />}>`, or `npm run build` fails on prerender (found by WS4, 25 October).
 11. Do not run `next dev` or the API. Do not open a browser. Shahriar does the browser pass.
 
 **Quality gate before you report done**

@@ -50,7 +50,11 @@ export type MyStatus =
   | "FAILED_TO_SUBMIT"
   | "MISSED";
 
+/** Order status as stored, and as the staff payments list returns it. */
 export type OrderStatus = "INITIATED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+
+/** Payment status as students see it: `/live-exam-orders/status` and `/me/live-exam-orders`. */
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 
 export type OrderKind = "MODULE" | "EXAM";
 

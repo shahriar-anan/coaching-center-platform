@@ -58,4 +58,19 @@ Login (success routes by role, generic failure, lock, `next`), Google return pag
 
 ## Report
 
-(Agent fills this in.)
+**Done (agent A, phase 2).** All P0 pages in the table: `/login` (with `?next=`, generic failure, lock, wrong-audience message on split hosts, disabled Google button with "শীঘ্রই"), `/login/google` (error codes from `?error=`, otherwise refresh and route, `phoneRequired` to `/set-phone`), `/register` (separate duplicate-phone and duplicate-email errors, success screen, sets `exam-portal.welcome=1`), `/forgot-password` (always the generic sentence), `/reset-password`, `/activate` (`অ্যাকাউন্ট চালু করুন`), `/set-phone`, `/account` (verify email, change phone, change password, logout with confirm), `/account/payments` (`GET /api/v1/me/live-exam-orders`, merged row shape), `/notices` (mark one, mark all, open exam), `NoticeBell` (count from `/me/notices/unread-count`, refresh on focus and every 2 minutes), `/help` (native-details FAQ with search), `/about`, `/contact`, `/terms`, `/privacy`, `/refund` (placeholder banner). The old `app/login`, `app/register`, `app/forgot-password`, `app/reset-password`, `app/activate` and `app/account` are deleted, and their test moved to `tests/ws2/`. Data hooks: `lib/api/exam/account.ts`, `lib/api/exam/notices.ts`.
+
+**P1 done:** the welcome flag (`exam-portal.welcome=1` on registration success).
+**P2 done:** none.
+**Skipped:** the student name edit (there is no API endpoint for it, so the name is shown read-only with a note); the notice count on the bottom tab bar (the count shows on the bell only); password strength meter and live phone formatting (P1, not built); the account security section (P2; `POST /auth/logout` does not revoke all sessions).
+
+**Checks (after merging `catalog-acquisition` at 70e1ec7):** `tsc --noEmit` clean; `npm test` 151 passed in 17 files; `npm run lint` 0 errors, 2 warnings (both pre-existing, in old admin pages); `npm run build` passed under the heavy lock.
+
+**Notes for the integrator and other agents:**
+- Any page that renders `RequireStudent` or `RequireStaff` must sit inside `<Suspense>`, because both call `useSearchParams`. Done for login, Google return, set-phone, account, payments, notices, and the staff layout.
+- Login redirects straight to the destination on success. The Prompt 1 "হোমে যান" confirmation card is not built.
+- The bottom tab bar in `StudentShell` (WS0 file) has no notice badge yet. `NoticeBell` has the count, so the shell can reuse `useUnreadCount` if the integrator wants it there.
+- `/login` and the other auth routes now live in `(auth)`. Nothing else in the app should link to the old paths.
+- Payment statuses are `PENDING`, `PAID`, `FAILED`, `CANCELLED` (the API's public names). Pending rows link to `/purchase/result?tranId=` (WS3).
+
+**Contract issues:** none.
