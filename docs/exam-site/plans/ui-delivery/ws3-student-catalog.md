@@ -117,4 +117,25 @@ Start confirm copy (live MCQ forfeits the later attempt, retake wording, written
 
 ## Report
 
-(Agent fills this in.)
+**Status: ready to merge.** Branch ui/ws3-student-catalog, merged with catalog-acquisition (877fad7). Checks: 
+pm run lint 0 errors (2 existing warnings in files I do not own); 
+pm test 111 passed in 13 files; 
+pm run build passed under the lock. Browser pass, 320/1440 px, dark mode and keyboard use are not checked yet (Shahriar's pass).
+
+Done (P0): / (signed-out hero and doors; signed-in dashboard with next-exam countdown, live, upcoming and my modules), /mcq and /written doors, category pages, module pages (strip, price bar, routine table, exam list filtered by type), exam page with one primary action per state, start confirm, purchase sheet, payment result (pending, paid, failed, cancelled, not signed in, missing reference).
+
+Done (P1): module progress bar, /my-modules with progress and next rows, /routine grouped by Dhaka day with .ics download, module-vs-exam price comparison line, home nudges (resume, email, phone; dismissible per session), welcome card (reads WS2's exam-portal.welcome once, then clears it).
+
+Skipped: none in P1. P2: none.
+
+Round 2 changes: switched to the real WS0 modules (@/lib/format, @/lib/config, @/lib/time/clock, @/i18n/locale-context, @/components/ui/*) and deleted components/student/catalog/_tmp/. Types come from @/lib/api/exam/types (Me, StudentExam, PublicModule, CategoryNode, PublicExam, MyStatus); no casts. The payment-status type is named PaymentState (PENDING/PAID/FAILED/CANCELLED) because the status endpoint does not use the shared OrderStatus values. The examType retry fallback stays (harmless against the merged WS1 API). Bangla copy checked against the glossary (চালু আছে, পুরো মডিউল কিনুন, পেমেন্ট করুন, মূল্য এখনো ঠিক হয়নি, তারিখ পরে জানানো হবে, অনুশীলন হিসেবে দিন, নিরাপদ পেমেন্ট, রিফান্ড নীতি). Not read aloud yet by a second reviewer; the integrator's Bangla pass still applies.
+
+Tests: web/tests/ws3/**, 20 tests (catalog helpers, start-confirm copy, payment result states, door and module states, home welcome card). Tests pin the locale to English because the app default is Bangla.
+
+Contract issues: none in WS3's contracts. Notes for the integrator and other agents:
+1. 
+px tsc --noEmit reports 16 errors, all in WS0 files (components/shell/*, components/ui/*). 
+ext build's TypeScript step passes, so they are not build blockers, but WS0 should look at them.
+2. Payment status: the API sends PENDING/PAID/FAILED/CANCELLED from /api/v1/live-exam-orders/status, but the shared OrderStatus type in 	ypes.ts is INITIATED/SUCCEEDED/.... Whoever owns 	ypes.ts should align it with the API.
+3. Start confirm links to /exam/[id]/sit?start=live|retake. WS4's sitting page must accept that parameter.
+4. The payment result reads a sessionStorage memo written before redirect (exam-portal.order.<tranId>), used only to pick the return links.

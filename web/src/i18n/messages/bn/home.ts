@@ -1,6 +1,39 @@
-import type { MessageTree } from "../types";
-
-/** Owned by its workstream; see docs/exam-site/plans/ui-delivery. */
-const home = {} satisfies MessageTree;
+const home = {
+  heroWord: "এক্সাম",
+  tagline: "আপনার প্রস্তুতি, আপনার পরীক্ষা — এক জায়গায়",
+  doorMcqTitle: "এমসিকিউ",
+  doorMcqSub: "দ্রুত অনুশীলন",
+  doorWrittenTitle: "রিটেন",
+  doorWrittenSub: "লিখিত পরীক্ষা",
+  valueLive: "নির্দিষ্ট সময়ে লাইভ পরীক্ষা",
+  valueScore: "এমসিকিউ-এর নম্বর সঙ্গে সঙ্গে",
+  valueMarked: "রিটেন খাতা দেখেন শিক্ষকেরা",
+  signUp: "অ্যাকাউন্ট খুলুন",
+  haveAccount: "আগে থেকেই অ্যাকাউন্ট আছে?",
+  login: "লগইন করুন",
+  nudgeLabel: "আপনার জরুরি কাজ",
+  nudgeResume: "{title} পরীক্ষাটি চলছে।",
+  resume: "পরীক্ষা চালিয়ে যান",
+  nudgeEmail: "আপনার ইমেইল এখনো যাচাই করা হয়নি।",
+  verifyEmail: "ইমেইল যাচাই করুন",
+  nudgePhone: "পরীক্ষা কিনতে ও দিতে একটি ফোন নম্বর লাগবে।",
+  addPhone: "ফোন নম্বর যোগ করুন",
+  welcomeTitle: "এক্সাম পোর্টালে স্বাগতম, {name}!",
+  welcomeBody: "এমসিকিউ বা রিটেন বেছে নিয়ে পরীক্ষাগুলো দেখুন।",
+  dismiss: "বন্ধ করুন",
+  nextExam: "পরবর্তী পরীক্ষা",
+  startsIn: "{title} শুরু হতে বাকি",
+  liveNow: "এখন চলছে",
+  sitNow: "পরীক্ষা দিন",
+  nowSection: "এখন চলছে",
+  upcomingSection: "আসন্ন",
+  seeAll: "সব দেখুন",
+  myModules: "আমার মডিউল",
+  noUpcoming: "সামনে কোনো পরীক্ষা নেই।",
+  emptyTitle: "এখনো কোনো পরীক্ষা কেনা হয়নি",
+  emptyBody: "এমসিকিউ বা রিটেন থেকে পছন্দের মডিউল বেছে নিন।",
+  staffPanel: "অ্যাডমিন প্যানেল",
+  staffNote: "আপনি অ্যাডমিন অ্যাকাউন্টে লগইন করেছেন। এখানে শুধু দেখা যাবে।",
+};
 
 export default home;

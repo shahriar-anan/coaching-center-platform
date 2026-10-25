@@ -1,6 +1,60 @@
-import type { MessageTree } from "../types";
+import type bn from "../bn/purchase";
 
-/** Owned by its workstream; see docs/exam-site/plans/ui-delivery. */
-const purchase = {} satisfies MessageTree;
+const purchase: typeof bn = {
+  sheetTitleExam: "Buy this exam",
+  sheetTitleModule: "Buy the whole module",
+  amount: "Price",
+  unlockExam: "Unlocks this exam only.",
+  unlockModule: "Unlocks every exam in this module, including ones added later. Both MCQ and written.",
+  trust: "Secure payment through SSLCommerz · bKash, Nagad, Rocket, card",
+  leaving: "You'll be taken to the SSLCommerz page to pay.",
+  refundLink: "Refund policy",
+  pay: "Pay now",
+  cancel: "Cancel",
+  compare: "Whole module {price} — every exam",
+  switchToModule: "Buy the module",
+  redirecting: "Taking you to payment…",
+  errors: {
+    gateway: "Payments aren't available right now. Please try again shortly.",
+    alreadyPurchased: "This is already unlocked for you.",
+    phoneRequired: "You need a phone number to buy exams.",
+    priceRequired: "The price isn't set yet. Please check the page again.",
+    notFound: "This can't be bought right now. Please check the page again.",
+    generic: "We couldn't start the payment. Please try again.",
+  },
+  cancelPending: "Cancel the unfinished payment",
+  pendingCancelled: "The unfinished payment was cancelled. No money was taken.",
+  addPhone: "Add phone number",
+  result: {
+    title: "Payment",
+    missingRef: "We couldn't find the payment details. Check My modules instead.",
+    loading: "Checking your payment…",
+    pendingTitle: "Confirming your payment…",
+    pendingBody: "This usually takes under a minute. Keep this page open.",
+    pendingLateTitle: "Payment not confirmed yet",
+    pendingLate: "Check again in a little while. The exam unlocks once the payment is confirmed.",
+    checkAgain: "Check again",
+    paidTitle: "{name} is now unlocked",
+    paidBody: "Payment successful. A receipt has been sent to your email.",
+    goModule: "Go to module",
+    goExam: "Go to exam",
+    goMine: "My modules",
+    failedTitle: "Payment not completed",
+    failedBody: "No money was taken. You can try again.",
+    cancelledTitle: "Payment cancelled",
+    cancelledBody: "No money was taken.",
+    tryAgain: "Try again",
+    notFoundTitle: "We couldn't find this payment",
+    notFoundBody: "If you paid from another account, log in with that account.",
+    tranId: "Transaction ID",
+    home: "Go home",
+    signInTitle: "Log in to see this payment",
+    identifier: "Email or phone",
+    password: "Password",
+    signIn: "Log in",
+    signingIn: "Logging in…",
+    signInFailed: "Email/phone or password is incorrect.",
+  },
+};
 
 export default purchase;
