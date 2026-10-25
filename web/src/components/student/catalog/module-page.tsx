@@ -16,6 +16,8 @@ import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
 import { ConfigNotice } from "@/components/student/stand-ins-pur/config-notice";
+import { BundleSelection } from "./bundle-selection";
+import { bundleOrders } from "@/lib/config";
 import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
@@ -297,6 +299,12 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
             body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
           />
         ) : (
+          bundleOrders && isStudent ? (
+            <BundleSelection
+              disabled={checkoutOff}
+              items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: exam.price ?? null, owned: Boolean(exam.mine) }))}
+            />
+          ) : (
           <ul className="grid gap-3">
             {list.map((exam) => {
               const subtitle = firstLine(pickText({ ...exam }, "description", locale));
@@ -333,6 +341,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
               );
             })}
           </ul>
+          )
         )}
       </section>
 
