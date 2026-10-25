@@ -55,6 +55,19 @@ public class StudentLiveExamAccessService {
 			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
 			JOIN live_exam_orders o ON o.id = g.order_id
 			WHERE g.student_id = :studentId AND g.scope = 'EXAM'
+			UNION ALL
+			SELECT m.id, m.title_en, m.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
+			  CAST(NULL AS UUID), CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR)
+			FROM live_exam_grants g
+			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
+			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
+			UNION ALL
+			SELECT m.id, m.title_en, m.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
+			  e.id, e.title_en, e.title_bn
+			FROM live_exam_grants g
+			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
+			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
+			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
 			""";
 
 	private final NamedParameterJdbcTemplate jdbc;

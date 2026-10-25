@@ -1181,8 +1181,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 				values (?, ?, 'EXAM', ?, ?, 10.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
 				""", order, bought.id(), module, exam, UUID.randomUUID().toString().replace("-", "").substring(0, 30));
 		jdbc.update("""
-				insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at)
-				values (?, ?, 'EXAM', ?, ?, ?, now())
+				insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, source, created_at)
+				values (?, ?, 'EXAM', ?, ?, ?, 'ORDER', now())
 				""", UUID.randomUUID(), bought.id(), module, exam, order);
 
 		clock.set(Instant.parse("2026-10-17T05:00:00Z"));
@@ -1958,8 +1958,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			values (?, ?, 'MODULE', ?, null, 10.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
 			""", order, student.id(), module, UUID.randomUUID().toString().replace("-", "").substring(0, 30));
 		jdbc.update("""
-			insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at)
-			values (?, ?, 'MODULE', ?, null, ?, now())
+			insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, source, created_at)
+			values (?, ?, 'MODULE', ?, null, ?, 'ORDER', now())
 			""", UUID.randomUUID(), student.id(), module, order);
 
 		mockMvc.perform(delete("/api/v1/live-exams/" + paper.examId()).header("Authorization", "Bearer " + master))

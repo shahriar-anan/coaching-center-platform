@@ -122,6 +122,7 @@ class LiveExamOrderTx {
 		grant.setModuleId(order.getModuleId());
 		grant.setExamId(order.getExamId());
 		grant.setOrderId(order.getId());
+		grant.setSource(LiveExamGrant.SOURCE_ORDER);
 		grant.setCreatedAt(clock.instant());
 		grants.saveAndFlush(grant);
 	}

@@ -160,3 +160,12 @@ A file over the storage limit gets `413 FILE_TOO_LARGE` with message `File is to
 **Error body.** `details` is an optional object. It is absent from every error except the clash above.
 
 Staging demo content: `SEED_DEMO=true` with the `staging` or `dev` profile loads the demo catalog. Details and cleanup in [api/.cursor/progress/ui-delivery/demo-seed.md](../../api/.cursor/progress/ui-delivery/demo-seed.md).
+
+## Added for the phase 2 UI (API-ADMIN)
+
+Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student-purchase-lms-plan.md), sections 6 and 8. Flyway: V39 (merged), read in section 7.
+
+| Call | Who | Notes |
+|---|---|---|
+| `POST /api/v1/live-exam-grants` | Master Admin, System Admin | Grants a student access by hand (R-3). Body: `{ studentId, scope, moduleId, examId, reason }`. `scope` is `MODULE` (with `moduleId`) or `EXAM` (with `examId`; `moduleId` may be sent and must match the exam's module). `reason` is required, 1 to 500 characters. Returns `201` with `{ id, studentId, scope, moduleId, examId, source, grantedBy, reason, createdAt, revokedAt, revokedBy, revokeReason }`, `source` = `MANUAL`. Errors: `400 VALIDATION_FAILED`, `404 RESOURCE_NOT_FOUND` (unknown student, module or exam, or the id is not a student), `409 GRANT_ALREADY_ACTIVE` (the student already has an active grant on that target). Audit: `ACCESS_GRANTED`. |
+| `GET /api/v1/students/{id}/live-exam-access` | Master Admin, System Admin | Gains `via` = `MANUAL` for each access granted by hand (one row for a module, one for an exam). Revoked grants are left out. |
