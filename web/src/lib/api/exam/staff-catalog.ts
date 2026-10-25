@@ -85,7 +85,12 @@ export type StaffExam = {
 
 export type StudentMatch = { id: string; fullName: string; phone: string | null; email: string | null };
 
-export type RosterMember = StudentMatch & {
+/** One row of `GET .../roster`: everyone already marked for the module. */
+export type RosterMember = {
+  studentId: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
   studentCode: string | null;
   addedAt: string;
   /** True when the student has a sitting in this module: the result stays after removal. */
@@ -244,9 +249,10 @@ export function useSaveModule(id?: string) {
 export function useModuleAction(id: string, action: "final-save" | "publish" | "archive") {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
+    /** Resolves to the module for publish and final save; `null` for archive, which returns no body. */
+    mutationFn: async (): Promise<StaffModule | null> =>
       action === "archive"
-        ? apiRequest<void>(`/api/v1/live-exam-modules/${id}/archive`, { method: "POST", body: {} })
+        ? (await apiRequest<void>(`/api/v1/live-exam-modules/${id}/archive`, { method: "POST", body: {} }), null)
         : apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}/${action}`, { method: "POST", body: {} }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(id) });
@@ -370,10 +376,7 @@ export function useUploadQuestionPdf(examId: string) {
 
 /* ---------- roster (Master Admin) ---------- */
 
-/**
- * The full member list (WS1 C). Until the API has it, a 404 shows an empty list
- * instead of an error, so the screen still works against an older API.
- */
+/** The full member list, paged, with `q` matching name, phone, email or code. */
 export function useRoster(moduleId: string, q: string, page: number) {
   const query = new URLSearchParams({ page: String(page), size: "20" });
   if (q) {
@@ -381,18 +384,7 @@ export function useRoster(moduleId: string, q: string, page: number) {
   }
   return useQuery({
     queryKey: staffCatalogKeys.roster(moduleId, q, page),
-    queryFn: async () => {
-      try {
-        return await apiRequest<PageResponse<RosterMember>>(
-          `/api/v1/live-exam-modules/${moduleId}/roster?${query}`,
-        );
-      } catch (error) {
-        if (error instanceof Error && "code" in error && error.code === "RESOURCE_NOT_FOUND") {
-          return { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 };
-        }
-        throw error;
-      }
-    },
+    queryFn: () => apiRequest<PageResponse<RosterMember>>(`/api/v1/live-exam-modules/${moduleId}/roster?${query}`),
     placeholderData: keepPreviousData,
   });
 }
