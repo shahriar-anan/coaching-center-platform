@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Check, Copy } from "lucide-react";
@@ -127,6 +128,20 @@ function PaymentsView() {
       header: t("account.payments.tranId"),
       mobileLabel: t("account.payments.tranId"),
       cell: (row) => <TranCell value={row.tranId} />,
+    },
+    {
+      key: "receipt",
+      header: t("account.receipt.open"),
+      mobileLabel: t("account.receipt.open"),
+      cell: (row) =>
+        row.status === "PAID" ? (
+          <Link
+            href={`/account/payments/receipt?order=${encodeURIComponent(row.orderId)}&page=${params.page}`}
+            className="font-semibold text-accent underline underline-offset-4"
+          >
+            {t("account.receipt.open")}
+          </Link>
+        ) : null,
     },
   ];
 
