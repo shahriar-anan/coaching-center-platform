@@ -33,6 +33,9 @@ const result = {
   },
   review: {
     title: "Check your answers",
+    withheld: "Answers are not released yet. They will show here once the administrator releases them.",
+    withheldShort: "Not released",
+    filterWhy: "Right and wrong are shown once the answers are released.",
     filterAll: "All",
     filterWrong: "Wrong",
     filterRight: "Right",

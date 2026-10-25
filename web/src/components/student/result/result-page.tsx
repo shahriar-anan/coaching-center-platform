@@ -23,13 +23,28 @@ import { formatNumber, pickTitle } from "@/lib/format";
 const LETTERS_BN = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"] as const;
 const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
 
-type Outcome = "right" | "wrong" | "skipped";
+type Outcome = "right" | "wrong" | "skipped" | "withheld";
 type ReviewFilter = "all" | Outcome;
 
 /** Right, wrong or not answered, from the saved selection and the correct flag the server sends after the deadline. */
-export function outcomeOf(question: { options: { selected: boolean | null; correct: boolean | null }[] }): Outcome {
+/**
+ * A question whose answers are withheld: no option carries `correct` and there is no
+ * explanation (plan 6.3). The client never works out correctness itself.
+ */
+export function isWithheld(question: {
+  explanation?: string | null;
+  options: { correct: boolean | null }[];
+}): boolean {
+  return question.options.length > 0 && question.options.every((option) => option.correct === null) && (question.explanation ?? null) === null;
+}
+
+export function outcomeOf(question: {
+  explanation?: string | null;
+  options: { selected: boolean | null; correct: boolean | null }[];
+}): Outcome {
   const picked = question.options.find((option) => option.selected === true);
   if (!picked) return "skipped";
+  if (isWithheld(question)) return "withheld";
   return picked.correct === true ? "right" : "wrong";
 }
 
@@ -37,6 +52,7 @@ const jumpTone: Record<Outcome, string> = {
   right: "border-ok bg-ok/10 text-ok",
   wrong: "border-danger bg-danger/10 text-danger",
   skipped: "border-border bg-bg text-muted",
+  withheld: "border-border bg-bg text-muted",
 };
 
 /**
@@ -145,8 +161,13 @@ export function ResultPage({ examId }: { examId: string }) {
     right: t("result.review.filterRight"),
     wrong: t("result.review.filterWrong"),
     skipped: t("result.review.filterSkipped"),
+    withheld: t("result.review.withheldShort"),
   };
-  const visibleItems = reviewItems.filter((item) => reviewFilter === "all" || item.outcome === reviewFilter);
+  // While answers are withheld, right and wrong cannot be shown, so those two filters are hidden.
+  const anyWithheld = reviewItems.some((item) => item.outcome === "withheld");
+  const activeFilter: ReviewFilter =
+    anyWithheld && (reviewFilter === "right" || reviewFilter === "wrong") ? "all" : reviewFilter;
+  const visibleItems = reviewItems.filter((item) => activeFilter === "all" || item.outcome === activeFilter);
 
   return (
     <div className="flex flex-col gap-4 pb-8">
@@ -205,17 +226,23 @@ export function ResultPage({ examId }: { examId: string }) {
           <h2 id="review-title" className="text-section font-semibold text-text">
             {t("result.review.title")}
           </h2>
+          {anyWithheld ? <p className="text-body text-muted">{t("result.review.withheld")}</p> : null}
           <Tabs
             tabs={[
               { value: "all", label: t("result.review.filterAll"), badge: reviewItems.length },
-              { value: "wrong", label: t("result.review.filterWrong"), badge: outcomeCount("wrong") },
-              { value: "right", label: t("result.review.filterRight"), badge: outcomeCount("right") },
+              ...(anyWithheld
+                ? []
+                : [
+                    { value: "wrong", label: t("result.review.filterWrong"), badge: outcomeCount("wrong") },
+                    { value: "right", label: t("result.review.filterRight"), badge: outcomeCount("right") },
+                  ]),
               { value: "skipped", label: t("result.review.filterSkipped"), badge: outcomeCount("skipped") },
             ]}
-            value={reviewFilter}
+            value={activeFilter}
             onChange={(value) => setReviewFilter(value as ReviewFilter)}
             ariaLabel={t("result.review.title")}
           />
+          {anyWithheld ? <p className="text-meta text-muted">{t("result.review.filterWhy")}</p> : null}
           <PaperTextSizeControl size={textSize} className="justify-end" />
           <nav aria-label={t("result.review.jumpLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] gap-2">
             {visibleItems.map((item) => (

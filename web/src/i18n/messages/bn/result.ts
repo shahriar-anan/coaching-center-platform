@@ -33,6 +33,9 @@ const result = {
   },
   review: {
     title: "উত্তর মিলিয়ে দেখুন",
+    withheld: "উত্তর এখনো প্রকাশ হয়নি। প্রশাসক উত্তর প্রকাশ করলে এখানে দেখা যাবে।",
+    withheldShort: "প্রকাশ হয়নি",
+    filterWhy: "সঠিক ও ভুলের হিসাব উত্তর প্রকাশ হলে দেখা যাবে।",
     filterAll: "সব",
     filterWrong: "ভুল",
     filterRight: "সঠিক",
