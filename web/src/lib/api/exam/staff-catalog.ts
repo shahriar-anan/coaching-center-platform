@@ -45,7 +45,11 @@ export type StaffModule = {
   position: number;
   /** `null` when no price is set. Only Master Admin sees it as an input. */
   price: number | null;
+  /** From the single module read (G4): the one assigned instructor, or `null`. Absent on list rows. */
+  instructor?: ModuleInstructor | null;
 };
+
+export type ModuleInstructor = { id: string; name: string; phone: string | null };
 
 export type StaffQuestionOption = { id: string; text: string; correct: boolean; position: number };
 

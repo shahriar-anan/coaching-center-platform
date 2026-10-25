@@ -35,6 +35,10 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
   const { toast } = useToast();
   const questions = [...(exam.questions ?? [])].sort((a, b) => a.position - b.position);
   const total = questions.reduce((sum, q) => sum + q.marks, 0);
+  // A question with no correct option cannot be marked: the summary links to the first one.
+  const missing = questions.filter((q) => !q.options.some((o) => o.correct));
+  const missingCorrect = missing.length;
+  const firstMissingCorrect = missing[0]?.id;
   const update = useUpdateQuestion(exam.id);
   const remove = useDeleteQuestion(exam.id);
   const [editing, setEditing] = useState<{ question?: StaffQuestion } | null>(null);
@@ -58,13 +62,18 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
   }
 
   return (
-    <section id="exam-questions" aria-labelledby="questions-heading" className="grid gap-4">
+    <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="questions-heading" className="text-base font-semibold">
-          {t("staffCatalog.mcq.questionsHeading")}
-        </h2>
-        <p className="text-sm font-medium tabular-nums" aria-live="polite">
-          {t("staffCatalog.mcq.total", { total: formatNumber(total) })}
+        <p className="text-label font-medium tabular-nums" aria-live="polite">
+          {t("staffCatalog.mcq.summary", { count: formatNumber(questions.length), total: formatNumber(total) })}
+          {missingCorrect > 0 ? (
+            <>
+              {" · "}
+              <a href={`#question-${firstMissingCorrect}`} className="text-warn underline-offset-2 hover:underline">
+                {t("staffCatalog.mcq.missingCorrect", { n: formatNumber(missingCorrect) })}
+              </a>
+            </>
+          ) : null}
         </p>
       </div>
 
@@ -73,7 +82,7 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
       ) : (
         <ol className="grid gap-3">
           {questions.map((question, index) => (
-            <li key={question.id} className="grid gap-3 rounded-card border border-border bg-card p-4">
+            <li key={question.id} id={`question-${question.id}`} className="grid scroll-mt-24 gap-3 rounded-card border border-border bg-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted">
@@ -153,6 +162,6 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
           }
         }}
       />
-    </section>
+    </div>
   );
 }

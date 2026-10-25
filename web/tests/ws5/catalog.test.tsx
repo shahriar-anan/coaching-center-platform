@@ -198,7 +198,7 @@ describe("instructor (Master Admin)", () => {
 describe("MCQ editor", () => {
   it("adds the marks into the running total", async () => {
     renderWithProviders(<McqQuestions exam={mcqExam} locked={false} canDelete />, { user: fixtures.masterAdmin });
-    expect(screen.getByText("মোট ৫০")).toBeInTheDocument();
+    expect(screen.getByText(/মোট ৫০ নম্বর/)).toBeInTheDocument();
   });
 
   it("asks for exactly one correct option and clears the previous one", async () => {
@@ -220,7 +220,7 @@ describe("MCQ editor", () => {
 
 describe("after the start", () => {
   it("locks the meta form and says so", () => {
-    renderWithProviders(<ExamMetaForm exam={mcqExam} locked />, { user: fixtures.masterAdmin });
+    renderWithProviders(<ExamMetaForm exam={mcqExam} locked section="details" />, { user: fixtures.masterAdmin });
     expect(screen.getByText("পরীক্ষা শুরু হয়ে গেছে, তাই এখন আর কিছু বদলানো যাবে না।")).toBeInTheDocument();
     const form = screen.getByLabelText(/বাংলা নাম/);
     expect(form).toBeDisabled();
