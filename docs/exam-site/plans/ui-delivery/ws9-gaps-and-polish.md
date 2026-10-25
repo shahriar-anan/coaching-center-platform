@@ -6,6 +6,8 @@ Read first: [README.md](README.md) (architecture, standards, LMS practices), [ba
 
 ## What the analysis found (25 October)
 
+- **Two Blockers found in a second review (Part 5): staff cannot open the written question PDF (the endpoint is student-only), and there is no exam price field anywhere in the staff UI.** Fix these first.
+- Usability by role (Part 5): the instructor has no marking queue, no recent papers and no category browsing; the exam creation journey has no overview of its fourteen steps; students cannot search or see upcoming exams across modules.
 - Every route in the README route table exists. No page is missing.
 - Gaps reported by the building agents, still open: G1–G7 below (API plus page).
 - Features planned as P1/P2 and skipped: listed in Part 2.
@@ -123,11 +125,130 @@ Write `docs/exam-site/reports/ui-dev-qa-guide.md` and **verify every step boots*
 7. A typography and visual checklist matching Part 3 (type scale values per style, spacing, states, dark mode, 320 / 375 / 768 / 1024 / 1440 px), so Shahriar can tick it off page by page.
 8. Known limits on a local run: no SSLCommerz checkout (no public callback), mail is logged not sent.
 
+## Part 5 — Usability audit by role (added after a second code review, 25 October)
+
+Shahriar asked for a site that is easy to use for every user type, and stated two needs explicitly: an instructor must be able to browse the exams and pick the papers to mark, with recent papers easy to reach; and an admin must be able to create an exam through every step without guessing. The code review below found real gaps. Items are numbered G8+ (API) and U1+ (UI). **Blocker** items come before everything else in this file.
+
+### Findings from the code review
+
+| # | Finding | Where | Severity |
+|---|---|---|---|
+| R1 | **Staff cannot open the written question PDF.** `GET /api/v1/live-exams/{id}/question-pdf` calls `requireStudent()`, but the staff written editor ("দেখুন") and the student preview call it, so they fail with 403. The admin cannot check the file they uploaded, and an instructor cannot see the question paper while marking. | `LiveExamSittingController`, `written-paper.tsx`, `exam-editor.tsx` | Blocker |
+| R2 | **No exam price in the staff UI.** The API supports a price on each exam (single-exam purchase), and the student site offers "পরীক্ষাটি কিনুন", but `exam-meta-form.tsx` has no price field and the module exam table shows none. The client cannot sell a single exam. | exam editor, module exams tab | Blocker |
+| R3 | The instructor cannot read the category tree (`GET /live-exam-categories` needs `EXAM_READ`, which instructors lack), and module rows carry only `categoryId`, so the instructor cannot browse by category. | API, instructor home | Major |
+| R4 | The staff submission rows have no time fields (`submittedAt`, `evaluatedAt`, `publishedAt`), and submissions can only be listed per module. There is no way to show "recently submitted papers" or sort by time. | `LiveExamEvaluationService.SubmissionView` | Major |
+| R5 | The instructor home is a flat card per module with three counts. No queue of papers waiting, no "start marking", no per-exam view, no category grouping. | `instructor-home.tsx`, `/staff/submissions` | Major |
+| R6 | Exam creation is one long page per exam with a checklist that covers only the exam itself (final save, pass percent, questions or PDF). Nothing shows the whole journey: category, module details, module final save and publish, price, each exam's readiness, the teacher, direct enrolment, and whether students can actually see and buy it. | module and exam editors | Major |
+| R7 | The module exam table shows name, type, language, date and status, but not price, duration, question count or PDF readiness, so an admin cannot see at a glance what is unfinished. | `module-exams.tsx` | Minor |
+| R8 | Students have no search and no cross-module "upcoming exams" view; to find the next exam they must drill down category by category. | doors | Minor |
+
+### API work
+
+| # | Change | Priority |
+|---|---|---|
+| G8 | `GET /api/v1/live-exams/{id}/question-pdf` also serves staff: Master Admin and System Admin (`EXAM_READ`), and an Instructor only for an exam in a module assigned to them. The student rule (only during their own open sitting) stays exactly as it is. Tests for each role, including an unassigned instructor (404) and a student outside the window (unchanged refusal). | **Blocker** |
+| G9 | No API change for price: the exam `PATCH` already takes `price` (Master Admin only; System Admin gets 403 when the body includes it). Confirm in `LiveExamService` and the existing tests, then build U5. | **Blocker** (UI) |
+| G10 | Staff module rows (`GET /api/v1/live-exam-modules`, list and single) carry `categoryPath`: the chain from the root to the module's category, each `{ id, titleEn, titleBn }`. Instructors get it for their assigned modules, so they never need the category endpoint. | P0 |
+| G11 | A cross-module submission feed: `GET /api/v1/live-exam-submissions?status=&moduleId=&examId=&q=&sort=&page=&size=` for staff with evaluate or read permission (Instructor: assigned modules only; Master Admin and System Admin: all). Rows: `participantId`, `examId`, exam titles, `moduleId`, module titles, `categoryPath`, `studentName`, `status`, `kind`, `answerPdf`, `submittedAt`, `evaluatedAt`, `publishedAt`, `evaluatorName` (not for students; this is staff-only). `status` filter values: `AWAITING` (answer stored, no draft), `DRAFT`, `PUBLISHED`, `FAILED_TO_SUBMIT`. `sort`: `submittedAt,desc` (default), `submittedAt,asc`, `studentName`. Written exams only. Also add `submittedAt`, `evaluatedAt` and `publishedAt` to the existing per-module submission rows. Add the route to `AuditLogIT`. | P0 |
+| G12 | Students: `q` (title in either language) on `GET /api/v1/public/live-exam-modules`, and `GET /api/v1/public/live-exams?examType=&upcoming=true&size=` returning published, dated, not-yet-ended exams across published modules, soonest first, with module titles. | P1 |
+| G13 | Copy an exam: `POST /api/v1/live-exams/{id}/copy` (Master Admin, System Admin) creates a draft in the same module with the same texts, settings and questions (or the same question PDF), no date, no price, title with "(কপি)" / "(copy)". | P2 |
+
+**Business decision for Shahriar, not built:** instructors choosing their own modules. Today the Master Admin assigns one teacher per module (decided). The plan keeps that and gives the instructor full browsing and choice *within* their assigned modules. The instructor empty state says "আরও মডিউলে মূল্যায়ন করতে মাস্টার অ্যাডমিনের সাথে যোগাযোগ করুন।".
+
+### Instructor (U1–U3)
+
+**U1. Instructor home becomes a marking dashboard (P0).**
+
+1. A summary strip: খাতা বাকি (answers waiting for a mark), খসড়া (drafts not yet published), প্রকাশিত (published), from G11 counts or the participation summary.
+2. A primary button "মূল্যায়ন শুরু করুন" that opens the oldest waiting paper (G11 with `status=AWAITING&sort=submittedAt,asc&size=1`), disabled with "এখন কোনো খাতা বাকি নেই" when the queue is empty.
+3. **সাম্প্রতিক খাতা**: the ten most recently submitted papers across the instructor's modules (G11, newest first): student, exam, module, submitted time (relative, "২০ মিনিট আগে"), status pill, each row opens the paper. "সব খাতা দেখুন" goes to `/staff/submissions`.
+4. **আমার মডিউল**: the assigned modules **grouped by category path** (G10), each module a card with its counts and its written exams listed underneath, each exam with its own waiting count and a "খাতা দেখুন" link to that exam's queue.
+5. Empty state for an instructor with no modules, with the sentence above.
+
+**U2. A browsable submissions area (P0).**
+
+- `/staff/submissions` becomes a two-pane browser on desktop (one column on phones): on the left, the category → module → exam tree for the modules the user may mark (G10), each node with its waiting count; on the right, the paper list for the selected node from G11, with filters (বাকি / খসড়া / প্রকাশিত / জমা হয়নি / সব; default বাকি for instructors), sort (নতুন আগে, পুরনো আগে, নাম), search by student name, and the submitted time column. Selection, filters and sort live in the URL.
+- The existing per-module page (`/staff/submissions/m/[moduleId]`) stays working as a deep link (it can render the same browser preselected).
+- Master Admin and System Admin get the same browser over all modules, with the teacher's name column.
+
+**U3. The marking screen (P0).**
+
+- Three views on desktop: the answer PDF, the **question paper** (G8) in a tab next to it, and the mark form; phones get tabs.
+- The form shows the maximum, prefills the saved marks and comment (G1), shows the stored marked PDF with "দেখুন" and "বদলান", and states the save rule plainly.
+- Keep the queue navigation and shortcuts; add a small "কীবোর্ড শর্টকাট" popover listing them.
+- After the last paper in the current filter: "এই তালিকার সব খাতা দেখা হয়েছে" with a link back to the browser.
+
+### Master Admin and System Admin: the exam creation journey (U4–U9)
+
+The full journey an admin must be able to complete in the UI, in order. **Every step must exist, be reachable from the previous one, and show whether it is done:**
+
+| Step | What the admin does | Who | Where |
+|---|---|---|---|
+| 1 | Create or choose the category (and subcategory) | MA, SA | categories |
+| 2 | Create the module: titles, descriptions (both languages), category | MA, SA | module details |
+| 3 | Set the module price (optional; no price means it cannot be sold as a module) | MA | module details |
+| 4 | Final-save the module (চূড়ান্ত করুন), then publish it (প্রকাশ করুন) | MA, SA | module details |
+| 5 | Add an exam: choose MCQ or written (fixed after this) | MA, SA | module exams tab |
+| 6 | Exam details: titles, descriptions, rules (both languages), paper language | MA, SA | exam editor |
+| 7 | Schedule and marks: start date and time (or "তারিখ এখনো ঠিক হয়নি"), duration, pass percent; written also maximum marks | MA, SA | exam editor |
+| 8 | Content: MCQ questions (stem, 2–6 options, one correct, marks, explanation; reorder; total marks shown), or the written question PDF (upload, view, replace) | MA, SA | exam editor |
+| 9 | Exam price (optional; needed to sell this exam alone) | MA | exam editor |
+| 10 | Preview as a student | MA, SA | exam editor |
+| 11 | Final-save the exam, then publish it; the five-minute clash names the other exam | MA, SA | exam editor |
+| 12 | Assign the teacher (needed before written answers can be marked) | MA | module teacher tab |
+| 13 | Direct enrolment for students who should sit without paying (optional) | MA | module direct-enrolment tab |
+| 14 | Check what students see: a link that opens the public module page | MA, SA | module and exam editor |
+
+**U4. A setup-progress panel on the module page (P0).** At the top of `/staff/modules/[id]`, a compact stepper or checklist of steps 2–14 for this module: each step shows done, missing, or "মাস্টার অ্যাডমিন করবেন" (for a System Admin looking at a Master-Admin-only step), and links to the exact field or tab. It summarises the exams: "৪টি পরীক্ষা · ৩টি প্রকাশিত · ১টি খসড়া (প্রশ্ন নেই)". The last line says plainly whether students can see and buy the module now, and why not if not (module not published, category archived, no price on module or any exam). Use one shared `Stepper`/checklist component in `components/ui`.
+
+**U5. The exam editor as clear numbered sections (P0).**
+
+- Sections in the journey order, numbered: ১ বিবরণ, ২ সময় ও নম্বর, ৩ প্রশ্ন (or প্রশ্নপত্র), ৪ মূল্য, ৫ যাচাই ও প্রকাশ. On desktop a sticky section nav on the side shows each section's state (done / missing / error) and jumps to it; on phones the sections are collapsible with the same states in their headers.
+- **৪ মূল্য:** the exam price input for the Master Admin (validation like the module price: blank or above zero with at most two decimals; "দাম নেই" when blank), read-only text for the System Admin (G9). The publish checklist mentions price as optional with what it means ("দাম না থাকলে পরীক্ষাটি আলাদা করে বিক্রি হবে না; মডিউল কিনলে পাওয়া যাবে").
+- The MCQ section shows a running summary: "১২টি প্রশ্ন · মোট ৫০ নম্বর · ২টিতে সঠিক উত্তর বাছাই হয়নি", and jumps to the first incomplete question.
+- The written section views the stored PDF (G8) and shows the size limit (G6).
+- The save model is explicit: each section saves on its own button, a dirty section shows "সেভ হয়নি", the leave guard (F2) covers in-app links, and the helper "প্রকাশিত অবস্থায় সেভ করলে এটি আবার খসড়া হয়ে যাবে।" sits next to every save while published.
+- After publish: the next-steps toast (F3) and, for a written exam in a module with no teacher, a warning "এই মডিউলে শিক্ষক দেওয়া নেই — খাতা মূল্যায়নের আগে শিক্ষক দিন" linking to the teacher tab.
+- A "শিক্ষার্থীর চোখে দেখুন" link (via `siteHref`) to the public exam page once published.
+
+**U6. The module exam table shows readiness (P0).** Columns: name, type, date and time (or "তারিখ পরে জানানো হবে"), duration, price (or "দাম নেই"), content ("১২টি প্রশ্ন" / "প্রশ্নপত্র আছে" / "প্রশ্ন নেই" in the warning tone), status pill, and actions (edit, preview, participation, leaderboard, and copy when G13 exists). Rows sorted by date, undated last.
+
+**U7. First-run onboarding (P1).** When the catalog is empty (the client after cleanup), the Master Admin and System Admin home shows "প্রথম পরীক্ষা তৈরি করুন" with the steps 1 → 2 → 5 as three linked cards, instead of empty tables.
+
+**U8. Staff quick search (P1).** A search field in the staff top bar (Master Admin and System Admin): typing a phone, email or name offers students (`GET /students?q=`) and modules (G5 `q`), each result opening its page; `/` focuses it.
+
+**U9. System Admin parity (P0).** Walk the whole journey as a System Admin: every Master-Admin-only step is shown as information, never as a dead button, and nothing the server refuses is offered.
+
+### Student (U10–U12)
+
+**U10. Find exams faster (P1).** A search field on the door pages (G12 `q`), and an "আসন্ন পরীক্ষা" strip on each door (G12 upcoming, filtered by the door's type): title, module, date and time, price or "চালু আছে", each linking to the exam page.
+
+**U11. Module page "কী পাবেন" summary (P1).** Under the description: "৫টি এমসিকিউ · ২টি রিটেন · পরবর্তী পরীক্ষা ১২ নভেম্বর" from the counts already on the page.
+
+**U12. A copy-link button on the exam page (P2)**, so a student can share an exam with a friend.
+
+### Style rules for everything in Part 5
+
+- Build only from the shared components in `components/ui` and the shells. If a pattern is new (the stepper, the two-pane browser, the summary strip), add it once to `components/ui` with props, tokens and a test, then use it everywhere it applies.
+- Staff screens keep the admin look: dense, calm, tables and side panels, 40 px targets, the named type scale from Part 3 P1. Student screens keep the mockup look.
+- Every new list has loading, empty, error and success states; every count comes from the server; every time is Asia/Dhaka with Bengali digits in Bangla; every new string is written by the copy guide (খাতা, মূল্যায়ন, খসড়া, প্রকাশিত, সরাসরি ভর্তি, শিক্ষক, চূড়ান্ত করুন).
+- Every new screen works at 375 px and 1440 px, in both languages and themes, and by keyboard.
+
+## Order of work (whole file)
+
+1. **Blockers:** G8 (staff question PDF) and U5's price section with G9 (exam price).
+2. Part 3 P1 type scale and P6 clean-up.
+3. G1, G2, G3, G4, G7, G10, G11.
+4. U1, U2, U3 (instructor), then U4, U5, U6, U9 (exam creation journey).
+5. The rest of Part 3 (P2–P5) across all screens, including the new ones.
+6. Part 2 P0 (F1, F2), then the P1 items in Parts 1, 2 and 5 (G5, G6, G12, U7, U8, U10, U11, F3–F6, F10), then P2 (G13, F7–F9, U12).
+7. Part 4, the dev-server guide.
+
 ## Checks and report
 
 - API: touched `*IT` classes, then the full suite from clean, alone, under the lock; only `BookOrderIT` and `CoursePurchaseIT` may fail.
 - Web: `npm run lint` 0 errors, `npx tsc --noEmit` clean, `npm test` green, `npm run build` under the lock (and `npm run build` again after F8 if it was done).
-- Write a **Report** section at the end of this file: each G, F and P item as done, partly done, or skipped (with the reason), the new or changed API fields, screenshots are not expected.
+- Write a **Report** section at the end of this file: each G, F, U and P item, and each finding R1–R8, as done, partly done, or skipped (with the reason), the new or changed API fields, screenshots are not expected.
 
 Then send the integrator:
 
@@ -135,7 +256,7 @@ Then send the integrator:
 READY TO MERGE: ui/ws9-gaps-polish (agent G)
 Last commit: <hash>
 Checks: API suite <n> run, only BookOrderIT and CoursePurchaseIT failing; web lint 0 errors, tsc clean, tests <n> passed, build ok
-Gaps closed: <G ids> | Features: <F ids> | Polish: <P ids>
+Gaps closed: <G ids> | Features: <F ids> | Usability: <U ids> | Polish: <P ids>
 Skipped: <ids and why>
 API additions: <list>
 Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)

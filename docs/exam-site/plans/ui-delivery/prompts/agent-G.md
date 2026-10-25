@@ -14,7 +14,7 @@ Shahriar's main session is the **integrator**: it merges, deploys and answers qu
 
 ## Read, in this order
 
-1. `docs/exam-site/plans/ui-delivery/ws9-gaps-and-polish.md` — **your brief**. Work through it in this order: Part 3 P1 (type scale) and P6 (legacy clean-up) first, then Part 1 (G1–G4, G7), then the rest of Part 3, then Part 2 by priority, then Part 1 G5–G6, then Part 4.
+1. `docs/exam-site/plans/ui-delivery/ws9-gaps-and-polish.md` — **your brief**. Follow its "Order of work" section exactly: the two Blockers first (G8 staff question PDF, the exam price), then the type scale and clean-up, then the API gaps, then the instructor dashboard and submissions browser (U1–U3) and the exam creation journey (U4–U6, U9), then polish, then the remaining features, then the dev-server guide.
 2. `docs/exam-site/plans/ui-delivery/README.md` — architecture, UI standards, LMS practices, budgets.
 3. `docs/exam-site/plans/ui-delivery/ws0-foundation.md` — tokens and components, including its Report (the real contracts).
 4. `docs/exam-site/plans/ui-delivery/bangla-copy.md` — every Bangla string you add or touch.
@@ -39,7 +39,7 @@ All P0 items done, P1 done or explained, checks green (API suite from clean with
 READY TO MERGE: ui/ws9-gaps-polish (agent G)
 Last commit: <hash>
 Checks: API suite <n> run, only BookOrderIT and CoursePurchaseIT failing; web lint 0 errors, tsc clean, tests <n> passed, build ok
-Gaps closed: <G ids> | Features: <F ids> | Polish: <P ids>
+Gaps closed: <G ids> | Features: <F ids> | Usability: <U ids> | Polish: <P ids>
 Skipped: <ids and why>
 API additions: <list>
 Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
