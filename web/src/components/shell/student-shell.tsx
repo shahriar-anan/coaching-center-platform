@@ -160,6 +160,9 @@ function TabBar() {
                   ) : null}
                 </span>
                 {t(`common.nav.${tab.key}`)}
+                {tab.key === "notices" && unreadCount > 0 ? (
+                  <>{" "}<span className="sr-only">{t("common.unreadNotices", { count: formatNumber(unreadCount, locale) })}</span></>
+                ) : null}
               </Link>
             </li>
           );

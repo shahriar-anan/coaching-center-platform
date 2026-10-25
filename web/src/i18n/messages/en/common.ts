@@ -183,6 +183,7 @@ const common = {
     body: "Your changes have not been saved yet.",
     leave: "Leave",
   },
+  unreadNotices: "{count} unread notices",
   pdf: {
     placeholder: "PDF",
     loading: "Loading PDF…",

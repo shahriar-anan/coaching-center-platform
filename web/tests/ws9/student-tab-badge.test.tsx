@@ -13,8 +13,8 @@ describe("student tab bar notices badge (F1)", () => {
       { user: fixtures.student, route: "/" },
     );
     const bar = await screen.findByRole("navigation", { name: "নিচের মেনু" });
-    const tab = within(bar).getByRole("link", { name: "নোটিশ" });
-    await waitFor(() => expect(tab).toHaveTextContent("৩"));
+    const tab = within(bar).getByRole("link", { name: /নোটিশ/ });
+    await waitFor(() => expect(tab).toHaveAccessibleName("নোটিশ ৩টি অপঠিত নোটিশ"));
   });
 
   it("shows no badge when nothing is unread", async () => {
@@ -26,7 +26,7 @@ describe("student tab bar notices badge (F1)", () => {
       { user: fixtures.student, route: "/" },
     );
     const bar = await screen.findByRole("navigation", { name: "নিচের মেনু" });
-    const tab = within(bar).getByRole("link", { name: "নোটিশ" });
+    const tab = within(bar).getByRole("link", { name: /নোটিশ/ });
     await waitFor(() => expect(tab).not.toHaveTextContent(/\d/));
   });
 });

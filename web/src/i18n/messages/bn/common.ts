@@ -183,6 +183,7 @@ const common = {
     body: "আপনার করা পরিবর্তন এখনও সেভ হয়নি।",
     leave: "চলে যান",
   },
+  unreadNotices: "{count}টি অপঠিত নোটিশ",
   pdf: {
     placeholder: "পিডিএফ",
     loading: "পিডিএফ লোড হচ্ছে…",
