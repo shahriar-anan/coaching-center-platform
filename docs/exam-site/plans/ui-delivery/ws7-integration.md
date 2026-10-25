@@ -17,6 +17,10 @@ After all merges: delete any `_preview` pages, grep for leftover inline strings 
 
 **Bangla pass.** Read every Bangla message file against [bangla-copy.md](bangla-copy.md): glossary terms, the client's words, natural word order, Bengali digits, day periods, no word-for-word translations. Fix in the message files only. Note any new term in the guide.
 
+## Final quality check (WS8) before the deploy
+
+After the last merge and a green build, stop all building agents and start **one** QA agent with [prompts/agent-QA.md](prompts/agent-QA.md), following [ws8-final-qa.md](ws8-final-qa.md) Parts A and B on a local stack. When it sends `QA DONE`, read `docs/exam-site/reports/ui-final-qa.md`, decide on anything sent to you, merge `ui/ws8-qa` (decide whether to keep the Playwright dev dependencies and `web/e2e/`), and run the pre-deploy checks below on the merged result. After the deploy, ask the QA agent for Part C on staging before the client sees the site.
+
 ## Pre-deploy checks
 
 - API: full suite from clean, then `mvn -DskipTests clean package`. Record the jar SHA-256.

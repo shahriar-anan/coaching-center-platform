@@ -48,6 +48,7 @@ Defaults this plan takes (Shahriar can change them):
 | [ws5-staff-catalog.md](ws5-staff-catalog.md) | Staff homes, categories, modules, exams, MCQ and written editors, roster, instructor |
 | [ws6-staff-ops.md](ws6-staff-ops.md) | Students, instructors, system admins, participation, marking, payments, leaderboard, audit, staff account |
 | [ws7-integration.md](ws7-integration.md) | Merge, checks, build, deploy, demo seed, walkthrough |
+| [ws8-final-qa.md](ws8-final-qa.md) | Final quality check by one agent after the last merge and build (static audit, browser audit with Playwright and axe, business-rule flows, performance, privacy), then a staging pass after the deploy |
 | [bangla-copy.md](bangla-copy.md) | Bangla copy guide and glossary for every workstream. Wins over any Bangla quoted in the briefs or the UI prompts. |
 
 ## Team of five
