@@ -1,4 +1,15 @@
-/** "অ্যাক্সেস আছে" with the way access was given. Stub until P-2 lands. */
+"use client";
+
+import { useLocale } from "@/i18n/locale-context";
+import { Pill } from "@/components/ui/pill";
+
+/** "অ্যাক্সেস আছে" with a small label for how access was given: a module, this exam, the roster or an admin. */
 export function AccessBadge({ via }: { via: "MODULE" | "EXAM" | "ROSTER" | "MANUAL" }) {
-  return <span data-via={via}>অ্যাক্সেস আছে</span>;
+  const { t } = useLocale();
+  return (
+    <Pill tone="ok">
+      <span>{t("common.purchase.shared.accessGranted")}</span>
+      <span className="text-muted">· {t(`common.purchase.shared.via.${via}`)}</span>
+    </Pill>
+  );
 }
