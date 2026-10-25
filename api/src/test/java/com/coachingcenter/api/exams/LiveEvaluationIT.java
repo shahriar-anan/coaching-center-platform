@@ -638,6 +638,49 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theBoardMarksOnlyTheReadersOwnRowAndStaffGetNone() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Mine");
+		UUID exam = writtenExam(staff, module);
+		Student first = seedStudent("First Missing");
+		Student second = seedStudent("Second Missing");
+		mark(master, module, first.id());
+		mark(master, module, second.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		take(first, exam);
+		take(second, exam);
+		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+
+		JsonNode asFirst = boardAs(first.token(), exam);
+		assertThat(rowNamed(asFirst, "First Missing").get("mine").asBoolean()).isTrue();
+		assertThat(rowNamed(asFirst, "Second Missing").get("mine").asBoolean()).isFalse();
+		JsonNode asStaff = boardAs(master, exam);
+		for (JsonNode row : asStaff.get("rows")) {
+			assertThat(row.get("mine").asBoolean()).isFalse();
+		}
+		assertThat(asStaff.get("rows").get(0).has("studentId")).isFalse();
+	}
+
+	private JsonNode boardAs(String token, UUID exam) throws Exception {
+		return json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
+			.header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+	}
+
+	private JsonNode rowNamed(JsonNode board, String name) {
+		for (JsonNode row : board.get("rows")) {
+			if (name.equals(row.get("name").asText())) {
+				return row;
+			}
+		}
+		throw new AssertionError("no board row named " + name);
+	}
+
+	@Test
 	void anUndatedExamHasNoLeaderboard() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));

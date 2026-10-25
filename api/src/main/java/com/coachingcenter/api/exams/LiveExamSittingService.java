@@ -99,7 +99,7 @@ public class LiveExamSittingService {
 				shell.titleBn(), shell.descriptionEn(), shell.descriptionBn(), shell.rulesEn(), shell.rulesBn(),
 				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shell.passPercent(), shell.maximum(),
 				shell.status(), shell.finallySaved(), shell.price(), questionPdf, questionViews, shell.myStatus(),
-				shell.retakeAvailable());
+				shell.retakeAvailable(), sittingView(participant));
 	}
 
 	@Transactional
@@ -231,7 +231,7 @@ public class LiveExamSittingService {
 			evaluatedPdf = null;
 		}
 		return new ReviewedResult(score, maximum(exam), passed, participant.getStatus(), questionViews, comment,
-				evaluatedPdf);
+				evaluatedPdf, participant.getKind());
 	}
 
 	@Transactional
@@ -463,6 +463,16 @@ public class LiveExamSittingService {
 		return participants.save(participant);
 	}
 
+	/** The student's own sitting, or null when there is none. Only ever the requesting student's row. */
+	private SittingView sittingView(LiveExamParticipant participant) {
+		if (participant == null) {
+			return null;
+		}
+		return new SittingView(participant.getKind(), format(participant.getStartedAt()),
+				format(participant.getDeadlineAt()),
+				participant.getSubmittedAt() == null ? null : format(participant.getSubmittedAt()));
+	}
+
 	private TakeView takeView(LiveExamParticipant participant) {
 		return new TakeView(participant.getId(), participant.getExamId(), participant.getKind(), format(clock.instant()),
 				format(participant.getDeadlineAt()), format(participant.getStartedAt()));
@@ -515,13 +525,17 @@ public class LiveExamSittingService {
 			String titleBn, String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt,
 			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
-			Boolean retakeAvailable) {
+			Boolean retakeAvailable, SittingView sitting) {
 	}
 
 	public record StudentQuestion(UUID id, String stem, int marks, String explanation, List<StudentOption> options) {
 	}
 
 	public record StudentOption(UUID id, String text, Boolean correct, Boolean selected) {
+	}
+
+	/** The student's own open or past sitting: kind, start, deadline, and when they submitted early (or null). */
+	public record SittingView(String kind, String startedAt, String deadlineAt, String submittedAt) {
 	}
 
 	public record TakeView(UUID id, UUID examId, String kind, String serverTime, String deadlineAt, String startedAt) {
@@ -531,7 +545,7 @@ public class LiveExamSittingService {
 	}
 
 	public record ReviewedResult(Integer score, int maximum, Boolean passed, String status, List<StudentQuestion> questions,
-			String comment, Boolean evaluatedPdf) {
+			String comment, Boolean evaluatedPdf, String kind) {
 	}
 
 }

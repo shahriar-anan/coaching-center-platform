@@ -15,7 +15,7 @@ import { McqQuestion, type OptionLabels } from "@/components/student/sitting/mcq
 import { useLocale } from "@/i18n/locale-context";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import { evaluatedPdfPath, useSittingResult, useStudentExam } from "@/lib/api/exam/sitting";
+import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam } from "@/lib/api/exam/sitting";
 import { formatNumber, pickTitle } from "@/lib/format";
 
 const LETTERS_BN = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"] as const;
@@ -30,6 +30,9 @@ export function ResultPage({ examId }: { examId: string }) {
   const n = (value: number) => formatNumber(value, locale);
   const exam = useStudentExam(examId);
   const result = useSittingResult(examId);
+  // The merit list is empty until it opens; once it is, the student's own row gives their rank.
+  const board = useLeaderboard(examId);
+  const mine = board.data?.rows.find((row) => row.mine) ?? null;
   const [showScript, setShowScript] = useState(false);
 
   const header = (
@@ -116,6 +119,10 @@ export function ResultPage({ examId }: { examId: string }) {
     <div className="flex flex-col gap-4 pb-8">
       {header}
 
+      {data.kind === "RETAKE" ? (
+        <Pill tone="warn">{t("result.page.practice")}</Pill>
+      ) : null}
+
       <StatRow>
         <Stat value={written && awaiting ? t("result.stat.none") : scoreCell} label={t("result.stat.obtained")} />
         <Stat
@@ -123,8 +130,8 @@ export function ResultPage({ examId }: { examId: string }) {
           label={t("result.stat.outcome")}
         />
         <Stat
-          value={written && awaiting ? t("result.outcome.pending") : t("result.stat.none")}
-          label={written ? t("result.stat.marking") : t("result.stat.rank")}
+          value={written && awaiting ? t("result.outcome.pending") : mine ? n(mine.rank) : t("result.stat.none")}
+          label={written && awaiting ? t("result.stat.marking") : t("result.stat.rank")}
         />
       </StatRow>
 

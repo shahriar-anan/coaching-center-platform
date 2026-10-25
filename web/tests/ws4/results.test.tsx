@@ -34,6 +34,7 @@ function exam(overrides: Partial<StudentExam> = {}): StudentExam {
     questions: null,
     myStatus: "RESULT_READY",
     retakeAvailable: null,
+    sitting: null,
     ...overrides,
   };
 }
@@ -170,6 +171,65 @@ describe("result page", () => {
     renderWithProviders(<ResultPage examId="ex-1" />, { locale: "bn" });
     expect(await screen.findByText("ভালো লিখেছেন।")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "মূল্যায়ন করা খাতা দেখুন" })).toBeInTheDocument();
+  });
+});
+
+describe("own row, rank and kind from the API", () => {
+  it("highlights the student's own leaderboard row", async () => {
+    mockApi({
+      "GET /api/v1/live-exams/ex-1": exam(),
+      "GET /api/v1/live-exams/ex-1/leaderboard": {
+        rows: [
+          { name: "Asha", rank: 1, score: 48, maximum: 50, passed: true, mine: false },
+          { name: "Rafi", rank: 2, score: 45, maximum: 50, passed: true, mine: true },
+        ],
+      },
+    });
+    renderWithProviders(<LeaderboardPage examId="ex-1" />, { locale: "en" });
+    // The table shows each row as a desktop row and as a phone card, so the marker can appear twice.
+    expect((await screen.findAllByText("Rafi · You")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Asha · You")).not.toBeInTheDocument();
+  });
+
+  it("gives the student's rank on the result page from their own row", async () => {
+    mockApi({
+      "GET /api/v1/live-exams/ex-1": exam(),
+      "GET /api/v1/live-exams/ex-1/leaderboard": {
+        rows: [
+          { name: "Asha", rank: 1, score: 48, maximum: 50, passed: true, mine: false },
+          { name: "Rafi", rank: 2, score: 45, maximum: 50, passed: true, mine: true },
+        ],
+      },
+      "GET /api/v1/live-exams/ex-1/result": { kind: "LIVE", score: 45, maximum: 50, passed: true, status: "SUBMITTED", questions: null, comment: null, evaluatedPdf: null },
+    });
+    renderWithProviders(<ResultPage examId="ex-1" />, { locale: "en" });
+    expect(await screen.findByText("2")).toBeInTheDocument();
+  });
+
+  it("labels a later attempt as practice on the result page", async () => {
+    mockApi({
+      "GET /api/v1/live-exams/ex-1": exam(),
+      "GET /api/v1/live-exams/ex-1/leaderboard": { rows: [] },
+      "GET /api/v1/live-exams/ex-1/result": { kind: "RETAKE", score: 30, maximum: 50, passed: false, status: "SUBMITTED", questions: null, comment: null, evaluatedPdf: null },
+    });
+    renderWithProviders(<ResultPage examId="ex-1" />, { locale: "en" });
+    expect(await screen.findByText("Practice attempt · not on the merit list")).toBeInTheDocument();
+  });
+
+  it("the results hub labels a later attempt as practice", async () => {
+    mockApi({
+      "GET /api/v1/live-exam-modules": { content: [{ id: "m-1", titleEn: "BJS", titleBn: "বিজেএস" }], page: 0, size: 50, totalElements: 1, totalPages: 1 },
+      "GET /api/v1/live-exam-modules/m-1/exams": {
+        content: [{ id: "ex-1", moduleId: "m-1", titleEn: "CRPC", titleBn: "সিআরপিসি", examType: "MCQ", liveAt: exam().liveAt, myStatus: "RESULT_READY" }],
+        page: 0,
+        size: 50,
+        totalElements: 1,
+        totalPages: 1,
+      },
+      "GET /api/v1/live-exams/ex-1/result": { kind: "RETAKE", score: 30, maximum: 50, passed: false, status: "RESULT_READY", questions: null, comment: null, evaluatedPdf: null },
+    });
+    renderWithProviders(<ResultsHub />, { locale: "en" });
+    expect(await screen.findByText("Practice attempt · not on the merit list")).toBeInTheDocument();
   });
 });
 

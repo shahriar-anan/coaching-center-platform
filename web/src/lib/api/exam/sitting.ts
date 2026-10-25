@@ -24,6 +24,14 @@ export type SittingQuestion = {
   options: SittingOption[];
 };
 
+/** The requesting student's sitting, from the exam read. `submittedAt` is set once they submit early. */
+export type SittingBlock = {
+  kind: "LIVE" | "RETAKE";
+  startedAt: string;
+  deadlineAt: string;
+  submittedAt: string | null;
+};
+
 export type StudentExam = {
   id: string;
   moduleId: string;
@@ -47,6 +55,8 @@ export type StudentExam = {
   questions: SittingQuestion[] | null;
   myStatus: string;
   retakeAvailable: boolean | null;
+  /** The student's own sitting, or null when there is none (API: `sitting`). */
+  sitting: SittingBlock | null;
 };
 
 export type TakeResult = {
@@ -67,6 +77,8 @@ export type PostedResult = {
 };
 
 export type ReviewedResult = {
+  /** "LIVE" for the live sitting, "RETAKE" for the later attempt (off the merit list). */
+  kind: "LIVE" | "RETAKE";
   score: number | null;
   maximum: number;
   passed: boolean | null;
@@ -82,6 +94,8 @@ export type LeaderboardRow = {
   score: number;
   maximum: number;
   passed: boolean;
+  /** True only on the requesting student's own row. */
+  mine: boolean;
 };
 
 export const sittingKeys = {
