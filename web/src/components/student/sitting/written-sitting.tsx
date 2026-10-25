@@ -89,7 +89,7 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
       </div>
 
       <Card>
-        <h2 className="text-sm font-semibold text-muted">{t("sitting.written.paper")}</h2>
+        <h2 className="text-label font-semibold text-muted">{t("sitting.written.paper")}</h2>
         <div className="mt-3">
           {exam.questionPdf ? (
             <PdfViewer
@@ -105,8 +105,8 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
       </Card>
 
       <Card>
-        <h2 className="text-sm font-semibold text-muted">{t("sitting.written.script")}</h2>
-        <p className="mt-1 text-sm text-muted">{t("sitting.written.instruction")}</p>
+        <h2 className="text-label font-semibold text-muted">{t("sitting.written.script")}</h2>
+        <p className="mt-1 text-body text-muted">{t("sitting.written.instruction")}</p>
         {!closed ? (
           <div className="mt-3">
             <FileDrop
@@ -120,13 +120,13 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
             />
           </div>
         ) : (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <p role="alert" className="mt-3 text-body text-danger">
             {t("sitting.written.deadlinePassed")}
           </p>
         )}
-        {stored && !pending ? <p className="mt-2 text-sm text-ok">{t("sitting.written.stored")}</p> : null}
+        {stored && !pending ? <p className="mt-2 text-body text-ok">{t("sitting.written.stored")}</p> : null}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted">{t("sitting.written.replaceNote")}</p>
+          <p className="text-body text-muted">{t("sitting.written.replaceNote")}</p>
           <Button
             variant="primary"
             loading={upload.isPending}

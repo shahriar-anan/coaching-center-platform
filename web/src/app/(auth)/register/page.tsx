@@ -12,14 +12,29 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
 import { FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
-import { isEmail, isPasswordLength, isPhone, normalizePhone } from "@/app/(auth)/_components/validate";
+import { formatNumber } from "@/lib/format";
+import {
+  formatPhone,
+  isEmail,
+  isPasswordLength,
+  isPhone,
+  normalizePhone,
+  passwordStatus,
+} from "@/app/(auth)/_components/validate";
 
 type Values = { fullName: string; phone: string; email: string; password: string };
 type FieldErrors = Partial<Record<keyof Values, string>>;
 
 /** Account creation. Registration does not sign the student in; the next step is the login page. */
 export default function RegisterPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+
+  function passwordHint(value: string): string {
+    const status = passwordStatus(value);
+    if (!value || status.length > 72) return t("auth.register.passwordHelp");
+    if (status.ok) return t("auth.register.passwordOk");
+    return t("auth.register.passwordShort", { n: formatNumber(status.short, locale) });
+  }
   const [values, setValues] = useState<Values>({ fullName: "", phone: "", email: "", password: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -115,7 +130,12 @@ export default function RegisterPage() {
               invalid={Boolean(errors.fullName)}
             />
           </Field>
-          <Field label={t("auth.register.phone")} hint={t("auth.register.phoneHelp")} error={errors.phone} required>
+          <Field
+            label={t("auth.register.phone")}
+            hint={isPhone(values.phone) ? t("auth.register.phoneOk") : t("auth.register.phoneHelp")}
+            error={errors.phone}
+            required
+          >
             <TextInput
               id="register-phone"
               name="phone"
@@ -123,7 +143,7 @@ export default function RegisterPage() {
               inputMode="numeric"
               autoComplete="tel-national"
               value={values.phone}
-              onChange={(e) => set("phone", e.target.value)}
+              onChange={(e) => set("phone", formatPhone(e.target.value))}
               invalid={Boolean(errors.phone)}
             />
           </Field>
@@ -140,7 +160,12 @@ export default function RegisterPage() {
               invalid={Boolean(errors.email)}
             />
           </Field>
-          <Field label={t("auth.register.password")} hint={t("auth.register.passwordHelp")} error={errors.password} required>
+          <Field
+            label={t("auth.register.password")}
+            hint={passwordHint(values.password)}
+            error={errors.password}
+            required
+          >
             <PasswordInput
               id="register-password"
               name="password"
@@ -155,7 +180,7 @@ export default function RegisterPage() {
             {t("auth.register.submit")}
           </Button>
         </form>
-        <p className="text-center text-[15px] text-muted">
+        <p className="text-center text-body text-muted">
           {t("auth.register.haveAccount")}{" "}
           <Link href="/login" className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.submit")}

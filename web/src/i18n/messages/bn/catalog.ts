@@ -59,7 +59,20 @@ const catalog = {
     MISSED: "সময় শেষ",
     MISSED_RETAKE: "সময় শেষ · অনুশীলন হিসেবে দিন",
   },
+  search: {
+    placeholder: "মডিউল বা পরীক্ষার নাম লিখুন",
+    results: "খোঁজের ফলাফল",
+    empty: "কিছু পাওয়া যায়নি",
+  },
+  upcoming: {
+    title: "আসন্ন পরীক্ষা",
+  },
+  summaryTitle: "কী পাবেন",
+  summaryNext: "পরবর্তী পরীক্ষা {date}",
   exam: {
+    copyLink: "লিংক কপি করুন",
+    linkCopied: "লিংক কপি হয়েছে",
+    linkCopyFailed: "লিংক কপি করা যায়নি। ঠিকানাটি নিজে কপি করুন।",
     description: "বিবরণ",
     rules: "নিয়মাবলি",
     paperLanguage: "প্রশ্নপত্রের ভাষা",

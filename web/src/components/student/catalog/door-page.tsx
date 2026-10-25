@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DoorDiscovery } from "./door-discovery";
 import {
   categoryPath,
   countModules,
@@ -34,8 +35,8 @@ function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
         : t("catalog.countModules", { n: formatNumber(modules, locale) });
   return (
     <Card href={categoryPath(door, node.id)}>
-      <p className="text-[17px] font-bold">⚖️ {pickTitle(node, locale)}</p>
-      <p className="text-sm text-muted">{subtitle}</p>
+      <p className="text-card font-bold">⚖️ {pickTitle(node, locale)}</p>
+      <p className="text-body text-muted">{subtitle}</p>
     </Card>
   );
 }
@@ -47,9 +48,9 @@ function ModuleCard({ door, module }: { door: Door; module: PublicModule }) {
   const description = firstLine(pickText({ ...module }, "description", locale));
   return (
     <Card href={modulePath(door, module.id)}>
-      <p className="text-[17px] font-bold">📚 {pickTitle(module, locale)}</p>
-      {description ? <p className="text-sm text-muted">{description}</p> : null}
-      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+      <p className="text-card font-bold">📚 {pickTitle(module, locale)}</p>
+      {description ? <p className="text-body text-muted">{description}</p> : null}
+      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body">
         <span className="text-accent">{t("catalog.viewExams")}</span>
         {count !== null ? (
           <span className="text-muted">
@@ -107,6 +108,7 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
     return (
       <>
         <PageHeader title={doorTitle} breadcrumbs={[{ label: t("catalog.home"), href: "/" }, { label: doorLabel }]} />
+        <DoorDiscovery door={door} />
         {roots.length ? (
           <div className="grid gap-3">
             {roots.map((node) => (

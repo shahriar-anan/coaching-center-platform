@@ -320,6 +320,58 @@ API additions: <list>
 Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 ```
 
+## Report — STU
+
+**Done** (each one a commit naming the item id):
+- **P1 type scale** on every student and auth page: no arbitrary `text-[..]`, no `text-sm`, `text-xs`, `text-base`, `text-lg` or `text-xl` left in `(site)`, `(auth)` and `components/student`. The hero uses `text-display`. Semantic classes come from FND's `@theme`; until FND merges they render at inherited size.
+- **U11** module summary "কী পাবেন" from the counts the page already has, for this door's type, plus the next exam.
+- **U12** copy-link button on the exam page, with a toast.
+- **G7** student name edit on the account page (`PATCH /api/v1/me`, 1–100 characters, trimmed). A 404 shows "coming soon".
+- **F6** registration helpers: phone grouped as typed (017 1234 5678), a check when valid, and a live count of the password characters still needed.
+- **F5** text size control (A− / A+, 16 / 18 / 20 px) on the MCQ paper and the result review, remembered per device. Stems and options read one CSS variable.
+- **UF1** printable payment receipt at `/account/payments/receipt` (from the paid rows of payment history; no new API).
+- **UF2** result review filter (সব / ভুল / সঠিক / উত্তর দেননি), a jump grid coloured by outcome with the outcome in its accessible name, and a pass-mark line on the results hub.
+- **UF3** empty states on home, routine, notices and payment history point to both doors, with one sentence on what to do next.
+- **U10** module search on the door page (`q`, also filtered by title) and an upcoming-exams strip for the door's type. Both hide while the API lacks the G12 endpoints. Search text lives in the URL.
+- **F10 (partly)**: tests for the name edit, registration helpers, text size, result outcome, door discovery and the receipt.
+
+**Partly done**
+- **Bangla pass**: the new strings were reviewed; existing student messages were not re-read.
+
+**Not done**
+- **P4 (student details)**: the sticky action bar on the exam page and the sitting bar need FND's `StickyActionBar`, which is not merged. The hero spacing, the 320 px checks and the dark-mode checks were not done.
+- **F10 (rest)**: upload replace state, written deadline transition, offline flush, take and retake redirects, and the payment-result polling stop after 60 s.
+- **UF1 print**: `PrintArea` is not used; the receipt hides its buttons with `print:hidden`, but the shell is not hidden in print until FND's print styles merge.
+
+**API assumptions** (check against API's G12 and G7 when merged):
+- `GET /api/v1/public/live-exams?examType=&upcoming=true&size=5` returns a page of exams with `moduleTitleEn` and `moduleTitleBn` on each row.
+- `GET /api/v1/public/live-exam-modules?q=` returns a page of modules.
+- `PATCH /api/v1/me` with `{ "fullName" }` returns `Me`.
+
+**Contract changes:** none to FND or API contracts. `HubExam` now includes `passPercent`.
+
+**Notes for other agents:** `components/ui/toast.tsx` (FND) still uses `text-[15px]`; it is FND's file, so it was not changed here.
+
+**Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc --noEmit` clean; `npm test` (single process) 238 passed in 35 files; `npm run build` under the lock: passed.
+
+### Addendum — STU second pass
+
+- **Read now:** `docs/exam-site/ui/client-mockup.html` and `docs/exam-site/ui/student-flow-prompts.md` (visual rules, standards, do-not-draw list). Checked: no negative-mark copy, no photo upload, no SMS code, and the login and reset copy follows the glossary (the invalid-code sentence in `bangla-copy.md` wins over the briefs).
+- **P4, now done:** hero spacing 42 px top and 30 px bottom, gold left border on the countdown card, the exam page's primary action pinned on phones through a local `StickyActionBar` stand-in (`components/student/stand-ins/sticky-action-bar.tsx`; delete it and switch the import once FND merges), roomier paper options (12 px vertical padding).
+- **P4, still open:** the sitting jump grid stays at 44 px cells (the README's student target), not the 40 px in P4. The results stat numbers in gold need FND's `Stat`, and the routine table's fade edge and the status pill's no-wrap need FND's `Pill` or a change to my `status-pill.tsx`. Dark-mode parity and the 320 px checks were not run on a device.
+- **F10, now done:** the payment polling rule is extracted as `paymentPollDelay` and tested (3 s while pending, stops at one minute or at a final answer). The written answer replacement is tested (stored note waits until the new file is sent). **Not covered:** the deadline passing during an upload. The test harness raised the rejected `ApiError` from the test body; the case is left for a later pass.
+- **F10, still open:** take and retake redirects, the offline flush beyond the existing MCQ backup test.
+- **Bangla pass:** my student namespaces (`auth`, `account`, `catalog`, `purchase`, `result`, `sitting`, `notices`, `legal`) checked against the forbidden-term list; no changes were needed. `legacy`, `staff*` and FND's `common` are not STU's and were not touched.
+
+**Checks:** lint 0 errors; `tsc` clean; `npm test` (single process) 242 passed in 37 files; the build is re-run under the lock after these changes (see the build line above).
+
+### Addendum 2 — STU
+
+- **F10, now done:** take and retake redirects (a live start opens the paper in `live` mode, a later attempt in `retake` mode) and the offline flush (answers kept while offline are sent once the connection returns).
+- **F10, still open:** the deadline passing during a written upload (the test harness raised the rejected error from the test body; left for a later pass).
+- **Build:** the app code has not changed since the build that passed under the lock (BUILD_EXIT 0); later commits only add tests and docs.
+- **Checks:** `tsc` clean; lint 0 errors; `npm test` (single process) 245 passed in 39 files.
+
 ## Report — FND
 
 Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit. Ready to merge, with one known gap below (P2/P3 component list).
@@ -352,3 +404,15 @@ Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit.
 - None to existing props. Additive only: `Button` gets `size`; `Skeleton` gets `height`; `useUnsavedChangesGuard` keeps its signature and the shells mount `UnsavedChangesDialog`.
 - `useListPrefs(key)` returns `[prefs, setPrefs]`. `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`.
 - `common` gains: `shortcuts`, `sectionNav`, `quickSearch`, `unsaved`, `unreadNotices` (bn and en).
+
+### Addendum 3 — STU, integrator review fixes
+
+- **ST-1 (module search by door type):** the rule is now `searchMatches` (title match and modules with exams of this door's type; an unknown count from an older API is kept), tested directly.
+- **ST-2 (upcoming price):** a row shows a price only when one is set. Module-only exams have no price field in the upcoming data, so they show no price line rather than "price not set". To show the right line, the API should send whether an exam is sold only inside a module.
+- **ST-3 (receipt name):** the receipt shows the signed-in student's name.
+- **ST-4 (name save):** field errors from the server show under the name field. A 405, or a bare 404 that the client maps to `INTERNAL_ERROR`, shows "coming soon". `ApiError` carries no HTTP status, so this matches on the status text; the cleaner fix is to put the status on `ApiError` in `client.ts` (not STU's file).
+- **ST-5 (pills):** the status and type pills wrap in a no-wrap span.
+- **ST-7 (sticky bar):** the exam page uses FND's `StickyActionBar`; the stand-in is deleted.
+- **ST-8 (print):** the receipt sheet is wrapped in FND's `PrintArea`.
+- **Notice bell:** `text-white` changed to `text-on-warn`.
+- **Merge:** `catalog-acquisition` (with FND) merged; the one conflict was in this plan doc, and both report sections are kept.

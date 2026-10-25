@@ -15,10 +15,10 @@ export function LegalPage({ page }: { page: LegalKey }) {
         title={t(`legal.${page}.title`)}
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t(`legal.${page}.title`) }]}
       />
-      <p role="note" className="mb-4 rounded-control bg-warn/10 px-4 py-3 text-sm text-warn">
+      <p role="note" className="mb-4 rounded-control bg-warn/10 px-4 py-3 text-body text-warn">
         {t("legal.banner")}
       </p>
-      <Card padding="lg" className="grid gap-4 text-[16px] leading-relaxed">
+      <Card padding="lg" className="grid gap-4 text-body leading-relaxed">
         <p>{t(`legal.${page}.body1`)}</p>
         <p className="text-muted">{t(`legal.${page}.body2`)}</p>
       </Card>

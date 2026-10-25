@@ -23,6 +23,11 @@ const sitting = {
     textSmaller: "লেখা ছোট করুন",
     textLarger: "লেখা বড় করুন",
   },
+  textSize: {
+    label: "লেখার আকার",
+    smaller: "লেখা ছোট করুন",
+    larger: "লেখা বড় করুন",
+  },
   paper: {
     question: "প্রশ্ন {number}",
     marks: "{marks} নম্বর",

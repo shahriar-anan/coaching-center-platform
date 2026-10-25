@@ -190,7 +190,10 @@ export function evaluatedPdfPath(examId: string) {
 }
 
 /** One row of the student's module exam list (the fields the results hub needs). */
-export type HubExam = Pick<StudentExam, "id" | "moduleId" | "titleEn" | "titleBn" | "examType" | "liveAt" | "myStatus">;
+export type HubExam = Pick<
+  StudentExam,
+  "id" | "moduleId" | "titleEn" | "titleBn" | "examType" | "liveAt" | "myStatus" | "passPercent"
+>;
 
 type PageOf<T> = PageResponse<T>;
 

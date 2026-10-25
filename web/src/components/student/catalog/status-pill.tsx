@@ -17,13 +17,19 @@ export function ExamStatusPill({
   const { t } = useLocale();
   const pill = statusPill(status, { examType, retakeAvailable });
   return (
-    <Pill tone={pill.tone} pulse={pill.pulse}>
-      {t(pill.key)}
-    </Pill>
+    <span className="inline-flex whitespace-nowrap">
+      <Pill tone={pill.tone} pulse={pill.pulse}>
+        {t(pill.key)}
+      </Pill>
+    </span>
   );
 }
 
 export function TypePill({ type }: { type: ExamType }) {
   const { t } = useLocale();
-  return <Pill tone="accent">{t(typeLabelKey(type))}</Pill>;
+  return (
+    <span className="inline-flex whitespace-nowrap">
+      <Pill tone="accent">{t(typeLabelKey(type))}</Pill>
+    </span>
+  );
 }

@@ -33,6 +33,13 @@ const result = {
   },
   review: {
     title: "উত্তর মিলিয়ে দেখুন",
+    filterAll: "সব",
+    filterWrong: "ভুল",
+    filterRight: "সঠিক",
+    filterSkipped: "উত্তর দেননি",
+    filterEmpty: "এই ধরনের কোনো প্রশ্ন নেই।",
+    jumpLabel: "প্রশ্নের তালিকা",
+    jumpItem: "প্রশ্ন {number}: {outcome}",
     afterDeadline: "সময় শেষ হলে সঠিক উত্তর ও ব্যাখ্যা দেখা যাবে।",
     yourAnswer: "আপনার উত্তর",
     correct: "সঠিক উত্তর",
@@ -42,6 +49,7 @@ const result = {
   },
   hub: {
     title: "ফলাফল",
+    passLine: "পাস নম্বর {p}%",
     summaryTaken: "দেওয়া পরীক্ষা",
     summaryPassed: "উত্তীর্ণ",
     summaryWaiting: "ফলাফল বাকি",

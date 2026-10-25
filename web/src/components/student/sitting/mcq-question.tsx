@@ -50,6 +50,8 @@ export const McqQuestion = memo(function McqQuestion({
   onFlag,
 }: Props) {
   const stemFace = paperLanguage === "BN" ? "font-bn" : "font-latin";
+  /** The paper's text size, set by the wrapper (see paper-text-size.tsx). */
+  const paperFont = { fontSize: "var(--paper-font, 16px)" };
 
   return (
     <article
@@ -58,19 +60,19 @@ export const McqQuestion = memo(function McqQuestion({
       className="scroll-mt-40 rounded-card border border-border bg-card p-4"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-muted">{questionLabel}</h3>
+        <h3 className="text-label font-semibold text-muted">{questionLabel}</h3>
         {editable ? (
           <button
             type="button"
             aria-pressed={flagged}
             onClick={() => onFlag(question.id)}
-            className="min-h-11 rounded-control px-3 text-sm text-text underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            className="min-h-11 rounded-control px-3 text-meta text-text underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {flagged ? `✓ ${labels.flag}` : labels.flag}
           </button>
         ) : null}
       </div>
-      <p className={`mt-2 text-base leading-relaxed text-text ${stemFace}`}>{question.stem}</p>
+      <p className={`mt-2 leading-relaxed text-text ${stemFace}`} style={paperFont}>{question.stem}</p>
       <ul className="mt-3 flex flex-col gap-2" role="radiogroup" aria-label={questionLabel}>
         {question.options.map((option, position) => {
           const picked = option.id === selectedOptionId;
@@ -91,25 +93,25 @@ export const McqQuestion = memo(function McqQuestion({
                 aria-checked={picked}
                 disabled={!editable}
                 onClick={() => onPick(question.id, option.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-control border-2 bg-bg px-3 py-2 text-left text-text disabled:cursor-default ${border} ${stemFace} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-control border-2 bg-bg px-3 py-3 text-left text-text disabled:cursor-default ${border} ${stemFace} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
               >
                 <span
                   aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-sm"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-meta"
                 >
                   {letters[position] ?? ""}
                 </span>
-                <span className="flex-1">{option.text}</span>
-                {picked && !reviewing ? <span className="text-sm font-semibold">{labels.selected}</span> : null}
-                {isCorrect ? <span className="text-sm font-semibold text-ok">{labels.correct}</span> : null}
-                {isWrongChoice ? <span className="text-sm font-semibold text-warn">{labels.yourAnswer}</span> : null}
+                <span className="flex-1" style={paperFont}>{option.text}</span>
+                {picked && !reviewing ? <span className="text-meta font-semibold">{labels.selected}</span> : null}
+                {isCorrect ? <span className="text-meta font-semibold text-ok">{labels.correct}</span> : null}
+                {isWrongChoice ? <span className="text-meta font-semibold text-warn">{labels.yourAnswer}</span> : null}
               </button>
             </li>
           );
         })}
       </ul>
       {reviewing && question.explanation ? (
-        <p className="mt-3 rounded-control bg-bg p-3 text-sm text-muted">
+        <p className="mt-3 rounded-control bg-bg p-3 text-body text-muted">
           <span className="font-semibold text-text">{labels.explanation}: </span>
           {question.explanation}
         </p>

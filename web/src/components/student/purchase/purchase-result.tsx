@@ -51,7 +51,7 @@ function SignInForm() {
     <>
       <PageHeader title={t("purchase.result.signInTitle")} />
       <form className="grid gap-3" onSubmit={onSubmit}>
-        <label className="grid gap-1 text-sm font-semibold">
+        <label className="grid gap-1 text-label font-semibold">
           {t("purchase.result.identifier")}
           <input
             name="identifier"
@@ -62,7 +62,7 @@ function SignInForm() {
             onChange={(event) => setIdentifier(event.target.value)}
           />
         </label>
-        <label className="grid gap-1 text-sm font-semibold">
+        <label className="grid gap-1 text-label font-semibold">
           {t("purchase.result.password")}
           <input
             name="password"
@@ -75,7 +75,7 @@ function SignInForm() {
           />
         </label>
         {failed ? (
-          <p role="alert" className="text-sm text-danger">{t("purchase.result.signInFailed")}</p>
+          <p role="alert" className="text-body text-danger">{t("purchase.result.signInFailed")}</p>
         ) : null}
         <Button type="submit" fullWidth loading={submitting}>
           {submitting ? t("purchase.result.signingIn") : t("purchase.result.signIn")}
@@ -88,7 +88,7 @@ function SignInForm() {
 function Outcome({ title, body, actions }: { title: string; body: string; actions: React.ReactNode }) {
   return (
     <div className="grid gap-4 rounded-card border border-border bg-card p-6 text-center">
-      <h2 className="text-xl font-bold">{title}</h2>
+      <h2 className="text-section font-bold">{title}</h2>
       <p className="text-muted">{body}</p>
       <div className="flex flex-wrap justify-center gap-2">{actions}</div>
     </div>
@@ -208,7 +208,7 @@ export function PurchaseResult() {
     <>
       <PageHeader title={t("purchase.result.title")} breadcrumbs={crumbs} />
       {status.data ? (
-        <p className="mb-3 text-sm text-muted">
+        <p className="mb-3 text-body text-muted">
           {t("purchase.result.tranId")}: <span className="font-mono">{tranId}</span>
         </p>
       ) : null}

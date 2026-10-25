@@ -96,7 +96,7 @@ function LoginForm() {
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.login.title") }]}
       />
       <Card padding="lg" className="grid gap-5">
-        {expired ? <p className="text-[15px] text-muted">{t("auth.login.expired")}</p> : null}
+        {expired ? <p className="text-body text-muted">{t("auth.login.expired")}</p> : null}
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
           <Field label={t("auth.login.identifier")} error={fieldError.identifier} required>
             <TextInput
@@ -130,11 +130,11 @@ function LoginForm() {
         </form>
 
         <div className="grid gap-3">
-          <p className="text-center text-sm text-muted">{t("auth.login.divider")}</p>
+          <p className="text-center text-body text-muted">{t("auth.login.divider")}</p>
           {googleEnabled ? (
             <a
               href={apiUrl("/api/v1/auth/google")}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-control border border-border bg-card px-5 text-[15px] font-semibold text-text hover:bg-bg"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-control border border-border bg-card px-5 text-label font-semibold text-text hover:bg-bg"
             >
               {t("auth.login.googleButton")}
             </a>
@@ -150,7 +150,7 @@ function LoginForm() {
           )}
         </div>
 
-        <nav aria-label={t("common.nav.main")} className="grid gap-2 text-center text-[15px]">
+        <nav aria-label={t("common.nav.main")} className="grid gap-2 text-center text-body">
           <Link href="/forgot-password" className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.forgot")}
           </Link>

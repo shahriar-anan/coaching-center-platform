@@ -5,7 +5,13 @@ import { Suspense, useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { RequireStudent } from "@/lib/auth/guards";
-import { useResendEmailVerification, useVerifyEmail } from "@/lib/api/exam/account";
+import { ApiError } from "@/lib/api/errors";
+import {
+  isNotDeployed,
+  useChangeName,
+  useResendEmailVerification,
+  useVerifyEmail,
+} from "@/lib/api/exam/account";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -32,8 +38,8 @@ export default function AccountPage() {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <span className="text-sm text-muted">{label}</span>
-      <div className="flex min-w-0 flex-wrap items-center gap-2 text-[15px] text-text">{children}</div>
+      <span className="text-meta text-muted">{label}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-body text-text">{children}</div>
     </div>
   );
 }
@@ -44,6 +50,10 @@ function AccountView() {
   const { toast } = useToast();
   const resend = useResendEmailVerification();
   const verify = useVerifyEmail();
+  const changeName = useChangeName();
+  const [nameOpen, setNameOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -65,6 +75,37 @@ function AccountView() {
       toast({ title: t("account.profile.codeSent"), tone: "info" });
     } catch {
       setCodeError(t("common.states.errorBody"));
+    }
+  }
+
+  function openName() {
+    setName(user.fullName ?? "");
+    setNameError(null);
+    setNameOpen(true);
+  }
+
+  async function saveName() {
+    const next = name.trim();
+    if (next.length < 1 || next.length > 100) {
+      setNameError(t("account.profile.nameInvalid"));
+      focusFirst(["account-name"]);
+      return;
+    }
+    setNameError(null);
+    try {
+      await changeName.mutateAsync({ fullName: next });
+      await refreshMe();
+      toast({ title: t("account.profile.nameSaved"), tone: "ok" });
+      setNameOpen(false);
+    } catch (err) {
+      if (isNotDeployed(err)) {
+        setNameError(t("account.profile.nameNotReady"));
+      } else if (err instanceof ApiError && err.fieldErrors?.some((item) => item.field === "fullName")) {
+        setNameError(t("account.profile.nameInvalid"));
+      } else {
+        setNameError(t("common.states.errorBody"));
+      }
+      focusFirst(["account-name"]);
     }
   }
 
@@ -95,8 +136,35 @@ function AccountView() {
       <Card padding="lg" className="divide-y divide-border">
         <Row label={t("account.profile.name")}>
           <span className="font-semibold">{user.fullName}</span>
+          {nameOpen ? null : (
+            <Button variant="ghost" onClick={openName}>
+              {t("account.profile.editName")}
+            </Button>
+          )}
         </Row>
-        <p className="pb-2 text-sm text-muted">{t("account.profile.nameNote")}</p>
+        {nameOpen ? (
+          <div className="grid gap-3 pb-3">
+            <Field label={t("account.profile.nameLabel")} hint={t("account.profile.nameHelp")} error={nameError ?? undefined}>
+              <TextInput
+                id="account-name"
+                name="fullName"
+                autoComplete="name"
+                maxLength={100}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                invalid={Boolean(nameError)}
+              />
+            </Field>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button onClick={saveName} loading={changeName.isPending}>
+                {t("account.profile.nameSave")}
+              </Button>
+              <Button variant="secondary" onClick={() => setNameOpen(false)}>
+                {t("account.profile.nameCancel")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <Row label={t("account.profile.email")}>
           <span className="break-all">{user.email}</span>
@@ -156,7 +224,7 @@ function AccountView() {
       </Card>
 
       <section className="mt-6 grid gap-3" aria-labelledby="account-password-title">
-        <h2 id="account-password-title" className="text-xl font-bold text-text">
+        <h2 id="account-password-title" className="text-section font-bold text-text">
           {t("account.password.title")}
         </h2>
         <Card padding="lg">

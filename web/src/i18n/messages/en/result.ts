@@ -33,6 +33,13 @@ const result = {
   },
   review: {
     title: "Check your answers",
+    filterAll: "All",
+    filterWrong: "Wrong",
+    filterRight: "Right",
+    filterSkipped: "Not answered",
+    filterEmpty: "No questions in this group.",
+    jumpLabel: "Question list",
+    jumpItem: "Question {number}: {outcome}",
     afterDeadline: "Correct answers and explanations appear when time runs out.",
     yourAnswer: "Your answer",
     correct: "Correct answer",
@@ -42,6 +49,7 @@ const result = {
   },
   hub: {
     title: "Results",
+    passLine: "Pass mark {p}%",
     summaryTaken: "Exams taken",
     summaryPassed: "Passed",
     summaryWaiting: "Results waiting",

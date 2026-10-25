@@ -11,7 +11,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat, StatRow } from "@/components/ui/stat";
+import { Tabs } from "@/components/ui/tabs";
 import { McqQuestion, type OptionLabels } from "@/components/student/sitting/mcq-question";
+import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -20,6 +22,22 @@ import { formatNumber, pickTitle } from "@/lib/format";
 
 const LETTERS_BN = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"] as const;
 const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
+
+type Outcome = "right" | "wrong" | "skipped";
+type ReviewFilter = "all" | Outcome;
+
+/** Right, wrong or not answered, from the saved selection and the correct flag the server sends after the deadline. */
+export function outcomeOf(question: { options: { selected: boolean | null; correct: boolean | null }[] }): Outcome {
+  const picked = question.options.find((option) => option.selected === true);
+  if (!picked) return "skipped";
+  return picked.correct === true ? "right" : "wrong";
+}
+
+const jumpTone: Record<Outcome, string> = {
+  right: "border-ok bg-ok/10 text-ok",
+  wrong: "border-danger bg-danger/10 text-danger",
+  skipped: "border-border bg-bg text-muted",
+};
 
 /**
  * Result for one student's sitting. MCQ: score, pass, and the review after the deadline. Written:
@@ -34,6 +52,8 @@ export function ResultPage({ examId }: { examId: string }) {
   const board = useLeaderboard(examId);
   const mine = board.data?.rows.find((row) => row.mine) ?? null;
   const [showScript, setShowScript] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  const textSize = usePaperTextSize();
 
   const header = (
     <PageHeader
@@ -115,6 +135,19 @@ export function ResultPage({ examId }: { examId: string }) {
   };
   const letters = exam.data?.paperLanguage === "EN" ? LETTERS_EN : LETTERS_BN;
 
+  const reviewItems = (data.questions ?? []).map((question, index) => ({
+    question,
+    number: index + 1,
+    outcome: outcomeOf(question),
+  }));
+  const outcomeCount = (outcome: Outcome) => reviewItems.filter((item) => item.outcome === outcome).length;
+  const outcomeLabel: Record<Outcome, string> = {
+    right: t("result.review.filterRight"),
+    wrong: t("result.review.filterWrong"),
+    skipped: t("result.review.filterSkipped"),
+  };
+  const visibleItems = reviewItems.filter((item) => reviewFilter === "all" || item.outcome === reviewFilter);
+
   return (
     <div className="flex flex-col gap-4 pb-8">
       {header}
@@ -139,13 +172,13 @@ export function ResultPage({ examId }: { examId: string }) {
         <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
       ) : null}
 
-      {notSubmitted ? <p className="text-sm text-muted">{t("result.written.notSubmitted")}</p> : null}
+      {notSubmitted ? <p className="text-body text-muted">{t("result.written.notSubmitted")}</p> : null}
 
-      {awaiting && !notSubmitted ? <p className="text-sm text-muted">{t("result.written.awaiting")}</p> : null}
+      {awaiting && !notSubmitted ? <p className="text-body text-muted">{t("result.written.awaiting")}</p> : null}
 
       {published && data.comment ? (
         <Card>
-          <h2 className="text-sm font-semibold text-muted">{t("result.written.comment")}</h2>
+          <h2 className="text-label font-semibold text-muted">{t("result.written.comment")}</h2>
           <p className="mt-2 whitespace-pre-line text-text">{data.comment}</p>
         </Card>
       ) : null}
@@ -168,31 +201,57 @@ export function ResultPage({ examId }: { examId: string }) {
       ) : null}
 
       {!written && data.questions ? (
-        <section aria-labelledby="review-title" className="flex flex-col gap-3">
-          <h2 id="review-title" className="text-lg font-semibold text-text">
+        <section aria-labelledby="review-title" className="flex flex-col gap-3" style={textSize.style}>
+          <h2 id="review-title" className="text-section font-semibold text-text">
             {t("result.review.title")}
           </h2>
-          {data.questions.map((question, index) => (
-            <McqQuestion
-              key={question.id}
-              question={question}
-              index={index + 1}
-              selectedOptionId={question.options.find((option) => option.selected === true)?.id}
-              flagged={false}
-              paperLanguage={exam.data?.paperLanguage === "EN" ? "EN" : "BN"}
-              editable={false}
-              reviewing
-              labels={labels}
-              questionLabel={t("result.review.question", { number: n(index + 1) })}
-              letters={letters}
-              onPick={() => undefined}
-              onFlag={() => undefined}
-            />
+          <Tabs
+            tabs={[
+              { value: "all", label: t("result.review.filterAll"), badge: reviewItems.length },
+              { value: "wrong", label: t("result.review.filterWrong"), badge: outcomeCount("wrong") },
+              { value: "right", label: t("result.review.filterRight"), badge: outcomeCount("right") },
+              { value: "skipped", label: t("result.review.filterSkipped"), badge: outcomeCount("skipped") },
+            ]}
+            value={reviewFilter}
+            onChange={(value) => setReviewFilter(value as ReviewFilter)}
+            ariaLabel={t("result.review.title")}
+          />
+          <PaperTextSizeControl size={textSize} className="justify-end" />
+          <nav aria-label={t("result.review.jumpLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] gap-2">
+            {visibleItems.map((item) => (
+              <a
+                key={item.question.id}
+                href={`#review-q-${item.number}`}
+                aria-label={t("result.review.jumpItem", { number: n(item.number), outcome: outcomeLabel[item.outcome] })}
+                className={`flex h-10 items-center justify-center rounded-control border text-body tabular-nums ${jumpTone[item.outcome]}`}
+              >
+                {n(item.number)}
+              </a>
+            ))}
+          </nav>
+          {visibleItems.length === 0 ? <p className="text-body text-muted">{t("result.review.filterEmpty")}</p> : null}
+          {visibleItems.map((item) => (
+            <div key={item.question.id} id={`review-q-${item.number}`} className="scroll-mt-24">
+              <McqQuestion
+                question={item.question}
+                index={item.number}
+                selectedOptionId={item.question.options.find((option) => option.selected === true)?.id}
+                flagged={false}
+                paperLanguage={exam.data?.paperLanguage === "EN" ? "EN" : "BN"}
+                editable={false}
+                reviewing
+                labels={labels}
+                questionLabel={t("result.review.question", { number: n(item.number) })}
+                letters={letters}
+                onPick={() => undefined}
+                onFlag={() => undefined}
+              />
+            </div>
           ))}
         </section>
       ) : null}
 
-      {!written && !data.questions ? <p className="text-sm text-muted">{t("result.review.afterDeadline")}</p> : null}
+      {!written && !data.questions ? <p className="text-body text-muted">{t("result.review.afterDeadline")}</p> : null}
 
       <Link href={`/exam/${examId}/leaderboard`} className="text-accent underline underline-offset-4">
         {t("result.page.leaderboard")}

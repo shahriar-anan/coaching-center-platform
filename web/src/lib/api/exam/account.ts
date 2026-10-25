@@ -60,6 +60,14 @@ export function useChangePhone() {
   });
 }
 
+/** Changes the student's own display name. Staff names stay as created. Returns the updated user. */
+export function useChangeName() {
+  return useMutation({
+    mutationFn: (body: { fullName: string }) =>
+      apiRequest<Me>("/api/v1/me", { method: "PATCH", body }),
+  });
+}
+
 /** Sets the phone once, for a Google sign-up that has none. */
 export function useSetPhone() {
   return useMutation({
@@ -87,7 +95,13 @@ export function useResendEmailVerification() {
   });
 }
 
-/** True for the 404 an API that predates an endpoint returns. Screens show "not yet" instead of an error. */
+/**
+ * True when an API that predates an endpoint answered: a 404 with a body, or a bare
+ * 404 or 405 that the client maps to INTERNAL_ERROR with the status text as message.
+ * Screens show "not yet" instead of an error.
+ */
 export function isNotDeployed(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "RESOURCE_NOT_FOUND";
+  if (!(error instanceof ApiError)) return false;
+  if (error.code === "RESOURCE_NOT_FOUND") return true;
+  return error.code === "INTERNAL_ERROR" && /not found|method not allowed/i.test(error.message);
 }

@@ -29,6 +29,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -36,7 +38,7 @@ import { ExamStatusPill, TypePill } from "./status-pill";
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-card border border-border bg-card p-4">
-      <h2 className="mb-2 text-[17px] font-bold">{title}</h2>
+      <h2 className="mb-2 text-card font-bold">{title}</h2>
       {children}
     </section>
   );
@@ -45,8 +47,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-control bg-bg p-3 text-center">
-      <p className="text-lg font-bold">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-card font-bold">{value}</p>
+      <p className="text-meta text-muted">{label}</p>
     </div>
   );
 }
@@ -62,8 +64,18 @@ export function ExamPage({ examId }: { examId: string }) {
   const [moduleBuying, setModuleBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
 
+  const { toast } = useToast();
   const exam = usePublicExam(examId);
   const mine = useMyExam(examId, isStudent);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({ title: t("catalog.exam.linkCopied"), tone: "ok" });
+    } catch {
+      toast({ title: t("catalog.exam.linkCopyFailed"), tone: "danger" });
+    }
+  }
   const data = exam.data;
   const moduleId = data?.moduleId ?? "";
   const moduleQuery = usePublicModule(moduleId);
@@ -140,7 +152,7 @@ export function ExamPage({ examId }: { examId: string }) {
       primary = (
         <div className="grid gap-2">
           <Button fullWidth disabled>{t("catalog.exam.startExam")}</Button>
-          {startsAt ? <p className="text-center text-sm text-muted">{t("catalog.exam.startsAt", { when: formatDateTime(startsAt, locale) })}</p> : null}
+          {startsAt ? <p className="text-center text-body text-muted">{t("catalog.exam.startsAt", { when: formatDateTime(startsAt, locale) })}</p> : null}
         </div>
       );
     } else if (status === "OPEN") {
@@ -167,16 +179,19 @@ export function ExamPage({ examId }: { examId: string }) {
       </div>
 
       <div className="mb-4 grid gap-3">
-        {primary}
+        {primary ? <StickyActionBar>{primary}</StickyActionBar> : null}
         {isStudent && !owned && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
           <Button variant="secondary" fullWidth onClick={() => setModuleBuying(true)}>
             {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
           </Button>
         ) : null}
+        <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
+          {t("catalog.exam.copyLink")}
+        </Button>
         {owned && beforeStart && startsAt ? (
           <Card>
-            <p className="text-sm text-muted">{t("catalog.exam.startsIn")}</p>
-            <p className="text-lg font-bold"><Countdown deadline={startsAt} /></p>
+            <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>
+            <p className="text-card font-bold"><Countdown deadline={startsAt} /></p>
           </Card>
         ) : null}
       </div>
@@ -264,6 +279,7 @@ export function ExamPage({ examId }: { examId: string }) {
           }}
         />
       ) : null}
+      <div className="h-28 md:hidden" aria-hidden="true" />
     </>
   );
 }

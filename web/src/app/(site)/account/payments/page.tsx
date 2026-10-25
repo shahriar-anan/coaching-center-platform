@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Check, Copy } from "lucide-react";
@@ -11,6 +12,7 @@ import { formatDateTime, formatMoney, pickTitle } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { DoorActions } from "@/components/student/catalog/door-actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Pill, type PillTone } from "@/components/ui/pill";
@@ -61,7 +63,7 @@ function TranCell({ value }: { value: string | null }) {
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <code className="font-latin text-[13px] tabular-nums break-all">{value}</code>
+      <code className="font-latin text-meta tabular-nums break-all">{value}</code>
       <IconButton
         label={t("common.actions.copy")}
         className="size-9"
@@ -95,7 +97,7 @@ function PaymentsView() {
       cell: (row) => (
         <span className="grid gap-0.5">
           <span className="font-semibold">{productTitle(row, locale)}</span>
-          <span className="text-sm text-muted">
+          <span className="text-meta text-muted">
             {row.scope === "MODULE" ? t("account.payments.kindModule") : t("account.payments.kindExam")}
             {row.paymentChannel ? ` · ${t("account.payments.method")}: ${row.paymentChannel}` : ""}
           </span>
@@ -119,13 +121,27 @@ function PaymentsView() {
       key: "date",
       header: t("account.payments.column.date"),
       mobileLabel: t("account.payments.column.date"),
-      cell: (row) => <span className="text-sm">{formatDateTime(row.createdAt, locale)}</span>,
+      cell: (row) => <span className="text-meta">{formatDateTime(row.createdAt, locale)}</span>,
     },
     {
       key: "tran",
       header: t("account.payments.tranId"),
       mobileLabel: t("account.payments.tranId"),
       cell: (row) => <TranCell value={row.tranId} />,
+    },
+    {
+      key: "receipt",
+      header: t("account.receipt.open"),
+      mobileLabel: t("account.receipt.open"),
+      cell: (row) =>
+        row.status === "PAID" ? (
+          <Link
+            href={`/account/payments/receipt?order=${encodeURIComponent(row.orderId)}&page=${params.page}`}
+            className="font-semibold text-accent underline underline-offset-4"
+          >
+            {t("account.receipt.open")}
+          </Link>
+        ) : null,
     },
   ];
 
@@ -158,7 +174,7 @@ function PaymentsView() {
             rows={rows}
             rowKey={(row) => row.orderId}
             onRowClick={openRow}
-            empty={<EmptyState title={t("account.payments.empty")} />}
+            empty={<EmptyState title={t("account.payments.empty")} body={t("account.payments.emptyBody")} action={<DoorActions />} />}
           />
           <Pagination
             page={params.page}
