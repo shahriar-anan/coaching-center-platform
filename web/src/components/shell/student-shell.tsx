@@ -11,6 +11,8 @@ import { staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { NoticeBell } from "@/components/student/notice-bell";
+import { formatNumber } from "@/lib/format";
+import { useUnreadCount } from "@/lib/api/exam/notices";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { cn } from "@/components/ui/cn";
 
@@ -114,8 +116,11 @@ function MenuLink({
 }
 
 function TabBar() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const pathname = usePathname() ?? "/";
+  // Same query as the header bell, so the badge costs no extra request.
+  const { data: unread } = useUnreadCount();
+  const unreadCount = unread?.count ?? 0;
   return (
     <nav
       aria-label={t("common.nav.tabs")}
@@ -136,7 +141,17 @@ function TabBar() {
                   active ? "text-text-accent" : "text-muted",
                 )}
               >
-                <Icon aria-hidden="true" className={cn("size-5", active && "text-accent")} />
+                <span className="relative inline-flex">
+                  <Icon aria-hidden="true" className={cn("size-5", active && "text-accent")} />
+                  {tab.key === "notices" && unreadCount > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -end-2 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-warn-fill px-1 text-pill text-white tabular-nums"
+                    >
+                      {formatNumber(unreadCount, locale)}
+                    </span>
+                  ) : null}
+                </span>
                 {t(`common.nav.${tab.key}`)}
               </Link>
             </li>
