@@ -478,7 +478,7 @@ function ScoreCard({
       <h2 id="score-title" className="text-label font-semibold text-muted">
         {t("sitting.score.title")}
       </h2>
-      <p className="mt-1 text-2xl font-semibold text-accent tabular-nums">
+      <p className="mt-1 text-section font-semibold text-accent tabular-nums">
         {t("sitting.score.value", { score: n(result.score ?? 0), maximum: n(result.maximum) })}
         {result.passed !== null ? ` · ${result.passed ? t("sitting.score.passed") : t("sitting.score.failed")}` : ""}
       </p>
