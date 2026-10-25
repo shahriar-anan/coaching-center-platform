@@ -1,6 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import { Field } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -16,9 +18,11 @@ import { useLocale } from "@/i18n/locale-context";
 
 export default function StaffPaymentsPage() {
   return (
-    <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
-      <PaymentsList />
-    </RequireStaff>
+    <Suspense fallback={<Skeleton variant="rows" count={5} />}>
+      <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
+        <PaymentsList />
+      </RequireStaff>
+    </Suspense>
   );
 }
 

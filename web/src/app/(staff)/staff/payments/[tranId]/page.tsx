@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -12,6 +12,14 @@ import { useStaffPaymentDetail } from "@/lib/api/exam/staff-ops";
 import { useLocale } from "@/i18n/locale-context";
 
 export default function StaffPaymentDetailPage({ params }: { params: Promise<{ tranId: string }> }) {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <PaymentDetailRoute params={params} />
+    </Suspense>
+  );
+}
+
+function PaymentDetailRoute({ params }: { params: Promise<{ tranId: string }> }) {
   const { tranId: raw } = use(params);
   return (
     <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
