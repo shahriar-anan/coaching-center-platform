@@ -177,6 +177,11 @@ const common = {
     loading: "Searching…",
     empty: "No matches",
   },
+  unsaved: {
+    title: "Leave without saving?",
+    body: "Your changes have not been saved yet.",
+    leave: "Leave",
+  },
   pdf: {
     placeholder: "PDF",
     loading: "Loading PDF…",

@@ -14,6 +14,7 @@ import { NoticeBell } from "@/components/student/notice-bell";
 import { formatNumber } from "@/lib/format";
 import { useUnreadCount } from "@/lib/api/exam/notices";
 import { OfflineBanner } from "@/components/ui/offline-banner";
+import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { cn } from "@/components/ui/cn";
 
 type TabItem = { href: string; key: "home" | "myExams" | "results" | "notices" | "account"; icon: typeof Home };
@@ -240,6 +241,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
         </nav>
       </footer>
       {showTabs ? <TabBar /> : null}
+      <UnsavedChangesDialog />
     </div>
   );
 }

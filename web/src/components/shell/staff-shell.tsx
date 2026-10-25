@@ -7,6 +7,7 @@ import { Menu, LogOut } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { Logo } from "@/components/shell/logo";
+import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { staffNavFor, type StaffNavItem } from "@/components/shell/staff-nav";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
         </header>
         <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 py-6 md:px-6">{children}</main>
       </div>
+      <UnsavedChangesDialog />
     </div>
   );
 }
