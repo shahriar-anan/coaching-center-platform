@@ -296,10 +296,10 @@ These come from how students, teachers and coaching-centre admins actually use e
 
 1. **Blockers:** G8 (staff question PDF) and U5's price section with G9 (exam price). When several agents run, follow [ws9-stages.md](ws9-stages.md) instead of this list.
 2. Part 3 P1 type scale and P6 clean-up.
-3. G1, G2, G3, G4, G7, G10, G11.
+3. G1, G2, G3, G4, G7, G10, G11, and the Part 6 core items C1, C2, C3 with their API (G14, G15, G16).
 4. U1, U2, U3 (instructor), then U4, U5, U6, U9 (exam creation journey).
 5. The rest of Part 3 (P2–P5) across all screens, including the new ones.
-6. Part 2 P0 (F1, F2), then the P1 items in Parts 1, 2 and 5 (G5, G6, G12, U7, U8, U10, U11, F3–F6, F10), then P2 (G13, F7–F9, U12).
+6. Part 2 P0 (F1, F2) and Part 7 P0 (UF3, UF7), then the P1 items in Parts 1, 2 and 5 (G5, G6, G12, U7, U8, U10, U11, F3–F6, F10), then P2 (G13, F7–F9, U12). Part 7 P1 items (UF1, UF2, UF6, UF8) go with the other P1 items; UF4, UF5, UF9, UF10 with P2.
 7. Part 4, the dev-server guide.
 
 ## Checks and report
