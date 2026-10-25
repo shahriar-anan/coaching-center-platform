@@ -65,4 +65,22 @@ A, E, F (small) first, then B, C, D, then G. Run each touched `*IT`, then the fu
 
 ## Report
 
-(Agent fills this in, including any contract change.)
+Done: A, B, C, D, E, F, G. All on `ui/ws1-api`.
+
+- A: `selected` is filled on every option during an open sitting; `correct` and `explanation` stay null until review. `LiveSittingIT` covers it.
+- B: `examType` on the four catalog reads, student and public. `mcqCount` and `writtenCount` on public module rows. Tests in `LivePublicCatalogIT`. `LiveCatalogIT` and `LiveExamIT` still green.
+- C: `GET /live-exam-modules/{moduleId}/roster`. `LiveRosterIT` (6 cases) green.
+- D: `GET /students/{id}/live-exam-access`, one row per roster membership and per purchase grant. An exam purchase row names its one exam in `exams`. `StudentAccessIT` green.
+- E: System Admin gets `LIVE_EXAM_ORDER_READ`. `a7-staff-payments.md` P1 updated.
+- F: `GET /me/live-exam-orders`. Own rows only, newest first, no `valId`. Tests in `LiveExamPurchaseIT`.
+- G: `DemoContentSeed` plus `DemoContentSeedRunner`, gated by `SEED_DEMO` on staging or dev. `ProfileStartup` refuses `SEED_DEMO` on prod. `DemoContentSeedIT` (4 cases) and `ProfileStartupTest` green. Run guide and cleanup in `api/.cursor/progress/ui-delivery/`.
+
+Contract changes: none to the JSON shapes in the brief. Two notes for the web agents:
+- The access list returns one row per grant, so a student with two exam purchases in one module gets two `EXAM_PURCHASE` rows. Each row has `exams` with one entry.
+- `GET /me/live-exam-orders` uses the same status words as `/live-exam-orders/status`.
+
+Checks: touched ITs green. Full suite from clean: 312 run, 2 failures, `BookOrderIT` and `CoursePurchaseIT` only (both 409 on the first call, the known test-data problem).
+
+New env names (no values): `SEED_DEMO`, `SEED_INSTRUCTOR_PHONE`, `SEED_INSTRUCTOR_EMAIL`, `SEED_INSTRUCTOR_NAME`, `SEED_INSTRUCTOR_PASSWORD`, `SEED_STUDENT_EMAIL` (optional).
+
+Notes for other agents: the demo catalog has modules ১৯তম বিজেএস, ২০তম বিজেএস and সাধারণ আইন অনুশীলন; the MCQ door has the Penal Code exam with 8 posted scores for the leaderboard, and the written Evidence exam has one published and one draft mark.

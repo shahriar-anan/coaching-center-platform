@@ -92,6 +92,14 @@ Bangla is the main language of the site, not a translation of the English. Write
 | Staff-only / student-only page | এই পাতাটি শুধু অ্যাডমিন ও শিক্ষকদের জন্য / এই পাতাটি শুধু শিক্ষার্থীদের জন্য | এই অংশ কর্মীদের জন্য |
 | Help | সাহায্য ও প্রশ্নোত্তর | |
 | Policy pages | শর্তাবলি / গোপনীয়তা নীতি / রিফান্ড নীতি / আমাদের সম্পর্কে / যোগাযোগ | ফেরত নীতি |
+| Menu / open / close | মেনু / খুলুন / বন্ধ করুন | |
+| Switch states | চালু / বন্ধ | |
+| Go to the admin panel | অ্যাডমিন প্যানেলে যান | |
+| Log in on the other site (split hosts) | অ্যাডমিন প্যানেলে লগইন করুন / শিক্ষার্থীদের সাইটে লগইন করুন | |
+| Time over / minutes left warning | সময় শেষ / আর {n} মিনিট বাকি | |
+| Choose or replace a file | পিডিএফ ফাইল বেছে নিন / ফাইল বদলান | |
+| Secure payment | নিরাপদ পেমেন্ট | |
+| Refund policy (link text) | রিফান্ড নীতি | |
 | Placeholder banner on policy pages | নমুনা লেখা — চূড়ান্ত লেখা শীঘ্রই যোগ হবে | নমুনা লেখা — ক্লায়েন্ট বদলাবেন |
 
 ## Phrases from the briefs, rewritten

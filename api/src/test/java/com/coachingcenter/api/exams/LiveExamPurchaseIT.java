@@ -298,13 +298,78 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 
-		for (String role : new String[] { "SYSTEM_ADMIN", "INSTRUCTOR" }) {
-			mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + token(seed(role))))
-				.andExpect(status().isForbidden());
-		}
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + token(seed("SYSTEM_ADMIN")))
+			.param("q", phone))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(2))
+			.andExpect(jsonPath("$.content[0].tranId").value(paid.get("tranId").asText()));
+		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + token(seed("INSTRUCTOR"))))
+			.andExpect(status().isForbidden());
 		mockMvc.perform(get("/api/v1/live-exam-orders").header("Authorization", "Bearer " + student))
 			.andExpect(status().isForbidden());
 		mockMvc.perform(get("/api/v1/live-exam-orders")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void aStudentReadsOnlyTheirOwnOrdersNewestFirst() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		UUID otherId = seed("STUDENT");
+		String other = token(otherId);
+		UUID module = publishPricedModule(master, "History", "300.00");
+		UUID exam = publishMcq(master, module, "History paper", "150.00", "2026-10-20T12:00:00+06:00");
+
+		JsonNode failed = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
+		gateway.mode(FakeLiveExamPaymentGateway.Mode.INVALID);
+		notice(failed.get("tranId").asText(), "success");
+		clock.set(TEN_AM.plusSeconds(60));
+		gateway.channel("BKASH-BKash");
+		JsonNode paid = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
+		payTran(paid.get("tranId").asText());
+		clock.set(TEN_AM.plusSeconds(120));
+		JsonNode open = initiate(student, "{\"moduleId\":\"" + module + "\"}", 201);
+		initiate(other, "{\"examId\":\"" + exam + "\"}", 201);
+
+		String body = mockMvc.perform(get("/api/v1/me/live-exam-orders").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(3))
+			.andExpect(jsonPath("$.content[0].tranId").value(open.get("tranId").asText()))
+			.andExpect(jsonPath("$.content[0].status").value("PENDING"))
+			.andExpect(jsonPath("$.content[0].scope").value("MODULE"))
+			.andExpect(jsonPath("$.content[0].moduleTitleEn").value("History"))
+			.andExpect(jsonPath("$.content[0].examTitleEn").doesNotExist())
+			.andExpect(jsonPath("$.content[0].amount").value(300.00))
+			.andExpect(jsonPath("$.content[1].tranId").value(paid.get("tranId").asText()))
+			.andExpect(jsonPath("$.content[1].orderId").value(paid.get("orderId").asText()))
+			.andExpect(jsonPath("$.content[1].status").value("PAID"))
+			.andExpect(jsonPath("$.content[1].scope").value("EXAM"))
+			.andExpect(jsonPath("$.content[1].examTitleEn").value("History paper"))
+			.andExpect(jsonPath("$.content[1].examTitleBn").exists())
+			.andExpect(jsonPath("$.content[1].moduleTitleEn").value("History"))
+			.andExpect(jsonPath("$.content[1].paymentChannel").value("BKASH-BKash"))
+			.andExpect(jsonPath("$.content[1].currency").value("BDT"))
+			.andExpect(jsonPath("$.content[1].createdAt").exists())
+			.andExpect(jsonPath("$.content[2].status").value("FAILED"))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(body).doesNotContain("valId", "val-1", "studentPhone", otherId.toString());
+
+		mockMvc.perform(get("/api/v1/me/live-exam-orders").header("Authorization", "Bearer " + student)
+			.param("size", "1")
+			.param("page", "2"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(3))
+			.andExpect(jsonPath("$.content[0].status").value("FAILED"));
+		mockMvc.perform(get("/api/v1/me/live-exam-orders").header("Authorization", "Bearer " + other))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1));
+		for (String role : new String[] { "MASTER_ADMIN", "SYSTEM_ADMIN", "INSTRUCTOR" }) {
+			mockMvc.perform(get("/api/v1/me/live-exam-orders").header("Authorization", "Bearer " + token(seed(role))))
+				.andExpect(status().isForbidden());
+		}
+		mockMvc.perform(get("/api/v1/me/live-exam-orders")).andExpect(status().isUnauthorized());
 	}
 
 	@Test

@@ -7,6 +7,9 @@ You are **agent B** in a team of five agents building the exam website in parall
 - Phase 1 brief: `docs/exam-site/plans/ui-delivery/ws1-api.md`
 - Phase 2 brief (after the integrator merges WS1): `docs/exam-site/plans/ui-delivery/ws6-staff-ops.md`, the **WS6b** part only (payments, payment detail, audit log, staff account, staff leaderboard).
 
+**Write only inside your working folder above.** Every path you create or edit must be inside it (use paths relative to it). Never write under `F:aching-center-platform` — that is the integrator's checkout — except the `.heavy.lock` file. Check with `git rev-parse --show-toplevel` before your first edit.
+
+
 ## Read first, in this order
 
 1. `docs/exam-site/plans/ui-delivery/README.md` — the whole plan and "Rules for every agent".
@@ -51,7 +54,7 @@ Wait until the integrator says WS0 and WS1 are merged. Then, in the same folder:
 git switch -c ui/ws6b-staff-ops catalog-acquisition
 ```
 
-Run `npm ci` in `web/`. Read `ws0-foundation.md` (Contracts and section 9), `bangla-copy.md`, and the WS6b rows of `ws6-staff-ops.md`. Build only the WS6b routes and files listed there, under the web rules in the README: copy in your `staffOps` namespace by `bangla-copy.md`, links to other surfaces through `lib/config`, no hosts in code, the heavy lock for `npm run build` (write `B`), no `next dev`, no browser. Whenever the integrator merges another branch, run `git merge catalog-acquisition` and run your checks again. Report with the same format, naming `ui/ws6b-staff-ops`, with `lint`, `test` and `build` results.
+Run `npm ci` in `web/`, and run web tests with `npx vitest run --pool=forks --poolOptions.forks.singleFork=true`. Read `ws0-foundation.md` (Contracts and section 9), `bangla-copy.md`, and the WS6b rows of `ws6-staff-ops.md`. Build only the WS6b routes and files listed there, under the web rules in the README: copy in your `staffOps` namespace by `bangla-copy.md`, links to other surfaces through `lib/config`, no hosts in code, the heavy lock for `npm run build` (write `B`), no `next dev`, no browser. Whenever the integrator merges another branch, run `git merge catalog-acquisition` and run your checks again. Report with the same format, naming `ui/ws6b-staff-ops`, with `lint`, `test` and `build` results.
 
 ## When you are stuck
 

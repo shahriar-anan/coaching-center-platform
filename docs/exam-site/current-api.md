@@ -110,3 +110,18 @@ Shahriar confirmed these on 2026-10-23. The resolution order is [plans/resolve-a
 | Written practice | Resolved in step 2a. `POST /api/v1/live-exams/{id}/retake` returns `409` `RETAKE_NOT_ALLOWED` for a written exam after the access check. The one MCQ later attempt remains. | Step 2a |
 | Unannounced date | Resolved in step 2b. Flyway `V31` makes `live_at` nullable. A published exam with no start stays on the module list and is omitted from the personal routine. Take exam stays closed. A dated publish still enforces the five-minute gap against other dated exams in the module. | Step 2b |
 | Purchase | Resolved in step 3. Flyway `V32` adds prices, `live_exam_orders`, and `live_exam_grants`. A verified notice grants access once. Take exam, the question PDF, and the routine accept a roster row or a purchase grant. Automated tests use a fake gateway. | Step 3 |
+
+## Added for the UI delivery
+
+Plan: [plans/ui-delivery/ws1-api.md](plans/ui-delivery/ws1-api.md). Flyway: none (no new migration).
+
+| Call | Who | Notes |
+|---|---|---|
+| `GET /api/v1/live-exam-modules/{moduleId}/roster?q=&page=&size=` | Master Admin | The roster in name order. `q` matches name, phone, email or code. Each row has `addedAt` and `startedAny`, true when the student has a sitting in the module. |
+| `GET /api/v1/students/{id}/live-exam-access` | Master Admin, System Admin | One row per roster membership and per purchase grant, ordered by module title. `via` is `ROSTER`, `MODULE_PURCHASE` or `EXAM_PURCHASE`. An exam purchase row names its one exam in `exams`. A module purchase has `exams` empty. Unknown student `404`. |
+| `GET /api/v1/me/live-exam-orders?page=&size=` | Student | Own orders, newest first. Status uses the public words (`PENDING`, `PAID`, `FAILED`, `CANCELLED`). No `valId`. |
+| `GET /api/v1/live-exam-orders` | Master Admin, System Admin | System Admin added (read only). |
+| `examType=MCQ|WRITTEN` on the two catalog doors | Public, student | Filters `categories`, `live-exam-modules` and `live-exam-modules/{id}/exams`. Public module rows gain `mcqCount` and `writtenCount`. An unknown value is `400 VALIDATION_FAILED`. |
+| `GET /api/v1/live-exams/{id}` (student, open sitting) | Student | `selected` is now true on each option saved for the open sitting. `correct` and `explanation` stay hidden until the review rule allows them. |
+
+Staging demo content: `SEED_DEMO=true` with the `staging` or `dev` profile loads the demo catalog. Details and cleanup in [api/.cursor/progress/ui-delivery/demo-seed.md](../../api/.cursor/progress/ui-delivery/demo-seed.md).

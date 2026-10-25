@@ -1,17 +1,174 @@
 @import "tailwindcss";
 
-:root {
-  --background: #fafafa;
-  --foreground: #18181b;
-}
+/*
+ * Two surfaces, two palettes. Components use tokens only (bg-card, text-muted,
+ * ...), never hard-coded colors. The student surface sets data-surface="site",
+ * the admin panel sets data-surface="staff". Theme is data-theme on <html>.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans), var(--font-bengali), system-ui, sans-serif;
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-text-accent: var(--accent-text);
+  --color-on-accent: var(--on-accent);
+  --color-action: var(--action);
+  --color-on-action: var(--on-action);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-warn-fill: var(--warn-fill);
+  --color-danger: var(--danger);
+
+  --radius-card: var(--radius-card-value);
+  --radius-control: var(--radius-control-value);
+
+  --font-site: var(--font-hind), var(--font-bengali), system-ui, sans-serif;
+  --font-bn: var(--font-bengali), var(--font-hind), system-ui, sans-serif;
+  --font-latin: var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-site);
+}
+
+/* Student site, light. */
+:root,
+[data-surface="site"] {
+  --bg: #f6f4ee;
+  --card: #ffffff;
+  --text: #14213d;
+  --muted: #5d6578;
+  --accent: #c8962e;
+  --accent-text: #8a5f12;
+  --on-accent: #14213d;
+  --border: #e3dfd3;
+  --warn: #c2410c;
+  --warn-fill: #e8590c;
+  --ok: #2f9e44;
+  --danger: #b42318;
+  --radius-card-value: 16px;
+  --radius-control-value: 12px;
+  --action: #c8962e;
+  --on-action: #14213d;
+}
+
+/* Admin panel, light. */
+[data-surface="staff"] {
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --text: #1c2430;
+  --muted: #5c6b7a;
+  --border: #d8e0e8;
+  --action: #1f4e79;
+  --on-action: #ffffff;
+  --danger: #9b2c2c;
+  --ok: #1f7a4d;
+  --warn: #9a6700;
+  --warn-fill: #9a6700;
+  --accent: #1f4e79;
+  --accent-text: #1f4e79;
+  --on-accent: #ffffff;
+  --radius-card-value: 8px;
+  --radius-control-value: 8px;
+}
+
+/* Student site, dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]),
+  :root:not([data-theme="light"]) [data-surface="site"] {
+    --bg: #0e1424;
+    --card: #172038;
+    --text: #eef0f6;
+    --muted: #a3abc0;
+    --accent: #e0b254;
+    --accent-text: #e0b254;
+    --on-accent: #14213d;
+    --border: #26304d;
+    --warn: #f08c5a;
+    --warn-fill: #e8590c;
+    --ok: #40c057;
+    --danger: #f97066;
+    --action: #e0b254;
+    --on-action: #14213d;
+  }
+
+  :root:not([data-theme="light"]) [data-surface="staff"] {
+    --bg: #12181f;
+    --card: #1c2631;
+    --text: #e7edf2;
+    --muted: #9aabba;
+    --border: #2c3b4a;
+    --action: #7eb0d8;
+    --on-action: #12181f;
+    --danger: #f97066;
+    --ok: #40c057;
+    --warn: #e0a84a;
+    --warn-fill: #e0a84a;
+    --accent: #7eb0d8;
+    --accent-text: #7eb0d8;
+    --on-accent: #12181f;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1424;
+  --card: #172038;
+  --text: #eef0f6;
+  --muted: #a3abc0;
+  --accent: #e0b254;
+  --accent-text: #e0b254;
+  --on-accent: #14213d;
+  --border: #26304d;
+  --warn: #f08c5a;
+  --warn-fill: #e8590c;
+  --ok: #40c057;
+  --danger: #f97066;
+  --action: #e0b254;
+  --on-action: #14213d;
+}
+
+:root[data-theme="dark"] [data-surface="staff"] {
+  --bg: #12181f;
+  --card: #1c2631;
+  --text: #e7edf2;
+  --muted: #9aabba;
+  --border: #2c3b4a;
+  --action: #7eb0d8;
+  --on-action: #12181f;
+  --danger: #f97066;
+  --ok: #40c057;
+  --warn: #e0a84a;
+  --warn-fill: #e0a84a;
+  --accent: #7eb0d8;
+  --accent-text: #7eb0d8;
+  --on-accent: #12181f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-site);
+}
+
+/* Bengali question text uses the Bangla face; the staff UI uses Inter for Latin text. */
+[data-surface="staff"] {
+  font-family: var(--font-latin), var(--font-bengali), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }

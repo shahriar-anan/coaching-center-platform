@@ -34,7 +34,7 @@ export default function AccountPage() {
     setNotice(null);
     setResending(true);
     try {
-      await api.resendVerification(session.user.email);
+      await api.resendVerification(session.user.email ?? "");
       setNotice(t("auth.resendSent"));
     } catch (err) {
       setError(err);

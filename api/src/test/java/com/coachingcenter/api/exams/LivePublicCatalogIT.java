@@ -258,6 +258,126 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		assertThat(listed.get("content").get(0).has("liveAt")).isFalse();
 	}
 
+	@Test
+	void eachDoorKeepsOnlyItsTypeAndAnEmptyCategoryShowsInBoth() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID root = createCategory(staff, "Doors");
+		UUID mixedCategory = createCategory(staff, "Doors mixed", root);
+		UUID writtenCategory = createCategory(staff, "Doors written", root);
+		UUID empty = createCategory(staff, "Doors empty");
+		UUID emptyChild = createCategory(staff, "Doors empty child", empty);
+		UUID mixed = createModule(staff, mixedCategory, "Mixed module");
+		finalSave(staff, mixed);
+		publishModule(staff, mixed);
+		UUID writtenOnly = createModule(staff, writtenCategory, "Written module");
+		finalSave(staff, writtenOnly);
+		publishModule(staff, writtenOnly);
+		UUID firstMcq = createExam(staff, mixed, "BN", "2099-01-01T10:00:00+06:00", "Stem", true);
+		UUID secondMcq = createExam(staff, mixed, "BN", "2099-01-02T10:00:00+06:00", "Stem", true);
+		UUID mixedWritten = written(createExam(staff, mixed, "BN", "2099-01-03T10:00:00+06:00", "Stem", true));
+		UUID onlyWritten = written(createExam(staff, writtenOnly, "BN", "2099-01-04T10:00:00+06:00", "Stem", true));
+
+		JsonNode mcqDoor = categories("MCQ");
+		assertThat(find(mcqDoor, root)).isNotNull();
+		JsonNode mixedNode = find(mcqDoor, mixedCategory);
+		assertThat(mixedNode.get("modules").size()).isEqualTo(1);
+		assertThat(mixedNode.get("modules").get(0).get("id").asText()).isEqualTo(mixed.toString());
+		assertThat(mixedNode.get("modules").get(0).get("mcqCount").asInt()).isEqualTo(2);
+		assertThat(mixedNode.get("modules").get(0).get("writtenCount").asInt()).isEqualTo(1);
+		assertThat(find(mcqDoor, writtenCategory)).isNull();
+		assertThat(find(mcqDoor, empty)).isNotNull();
+		assertThat(find(mcqDoor, emptyChild)).isNotNull();
+
+		JsonNode writtenDoor = categories("written");
+		assertThat(find(writtenDoor, mixedCategory).get("modules").get(0).get("id").asText()).isEqualTo(mixed.toString());
+		assertThat(find(writtenDoor, writtenCategory).get("modules").get(0).get("mcqCount").asInt()).isZero();
+		assertThat(find(writtenDoor, writtenCategory).get("modules").get(0).get("writtenCount").asInt()).isEqualTo(1);
+		assertThat(find(writtenDoor, emptyChild)).isNotNull();
+		assertThat(find(categories(null), writtenCategory)).isNotNull();
+
+		mockMvc.perform(get("/api/v1/public/live-exam-modules").param("categoryId", writtenCategory.toString())
+			.param("examType", "MCQ"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(0));
+		mockMvc.perform(get("/api/v1/public/live-exam-modules").param("categoryId", mixedCategory.toString())
+			.param("examType", "MCQ"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].mcqCount").value(2));
+		mockMvc.perform(get("/api/v1/public/live-exam-modules").param("examType", "WRITTEN").param("size", "100"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + mixed))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mcqCount").value(2))
+			.andExpect(jsonPath("$.writtenCount").value(1));
+		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + mixed + "/exams").param("examType", "MCQ"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(2))
+			.andExpect(jsonPath("$.content[0].id").value(firstMcq.toString()))
+			.andExpect(jsonPath("$.content[1].id").value(secondMcq.toString()));
+		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + mixed + "/exams").param("examType", "WRITTEN"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(mixedWritten.toString()));
+		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + mixed + "/exams"))
+			.andExpect(jsonPath("$.totalElements").value(3));
+
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		mark(mixed, studentId);
+		mark(writtenOnly, studentId);
+		mockMvc.perform(get("/api/v1/live-exam-modules").header("Authorization", "Bearer " + student)
+			.param("examType", "MCQ"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(mixed.toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules").header("Authorization", "Bearer " + student)
+			.param("categoryId", writtenCategory.toString())
+			.param("examType", "WRITTEN"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1));
+		mockMvc.perform(get("/api/v1/live-exam-modules").header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.totalElements").value(2));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + mixed + "/exams").header("Authorization", "Bearer " + student)
+			.param("examType", "WRITTEN"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].id").value(mixedWritten.toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + writtenOnly + "/exams").header("Authorization", "Bearer " + student)
+			.param("examType", "MCQ"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(0));
+		assertThat(onlyWritten).isNotNull();
+
+		for (String path : new String[] { "/api/v1/public/live-exam-categories", "/api/v1/public/live-exam-modules",
+				"/api/v1/public/live-exam-modules/" + mixed + "/exams" }) {
+			mockMvc.perform(get(path).param("examType", "ESSAY"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+		}
+		for (String path : new String[] { "/api/v1/live-exam-modules", "/api/v1/live-exam-modules/" + mixed + "/exams" }) {
+			mockMvc.perform(get(path).header("Authorization", "Bearer " + student).param("examType", "ESSAY"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+		}
+	}
+
+	private JsonNode categories(String examType) throws Exception {
+		var request = get("/api/v1/public/live-exam-categories");
+		if (examType != null) {
+			request.param("examType", examType);
+		}
+		return json.readTree(mockMvc.perform(request).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString());
+	}
+
+	/** Turns a published MCQ row into a written one, so a test needs no question PDF upload. */
+	private UUID written(UUID examId) {
+		new JdbcTemplate(dataSource).update(
+				"update live_exams set exam_type = 'WRITTEN', written_maximum = 10 where id = ?", examId);
+		return examId;
+	}
+
 	private String publicExam(String token, UUID examId) throws Exception {
 		var request = get("/api/v1/public/live-exams/" + examId);
 		if (token != null) {

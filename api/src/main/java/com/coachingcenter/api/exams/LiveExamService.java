@@ -306,6 +306,12 @@ public class LiveExamService {
 
 	@Transactional(readOnly = true)
 	public Page<ExamView> list(UUID moduleId, Pageable pageable, boolean student, UUID studentId) {
+		return list(moduleId, pageable, student, studentId, LiveExamTypeFilter.ANY);
+	}
+
+	/** {@code examType} applies to the student read only, as {@link LiveExamTypeFilter} parsed it. */
+	@Transactional(readOnly = true)
+	public Page<ExamView> list(UUID moduleId, Pageable pageable, boolean student, UUID studentId, String examType) {
 		LiveExamModule module = requireModule(moduleId);
 		Pageable ordered = ordered(pageable);
 		if (student && (!LiveExamModule.PUBLISHED.equals(module.getStatus())
@@ -313,7 +319,7 @@ public class LiveExamService {
 			return Page.empty(ordered);
 		}
 		Page<LiveExam> page = student
-				? exams.findAccessibleToStudent(moduleId, studentId, ordered)
+				? exams.findAccessibleToStudent(moduleId, studentId, examType, ordered)
 				: exams.findByModuleIdAndDeletedAtIsNull(moduleId, ordered);
 		if (!student) {
 			return page.map(exam -> view(exam, true));
