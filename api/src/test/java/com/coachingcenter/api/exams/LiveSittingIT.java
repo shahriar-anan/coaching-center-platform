@@ -885,6 +885,60 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theSittingBlockAndTheResultKindAreTheStudentsOwn() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		UUID otherId = seed("STUDENT");
+		String other = token(otherId);
+		mark(master, holder.moduleId(), otherId);
+		String exam = "/api/v1/live-exams/" + holder.examId();
+
+		clock.set(Instant.parse("2026-10-20T06:00:00Z"));
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.sitting").doesNotExist());
+
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post(exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.sitting.kind").value("LIVE"))
+			.andExpect(jsonPath("$.sitting.startedAt").isString())
+			.andExpect(jsonPath("$.sitting.deadlineAt").isString())
+			.andExpect(jsonPath("$.sitting.submittedAt").doesNotExist());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + other))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.sitting").doesNotExist());
+
+		clock.set(Instant.parse("2026-10-20T06:20:00Z"));
+		mockMvc.perform(post(exam + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.sitting.submittedAt").isString());
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("LIVE"));
+
+		clock.set(Instant.parse("2026-10-20T06:41:00Z"));
+		mockMvc.perform(post(exam + "/retake").header("Authorization", "Bearer " + other))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + other))
+			.andExpect(jsonPath("$.sitting.kind").value("RETAKE"));
+		clock.set(Instant.parse("2026-10-20T07:22:00Z"));
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + other))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("RETAKE"));
+	}
+
+	@Test
 	void aBlankMcqFailsWhenThePassPercentIsZero() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));

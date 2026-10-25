@@ -256,10 +256,12 @@ public class LiveExamEvaluationService {
 			else if (participant.getPublishedAt() == null || participant.getScore() == null) {
 				continue;
 			}
-			scored.add(new BoardRow(studentName(participant.getStudentId()), participant.getScore(), maximum,
-					participant.getPassed() != null && participant.getPassed()));
+			scored.add(new BoardRow(participant.getStudentId(), studentName(participant.getStudentId()),
+					participant.getScore(), maximum, participant.getPassed() != null && participant.getPassed()));
 		}
 		scored.sort(Comparator.comparingInt(BoardRow::score).reversed().thenComparing(BoardRow::name));
+		// "mine" is for a student reading the list, and only their own row. Staff never get it.
+		boolean student = !marker && actor.role() == Role.STUDENT;
 		List<LeaderboardRow> rows = new ArrayList<>();
 		int rank = 1;
 		Integer previous = null;
@@ -269,7 +271,8 @@ public class LiveExamEvaluationService {
 				rank = index + 1;
 			}
 			previous = row.score();
-			rows.add(new LeaderboardRow(row.name(), rank, row.score(), row.maximum(), row.passed()));
+			boolean mine = student && actor.userId().equals(row.studentId());
+			rows.add(new LeaderboardRow(row.name(), rank, row.score(), row.maximum(), row.passed(), mine));
 		}
 		return new Leaderboard(rows);
 	}
@@ -395,10 +398,10 @@ public class LiveExamEvaluationService {
 	public record Leaderboard(List<LeaderboardRow> rows) {
 	}
 
-	public record LeaderboardRow(String name, int rank, int score, int maximum, boolean passed) {
+	public record LeaderboardRow(String name, int rank, int score, int maximum, boolean passed, boolean mine) {
 	}
 
-	private record BoardRow(String name, int score, int maximum, boolean passed) {
+	private record BoardRow(UUID studentId, String name, int score, int maximum, boolean passed) {
 	}
 
 }

@@ -101,3 +101,23 @@ Results hub tabs and empty state, flag markers in the grid and submit dialog, ti
 - `pdf-viewer-impl.tsx` holds the viewer body with the props unchanged (`load`, `watermark`, `allowDownload`, `fileName`, plus optional `label`). `pdf-document.tsx` re-exports it.
 - `public/pdf.worker.min.mjs` has an `eslint-disable` comment on its first line, because the vendored code fails the project's lint rules. Its version test still matches.
 - `RequireStudent` (WS0) reads `useSearchParams`, so any route that uses it must sit inside a `Suspense` boundary, or the build fails on prerendering.
+
+## WS4b report
+
+The three sitting API gaps are closed.
+
+- **`sitting` on `GET /api/v1/live-exams/{id}`** (student): the requester's own participant row as `{ kind, startedAt, deadlineAt, submittedAt }`, or `null` when there is none. Other students' rows are never read.
+- **`mine` on leaderboard rows:** true only on the requesting student's own row. Always false for staff. No ids or phones are added.
+- **`kind` on `GET /api/v1/live-exams/{id}/result`:** `"LIVE"` or `"RETAKE"`.
+
+Web follow-up:
+- The countdown reads `sitting.deadlineAt`. The session-storage workaround is removed, so a reload, a new tab or a second phone keeps the countdown.
+- The own row is highlighted on the merit list (colour and the word "আপনি" or "You"). The student's rank on the result page comes from that row.
+- A later attempt is labelled on the result page and in `/results`.
+
+Checks:
+- Touched integration tests: `LiveSittingIT` 31 run, `LiveEvaluationIT` 37 run, all passing.
+- Full API suite from clean: 314 run, 2 failures, both `BookOrderIT` and `CoursePurchaseIT`, as the brief allows.
+- Web: lint exits 0, 170 tests pass in single-process mode, and the build passes (36 pages).
+
+Contract additions are documented in `docs/exam-site/current-api.md` under "Added for the UI delivery".

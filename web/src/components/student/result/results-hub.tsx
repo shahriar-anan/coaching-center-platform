@@ -144,6 +144,9 @@ export function ResultsHub() {
                         {result.passed ? t("result.outcome.passed") : t("result.outcome.failed")}
                       </Pill>
                     ) : null}
+                    {tab === "results" && result?.kind === "RETAKE" ? (
+                      <Pill tone="warn">{t("result.page.practice")}</Pill>
+                    ) : null}
                     {tab === "marking" ? <Pill tone="warn">{t("result.hub.awaiting")}</Pill> : null}
                   </p>
                 </Card>

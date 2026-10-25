@@ -123,5 +123,8 @@ Plan: [plans/ui-delivery/ws1-api.md](plans/ui-delivery/ws1-api.md). Flyway: none
 | `GET /api/v1/live-exam-orders` | Master Admin, System Admin | System Admin added (read only). |
 | `examType=MCQ|WRITTEN` on the two catalog doors | Public, student | Filters `categories`, `live-exam-modules` and `live-exam-modules/{id}/exams`. Public module rows gain `mcqCount` and `writtenCount`. An unknown value is `400 VALIDATION_FAILED`. |
 | `GET /api/v1/live-exams/{id}` (student, open sitting) | Student | `selected` is now true on each option saved for the open sitting. `correct` and `explanation` stay hidden until the review rule allows them. |
+| `GET /api/v1/live-exams/{id}` gains `sitting` | Student | `{ kind: LIVE \| RETAKE, startedAt, deadlineAt, submittedAt }` from the requester's own participant row, or `null` when there is none. Never another student's row. Staff reads are unchanged. |
+| `GET /api/v1/live-exams/{id}/leaderboard` rows gain `mine` | Student, staff | `true` only on the requesting student's own row. Always `false` for staff. No ids or phones are added. |
+| `GET /api/v1/live-exams/{id}/result` gains `kind` | Student | `"LIVE"` for the live sitting, `"RETAKE"` for the later attempt. |
 
 Staging demo content: `SEED_DEMO=true` with the `staging` or `dev` profile loads the demo catalog. Details and cleanup in [api/.cursor/progress/ui-delivery/demo-seed.md](../../api/.cursor/progress/ui-delivery/demo-seed.md).

@@ -9,33 +9,13 @@ import {
   useRetakeExam,
   useStudentExam,
   useTakeExam,
-  type TakeResult,
+  type SittingBlock,
 } from "@/lib/api/exam/sitting";
 import { useLocale } from "@/i18n/locale-context";
 import { McqPaper } from "./mcq-paper";
 import { WrittenSitting } from "./written-sitting";
 
 export type Start = "live" | "retake" | null;
-
-const takeKey = (examId: string) => `sitting:take:${examId}`;
-
-/** The take result is kept for this tab, so a reload of the paper still knows its own deadline. */
-function readTake(examId: string): TakeResult | null {
-  try {
-    const raw = window.sessionStorage.getItem(takeKey(examId));
-    return raw ? (JSON.parse(raw) as TakeResult) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeTake(examId: string, take: TakeResult) {
-  try {
-    window.sessionStorage.setItem(takeKey(examId), JSON.stringify(take));
-  } catch {
-    /* the paper still runs from the server's deadline on the next exam read */
-  }
-}
 
 /** Only one sitting exists per student per exam; the take call is idempotent for an open one. */
 export function SittingEntry({ examId, start }: { examId: string; start: Start }) {
@@ -48,9 +28,10 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   const [error, setError] = useState<string | null>(null);
   const [phoneMissing, setPhoneMissing] = useState(false);
   const started = useRef(false);
-  // A reload of the paper (no `start` in the URL) reads the take kept for this tab.
-  const [stored, setStored] = useState<TakeResult | null>(() => readTake(examId));
-  const sitting = stored ?? null;
+  // Right after a take, before the exam read refetches, the take result stands in for `sitting`.
+  // After that the server's `sitting` is the source, so a reload or a second device sees the same deadline.
+  const [taken, setTaken] = useState<SittingBlock | null>(null);
+  const sitting = taken ?? exam.data?.sitting ?? null;
 
   // `?start=live|retake`: take the exam, then replace the URL so a reload does not take it again.
   useEffect(() => {
@@ -61,8 +42,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
     const run = start === "retake" ? retake.mutateAsync : take.mutateAsync;
     run()
       .then((result) => {
-        writeTake(examId, result);
-        setStored(result);
+        setTaken({ kind: result.kind, startedAt: result.startedAt, deadlineAt: result.deadlineAt, submittedAt: null });
         router.replace(`/exam/${examId}/sit`);
       })
       .catch((caught: unknown) => {

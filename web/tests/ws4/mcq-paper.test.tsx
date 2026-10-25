@@ -45,6 +45,7 @@ function exam(overrides: Partial<StudentExam> = {}, selectedFor?: string): Stude
     questions,
     myStatus: "IN_PROGRESS",
     retakeAvailable: null,
+    sitting: null,
     ...overrides,
   };
 }

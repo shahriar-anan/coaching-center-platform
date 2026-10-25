@@ -81,7 +81,20 @@ export function LeaderboardPage({ examId }: { examId: string }) {
 
   const columns: Column<LeaderboardRow>[] = [
     { key: "rank", header: t("result.board.rank"), cell: (row) => n(row.rank), align: "end" },
-    { key: "name", header: t("result.board.name"), cell: (row) => row.name, mobileLabel: t("result.board.name") },
+    {
+      key: "name",
+      header: t("result.board.name"),
+      // The student's own row is marked by colour and by the word, never colour alone.
+      cell: (row) =>
+        row.mine ? (
+          <span className="font-semibold text-accent">
+            {row.name} · {t("result.board.you")}
+          </span>
+        ) : (
+          row.name
+        ),
+      mobileLabel: t("result.board.name"),
+    },
     {
       key: "score",
       header: t("result.board.score"),
