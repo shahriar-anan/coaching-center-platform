@@ -11,7 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import javax.sql.DataSource;
@@ -64,6 +66,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private StudentReminderJob reminders;
+
+	@Autowired
+	private StudentNoticeWriter notices;
+
+	@Autowired
+	private LiveExamOrderTx orderTx;
 
 	@Autowired
 	private PasswordEncoder passwords;
@@ -1218,6 +1226,28 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theOneHourNoticeGoesOnceInsideTheHourToStudentsWithAccessOnly() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Soon module");
+		writtenExam(staff, module);
+		Student rostered = seedStudent("Soon rostered");
+		Student stranger = seedStudent("Soon stranger");
+		mark(master, module, rostered.id());
+
+		clock.set(Instant.parse("2026-10-20T04:59:00Z"));
+		reminders.scanSoon();
+		assertThat(noticeCount("EXAM_STARTING_SOON", rostered.id())).isZero();
+
+		clock.set(Instant.parse("2026-10-20T05:30:00Z"));
+		reminders.scanSoon();
+		assertThat(noticeCount("EXAM_STARTING_SOON", rostered.id())).isEqualTo(1);
+		reminders.scanSoon();
+		assertThat(noticeCount("EXAM_STARTING_SOON", rostered.id())).isEqualTo(1);
+		assertThat(noticeCount("EXAM_STARTING_SOON", stranger.id())).isZero();
+	}
+
+	@Test
 	void noReminderForADraftAnUnpublishedModuleOrAnUndatedExam() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
@@ -1238,6 +1268,108 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		jdbc.update("update live_exam_modules set status = 'PUBLISHED' where id = ?", module);
 		reminders.scan();
 		assertThat(noticeCount("EXAM_REMINDER", student.id())).isEqualTo(1);
+	}
+
+	@Test
+	void theOpenNoticeGoesOnceWhenTheWindowOpensAndOnlyToStudentsWithAccess() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Open module");
+		writtenExam(staff, module);
+		Student rostered = seedStudent("Open rostered");
+		Student stranger = seedStudent("Open stranger");
+		mark(master, module, rostered.id());
+
+		clock.set(Instant.parse("2026-10-20T05:59:00Z"));
+		reminders.scanOpened();
+		assertThat(noticeCount("EXAM_OPEN", rostered.id())).isZero();
+
+		clock.set(Instant.parse("2026-10-20T06:05:00Z"));
+		reminders.scanOpened();
+		reminders.scanOpened();
+		assertThat(noticeCount("EXAM_OPEN", rostered.id())).isEqualTo(1);
+		assertThat(noticeCount("EXAM_OPEN", stranger.id())).isZero();
+
+		Student late = seedStudent("Open late");
+		mark(master, module, late.id());
+		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		reminders.scanOpened();
+		assertThat(noticeCount("EXAM_OPEN", late.id())).isZero();
+	}
+
+	@Test
+	void examPublishedNoticeGoesOnceToStudentsWithAccessToTheModule() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Publish notice module");
+		Student owner = seedStudent("Publish owner");
+		Student stranger = seedStudent("Publish stranger");
+		mark(master, module, owner.id());
+		UUID exam = writtenExam(staff, module);
+
+		assertThat(noticeCount("EXAM_PUBLISHED", owner.id())).isEqualTo(1);
+		assertThat(noticeCount("EXAM_PUBLISHED", stranger.id())).isZero();
+
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		assertThat(noticeCount("EXAM_PUBLISHED", owner.id())).isEqualTo(1);
+	}
+
+	@Test
+	void purchaseGrantedNoticeGoesOncePerPaidOrderAndNeverForARefusedOne() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Purchase notice module");
+		UUID exam = writtenExam(staff, module);
+		Student buyer = seedStudent("Purchase buyer");
+		Student refused = seedStudent("Purchase refused");
+
+		LiveExamOrder paid = orderTx.insert(buyer.id(), LiveExamOrder.EXAM, module, exam, new BigDecimal("10.00"));
+		LiveExamPaymentGateway.Verification valid = new LiveExamPaymentGateway.Verification(
+				LiveExamPaymentGateway.Verification.Outcome.VALID, paid.getTranId(), new BigDecimal("10.00"), "BDT",
+				"VAL-PAID", "BKASH-BKash");
+		orderTx.verify(paid.getTranId(), valid);
+		orderTx.verify(paid.getTranId(), valid);
+		assertThat(noticeCount("PURCHASE_GRANTED", buyer.id())).isEqualTo(1);
+
+		LiveExamOrder bad = orderTx.insert(refused.id(), LiveExamOrder.EXAM, module, exam, new BigDecimal("10.00"));
+		orderTx.verify(bad.getTranId(), new LiveExamPaymentGateway.Verification(
+				LiveExamPaymentGateway.Verification.Outcome.VALID, bad.getTranId(), new BigDecimal("9.00"), "BDT",
+				"VAL-BAD", "BKASH-BKash"));
+		assertThat(noticeCount("PURCHASE_GRANTED", refused.id())).isZero();
+	}
+
+	@Test
+	void eachNewKindListsWithItsExamAndModuleAndCarriesNoMarks() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Shape module");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Shape student");
+		Instant liveAt = Instant.parse("2026-10-20T06:00:00Z");
+
+		notices.startingSoon(exam, liveAt, List.of(student.id()));
+		notices.opened(exam, liveAt, List.of(student.id()));
+		notices.purchaseGranted(student.id(), exam, LiveExamOrder.EXAM);
+		notices.published(exam, List.of(student.id()));
+
+		JsonNode rows = notices(student.token()).get("content");
+		for (String kind : List.of("EXAM_STARTING_SOON", "EXAM_OPEN", "PURCHASE_GRANTED", "EXAM_PUBLISHED")) {
+			JsonNode row = noticeOfKind(rows, kind);
+			assertThat(row.get("exam").get("id").asText()).isEqualTo(exam.toString());
+			assertThat(row.get("exam").get("moduleId").asText()).isEqualTo(module.toString());
+			assertThat(row.get("exam").get("examType").asText()).isEqualTo("WRITTEN");
+			assertThat(row.get("exam").get("liveAt").asText()).isEqualTo("2026-10-20T12:00:00+06:00");
+			assertThat(row.get("exam").get("endAt").asText()).isEqualTo("2026-10-20T12:40:00+06:00");
+			assertThat(row.has("score")).isFalse();
+		}
+	}
+
+	private static JsonNode noticeOfKind(JsonNode rows, String kind) {
+		for (JsonNode row : rows) {
+			if (kind.equals(row.get("kind").asText())) {
+				return row;
+			}
+		}
+		throw new AssertionError("no notice of kind " + kind);
 	}
 
 	@Test
