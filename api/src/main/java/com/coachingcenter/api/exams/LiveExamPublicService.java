@@ -156,8 +156,9 @@ public class LiveExamPublicService {
 	public Page<UpcomingExam> upcoming(String examType, Pageable pageable) {
 		Instant now = clock.instant();
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
+		Instant since = now.minus(Duration.ofMinutes(exams.maxDurationMinutes()));
 		List<LiveExam> live = exams
-			.findUpcomingPublished(now.minus(Duration.ofDays(1)), hidden.isEmpty() ? Set.of(NO_HIDDEN_CATEGORY) : hidden,
+			.findUpcomingPublished(since, hidden.isEmpty() ? Set.of(NO_HIDDEN_CATEGORY) : hidden,
 					LiveExamTypeFilter.ANY.equals(examType), examType)
 			.stream()
 			.filter(exam -> end(exam).isAfter(now))

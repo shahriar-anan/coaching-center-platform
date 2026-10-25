@@ -48,6 +48,9 @@ public class LiveExamService {
 
 	private static final DateTimeFormatter DHAKA_TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
+	/** Column width of {@code title_en} and {@code title_bn} (V25). */
+	private static final int MAX_TITLE_LENGTH = 500;
+
 	private final LiveExamRepository exams;
 
 	private final LiveExamQuestionRepository questions;
@@ -245,8 +248,14 @@ public class LiveExamService {
 		LiveExam copy = new LiveExam();
 		copy.setModuleId(module.getId());
 		copy.setExamType(source.getExamType());
-		copy.setTitleEn(source.getTitleEn() + " (copy)");
-		copy.setTitleBn(source.getTitleBn() + " (কপি)");
+		String titleEn = source.getTitleEn() + " (copy)";
+		String titleBn = source.getTitleBn() + " (কপি)";
+		if (titleEn.length() > MAX_TITLE_LENGTH || titleBn.length() > MAX_TITLE_LENGTH) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
+					"The title is too long to copy. Shorten the title to fit 500 characters with the copy suffix, then copy again.");
+		}
+		copy.setTitleEn(titleEn);
+		copy.setTitleBn(titleBn);
 		copy.setDescriptionEn(source.getDescriptionEn());
 		copy.setDescriptionBn(source.getDescriptionBn());
 		copy.setRulesEn(source.getRulesEn());

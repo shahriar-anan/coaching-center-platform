@@ -2205,6 +2205,56 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 	}
 
+	@Test
+	void aCopyFitsTheTitleColumnOrIsRefused() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Copy length");
+		UUID exact = publishedMcq(staff, module, "e".repeat(492), "ক".repeat(494), 40,
+				"2026-10-20T12:00:00+06:00");
+		mockMvc.perform(post("/api/v1/live-exams/" + exact + "/copy").header("Authorization", "Bearer " + master))
+			.andExpect(status().isCreated());
+		UUID over = publishedMcq(staff, module, "f".repeat(494), "ক".repeat(494), 40, "2026-10-20T14:00:00+06:00");
+		mockMvc.perform(post("/api/v1/live-exams/" + over + "/copy").header("Authorization", "Bearer " + master))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+	}
+
+	@Test
+	void aRunningExamWithALongDurationStaysOnTheUpcomingList() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Long window");
+		UUID exam = publishedMcq(staff, module, "Three day paper", "তিন দিন", 4320, "2026-10-20T12:00:00+06:00");
+		clock.set(Instant.parse("2026-10-22T12:00:00Z"));
+		assertThat(upcomingIds("MCQ")).contains(exam);
+	}
+
+	private UUID publishedMcq(String staff, UUID module, String titleEn, String titleBn, int minutes, String liveAt)
+			throws Exception {
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams")
+			.header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"examType":"MCQ","paperLanguage":"BN","titleEn":"%s","titleBn":"%s","descriptionEn":"d",
+					 "descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম","liveAt":"%s",
+					 "durationMinutes":%d,"passPercent":50}
+					""".formatted(titleEn, titleBn, liveAt, minutes)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"stem":"Ten","marks":10,"explanation":"Because","options":[{"text":"Yes","correct":true},{"text":"No","correct":false}]}
+					"""))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		return exam;
+	}
+
 	/** Every upcoming exam id of one type, across all pages (the server caps the page size). */
 	private java.util.Set<UUID> upcomingIds(String examType) throws Exception {
 		java.util.Set<UUID> ids = new java.util.HashSet<>();
