@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  useCheckoutEnabled,
   useMyExam,
   useMyModule,
   usePublicExam,
@@ -11,6 +12,7 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
+import { ConfigNotice } from "@/components/student/stand-ins-pur/config-notice";
 import {
   formatDateTime,
   formatDuration,
@@ -63,6 +65,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const [buying, setBuying] = useState(false);
   const [moduleBuying, setModuleBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
+  const checkoutOff = useCheckoutEnabled().data === false;
 
   const { toast } = useToast();
   const exam = usePublicExam(examId);
@@ -143,7 +146,7 @@ export function ExamPage({ examId }: { examId: string }) {
     if (phoneRequired) {
       primary = <Button fullWidth href={`/set-phone?next=${encodeURIComponent(examPath(examId))}`}>{t("catalog.exam.addPhone")}</Button>;
     } else if (price !== null && price !== undefined) {
-      primary = <Button fullWidth onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>;
+      primary = <Button fullWidth disabled={checkoutOff} onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>;
     }
   } else if (owned) {
     if (status === "NOT_ANNOUNCED") {
@@ -173,6 +176,7 @@ export function ExamPage({ examId }: { examId: string }) {
   return (
     <>
       <PageHeader title={title} breadcrumbs={crumbs} />
+      <ConfigNotice show={checkoutOff} />
       <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
         <TypePill type={examType} />
         {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
@@ -181,7 +185,7 @@ export function ExamPage({ examId }: { examId: string }) {
       <div className="mb-4 grid gap-3">
         {primary ? <StickyActionBar>{primary}</StickyActionBar> : null}
         {isStudent && !owned && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
-          <Button variant="secondary" fullWidth onClick={() => setModuleBuying(true)}>
+          <Button variant="secondary" fullWidth disabled={checkoutOff} onClick={() => setModuleBuying(true)}>
             {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
           </Button>
         ) : null}

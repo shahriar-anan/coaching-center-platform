@@ -193,6 +193,26 @@ export function useUpcomingExams(examType: ExamType) {
   });
 }
 
+/**
+ * Whether checkout is on (`GET /api/v1/public/exam-site/status`, cached a minute). An older
+ * API without the endpoint answers 404: then checkout counts as on and no notice shows.
+ */
+export function useCheckoutEnabled() {
+  return useQuery({
+    queryKey: ["catalog", "exam-site-status"] as const,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      try {
+        const status = await apiRequest<{ checkoutEnabled: boolean }>("/api/v1/public/exam-site/status", { signal });
+        return status.checkoutEnabled;
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "RESOURCE_NOT_FOUND") return true;
+        throw error;
+      }
+    },
+  });
+}
+
 export function usePublicExam(id: string) {
   return useQuery({
     queryKey: catalogKeys.publicExam(id),

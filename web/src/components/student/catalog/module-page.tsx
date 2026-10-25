@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   useCategoryTree,
+  useCheckoutEnabled,
   useMyModule,
   useMyModuleExams,
   usePublicModule,
@@ -14,6 +15,7 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
+import { ConfigNotice } from "@/components/student/stand-ins-pur/config-notice";
 import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
@@ -110,6 +112,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const myModule = useMyModule(moduleId, isStudent);
   const myExams = useMyModuleExams(moduleId, type, isStudent);
   const [buying, setBuying] = useState(false);
+  const checkoutOff = useCheckoutEnabled().data === false;
 
   const doorLabel = t(doorLabelKey(door));
   const baseCrumbs = [
@@ -191,6 +194,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   return (
     <>
       <PageHeader title={title} breadcrumbs={breadcrumbs} />
+      <ConfigNotice show={checkoutOff} />
       <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
         <TypePill type={type} />
       </div>
@@ -243,7 +247,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                 {t("catalog.exam.addPhone")}
               </Button>
             ) : isStudent ? (
-              <Button fullWidth className="mt-2" onClick={() => setBuying(true)}>
+              <Button fullWidth className="mt-2" disabled={checkoutOff} onClick={() => setBuying(true)}>
                 {t("catalog.buyModule")}
               </Button>
             ) : null}
