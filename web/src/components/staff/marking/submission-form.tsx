@@ -151,6 +151,7 @@ export function SubmissionForm({
           </div>
           <Card>
             <form className="grid gap-6" onSubmit={onSave} noValidate>
+              <p className="text-meta text-muted">{t("staffMarking.form.markedFileRule")}</p>
               <section id="marks" className="grid gap-4 scroll-mt-24">
                 <Field
                   label={t("staffMarking.form.marks")}
@@ -182,7 +183,6 @@ export function SubmissionForm({
 
               <section id="marked-file" className="grid gap-2 scroll-mt-24">
                 <span className="text-label font-medium text-text">{t("staffMarking.form.markedFile")}</span>
-                <p className="text-meta text-muted">{t("staffMarking.form.markedFileRule")}</p>
                 {paper.evaluatedFileName ? (
                   <p className="text-meta text-text">
                     {t("staffMarking.form.storedFile", { name: paper.evaluatedFileName })}

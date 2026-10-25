@@ -79,7 +79,9 @@ describe("saved mark and comment (G1)", () => {
   it("says before the start that each save needs the marked PDF again", () => {
     mockApi({});
     renderWithProviders(<SubmissionForm paper={paper()} canMark canPublish={false} />, { user: fixtures.instructor });
-    expect(screen.getByText(/প্রতিবার সেভ করার সময় মূল্যায়ন করা খাতার PDF আবার দিতে হবে/)).toBeInTheDocument();
+    const rule = screen.getByText(/প্রতিবার সেভ করার সময় মূল্যায়ন করা খাতার PDF আবার দিতে হবে/);
+    const marks = screen.getByRole("spinbutton", { name: /প্রাপ্ত নম্বর/ });
+    expect(rule.compareDocumentPosition(marks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("refuses marks above the maximum before any request is sent", async () => {
