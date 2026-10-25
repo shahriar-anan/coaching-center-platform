@@ -179,7 +179,7 @@ public class LiveExamPublicService {
 			LiveExamModule module = moduleById.get(exam.getModuleId());
 			return new UpcomingExam(exam.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(), exam.getModuleId(),
 					module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(), exam.getLiveAt(),
-					end(exam), exam.getPrice());
+					end(exam), exam.getPrice(), exam.getPrice() == null && module != null && module.getPrice() != null);
 		}).toList();
 		return new PageImpl<>(content, pageable, live.size());
 	}
@@ -344,9 +344,12 @@ public class LiveExamPublicService {
 			int mcqCount, int writtenCount, StudentOwnAccessService.Access access) {
 	}
 
-	/** One upcoming exam, with its module's titles. Price is null when the exam is not sold on its own. */
+	/**
+	 * One upcoming exam, with its module's titles. Price is null when the exam is not sold on its own; {@code moduleOnly}
+	 * is then true when its module is priced, so the exam can be bought only with the module.
+	 */
 	public record UpcomingExam(UUID id, String examType, String titleEn, String titleBn, UUID moduleId, String moduleTitleEn,
-			String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price) {
+			String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price, boolean moduleOnly) {
 	}
 
 	private record Counts(int mcq, int written) {

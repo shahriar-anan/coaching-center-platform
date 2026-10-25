@@ -148,6 +148,33 @@ class PublicAccessIT extends PostgresIntegrationTest {
 		assertThat(topPath.get(0).get("id").asText()).isEqualTo(root.toString());
 	}
 
+	@Test
+	void anUpcomingExamSoldOnlyInsideItsModuleIsFlagged() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID category = createCategory(master, "Upcoming cat", null);
+		UUID pricedModule = publishedModule(master, category, "Priced module", "900.00");
+		UUID freeModule = publishedModule(master, category, "Unpriced module", null);
+		UUID insideOnly = publishedExam(master, pricedModule, "Inside only", null, soon(2));
+		UUID ownPrice = publishedExam(master, pricedModule, "Own price", "100.00", soon(3));
+		UUID nowhere = publishedExam(master, freeModule, "Not sold", null, soon(2));
+
+		JsonNode rows = read(null, "/api/v1/public/live-exams?upcoming=true&size=1000").get("content");
+		assertThat(byId(rows, insideOnly).get("moduleOnly").asBoolean()).isTrue();
+		assertThat(byId(rows, insideOnly).has("price")).isFalse();
+		assertThat(byId(rows, ownPrice).get("moduleOnly").asBoolean()).isFalse();
+		assertThat(byId(rows, nowhere).get("moduleOnly").asBoolean()).isFalse();
+		assertThat(byId(rows, nowhere).has("price")).isFalse();
+	}
+
+	/** A start a few days from now in Dhaka time, so the row is upcoming whenever the test runs. */
+	private static String soon(int days) {
+		return java.time.OffsetDateTime.now(java.time.ZoneOffset.ofHours(6))
+			.plusDays(days)
+			.withNano(0)
+			.withSecond(0)
+			.toString();
+	}
+
 	private static void assertAccess(JsonNode access, String state, boolean buyable, String blockedReason) {
 		assertThat(access).as("access").isNotNull();
 		assertThat(access.get("state").asText()).isEqualTo(state);
