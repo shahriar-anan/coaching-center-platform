@@ -60,11 +60,11 @@ class StudentAccessIT extends PostgresIntegrationTest {
 		String moduleTran = "ACC-M-" + UUID.randomUUID().toString().substring(0, 12);
 		String examTran = "ACC-E-" + UUID.randomUUID().toString().substring(0, 12);
 		UUID moduleOrder = order(jdbc, studentId, module, null, "MODULE", moduleTran);
-		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at) "
-				+ "values (gen_random_uuid(), ?, 'MODULE', ?, null, ?, now())", studentId, module, moduleOrder);
+		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, source, created_at) "
+				+ "values (gen_random_uuid(), ?, 'MODULE', ?, null, ?, 'ORDER', now())", studentId, module, moduleOrder);
 		UUID examOrder = order(jdbc, studentId, module, examA, "EXAM", examTran);
-		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at) "
-				+ "values (gen_random_uuid(), ?, 'EXAM', ?, ?, ?, now())", studentId, module, examA, examOrder);
+		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, source, created_at) "
+				+ "values (gen_random_uuid(), ?, 'EXAM', ?, ?, ?, 'ORDER', now())", studentId, module, examA, examOrder);
 
 		MvcResult result = mockMvc.perform(get("/api/v1/students/" + studentId + "/live-exam-access")
 			.header("Authorization", "Bearer " + master))
@@ -111,6 +111,105 @@ class StudentAccessIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/students/" + studentId + "/live-exam-access").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalElements").value(0));
+	}
+
+	@Test
+	void aStudentSeesOnlyTheirOwnActiveAccessWithItsReason() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID studentId = seedStudent();
+		String student = token(studentId);
+		UUID otherId = seedStudent();
+		String suffix = UUID.randomUUID().toString().substring(0, 8);
+		UUID rostered = createModule(master, "Rostered " + suffix);
+		UUID bought = createModule(master, "Bought " + suffix);
+		UUID granted = createModule(master, "Granted " + suffix);
+		UUID revoked = createModule(master, "Revoked " + suffix);
+		UUID single = createModule(master, "Single " + suffix);
+		UUID examBought = createExam(master, single, "Bought exam");
+		UUID examGranted = createExam(master, single, "Granted exam");
+		UUID examBundled = createExam(master, single, "Bundled exam");
+		UUID examRevoked = createExam(master, single, "Revoked exam");
+		UUID otherExam = createExam(master, single, "Other exam");
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())", rostered, studentId);
+		UUID moduleOrder = order(jdbc, studentId, bought, null, "MODULE", "ME-M-" + suffix);
+		grant(jdbc, studentId, "MODULE", bought, null, moduleOrder, "ORDER", false);
+		grant(jdbc, studentId, "MODULE", granted, null, null, "MANUAL", false);
+		grant(jdbc, studentId, "MODULE", revoked, null, order(jdbc, studentId, revoked, null, "MODULE", "ME-R-" + suffix),
+				"ORDER", true);
+		UUID examOrder = order(jdbc, studentId, single, examBought, "EXAM", "ME-E-" + suffix);
+		grant(jdbc, studentId, "EXAM", single, examBought, examOrder, "ORDER", false);
+		grant(jdbc, studentId, "EXAM", single, examGranted, null, "MANUAL", false);
+		UUID bundleOrder = order(jdbc, studentId, single, null, "BUNDLE", "ME-B-" + suffix);
+		grant(jdbc, studentId, "EXAM", single, examBundled, bundleOrder, "BUNDLE", false);
+		grant(jdbc, studentId, "EXAM", single, examRevoked, null, "MANUAL", true);
+		jdbc.update("insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())", single, otherId);
+		grant(jdbc, otherId, "EXAM", single, otherExam, null, "MANUAL", false);
+
+		MvcResult result = mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.modules.length()").value(3))
+			.andExpect(jsonPath("$.exams.length()").value(3))
+			.andReturn();
+		JsonNode body = json.readTree(result.getResponse().getContentAsString());
+		assertThat(moduleVia(body, rostered)).isEqualTo("ROSTER");
+		assertThat(moduleVia(body, bought)).isEqualTo("MODULE");
+		assertThat(moduleVia(body, granted)).isEqualTo("MANUAL");
+		assertThat(moduleVia(body, revoked)).isNull();
+		assertThat(row(body.get("modules"), "moduleId", rostered).has("orderId")).isFalse();
+		assertThat(row(body.get("modules"), "moduleId", bought).get("orderId").asText()).isEqualTo(moduleOrder.toString());
+		assertThat(row(body.get("modules"), "moduleId", granted).has("orderId")).isFalse();
+		JsonNode exams = body.get("exams");
+		assertThat(row(exams, "examId", examBought).get("via").asText()).isEqualTo("EXAM");
+		assertThat(row(exams, "examId", examBought).get("moduleId").asText()).isEqualTo(single.toString());
+		assertThat(row(exams, "examId", examBought).get("orderId").asText()).isEqualTo(examOrder.toString());
+		assertThat(row(exams, "examId", examGranted).get("via").asText()).isEqualTo("MANUAL");
+		assertThat(row(exams, "examId", examBundled).get("via").asText()).isEqualTo("EXAM");
+		assertThat(row(exams, "examId", examBundled).get("orderId").asText()).isEqualTo(bundleOrder.toString());
+		String raw = result.getResponse().getContentAsString();
+		assertThat(raw).doesNotContain(examRevoked.toString()).doesNotContain(otherExam.toString());
+
+		mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + token(otherId)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.modules.length()").value(1))
+			.andExpect(jsonPath("$.modules[0].moduleId").value(single.toString()))
+			.andExpect(jsonPath("$.modules[0].via").value("ROSTER"))
+			.andExpect(jsonPath("$.exams.length()").value(1))
+			.andExpect(jsonPath("$.exams[0].examId").value(otherExam.toString()));
+		mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + master))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(get("/api/v1/me/live-exam-access")).andExpect(status().isUnauthorized());
+
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + bought).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.modules.length()").value(2));
+	}
+
+	private static String moduleVia(JsonNode body, UUID moduleId) {
+		JsonNode row = row(body.get("modules"), "moduleId", moduleId);
+		return row == null ? null : row.get("via").asText();
+	}
+
+	private static JsonNode row(JsonNode rows, String field, UUID id) {
+		for (JsonNode row : rows) {
+			if (id.toString().equals(row.get(field).asText())) {
+				return row;
+			}
+		}
+		return null;
+	}
+
+	private static UUID grant(JdbcTemplate jdbc, UUID studentId, String scope, UUID module, UUID exam, UUID order,
+			String source, boolean revoked) {
+		UUID id = UUID.randomUUID();
+		jdbc.update("""
+				insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, source, created_at, revoked_at)
+				values (?, ?, ?, ?, ?, ?, ?, now(), case when cast(? as boolean) then now() end)
+				""", id, studentId, scope, module, exam, order, source, revoked);
+		return id;
 	}
 
 	private static UUID order(JdbcTemplate jdbc, UUID studentId, UUID module, UUID exam, String scope, String tranId) {
