@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   useCategoryTree,
-  useMyModule,
+  useCheckoutEnabled,
   useMyModuleExams,
   usePublicModule,
   usePublicModuleExams,
@@ -14,6 +14,11 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
+import { resolveAccess } from "@/components/student/purchase/access";
+import { AccessBadge } from "@/components/ui/purchase/access-badge";
+import { ConfigNotice } from "@/components/ui/purchase/config-notice";
+import { BundleSelection } from "./bundle-selection";
+import { bundleOrders } from "@/lib/config";
 import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
@@ -64,7 +69,7 @@ function StripChip({
       onClick={() => scrollTo(target)}
       className={`min-h-11 rounded-[14px] border border-t-4 border-border bg-card px-2 py-3 text-center text-text ${border}`}
     >
-      <span aria-hidden className="block text-2xl">
+      <span aria-hidden className="block text-title">
         {icon}
       </span>
       <span className="block text-label font-bold">{label}</span>
@@ -107,9 +112,13 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const tree = useCategoryTree(type);
   const moduleQuery = usePublicModule(moduleId);
   const exams = usePublicModuleExams(moduleId, type);
-  const myModule = useMyModule(moduleId, isStudent);
-  const myExams = useMyModuleExams(moduleId, type, isStudent);
+  // Ownership comes from the access object on the responses. The student's exam reads are
+  // only asked for when the student owns something here, so a visitor makes no such request.
+  const moduleAccess = resolveAccess(moduleQuery.data?.access);
+  const anyExamOwned = (exams.data ?? []).some((exam) => resolveAccess(exam.access).owned);
+  const myExams = useMyModuleExams(moduleId, type, isStudent && (moduleAccess.owned || anyExamOwned));
   const [buying, setBuying] = useState(false);
+  const checkoutOff = useCheckoutEnabled().data === false;
 
   const doorLabel = t(doorLabelKey(door));
   const baseCrumbs = [
@@ -166,7 +175,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   ];
 
   const owned = new Map<string, StudentExam>((myExams.data ?? []).map((e) => [e.id, e]));
-  const moduleOwned = Boolean(myModule.data);
+  const moduleOwned = moduleAccess.owned;
   const list: (PublicExam & { mine?: StudentExam })[] = (exams.data ?? [])
     .map((exam) => ({ ...exam, mine: owned.get(exam.id) }))
     .sort(bySchedule);
@@ -191,6 +200,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   return (
     <>
       <PageHeader title={title} breadcrumbs={breadcrumbs} />
+      <ConfigNotice show={checkoutOff} />
       <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
         <TypePill type={type} />
       </div>
@@ -234,7 +244,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
               <Button fullWidth className="mt-2" href={loginHref}>
                 {t("catalog.buyModule")}
               </Button>
-            ) : phoneRequired ? (
+            ) : phoneRequired || moduleAccess.blockedReason === "PHONE_REQUIRED" ? (
               <Button
                 fullWidth
                 className="mt-2"
@@ -243,7 +253,12 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                 {t("catalog.exam.addPhone")}
               </Button>
             ) : isStudent ? (
-              <Button fullWidth className="mt-2" onClick={() => setBuying(true)}>
+              <Button
+                fullWidth
+                className="mt-2"
+                disabled={checkoutOff || moduleAccess.buyable === false}
+                onClick={() => setBuying(true)}
+              >
                 {t("catalog.buyModule")}
               </Button>
             ) : null}
@@ -293,9 +308,16 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
             body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
           />
         ) : (
+          bundleOrders && isStudent ? (
+            <BundleSelection
+              disabled={checkoutOff}
+              items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: exam.price ?? null, owned: resolveAccess(exam.access).owned }))}
+            />
+          ) : (
           <ul className="grid gap-3">
             {list.map((exam) => {
               const subtitle = firstLine(pickText({ ...exam }, "description", locale));
+              const examAccess = resolveAccess(exam.access);
               return (
                 <li key={exam.id}>
                   <Link
@@ -315,6 +337,8 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                           examType={exam.examType}
                           retakeAvailable={exam.mine.retakeAvailable}
                         />
+                      ) : examAccess.via ? (
+                        <AccessBadge via={examAccess.via} />
                       ) : exam.price !== null && exam.price !== undefined ? (
                         <span className="block text-meta">
                           <span className="block font-bold">{formatMoney(exam.price, locale)}</span>
@@ -329,6 +353,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
               );
             })}
           </ul>
+          )
         )}
       </section>
 

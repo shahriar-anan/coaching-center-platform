@@ -26,7 +26,7 @@ export interface PurchaseItem {
 export const ORDER_MEMO_PREFIX = "exam-portal.order.";
 
 export interface OrderMemo {
-  scope: "EXAM" | "MODULE";
+  scope: "EXAM" | "MODULE" | "BUNDLE";
   examId: string | null;
   moduleId: string | null;
   door: "mcq" | "written" | null;

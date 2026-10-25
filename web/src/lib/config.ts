@@ -59,6 +59,9 @@ export const splitHosts = hosts.splitHosts;
 
 export const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true";
 
+/** One payment for several exams (plan decision D1). Off until the API has bundle orders. */
+export const bundleOrders = process.env.NEXT_PUBLIC_BUNDLE_ORDERS === "true";
+
 function currentOrigin(): string | null {
   if (typeof window === "undefined") {
     return null;

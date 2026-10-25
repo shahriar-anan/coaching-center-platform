@@ -9,6 +9,7 @@ import { useModuleSearch, useUpcomingExams, type PublicModule, type UpcomingExam
 import type { ExamType } from "@/lib/api/exam/types";
 import { formatDateTime, formatMoney, pickTitle } from "@/lib/format";
 import { useListParams } from "@/lib/url/list-params";
+import { useServerNow } from "@/lib/time/clock";
 import { doorType, examPath, modulePath, moduleTypeCount, type Door } from "./catalog-helpers";
 
 /**
@@ -83,18 +84,35 @@ function Discovery({ door }: { door: Door }) {
   );
 }
 
+/**
+ * What a row says in place of a price: "চালু আছে" when the exam is live now, the price when it has
+ * one, "শুধু মডিউলে কেনা যাবে" for a module-only exam. Otherwise nothing: never "price not set" here.
+ */
+export function upcomingPriceNote(
+  exam: { price: number | null; moduleOnly?: boolean; liveAt: string | null; endAt: string | null },
+  now: number,
+): { kind: "live" } | { kind: "price"; price: number } | { kind: "moduleOnly" } | null {
+  const live = exam.liveAt !== null && exam.endAt !== null && Date.parse(exam.liveAt) <= now && now < Date.parse(exam.endAt);
+  if (live) return { kind: "live" };
+  if (exam.price !== null && exam.price !== undefined) return { kind: "price", price: exam.price };
+  if (exam.moduleOnly) return { kind: "moduleOnly" };
+  return null;
+}
+
 function UpcomingRow({ exam }: { exam: UpcomingExam }) {
   const { t, locale } = useLocale();
+  const now = useServerNow(30_000);
   const moduleTitle = { titleEn: exam.moduleTitleEn ?? "", titleBn: exam.moduleTitleBn ?? null };
-  // A module-only exam has no price of its own, so the row shows none rather than "price not set".
-  const price = exam.price !== null && exam.price !== undefined ? formatMoney(exam.price, locale) : null;
+  const note = upcomingPriceNote(exam, now);
   return (
     <>
       <p className="font-semibold text-text">{pickTitle(exam, locale)}</p>
       <p className="text-body text-muted">{pickTitle(moduleTitle, locale)}</p>
       <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body">
         <span className="text-muted">{exam.liveAt ? formatDateTime(exam.liveAt, locale) : t("catalog.dateTbd")}</span>
-        {price ? <span className="font-semibold">{price}</span> : null}
+        {note?.kind === "live" ? <span className="font-semibold text-ok">{t("catalog.upcoming.live")}</span> : null}
+        {note?.kind === "price" ? <span className="font-semibold">{formatMoney(note.price, locale)}</span> : null}
+        {note?.kind === "moduleOnly" ? <span className="text-meta text-muted">{t("catalog.upcoming.moduleOnly")}</span> : null}
       </p>
     </>
   );

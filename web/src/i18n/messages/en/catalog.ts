@@ -36,7 +36,7 @@ const catalog: typeof bn = {
   buyModuleWithPrice: "Buy whole module · {price}",
   buyModuleCovers: "Unlocks every exam in this module, including ones added later. Both MCQ and written.",
   unlocked: "Unlocked",
-  priceNotSet: "Price not set yet",
+  priceNotSet: "Price not set yet.",
   routineTitle: "Exam routine",
   colExam: "Exam",
   colDate: "Date",
@@ -68,6 +68,8 @@ const catalog: typeof bn = {
   },
   upcoming: {
     title: "Upcoming exams",
+    live: "Live now",
+    moduleOnly: "Only in a module",
   },
   summaryTitle: "What you get",
   summaryNext: "Next exam {date}",

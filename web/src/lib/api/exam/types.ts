@@ -67,6 +67,8 @@ export interface Titled {
 /** `GET /api/v1/public/live-exam-modules`, and the modules inside the category tree. */
 export interface PublicModule extends Titled {
   id: string;
+  /** The student's access, present when signed in (plan section 8, A1). */
+  access?: AccessInfo | null;
   categoryId: string;
   descriptionEn: string | null;
   descriptionBn: string | null;
@@ -90,6 +92,8 @@ export interface CategoryNode extends Titled {
 /** `GET /api/v1/public/live-exams/{id}` and the module exam list. */
 export interface PublicExam extends Titled {
   id: string;
+  /** The student's access, present when signed in (plan section 8, A1). */
+  access?: AccessInfo | null;
   moduleId: string;
   examType: ExamType;
   descriptionEn: string | null;
@@ -134,3 +138,11 @@ export interface StudentExam extends Omit<PublicExam, "price"> {
   retakeAvailable: boolean | null;
 }
 
+/** The `access` object on public module and exam responses (plan section 8). */
+export type AccessState = "NONE" | "MODULE" | "EXAM" | "ROSTER" | "MANUAL";
+export type BlockedReason = "PHONE_REQUIRED" | "PRICE_REQUIRED" | "ALREADY_HAS_ACCESS" | "CHECKOUT_OFF";
+export interface AccessInfo {
+  state: AccessState;
+  buyable: boolean;
+  blockedReason: BlockedReason | null;
+}
