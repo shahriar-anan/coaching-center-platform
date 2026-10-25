@@ -96,12 +96,13 @@ export function useResendEmailVerification() {
 }
 
 /**
- * True when an API that predates an endpoint answered: a 404 with a body, or a bare
- * 404 or 405 that the client maps to INTERNAL_ERROR with the status text as message.
+ * True when an API that predates an endpoint answered: a RESOURCE_NOT_FOUND body, a 405,
+ * or a 404 with no API error body. The client keeps the HTTP status on ApiError.
  * Screens show "not yet" instead of an error.
  */
 export function isNotDeployed(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;
   if (error.code === "RESOURCE_NOT_FOUND") return true;
-  return error.code === "INTERNAL_ERROR" && /not found|method not allowed/i.test(error.message);
+  // A 405, or a 404 with no API error body: the client keeps the HTTP status, so no text matching.
+  return error.status === 405 || (error.status === 404 && error.code === "INTERNAL_ERROR");
 }

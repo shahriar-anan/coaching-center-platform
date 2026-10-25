@@ -20,20 +20,7 @@ export function recordServerDate(dateHeader: string | null | undefined): void {
   offsetMs = Math.abs(offset) < 1000 ? 0 : offset;
 }
 
-/** For sources that send an exact server time, such as a sitting's `serverTime`. */
-export function recordServerTime(iso: string | null | undefined): void {
-  if (!iso) {
-    return;
-  }
-  const server = Date.parse(iso);
-  if (!Number.isNaN(server)) {
-    offsetMs = server - Date.now();
-  }
-}
 
-export function clockOffset(): number {
-  return offsetMs;
-}
 
 export function resetClock(): void {
   offsetMs = 0;
