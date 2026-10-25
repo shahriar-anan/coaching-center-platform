@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DoorDiscovery } from "./door-discovery";
-import { ProductCard } from "@/components/student/stand-ins-pur/product-card";
+import { ProductCard } from "@/components/ui/purchase/product-card";
 import {
   categoryPath,
   countModules,

@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/api/errors";
 import { useBundleOrder } from "@/lib/api/exam/purchase";
 import { useLocale } from "@/i18n/locale-context";
 import { formatMoney, formatNumber } from "@/lib/format";
-import { SelectableExamList } from "@/components/student/stand-ins-pur/selectable-exam-list";
+import { SelectableExamList } from "@/components/ui/purchase/selectable-exam-list";
 
 export type BundleItem = {
   id: string;
