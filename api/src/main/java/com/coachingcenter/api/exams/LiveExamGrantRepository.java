@@ -4,13 +4,19 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * The access checks ignore revoked grants: a revoked grant is history, not access (R-2). {@link #existsByStudentId} is
+ * the exception, used for account deletion, which counts revoked grants too (R-10).
+ */
 public interface LiveExamGrantRepository extends JpaRepository<LiveExamGrant, UUID> {
 
-	boolean existsByStudentIdAndScopeAndModuleId(UUID studentId, String scope, UUID moduleId);
+	boolean existsByStudentId(UUID studentId);
 
-	boolean existsByStudentIdAndScopeAndExamId(UUID studentId, String scope, UUID examId);
+	boolean existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(UUID studentId, String scope, UUID moduleId);
 
-	boolean existsByStudentIdAndModuleId(UUID studentId, UUID moduleId);
+	boolean existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(UUID studentId, String scope, UUID examId);
+
+	boolean existsByStudentIdAndModuleIdAndRevokedAtIsNull(UUID studentId, UUID moduleId);
 
 	boolean existsByOrderId(UUID orderId);
 

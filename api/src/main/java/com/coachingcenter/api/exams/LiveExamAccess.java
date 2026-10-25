@@ -18,13 +18,13 @@ public class LiveExamAccess {
 
 	public boolean hasExam(UUID studentId, LiveExam exam) {
 		return roster.existsByModuleIdAndStudentId(exam.getModuleId(), studentId)
-				|| grants.existsByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, exam.getModuleId())
-				|| grants.existsByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, exam.getId());
+				|| grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(studentId, LiveExamOrder.MODULE, exam.getModuleId())
+				|| grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, exam.getId());
 	}
 
 	public boolean hasModule(UUID studentId, UUID moduleId) {
 		return roster.existsByModuleIdAndStudentId(moduleId, studentId)
-				|| grants.existsByStudentIdAndModuleId(studentId, moduleId);
+				|| grants.existsByStudentIdAndModuleIdAndRevokedAtIsNull(studentId, moduleId);
 	}
 
 }

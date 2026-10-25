@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 
@@ -18,6 +19,9 @@ import com.coachingcenter.api.common.error.ErrorCode;
 class LiveExamOrderTx {
 
 	private static final Logger log = LoggerFactory.getLogger(LiveExamOrderTx.class);
+
+	/** The payment channel of an order that Master Admin confirmed after checking the payment (R-8). */
+	static final String MANUAL_CHANNEL = "MANUAL-CONFIRMED";
 
 	private final LiveExamOrderRepository orders;
 
@@ -29,13 +33,16 @@ class LiveExamOrderTx {
 
 	private final Clock clock;
 
+	private final AuditRecorder audit;
+
 	LiveExamOrderTx(LiveExamOrderRepository orders, LiveExamGrantRepository grants, ExamMailService examMail,
-			AfterCommit afterCommit, Clock clock) {
+			AfterCommit afterCommit, Clock clock, AuditRecorder audit) {
 		this.orders = orders;
 		this.grants = grants;
 		this.examMail = examMail;
 		this.afterCommit = afterCommit;
 		this.clock = clock;
+		this.audit = audit;
 	}
 
 	@Transactional
@@ -108,10 +115,49 @@ class LiveExamOrderTx {
 		return order;
 	}
 
+	/**
+	 * Master Admin confirms a pending order after checking the payment at SSLCommerz (R-8). The order becomes paid, the
+	 * channel says it was confirmed by hand, and access is granted as for any paid order.
+	 */
+	@Transactional
+	public LiveExamOrder confirm(UUID orderId, UUID actorId, String reason) {
+		LiveExamOrder order = requirePending(orderId);
+		order.setStatus(LiveExamOrder.SUCCEEDED);
+		order.setPaymentChannel(MANUAL_CHANNEL);
+		order.setConfirmedBy(actorId);
+		order.setConfirmReason(reason);
+		order.setUpdatedAt(clock.instant());
+		writeGrant(order);
+		UUID id = order.getId();
+		afterCommit.run(() -> examMail.onOrderSucceeded(id));
+		audit.record(AuditRecorder.ORDER_CONFIRMED, AuditRecorder.LIVE_EXAM_ORDER_ENTITY, id);
+		return order;
+	}
+
+	/** Master Admin rejects a pending order: it becomes FAILED with the reason, and grants nothing. */
+	@Transactional
+	public LiveExamOrder reject(UUID orderId, String reason) {
+		LiveExamOrder order = requirePending(orderId);
+		order.setStatus(LiveExamOrder.FAILED);
+		order.setRejectedReason(reason);
+		order.setUpdatedAt(clock.instant());
+		audit.record(AuditRecorder.ORDER_REJECTED, AuditRecorder.LIVE_EXAM_ORDER_ENTITY, order.getId());
+		return order;
+	}
+
+	private LiveExamOrder requirePending(UUID orderId) {
+		LiveExamOrder order = orders.lockById(orderId).orElseThrow(LiveExamOrderTx::notFound);
+		if (!LiveExamOrder.INITIATED.equals(order.getStatus())) {
+			throw new ApiException(ErrorCode.ORDER_NOT_PENDING, HttpStatus.CONFLICT,
+					"Only a pending order can be confirmed or rejected.");
+		}
+		return order;
+	}
+
 	private void writeGrant(LiveExamOrder order) {
 		boolean held = LiveExamOrder.MODULE.equals(order.getScope())
-				? grants.existsByStudentIdAndScopeAndModuleId(order.getStudentId(), LiveExamOrder.MODULE, order.getModuleId())
-				: grants.existsByStudentIdAndScopeAndExamId(order.getStudentId(), LiveExamOrder.EXAM, order.getExamId());
+				? grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.MODULE, order.getModuleId())
+				: grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.EXAM, order.getExamId());
 		if (held || grants.existsByOrderId(order.getId())) {
 			return;
 		}
@@ -122,6 +168,7 @@ class LiveExamOrderTx {
 		grant.setModuleId(order.getModuleId());
 		grant.setExamId(order.getExamId());
 		grant.setOrderId(order.getId());
+		grant.setSource(LiveExamGrant.SOURCE_ORDER);
 		grant.setCreatedAt(clock.instant());
 		grants.saveAndFlush(grant);
 	}

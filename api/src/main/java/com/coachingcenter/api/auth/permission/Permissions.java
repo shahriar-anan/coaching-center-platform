@@ -76,6 +76,18 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_ORDER_READ = "LIVE_EXAM_ORDER_READ";
 
+	public static final String LIVE_EXAM_GRANT = "LIVE_EXAM_GRANT";
+
+	public static final String LIVE_EXAM_REVOKE = "LIVE_EXAM_REVOKE";
+
+	public static final String LIVE_EXAM_ORDER_CONFIRM = "LIVE_EXAM_ORDER_CONFIRM";
+
+	public static final String LIVE_EXAM_RELEASE = "LIVE_EXAM_RELEASE";
+
+	public static final String INSTRUCTOR_STATUS = "INSTRUCTOR_STATUS";
+
+	public static final String INSTRUCTOR_DELETE = "INSTRUCTOR_DELETE";
+
 	private Permissions() {
 	}
 

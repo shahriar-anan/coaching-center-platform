@@ -475,3 +475,37 @@ Branch `ui/w9-api`, worktree `F:\cc-wt\w9-api`. Checks: full suite from clean, a
 - **STU-FU-3:** the sitting score figure uses `text-section` (20 px, the mockup's stat size) in place of `text-2xl`.
 - **STU-FU-4 (decision, pending user confirmation):** the sitting jump grid stays at 44 px, the README's touch target. Accepted by STU; pending user confirmation.
 - **Not touched, per the follow-up's list:** `components/student/catalog/**`, `purchase/**`, `notice-bell.tsx`, the notices page, `result/**`, `home/**`, the listed `lib/api/exam` files, and the messages `catalog`, `purchase`, `notices`, `result`, `sitting`. ST-2 and ST-4 are not STU's.
+
+## Report — API-ADMIN
+
+Branch `ui/api-admin`, worktree `F:\cc-wt\api-admin`. Merged `catalog-acquisition` first (includes V39 at `3fa6238`). V39 itself was not changed.
+
+Checks: full suite from clean, under the lock: 334 run, 2 failures, both expected: `BookOrderIT`, `CoursePurchaseIT`. One more error on HEAD, outside this work: `StudentAccessIT.staffSeeEveryReasonAStudentCanSitAndNobodyElseCan` inserts a grant with raw SQL and no `source`. V39 dropped the column default, so the insert fails. That file belongs to API-ACCESS (A1), and the fix is theirs; API-ADMIN left it as it is. Touched `*IT` classes green in targeted runs: LiveGrantAdminIT (9), LiveExamPurchaseIT (15), LiveSittingIT (31), LivePublicCatalogIT (5), ExamMailIT (13), LiveEvaluationIT (46), AuditLogIT (3), AuthorizationIT (5), AuthorizationTest (4).
+
+| Item | Status | Note |
+|---|---|---|
+| V39 (S-019) | done | `a726e1e` (merged as `3fa6238`). |
+| 2 Manual grant (R-3) | done | `f2ad59c`. `POST /api/v1/live-exam-grants`, Master Admin and System Admin. `GRANT_ALREADY_ACTIVE`, `RESOURCE_NOT_FOUND`, `ACCESS_GRANTED`. |
+| 3 Revoke (R-2) | done | `ccdc190`. `DELETE /api/v1/live-exam-grants/{id}?reason=`, Master Admin only. Every access check ignores revoked grants. |
+| 4 Confirm or reject order (R-8) | done | `26f4948`. Confirm grants with source `ORDER`, channel `MANUAL-CONFIRMED`. `ORDER_NOT_PENDING`. The `PURCHASE_GRANTED` notice is A2's. |
+| 5 Answer release (R-4) | done | `5a13126`. Sets the flag only; the student review gating is A1's. |
+| 6 Student deletion blocked (R-10, S-021) | done | `f41b614`. `ACCOUNT_HAS_PAID_ORDERS`, for a SUCCEEDED order or any grant, active or revoked. |
+| 7 Permission narrowing (S-022) | done | `48d32db`. `STUDENT_STATUS` is Master Admin only. |
+| 8 Instructor status and delete (S-023) | done | `1e84219`. `ACCOUNT_HAS_MARKED_WORK` (new code). |
+| 9 Announcements (R-5, S-020) | **blocked** | Not committed. See the decision below. |
+| 10 Suspend and restore (R-2) | done | `7c5a1c1`. Audit `USER_SUSPENDED` and `USER_RESTORED`, replacing `USER_STATUS_CHANGED`. |
+
+**Item 9 is blocked on a schema decision.** Section 7 adds only `announcement_id` to `student_notices`. That table still has a `kind` CHECK limited to three kinds (`EXAM_REMINDER`, `MCQ_SCORE`, `WRITTEN_RESULT`), and `exam_id` is `NOT NULL`. An announcement has no exam and needs the new `ANNOUNCEMENT` kind, so its notice row cannot be written. The `announcements` table and the send route alone would give no notices, so nothing was committed. Options: (a) a V40 that widens the kind CHECK and makes `exam_id` nullable (this conflicts with the plan's rule that every schema change is V39, so it needs the integrator's approval); (b) a different notice storage for announcements, which changes the plan. Decision needed before item 9 can go on.
+
+**Notes for A1, A2 and A4:**
+- A1: `StudentAccessIT` (see the check note above) needs `source` on its two grant inserts. The staff access list now shows `via = MANUAL` for manual grants and excludes revoked grants. `LiveExamOrder` has `confirmed_by`, `confirm_reason`, `rejected_reason`. `LiveExam` has `answers_released_at` and `answers_released_by`, which the review gating should read.
+- A2: confirm writes no notice; `PURCHASE_GRANTED` on confirm (and on manual grant) is yours, from the grant path. The `ANNOUNCEMENT` kind waits on the item 9 decision.
+- A4: bundle orders are not handled by confirm or reject (only MODULE and EXAM exist today); `live_exam_grants.source` already allows `BUNDLE`.
+- Module assignments are not removed by instructor suspend or delete; the existing unassign route does that.
+
+**Contract changes (for the integrator):**
+- New routes: `POST /api/v1/live-exam-grants`; `DELETE /api/v1/live-exam-grants/{id}`; `POST /api/v1/live-exam-orders/{id}/confirm` and `/reject`; `PUT /api/v1/live-exams/{id}/answers-released`; `PATCH /api/v1/instructors/{id}/status`; `DELETE /api/v1/instructors/{id}`. All in `AuditLogIT`.
+- Changed: `DELETE /api/v1/students/{id}` (409 `ACCOUNT_HAS_PAID_ORDERS`); `PATCH /api/v1/students/{id}/status` (System Admin gets 403); the staff access list shows `MANUAL` rows; status changes audit `USER_SUSPENDED` / `USER_RESTORED`.
+- New error codes: `GRANT_ALREADY_ACTIVE`, `ORDER_NOT_PENDING`, `ACCOUNT_HAS_PAID_ORDERS`, `ACCOUNT_HAS_MARKED_WORK`.
+- New permissions (all Master Admin only except where noted): `LIVE_EXAM_GRANT` (Master Admin, System Admin), `LIVE_EXAM_REVOKE`, `LIVE_EXAM_ORDER_CONFIRM`, `LIVE_EXAM_RELEASE` (Master Admin, System Admin), `INSTRUCTOR_STATUS`, `INSTRUCTOR_DELETE`.
+- Documented in `current-api.md` under "Added for the phase 2 UI (API-ADMIN)".

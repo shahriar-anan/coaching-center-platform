@@ -13,7 +13,9 @@ public class AuditRecorder {
 
 	public static final String USER_DELETED = "USER_DELETED";
 
-	public static final String USER_STATUS_CHANGED = "USER_STATUS_CHANGED";
+	public static final String USER_SUSPENDED = "USER_SUSPENDED";
+
+	public static final String USER_RESTORED = "USER_RESTORED";
 
 	public static final String ACTIVATION_CODE_ISSUED = "ACTIVATION_CODE_ISSUED";
 
@@ -87,11 +89,27 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_ENTITY = "LIVE_EXAM";
 
+	public static final String ANSWERS_RELEASED = "ANSWERS_RELEASED";
+
+	public static final String ANSWERS_WITHHELD = "ANSWERS_WITHHELD";
+
 	public static final String LIVE_EXAM_INSTRUCTOR_UNASSIGN = "LIVE_EXAM_INSTRUCTOR_UNASSIGN";
 
 	public static final String LIVE_EXAM_RESULT_PUBLISH = "LIVE_EXAM_RESULT_PUBLISH";
 
 	public static final String LIVE_EXAM_PARTICIPANT_ENTITY = "LIVE_EXAM_PARTICIPANT";
+
+	public static final String ACCESS_GRANTED = "ACCESS_GRANTED";
+
+	public static final String ACCESS_REVOKED = "ACCESS_REVOKED";
+
+	public static final String ORDER_CONFIRMED = "ORDER_CONFIRMED";
+
+	public static final String ORDER_REJECTED = "ORDER_REJECTED";
+
+	public static final String LIVE_EXAM_ORDER_ENTITY = "LIVE_EXAM_ORDER";
+
+	public static final String LIVE_EXAM_GRANT_ENTITY = "LIVE_EXAM_GRANT";
 
 	private final AuditLogRepository auditLogs;
 
