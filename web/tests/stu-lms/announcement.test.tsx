@@ -68,4 +68,26 @@ describe("announcement row (S-020)", () => {
     expect(screen.getByText("Closed on Friday")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit|delete|সম্পাদনা|মুছুন/i })).not.toBeInTheDocument();
   });
+
+  it("a module announcement carries its audience and module, and shows the same way with no link", async () => {
+    const moduleNotice = {
+      ...announcement,
+      id: "a2",
+      announcement: {
+        id: "ann-2",
+        titleEn: "Module update",
+        titleBn: null,
+        bodyEn: "Mock on Sunday",
+        bodyBn: null,
+        audience: "MODULE",
+        moduleId: "m-9",
+      },
+    };
+    mockApi({ "GET /api/v1/me/notices": { content: [moduleNotice], page: 0, totalPages: 1 } });
+    renderWithProviders(<NoticesPage />, { user: fixtures.student, locale: "en" });
+
+    expect(await screen.findByText("Module update")).toBeInTheDocument();
+    expect(screen.getByText("Mock on Sunday")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

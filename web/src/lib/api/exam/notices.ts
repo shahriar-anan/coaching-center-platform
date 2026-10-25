@@ -29,20 +29,29 @@ export interface NoticeExam {
   endAt: string | null;
 }
 
+/** The announcement an ANNOUNCEMENT notice carries (plan 6.4). Either language may be blank. */
+export interface NoticeAnnouncement {
+  id: string;
+  titleEn: string | null;
+  titleBn: string | null;
+  bodyEn: string | null;
+  bodyBn: string | null;
+  /** ALL, or MODULE for an announcement sent to one module. */
+  audience: "ALL" | "MODULE" | (string & {});
+  /** Set only for a MODULE audience. */
+  moduleId: string | null;
+}
+
 export interface Notice {
   id: string;
   kind: NoticeKind;
   createdAt: string;
   /** Null while unread. */
   readAt: string | null;
+  /** Null for an announcement, which names no exam. */
   exam: NoticeExam | null;
-  /** Set on an ANNOUNCEMENT notice: the title and body in both languages (plan 6.4). */
-  announcement: {
-    titleEn: string | null;
-    titleBn: string | null;
-    bodyEn: string | null;
-    bodyBn: string | null;
-  } | null;
+  /** Set on an ANNOUNCEMENT notice, and null on every other kind. */
+  announcement: NoticeAnnouncement | null;
   /** MCQ score or written mark, with the maximum. */
   score: number | null;
   maximum: number | null;
