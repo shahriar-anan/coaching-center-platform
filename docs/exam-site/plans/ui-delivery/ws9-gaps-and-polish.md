@@ -353,3 +353,14 @@ Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 **Notes for other agents:** `components/ui/toast.tsx` (FND) still uses `text-[15px]`; it is FND's file, so it was not changed here.
 
 **Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc --noEmit` clean; `npm test` (single process) 238 passed in 35 files; `npm run build` under the lock: passed.
+
+### Addendum — STU second pass
+
+- **Read now:** `docs/exam-site/ui/client-mockup.html` and `docs/exam-site/ui/student-flow-prompts.md` (visual rules, standards, do-not-draw list). Checked: no negative-mark copy, no photo upload, no SMS code, and the login and reset copy follows the glossary (the invalid-code sentence in `bangla-copy.md` wins over the briefs).
+- **P4, now done:** hero spacing 42 px top and 30 px bottom, gold left border on the countdown card, the exam page's primary action pinned on phones through a local `StickyActionBar` stand-in (`components/student/stand-ins/sticky-action-bar.tsx`; delete it and switch the import once FND merges), roomier paper options (12 px vertical padding).
+- **P4, still open:** the sitting jump grid stays at 44 px cells (the README's student target), not the 40 px in P4. The results stat numbers in gold need FND's `Stat`, and the routine table's fade edge and the status pill's no-wrap need FND's `Pill` or a change to my `status-pill.tsx`. Dark-mode parity and the 320 px checks were not run on a device.
+- **F10, now done:** the payment polling rule is extracted as `paymentPollDelay` and tested (3 s while pending, stops at one minute or at a final answer). The written answer replacement is tested (stored note waits until the new file is sent). **Not covered:** the deadline passing during an upload. The test harness raised the rejected `ApiError` from the test body; the case is left for a later pass.
+- **F10, still open:** take and retake redirects, the offline flush beyond the existing MCQ backup test.
+- **Bangla pass:** my student namespaces (`auth`, `account`, `catalog`, `purchase`, `result`, `sitting`, `notices`, `legal`) checked against the forbidden-term list; no changes were needed. `legacy`, `staff*` and FND's `common` are not STU's and were not touched.
+
+**Checks:** lint 0 errors; `tsc` clean; `npm test` (single process) 242 passed in 37 files; the build is re-run under the lock after these changes (see the build line above).
