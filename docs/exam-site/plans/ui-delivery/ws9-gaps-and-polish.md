@@ -509,3 +509,34 @@ Checks: full suite from clean, under the lock: 334 run, 2 failures, both expecte
 - New error codes: `GRANT_ALREADY_ACTIVE`, `ORDER_NOT_PENDING`, `ACCOUNT_HAS_PAID_ORDERS`, `ACCOUNT_HAS_MARKED_WORK`.
 - New permissions (all Master Admin only except where noted): `LIVE_EXAM_GRANT` (Master Admin, System Admin), `LIVE_EXAM_REVOKE`, `LIVE_EXAM_ORDER_CONFIRM`, `LIVE_EXAM_RELEASE` (Master Admin, System Admin), `INSTRUCTOR_STATUS`, `INSTRUCTOR_DELETE`.
 - Documented in `current-api.md` under "Added for the phase 2 UI (API-ADMIN)".
+
+## Report — API-ACCESS
+
+Branch `ui/api-access`, worktree `F:\cc-wt\api-access`, from `catalog-acquisition` at `3fa6238` (V39 merged). Plan: [student-purchase-lms-plan.md](student-purchase-lms-plan.md). No Flyway migration. Tests ran on the external test database from `api/.env` (`TEST_DB_*`), because Docker is not available on this machine.
+
+**Checks**
+- Touched classes, under the lock: `StudentAccessIT` 2, `PublicAccessIT` 4 (new), `LivePublicCatalogIT` 6, `LiveSittingIT` 33, `AuditLogIT` 3. All 48 green.
+- Full suite from clean, alone, under the lock: 332 run, 15 failures and 10 errors, none from this branch. `BookOrderIT` and `CoursePurchaseIT` passed.
+  - **V39 without the entity (base branch, fixed by API-ADMIN).** `live_exam_grants.source` is `NOT NULL` with no default, and the `LiveExamGrant` entity on `catalog-acquisition` does not set it, so every order grant fails: `LiveExamPurchaseIT` (8, a 500 on the gateway return), `ExamMailIT` (5) and `LiveEvaluationIT` (2, test inserts without `source`). `ui/api-admin` already sets `source` in the entity and fixes those two test inserts.
+  - **Shared test database state.** `ActivationMailIT` (2), `ActivationSendFailureIT`, `PasswordResetAudienceIT` (2), `BootstrapIT`, `InstructorDirectoryIT` (2): the bootstrap Master Admin login returns 401 or 429 (lockout), or the bootstrap row is missing. `DemoContentSeedIT` (2): `SEED_INSTRUCTOR_PHONE is already in use`. These rows are left over from earlier runs on the same database. This branch does not touch auth, users or the seed.
+
+| Item | Status | Note |
+|---|---|---|
+| S-003 (1) | done | `GET /api/v1/me/live-exam-access`. Roster, module and exam grants; `via` `ROSTER`, `MODULE`, `EXAM`, `MANUAL`; revoked grants and other students' rows never appear. |
+| S-003 (2) | done | `access { state, buyable, blockedReason }` on public module list, module, module exams and exam, for a signed-in student only. |
+| S-005, S-013 (3) | done | `GET /api/v1/public/exam-site/status` → `{ checkoutEnabled }`. |
+| S-012 (4) | done | `categoryPath` on public module rows, root first. |
+| S-027 (5) | done | `moduleOnly` on upcoming rows. |
+| S-018 (6) | done | `correct` and `explanation` withheld until `answers_released_at` is set and the sitting is over. Read through a native query (`LiveExamRepository.answersReleased`), so the `LiveExam` entity stays with API-ADMIN. |
+| S-024 (7) | done | Tests only. No behaviour change. |
+
+**Contract changes**
+- New: `GET /api/v1/me/live-exam-access`, `GET /api/v1/public/exam-site/status`. Both in `AuditLogIT`.
+- Added fields: `access` and `categoryPath` on `PublicModule`; `access` on `PublicExam`; `moduleOnly` on `UpcomingExam`.
+- Changed behaviour: the MCQ review hides `correct` and `explanation` until release. Existing `LiveSittingIT` cases now release the answers before they assert them.
+- Shapes are in `current-api.md` under "Added for the phase 2 UI (API-ACCESS)". A null field is left out of the body, as elsewhere, except `access.blockedReason`, which is always written.
+
+**Notes for the other agents**
+- STU-PUR: drop the 404 probes. Use `access.state` and `access.blockedReason` on the module and exam reads, and `/me/live-exam-access` for "my modules". `orderId` is left out for roster rows and manual grants. Owning one exam does not own its module: the module stays `NONE` and buyable. `blockedReason` order is `ALREADY_HAS_ACCESS`, `PRICE_REQUIRED`, `CHECKOUT_OFF`, `PHONE_REQUIRED`. Upcoming rows: show "শুধু মডিউলে কেনা যাবে" when `moduleOnly`.
+- STU-LMS: when a review has `questions` but no `correct` on any option, the answers are withheld. Show "উত্তর এখনো প্রকাশ হয়নি".
+- API-ADMIN: the staff list `GET /api/v1/students/{id}/live-exam-access` is unchanged here. Your edit of its `ROWS` query sits next to my new constants in `StudentLiveExamAccessService`, so the merge may show a small textual conflict; keep both. `LiveExamPublicService` reads grants directly, not through `LiveExamAccess`.
