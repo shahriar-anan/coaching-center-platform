@@ -250,3 +250,10 @@ body {
     width: 100%;
   }
 }
+
+/* Phones: a page with a sticky action bar keeps its last content clear of the bar and the tab bar (WS9 FN-2). */
+@media (max-width: 767.98px) {
+  [data-surface]:has([data-sticky-bar]) {
+    padding-bottom: calc(var(--tabbar-h, 0px) + 5rem + env(safe-area-inset-bottom));
+  }
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Bell, BookOpen, CircleUserRound, Home, ListChecks, LogOut, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
@@ -31,6 +31,12 @@ const TABS: TabItem[] = [
 function hidesTabBar(pathname: string): boolean {
   return /^\/exam\/[^/]+\/sit(\/|$)/.test(pathname);
 }
+
+/** The tab bar is 3.5 rem plus the safe area. A sticky action bar sits above it (WS9 FN-2). */
+const tabBarVars = {
+  "--tabbar-h": "calc(3.5rem + env(safe-area-inset-bottom))",
+  "--sticky-pb": "0.75rem",
+} as CSSProperties;
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
@@ -175,7 +181,12 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
 
   return (
-    <div data-surface="site" className="flex min-h-dvh flex-col bg-bg text-text">
+    <div
+      data-surface="site"
+      data-tabbar={showTabs ? "true" : undefined}
+      style={showTabs ? tabBarVars : undefined}
+      className="flex min-h-dvh flex-col bg-bg text-text"
+    >
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-control focus:bg-card focus:px-4 focus:py-2"

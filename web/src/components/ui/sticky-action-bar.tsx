@@ -8,8 +8,9 @@ import { cn } from "@/components/ui/cn";
 export function StickyActionBar({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
+      data-sticky-bar=""
       className={cn(
-        "fixed inset-x-0 bottom-0 z-30 flex items-center justify-end gap-2 border-t border-border bg-card px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]",
+        "fixed inset-x-0 bottom-[var(--tabbar-h,0px)] z-30 flex items-center justify-end gap-2 border-t border-border bg-card px-4 py-3 pb-[var(--sticky-pb,calc(0.75rem_+_env(safe-area-inset-bottom)))]",
         "md:static md:z-auto md:border-0 md:bg-transparent md:p-0",
         className,
       )}
