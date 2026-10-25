@@ -7,7 +7,7 @@ export const Select = forwardRef<
   SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }
 >(function Select({ invalid, className, children, ...rest }, ref) {
   return (
-    <select ref={ref} {...rest} className={cn(controlBase, "pe-9", controlBorder(invalid), className)}>
+    <select ref={ref} {...rest} className={cn(controlBase, "pe-9 hover:bg-bg active:border-accent", controlBorder(invalid), className)}>
       {children}
     </select>
   );

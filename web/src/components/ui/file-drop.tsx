@@ -86,8 +86,8 @@ export function FileDrop({
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cn(
-          "grid gap-3 rounded-card border-2 border-dashed bg-card p-5",
-          dragging ? "border-accent" : "border-border",
+          "grid gap-3 rounded-card border-2 border-dashed bg-card p-5 transition-colors duration-150",
+          dragging ? "border-accent" : "border-border hover:border-accent",
           shownError && "border-danger",
         )}
       >
