@@ -32,6 +32,12 @@ const result = {
     hideMarked: "Close the script",
     markedScript: "Marked script",
   },
+  access: {
+    roster: "Added directly",
+    module: "Module purchase",
+    exam: "Exam purchase",
+    manual: "Added by the centre",
+  },
   review: {
     title: "Check your answers",
     withheld: "Answers are not released yet. They will show here once the administrator releases them.",
