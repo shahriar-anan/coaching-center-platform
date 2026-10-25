@@ -88,6 +88,8 @@ public final class Permissions {
 
 	public static final String INSTRUCTOR_DELETE = "INSTRUCTOR_DELETE";
 
+	public static final String LIVE_EXAM_ANNOUNCE = "LIVE_EXAM_ANNOUNCE";
+
 	private Permissions() {
 	}
 
