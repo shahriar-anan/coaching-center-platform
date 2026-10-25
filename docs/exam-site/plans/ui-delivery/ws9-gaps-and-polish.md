@@ -319,3 +319,37 @@ Skipped: <ids and why>
 API additions: <list>
 Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 ```
+
+## Report — STU
+
+**Done** (each one a commit naming the item id):
+- **P1 type scale** on every student and auth page: no arbitrary `text-[..]`, no `text-sm`, `text-xs`, `text-base`, `text-lg` or `text-xl` left in `(site)`, `(auth)` and `components/student`. The hero uses `text-display`. Semantic classes come from FND's `@theme`; until FND merges they render at inherited size.
+- **U11** module summary "কী পাবেন" from the counts the page already has, for this door's type, plus the next exam.
+- **U12** copy-link button on the exam page, with a toast.
+- **G7** student name edit on the account page (`PATCH /api/v1/me`, 1–100 characters, trimmed). A 404 shows "coming soon".
+- **F6** registration helpers: phone grouped as typed (017 1234 5678), a check when valid, and a live count of the password characters still needed.
+- **F5** text size control (A− / A+, 16 / 18 / 20 px) on the MCQ paper and the result review, remembered per device. Stems and options read one CSS variable.
+- **UF1** printable payment receipt at `/account/payments/receipt` (from the paid rows of payment history; no new API).
+- **UF2** result review filter (সব / ভুল / সঠিক / উত্তর দেননি), a jump grid coloured by outcome with the outcome in its accessible name, and a pass-mark line on the results hub.
+- **UF3** empty states on home, routine, notices and payment history point to both doors, with one sentence on what to do next.
+- **U10** module search on the door page (`q`, also filtered by title) and an upcoming-exams strip for the door's type. Both hide while the API lacks the G12 endpoints. Search text lives in the URL.
+- **F10 (partly)**: tests for the name edit, registration helpers, text size, result outcome, door discovery and the receipt.
+
+**Partly done**
+- **Bangla pass**: the new strings were reviewed; existing student messages were not re-read.
+
+**Not done**
+- **P4 (student details)**: the sticky action bar on the exam page and the sitting bar need FND's `StickyActionBar`, which is not merged. The hero spacing, the 320 px checks and the dark-mode checks were not done.
+- **F10 (rest)**: upload replace state, written deadline transition, offline flush, take and retake redirects, and the payment-result polling stop after 60 s.
+- **UF1 print**: `PrintArea` is not used; the receipt hides its buttons with `print:hidden`, but the shell is not hidden in print until FND's print styles merge.
+
+**API assumptions** (check against API's G12 and G7 when merged):
+- `GET /api/v1/public/live-exams?examType=&upcoming=true&size=5` returns a page of exams with `moduleTitleEn` and `moduleTitleBn` on each row.
+- `GET /api/v1/public/live-exam-modules?q=` returns a page of modules.
+- `PATCH /api/v1/me` with `{ "fullName" }` returns `Me`.
+
+**Contract changes:** none to FND or API contracts. `HubExam` now includes `passPercent`.
+
+**Notes for other agents:** `components/ui/toast.tsx` (FND) still uses `text-[15px]`; it is FND's file, so it was not changed here.
+
+**Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc --noEmit` clean; `npm test` (single process) 238 passed in 35 files; build: see below.
