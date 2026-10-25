@@ -385,7 +385,12 @@ public class LiveExamSittingService {
 		return sum;
 	}
 
+	/**
+	 * {@code review} means the student's own sitting is over. The correct options and explanations are shown only then,
+	 * and only once staff released the answers for the exam (R-4), so nobody sees them while others may still sit.
+	 */
 	private List<StudentQuestion> questionViews(UUID examId, UUID participantId, boolean review) {
+		boolean reveal = review && examRepository.answersReleased(examId);
 		Map<UUID, UUID> selected = new HashMap<>();
 		for (LiveExamAnswer answer : answers.findByParticipantId(participantId)) {
 			selected.put(answer.getQuestionId(), answer.getOptionId());
@@ -395,10 +400,10 @@ public class LiveExamSittingService {
 			List<StudentOption> optionViews = new ArrayList<>();
 			for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(question.getId())) {
 				optionViews.add(new StudentOption(option.getId(), option.getOptionText(),
-						review ? option.isCorrect() : null, option.getId().equals(selected.get(question.getId()))));
+						reveal ? option.isCorrect() : null, option.getId().equals(selected.get(question.getId()))));
 			}
 			views.add(new StudentQuestion(question.getId(), question.getStem(), question.getMarks(),
-					review ? question.getExplanation() : null, optionViews));
+					reveal ? question.getExplanation() : null, optionViews));
 		}
 		return views;
 	}
