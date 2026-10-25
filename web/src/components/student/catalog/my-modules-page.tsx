@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  useMyLiveExamAccess,
   useMyModules,
   useMyModulesExams,
   useRoutine,
@@ -16,7 +17,9 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
+import { moduleAccessKey } from "@/components/student/result/access-source";
 import { doorPath, isDone, modulePath } from "./catalog-helpers";
 import { ProgressBar } from "./module-page";
 import { TypePill } from "./status-pill";
@@ -25,6 +28,7 @@ export function MyModulesPage() {
   const { t, locale } = useLocale();
   const now = useServerNow(30_000);
   const modules = useMyModules(true);
+  const access = useMyLiveExamAccess(true);
   const routine = useRoutine(true);
   const list = modules.data ?? [];
   const exams = useMyModulesExams(
@@ -69,6 +73,7 @@ export function MyModulesPage() {
           {list.map((module, index) => {
             const mine: StudentExam[] = (exams[index]?.data as StudentExam[] | undefined) ?? [];
             const done = mine.filter((e) => isDone(e.myStatus)).length;
+            const sourceKey = moduleAccessKey(access.data, module.id);
             const nextRows: RoutineRow[] = (routine.data ?? [])
               .filter((row) => row.moduleId === module.id && Date.parse(row.endAt) > now)
               .sort((a, b) => Date.parse(a.liveAt) - Date.parse(b.liveAt))
@@ -77,6 +82,11 @@ export function MyModulesPage() {
               <li key={module.id}>
                 <Card padding="lg">
                   <p className="text-card font-bold">📚 {pickTitle(module, locale)}</p>
+                  {sourceKey ? (
+                    <p className="mt-1">
+                      <Pill tone="muted">{t(sourceKey)}</Pill>
+                    </p>
+                  ) : null}
                   <ProgressBar done={done} total={mine.length} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="secondary" href={modulePath("mcq", module.id)}>{t("catalog.myModules.openMcq")}</Button>
