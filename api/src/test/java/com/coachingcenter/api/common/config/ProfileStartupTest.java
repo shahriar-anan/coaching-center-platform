@@ -33,4 +33,16 @@ class ProfileStartupTest {
 		assertThatCode(() -> ProfileStartup.refuseSeedOnProd(List.of("prod"), null)).doesNotThrowAnyException();
 	}
 
+	@Test
+	void demoSeedIsRefusedOnProd() {
+		assertThatThrownBy(() -> ProfileStartup.refuseDemoOnProd(List.of("prod"), "true"))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessage("SEED_DEMO cannot be true on the prod profile.");
+		assertThatThrownBy(() -> ProfileStartup.refuseDemoOnProd(List.of("staging", "prod"), " TRUE "))
+			.isInstanceOf(IllegalStateException.class);
+		assertThatCode(() -> ProfileStartup.refuseDemoOnProd(List.of("staging"), "true")).doesNotThrowAnyException();
+		assertThatCode(() -> ProfileStartup.refuseDemoOnProd(List.of("prod"), "false")).doesNotThrowAnyException();
+		assertThatCode(() -> ProfileStartup.refuseDemoOnProd(List.of("prod"), null)).doesNotThrowAnyException();
+	}
+
 }
