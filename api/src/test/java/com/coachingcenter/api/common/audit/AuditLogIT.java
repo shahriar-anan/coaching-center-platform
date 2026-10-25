@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Set;
@@ -267,6 +268,26 @@ class AuditLogIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private ObjectMapper json;
+
+	@Test
+	void theAuditLogListsNewestFirst() throws Exception {
+		String phone = uniquePhone();
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("""
+				INSERT INTO users (id, phone, email, password_hash, role, status, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'MASTER_ADMIN', 'ACTIVE', now(), now())
+				""", UUID.randomUUID(), phone, uniqueEmail(), passwords.encode("password1"));
+		// The table is append-only, so each run's row is dated later than every earlier run's.
+		UUID newest = UUID.randomUUID();
+		jdbc.update("""
+				INSERT INTO audit_log (id, actor_user_id, action, entity_type, entity_id, created_at)
+				VALUES (?, NULL, 'TEST_ORDER', 'TEST', ?, now() + interval '100 years')
+				""", UUID.randomUUID(), newest);
+
+		mockMvc.perform(get("/api/v1/audit-log").header("Authorization", "Bearer " + token(phone)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content[0].entityId").value(newest.toString()));
+	}
 
 	@Test
 	void auditedActionsRecordActorActionAndEntity() throws Exception {

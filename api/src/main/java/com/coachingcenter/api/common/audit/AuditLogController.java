@@ -1,6 +1,7 @@
 package com.coachingcenter.api.common.audit;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,8 @@ public class AuditLogController {
 	}
 
 	@GetMapping("/api/v1/audit-log")
-	public PageResponse<AuditLog> list(@PageableDefault(size = 20) Pageable pageable) {
+	public PageResponse<AuditLog> list(
+			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 		if (!permissions.has(Permissions.AUDIT_READ)) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
