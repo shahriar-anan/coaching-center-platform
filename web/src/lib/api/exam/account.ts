@@ -60,6 +60,14 @@ export function useChangePhone() {
   });
 }
 
+/** Changes the student's own display name. Staff names stay as created. Returns the updated user. */
+export function useChangeName() {
+  return useMutation({
+    mutationFn: (body: { fullName: string }) =>
+      apiRequest<Me>("/api/v1/me", { method: "PATCH", body }),
+  });
+}
+
 /** Sets the phone once, for a Google sign-up that has none. */
 export function useSetPhone() {
   return useMutation({
