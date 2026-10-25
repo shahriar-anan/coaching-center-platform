@@ -25,14 +25,20 @@ export function noticeKindLabelKey(kind: string): string {
 /** The part of a notice the link needs. */
 export type NoticeTarget = { kind: string; exam: { id: string } | null };
 
+/** The two kinds that report a finished sitting. Their row opens the result, not the offer. */
+const RESULT_KINDS: readonly string[] = ["MCQ_SCORE", "WRITTEN_RESULT"];
+
 /**
- * Where a notice row opens. Exam kinds open the exam offer. A purchase opens the
- * purchased exam, or the student's modules when the notice names no exam. An
- * announcement has no link: it is read in place.
+ * Where a notice row opens. A score or a published result opens the exam's result page.
+ * Other exam kinds open the exam offer. A purchase opens the purchased exam, or the
+ * student's modules when the notice names no exam. An announcement has no link: it is
+ * read in place.
  */
 export function noticeHref(notice: NoticeTarget): string | null {
   if (notice.kind === "ANNOUNCEMENT") return null;
-  if (notice.exam) return `/exam/${notice.exam.id}`;
+  if (notice.exam) {
+    return RESULT_KINDS.includes(notice.kind) ? `/exam/${notice.exam.id}/result` : `/exam/${notice.exam.id}`;
+  }
   if (notice.kind === "PURCHASE_GRANTED") return "/my-modules";
   return null;
 }
