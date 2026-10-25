@@ -8,6 +8,7 @@ import { useMarkAllNoticesRead, useMarkNoticeRead, useNotices, type Notice } fro
 import { useListParams } from "@/lib/url/list-params";
 import { formatDateTime, formatNumber, pickTitle } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { DoorActions } from "@/components/student/catalog/door-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -124,7 +125,7 @@ function NoticesView() {
       ) : query.isError && rows.length === 0 ? (
         <ErrorState onRetry={() => void query.refetch()} />
       ) : rows.length === 0 ? (
-        <EmptyState title={t("notices.empty")} />
+        <EmptyState title={t("notices.empty")} body={t("notices.emptyBody")} action={<DoorActions />} />
       ) : (
         <div className="grid gap-4">
           {query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : null}

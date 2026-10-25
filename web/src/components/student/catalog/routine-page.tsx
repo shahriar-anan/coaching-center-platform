@@ -6,6 +6,7 @@ import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { Button } from "@/components/ui/button";
+import { DoorActions } from "./door-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -87,7 +88,7 @@ export function RoutinePage() {
     <>
       <PageHeader title={t("catalog.routine.title")} breadcrumbs={crumbs} />
       {empty ? (
-        <EmptyState title={t("catalog.routine.empty")} body={t("catalog.routine.emptyBody")} action={<Button variant="secondary" href="/mcq">{t("catalog.doorMcq")}</Button>} />
+        <EmptyState title={t("catalog.routine.empty")} body={t("catalog.routine.emptyBody")} action={<DoorActions />} />
       ) : null}
       {live.length > 0 ? (
         <section aria-label={t("catalog.routine.live")} className="mb-6">

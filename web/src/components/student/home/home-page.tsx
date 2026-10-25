@@ -8,6 +8,7 @@ import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { Button } from "@/components/ui/button";
+import { DoorActions } from "@/components/student/catalog/door-actions";
 import { Card } from "@/components/ui/card";
 import { Countdown } from "@/components/ui/countdown";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -284,7 +285,7 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
         {modules.isPending ? (
           <Skeleton variant="card" count={2} />
         ) : (modules.data ?? []).length === 0 ? (
-          <EmptyState title={t("home.emptyTitle")} body={t("home.emptyBody")} action={<Button variant="secondary" href="/mcq">{t("home.doorMcqTitle")}</Button>} />
+          <EmptyState title={t("home.emptyTitle")} body={t("home.emptyBody")} action={<DoorActions />} />
         ) : (
           <div className="grid gap-2.5">
             {(modules.data ?? []).slice(0, 4).map((module) => (

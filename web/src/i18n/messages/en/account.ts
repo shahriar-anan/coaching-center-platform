@@ -57,6 +57,7 @@ const account = {
     title: "Payment history",
     link: "Payment history",
     empty: "No payments yet.",
+    emptyBody: "Payment details and receipts will show here after you buy an exam or module.",
     notYet: "Payment history is not available yet. Check again shortly.",
     kindModule: "Module",
     kindExam: "Exam",

@@ -6,6 +6,7 @@ const notices = {
   unreadCount: "{count} unread notices",
   unreadDot: "Unread",
   empty: "No notices yet.",
+  emptyBody: "Notices about your exams and results will show here. Pick a door to get started.",
   kind: {
     REMINDER: "Exam starting soon",
     MCQ_RESULT: "MCQ score",

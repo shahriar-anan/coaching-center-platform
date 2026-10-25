@@ -11,6 +11,7 @@ import { formatDateTime, formatMoney, pickTitle } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { DoorActions } from "@/components/student/catalog/door-actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Pill, type PillTone } from "@/components/ui/pill";
@@ -158,7 +159,7 @@ function PaymentsView() {
             rows={rows}
             rowKey={(row) => row.orderId}
             onRowClick={openRow}
-            empty={<EmptyState title={t("account.payments.empty")} />}
+            empty={<EmptyState title={t("account.payments.empty")} body={t("account.payments.emptyBody")} action={<DoorActions />} />}
           />
           <Pagination
             page={params.page}
