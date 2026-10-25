@@ -68,7 +68,7 @@ function StripChip({
       onClick={() => scrollTo(target)}
       className={`min-h-11 rounded-[14px] border border-t-4 border-border bg-card px-2 py-3 text-center text-text ${border}`}
     >
-      <span aria-hidden className="block text-2xl">
+      <span aria-hidden className="block text-title">
         {icon}
       </span>
       <span className="block text-label font-bold">{label}</span>

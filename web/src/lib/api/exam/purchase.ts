@@ -88,16 +88,6 @@ export function usePaymentStatus(tranId: string, enabled: boolean, startedAt: nu
   });
 }
 
-export function useOrder(orderId: string | null, enabled: boolean) {
-  return useQuery({
-    queryKey: purchaseKeys.order(orderId ?? ""),
-    enabled: enabled && Boolean(orderId),
-    staleTime: 0,
-    retry: false,
-    queryFn: ({ signal }) => apiRequest<OrderView>(`/api/v1/live-exam-orders/${orderId}`, { signal }),
-  });
-}
-
 /** After a paid order, every catalog read (access, myStatus, routine) is stale. */
 export function useInvalidateCatalog() {
   const client = useQueryClient();
