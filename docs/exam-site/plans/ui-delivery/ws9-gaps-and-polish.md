@@ -649,3 +649,37 @@ Items: 2 to 10 done, V40 and item 9 included. Partly: none. Skipped: none.
 **Item 9 decision (audience).** `MODULE` announcements go to active students with a roster row in the module, or an active grant (module or exam scope) in it. Revoked grants do not count. The rule is written in `current-api.md` and lives in one query, `TO_MODULE` in `AnnouncementService`, so the integrator can change it there.
 
 **Still open, outside this branch:** the notice inbox (`StudentInboxService`, A2) joins notices to exams with an inner join, so announcement notices do not appear in the notice box until A2 changes that join.
+
+## Report — STU-PUR
+
+Branch `ui/stu-pur`, worktree `F:\cc-wt\stu-pur`, rebased on `catalog-acquisition` at `edce9c1` (API-ACCESS merged). The start was `3fa6238`; the README's `a6984f7` is not the head. Plan: [student-purchase-lms-plan.md](student-purchase-lms-plan.md). Prompt: [agent-STU-PUR.md](prompts/phase2/agent-STU-PUR.md).
+
+**Checks** (this head, `e789796`)
+- `npm run lint`: 0 errors. Two warnings remain, both in files this agent does not own (`authorized-file.tsx`, `book-details-form.tsx`).
+- `npx tsc --noEmit`: clean.
+- `npm test`: 54 files, 331 tests passed.
+- `npm run build`: passed under the lock `STUPUR`; the lock is released.
+
+| Item | Status | Commit | Note |
+|---|---|---|---|
+| S-003 (access object, probes removed) | done | `47f7036` | Module and exam pages read `access` from their own responses. `useMyModule` is removed. `useMyExam` and the student module-exam list run only when the access says the student owns something there. The fallback in `resolveAccess` is deleted. `useMyLiveExamAccess` reads `/api/v1/me/live-exam-access`. Owning one exam leaves the module `NONE` and buyable. |
+| S-005 (config notice) | done | `028c0ac` | Unchanged in this session. |
+| S-001 (bundle selection) | done, flag off | `96ae1f5` | Behind `bundleOrders` (default false). Turn it on after the integrator says A4 is merged. |
+| S-010 (upcoming row) | done | `b31466b` | `moduleOnly` is now sent (S-027), so the "no note until A1" fallback is no longer live. |
+| S-011 (search by door type) | not re-checked in this session | — | |
+| Confirm sheet copy | not re-checked in this session | — | |
+| Blocked reasons | partly | `47f7036` | `PHONE_REQUIRED` and `buyable` now drive the buy controls. `PRICE_REQUIRED` still uses the catalog copy "মূল্য এখনো ঠিক হয়নি", while the spec text is "দাম এখনো নির্ধারণ হয়নি।". Not changed. |
+| Module page exam list | partly | `47f7036` | Owned rows show `AccessBadge`, not a buy link. Rows without a price show "মূল্য এখনো ঠিক হয়নি" and no link. |
+| `useOrder` unused export | done | `29e741a` | Removed; no caller. |
+| `text-2xl` on module page | done | `29e741a` | Now `text-title`. |
+| `ProductCard` on cards | partly | `e789796` | Done on the door page. The category pages were not checked. |
+
+**Contract questions**
+- `useMyModules` (`catalog.ts`) still reads `/api/v1/live-exam-modules?size=100`. Two STU-LMS files use it: `components/student/home/home-page.tsx` and `components/student/catalog/my-modules-page.tsx`. The new `/api/v1/me/live-exam-access` gives module IDs and sources, not titles. So those files need an answer on how to get titles before they can switch. I did not change them.
+- An exam-only owner on the module page: the student module-exam list may answer 403 or 404 for them. `orNull` turns that into an empty list, so their owned rows get the badge from the row's `access`, but no status pill. Confirm the API's answer for this case.
+
+**Stand-ins still in use:** `web/src/components/student/stand-ins-pur/` (`access-badge.tsx`, `config-notice.tsx`, `confirm-sheet.tsx`, `price-bar.tsx`, `product-card.tsx`, `selectable-exam-list.tsx`). They are deleted at the switch to PUR-FND.
+
+**Notes for other agents**
+- The tests in `tests/pur-stu/` mock fetch with the API-ACCESS shapes. No probe request is made for a non-owner.
+- `bundleOrders` stays off until the integrator confirms A4.
