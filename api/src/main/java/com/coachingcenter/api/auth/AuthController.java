@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -137,6 +138,12 @@ public class AuthController {
 		return ResponseEntity.ok(body);
 	}
 
+	@PatchMapping("/me")
+	public AuthService.MeView changeName(@Valid @RequestBody NameRequest request) {
+		auth.changeName(currentUser().userId(), request.fullName());
+		return auth.me(currentUser().userId());
+	}
+
 	@PostMapping("/me/phone")
 	public AuthService.MeView setPhone(@Valid @RequestBody PhoneRequest request) {
 		auth.setPhone(currentUser().userId(), request.phone());
@@ -204,6 +211,9 @@ public class AuthController {
 	}
 
 	public record CodeRequest(@NotBlank String code) {
+	}
+
+	public record NameRequest(@NotBlank @Size(max = 100) String fullName) {
 	}
 
 	public record PhoneRequest(@NotBlank String phone) {

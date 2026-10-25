@@ -39,6 +39,14 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""")
 	List<Object[]> countPublishedByModuleAndType(@Param("moduleIds") Collection<UUID> moduleIds);
 
+	/** Rows of module id, exam type and the number of live exams of that type in any status. Staff counts only. */
+	@Query("""
+			SELECT e.moduleId, e.examType, count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.moduleId IN :moduleIds
+			GROUP BY e.moduleId, e.examType
+			""")
+	List<Object[]> countByModuleAndType(@Param("moduleIds") Collection<UUID> moduleIds);
+
 	@Query("""
 			SELECT e FROM LiveExam e
 			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED'
@@ -121,6 +129,20 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			where e.deletedAt is null and e.status = 'PUBLISHED' and e.liveAt > :after and e.liveAt < :before
 			""")
 	List<LiveExam> findPublishedStartingBetween(@Param("after") Instant after, @Param("before") Instant before);
+
+	/**
+	 * Published, dated exams in published modules outside hidden categories, starting at or after {@code since}, soonest
+	 * first. The caller drops the ones that have already ended.
+	 */
+	@Query("""
+			SELECT e FROM LiveExam e, LiveExamModule m
+			WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.liveAt IS NOT NULL
+			AND e.liveAt >= :since AND m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
+			AND (:anyType = true OR e.examType = :examType)
+			ORDER BY e.liveAt ASC, e.id ASC
+			""")
+	List<LiveExam> findUpcomingPublished(@Param("since") Instant since, @Param("hidden") java.util.Set<UUID> hidden,
+			@Param("anyType") boolean anyType, @Param("examType") String examType);
 
 	@Query("""
 			select u.id from User u

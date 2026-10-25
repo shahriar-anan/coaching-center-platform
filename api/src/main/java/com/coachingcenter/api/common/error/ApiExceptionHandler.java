@@ -1,5 +1,6 @@
 package com.coachingcenter.api.common.error;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.coachingcenter.api.common.web.RequestIds;
@@ -39,9 +41,15 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	public ResponseEntity<ApiError> apiException(ApiException exception, HttpServletRequest request) {
-		ApiError error = ApiError.of(exception.code(), exception.getMessage(), RequestIds.current(request),
-				exception.orderId(), exception.tranId());
+		ApiError error = new ApiError(exception.code().name(), exception.getMessage(), null, Instant.now(),
+				RequestIds.current(request), exception.orderId(), exception.tranId(), exception.details());
 		return ResponseEntity.status(exception.status()).body(error);
+	}
+
+	/** A file over the multipart cap (100 MB) is refused before any service sees it: same code as the service's own limit. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ApiError> uploadTooLarge(HttpServletRequest request) {
+		return body(HttpStatus.PAYLOAD_TOO_LARGE, ErrorCode.FILE_TOO_LARGE, "File is too large.", null, request);
 	}
 
 	@ExceptionHandler(MasterAdminProtectedException.class)

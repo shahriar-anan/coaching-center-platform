@@ -233,6 +233,66 @@ public class LiveExamService {
 		audit.record(AuditRecorder.LIVE_EXAM_QUESTION_DELETE, AuditRecorder.LIVE_EXAM_ENTITY, examId);
 	}
 
+	/**
+	 * A draft copy in the same module: texts, settings and content (MCQ questions with their options, or the question
+	 * PDF as a new stored file). The date and the price stay empty, so the copy is not scheduled or sold by accident.
+	 */
+	@Transactional
+	public ExamView copy(UUID id) {
+		LiveExam source = require(id);
+		LiveExamModule module = requireModule(source.getModuleId());
+		visibility.requireOpen(module.getCategoryId());
+		LiveExam copy = new LiveExam();
+		copy.setModuleId(module.getId());
+		copy.setExamType(source.getExamType());
+		copy.setTitleEn(source.getTitleEn() + " (copy)");
+		copy.setTitleBn(source.getTitleBn() + " (কপি)");
+		copy.setDescriptionEn(source.getDescriptionEn());
+		copy.setDescriptionBn(source.getDescriptionBn());
+		copy.setRulesEn(source.getRulesEn());
+		copy.setRulesBn(source.getRulesBn());
+		copy.setPaperLanguage(source.getPaperLanguage());
+		copy.setDurationMinutes(source.getDurationMinutes());
+		copy.setPassPercent(source.getPassPercent());
+		copy.setWrittenMaximum(source.getWrittenMaximum());
+		copy.setStatus(LiveExam.DRAFT);
+		copy.setFinallySaved(false);
+		if (source.getQuestionStoredFileName() != null) {
+			byte[] bytes;
+			try {
+				bytes = java.nio.file.Files.readAllBytes(files.resolve(source.getQuestionStoredFileName()));
+			}
+			catch (IOException exception) {
+				throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
+			}
+			LocalFileStorage.StoredFile stored = files.save(source.getQuestionOriginalFileName(),
+					source.getQuestionContentType(), new java.io.ByteArrayInputStream(bytes), bytes.length);
+			copy.setQuestionStoredFileName(stored.storedFileName());
+			copy.setQuestionOriginalFileName(stored.originalFileName());
+			copy.setQuestionByteSize(stored.byteSize());
+			copy.setQuestionContentType(source.getQuestionContentType());
+		}
+		LiveExam saved = exams.save(copy);
+		for (LiveExamQuestion sourceQuestion : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(source.getId())) {
+			LiveExamQuestion question = new LiveExamQuestion();
+			question.setExamId(saved.getId());
+			question.setStem(sourceQuestion.getStem());
+			question.setMarks(sourceQuestion.getMarks());
+			question.setExplanation(sourceQuestion.getExplanation());
+			question.setPosition(sourceQuestion.getPosition());
+			LiveExamQuestion savedQuestion = questions.save(question);
+			for (LiveExamOption sourceOption : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(sourceQuestion.getId())) {
+				LiveExamOption option = new LiveExamOption();
+				option.setQuestionId(savedQuestion.getId());
+				option.setOptionText(sourceOption.getOptionText());
+				option.setCorrect(sourceOption.isCorrect());
+				option.setPosition(sourceOption.getPosition());
+				options.save(option);
+			}
+		}
+		return view(saved, true);
+	}
+
 	@Transactional
 	public ExamView uploadQuestionPdf(UUID examId, MultipartFile file) {
 		LiveExam exam = require(examId);
@@ -409,9 +469,14 @@ public class LiveExamService {
 			if (laterStart.isBefore(earlierEnd.plus(GAP))) {
 				throw new ApiException(ErrorCode.EXAM_WINDOW_CONFLICT, HttpStatus.CONFLICT,
 						"This window conflicts with " + other.getTitleEn() + " (" + format(other.getLiveAt()) + " to "
-								+ format(otherEnd) + ").");
+								+ format(otherEnd) + ").",
+								new WindowClash(other.getId(), other.getTitleEn(), other.getTitleBn(), otherStart, otherEnd));
 			}
 		}
+	}
+
+	/** The exam that a new window clashes with, so the editor can name it and link to it. */
+	public record WindowClash(UUID id, String titleEn, String titleBn, Instant liveAt, Instant endAt) {
 	}
 
 	private void markDraft(LiveExam exam) {
