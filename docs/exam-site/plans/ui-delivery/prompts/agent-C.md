@@ -8,6 +8,9 @@ You are **agent C** in a team of five agents building the exam website in parall
 
 This is the first thing the client will see. Match the look of his mockup (`docs/exam-site/ui/client-mockup.html`) closely, and improve it only where your brief says.
 
+**Write only inside your working folder above.** Every path you create or edit must be inside it (use paths relative to it). Never write under `F:aching-center-platform` — that is the integrator's checkout — except the `.heavy.lock` file. Check with `git rev-parse --show-toplevel` before your first edit.
+
+
 ## Read first, in this order
 
 1. `docs/exam-site/plans/ui-delivery/README.md` — the whole plan, the route ownership table, LMS practices, and "Rules for every agent".
