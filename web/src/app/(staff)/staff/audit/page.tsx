@@ -53,12 +53,12 @@ function AuditLog() {
     {
       key: "entityId",
       header: t("staffOps.audit.columns.entityId"),
-      cell: (row) => <span className="font-latin break-all text-sm">{row.entityId ?? "—"}</span>,
+      cell: (row) => <span className="font-latin break-all text-meta">{row.entityId ?? "—"}</span>,
     },
     {
       key: "actor",
       header: t("staffOps.audit.columns.actor"),
-      cell: (row) => <span className="font-latin break-all text-sm">{row.actorUserId ?? "—"}</span>,
+      cell: (row) => <span className="font-latin break-all text-meta">{row.actorUserId ?? "—"}</span>,
     },
   ];
 
@@ -68,7 +68,7 @@ function AuditLog() {
         title={t("staffOps.audit.title")}
         breadcrumbs={[{ label: t("common.staffNav.dashboard"), href: "/staff" }, { label: t("staffOps.audit.title") }]}
       />
-      <p className="text-sm text-muted">{t("staffOps.audit.newestFirst")}</p>
+      <p className="text-meta text-muted">{t("staffOps.audit.newestFirst")}</p>
 
       {audit.isError ? (
         <ErrorState onRetry={() => audit.refetch()} />

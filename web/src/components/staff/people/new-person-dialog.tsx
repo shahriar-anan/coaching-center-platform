@@ -99,7 +99,7 @@ export function NewPersonDialog({
             invalid={Boolean(errors.email)}
           />
         </Field>
-        {errors.form ? <p className="text-sm text-danger">{errors.form}</p> : null}
+        {errors.form ? <p className="text-meta text-danger">{errors.form}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {t("common.actions.cancel")}
