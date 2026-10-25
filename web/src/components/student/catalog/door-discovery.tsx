@@ -5,10 +5,24 @@ import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { useLocale } from "@/i18n/locale-context";
-import { useModuleSearch, useUpcomingExams, type UpcomingExam } from "@/lib/api/exam/catalog";
+import { useModuleSearch, useUpcomingExams, type PublicModule, type UpcomingExam } from "@/lib/api/exam/catalog";
+import type { ExamType } from "@/lib/api/exam/types";
 import { formatDateTime, formatMoney, pickTitle } from "@/lib/format";
 import { useListParams } from "@/lib/url/list-params";
-import { doorType, examPath, modulePath, type Door } from "./catalog-helpers";
+import { doorType, examPath, modulePath, moduleTypeCount, type Door } from "./catalog-helpers";
+
+/**
+ * Modules whose title matches `term` and that have exams of this door's type.
+ * An unknown count (older API) is kept.
+ */
+export function searchMatches(modules: PublicModule[], term: string, type: ExamType): PublicModule[] {
+  const needle = term.toLowerCase();
+  return modules.filter((module) => {
+    const titleMatch = [module.titleEn, module.titleBn].some((title) => title?.toLowerCase().includes(needle));
+    const count = moduleTypeCount(module, type);
+    return titleMatch && (count === null || count > 0);
+  });
+}
 
 /** Search and the upcoming strip above a door's categories. Uses the URL for the search text. */
 export function DoorDiscovery({ door }: { door: Door }) {
@@ -24,12 +38,10 @@ function Discovery({ door }: { door: Door }) {
   const [params, setParams] = useListParams({ q: "" });
   const term = params.q.trim();
   const results = useModuleSearch(term);
-  const upcoming = useUpcomingExams(doorType(door));
+  const type = doorType(door);
+  const upcoming = useUpcomingExams(type);
 
-  const matches = (results.data ?? []).filter((module) => {
-    const needle = term.toLowerCase();
-    return [module.titleEn, module.titleBn].some((title) => title?.toLowerCase().includes(needle));
-  });
+  const matches = searchMatches(results.data ?? [], term, type);
 
   return (
     <div className="mb-5 grid gap-5">
@@ -74,6 +86,7 @@ function Discovery({ door }: { door: Door }) {
 function UpcomingRow({ exam }: { exam: UpcomingExam }) {
   const { t, locale } = useLocale();
   const moduleTitle = { titleEn: exam.moduleTitleEn ?? "", titleBn: exam.moduleTitleBn ?? null };
+  // A module-only exam has no price of its own, so the row shows none rather than "price not set".
   const price = exam.price !== null && exam.price !== undefined ? formatMoney(exam.price, locale) : null;
   return (
     <>
@@ -81,7 +94,7 @@ function UpcomingRow({ exam }: { exam: UpcomingExam }) {
       <p className="text-body text-muted">{pickTitle(moduleTitle, locale)}</p>
       <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body">
         <span className="text-muted">{exam.liveAt ? formatDateTime(exam.liveAt, locale) : t("catalog.dateTbd")}</span>
-        <span className="font-semibold">{price ?? t("catalog.priceNotSet")}</span>
+        {price ? <span className="font-semibold">{price}</span> : null}
       </p>
     </>
   );
