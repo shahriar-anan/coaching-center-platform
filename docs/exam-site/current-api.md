@@ -195,20 +195,20 @@ Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student
 
 ## Added for the phase 2 UI (API-NOTICE)
 
-Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student-purchase-lms-plan.md) sections 6.2 and 8. Flyway: none. **Blocked:** `student_notices_kind_check` (V36) allows only `EXAM_REMINDER`, `MCQ_SCORE` and `WRITTEN_RESULT`, so every kind below except those three fails its insert until a migration widens the check. The module-scope purchase notice also needs `student_notices.exam_id` to be nullable.
+Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student-purchase-lms-plan.md) sections 6.2 and 8. Flyway: V40 (merged), which widens the kind check, makes `student_notices.exam_id` nullable, and adds `student_notices.module_id`.
 
-Every kind uses the existing `GET /api/v1/me/notices` and `POST /api/v1/me/notices/{id}/read` rows. No new route. Each row has `id`, `kind`, `createdAt`, `readAt`, and `exam` (`id`, `moduleId`, `examType`, `titleEn`, `titleBn`, `liveAt`, `endAt`). Only `MCQ_SCORE` and a published `WRITTEN_RESULT` carry `score`, `maximum` and `passed`.
+Every kind uses the existing `GET /api/v1/me/notices` and `POST /api/v1/me/notices/{id}/read` rows. No new route. Each row has `id`, `kind`, `createdAt`, `readAt`, and `exam` (`id`, `moduleId`, `examType`, `titleEn`, `titleBn`, `liveAt`, `endAt`). Only `MCQ_SCORE` and a published `WRITTEN_RESULT` carry `score`, `maximum` and `passed`. An `ANNOUNCEMENT` row has no `exam`; it carries `announcement` (`id`, `titleEn`, `titleBn`, `bodyEn`, `bodyBn`, `audience`, and `moduleId` for a module audience). Null fields are left out of the JSON.
 
 | Kind | Who gets it | When | Message key | Written by |
 |---|---|---|---|---|
 | `EXAM_REMINDER` | Students with access | 48 hours before start (unchanged) | `studentId:examId:liveAtMillis` | `StudentReminderJob.scan` |
 | `EXAM_STARTING_SOON` | Students with access | Within 60 minutes before start (S-017, in-app only, no mail) | `studentId:examId:liveAtMillis` | `StudentReminderJob.scanSoon` |
 | `EXAM_OPEN` | Students with access | When the exam's window opens; not after it closes | `studentId:examId:liveAtMillis` | `StudentReminderJob.scanOpened` |
-| `PURCHASE_GRANTED` | The buyer, or the student granted by hand | When an exam grant is created (module grants are not written yet) | `studentId:EXAM:examId` | `LiveExamOrderTx.writeGrant`; API-ADMIN's manual grant calls `StudentNoticeWriter.purchaseGranted(studentId, moduleOrExamId, scope)` |
+| `PURCHASE_GRANTED` | The buyer, or the student granted by hand | When an exam grant is created (module grants are not written yet) | `studentId:EXAM:examId` | `LiveExamOrderTx.writeGrant` (paid or confirmed order); `LiveExamGrantAdminService.grant` (manual grant). Both call `StudentNoticeWriter.purchaseGranted(studentId, moduleOrExamId, scope)` |
 | `EXAM_PUBLISHED` | Students with access to the module or the exam | When the exam is published; publishing again adds nothing | `studentId:examId` | `LiveExamService.publish` |
 
 `RETAKE_AVAILABLE` is not written. The retake rule (`LiveExamStudentStatus`: a missed MCQ exam after its window) exists, but a notice needs a scan at window end, which is new logic.
 
-`ANNOUNCEMENT` is written by API-ADMIN's class. The inbox returns it as a kind like the others, but its row has no exam id today, while `student_notices.exam_id` is NOT NULL and the inbox joins on it.
+`ANNOUNCEMENT` is written by API-ADMIN's `AnnouncementService`, one row per recipient. The inbox joins exams and announcements with left joins, so these rows show.
 
 **Announcement audience rule (decision, item 9).** `POST /api/v1/announcements` with `audience` = `MODULE` sends to the students who have access to that module: active students with a roster row in the module, or an active grant (module or exam scope) in it. Revoked grants do not count. Exam-only buyers are included, because they are in the module's grants. To narrow this to roster only, or to widen it, change the `TO_MODULE` query in `AnnouncementService`; the tests in `LiveGrantAdminIT` check the rule. Accounts that are suspended or deleted never receive a notice.
