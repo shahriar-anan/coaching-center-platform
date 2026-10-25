@@ -57,4 +57,22 @@ Student create code dialog, delete MA only, access list reasons, instructor filt
 
 ## Report
 
-(Agent fills this in.)
+### WS6b Report (agent B)
+
+**Done (P0):** `/staff/payments` (search, transaction-id search, status filter, all in the URL; columns per the spec; copy on the transaction id; read only for System Admin, with no action that changes an order), the payment detail at `/staff/payments/[tranId]` (the list read with `tranId=`; access line; MA-only "পেমেন্ট ছাড়া দিতে সরাসরি ভর্তি খুলুন" link to `/staff/modules/{id}?tab=roster`), `/staff/audit` (Master Admin only, paged, no search), `/staff/account` (name and role read only; email verification and resend; password change; phone add or change through a dialog that asks for the current password; logout with a confirm), and `/staff/exams/[examId]/leaderboard` (read only; empty state gives the opening time, five minutes after the window, or "তারিখ পরে জানানো হবে").
+
+**P1 done:** copy buttons on the transaction id, validation id and phone in the payment detail. Links from a payment to the student, module and exam, by URL only.
+
+**P2 skipped:** the payments-at-a-glance strip (pending and paid counts). It would need extra list calls per render; left out for tonight.
+
+**Checks:** `npm run lint` 0 errors (2 warnings in older files, `<img>`). `npm test` 182 passed in 24 files (after merging `catalog-acquisition`). `npm run build` passed under the lock; all five staff routes prerender.
+
+**Contract issues:**
+- The audit list is not newest-first. `AuditLogController` calls `auditLogs.findAll(pageable)` with no sort on `createdAt`, so the order is whatever the database returns. The screen says "newest first" and depends on that. Needs a sort on `createdAt` descending in the API, or the screen note must go.
+- There is no single-payment read for staff. The detail page reads the list with `tranId=` and takes the exact match. Works, but a `GET /live-exam-orders/{tranId}` for staff would be cleaner.
+
+**Notes for other agents:**
+- Payment routes are `/staff/payments` and `/staff/payments/[tranId]`. Payment rows link to `/staff/students/{id}` (WS6a), `/staff/modules/{id}` and `/staff/exams/{id}` (WS5), and the roster tab `/staff/modules/{id}?tab=roster`.
+- The leaderboard relies on the server for the instructor check: an instructor who is not assigned gets an error state, not a list.
+- Every route page wraps its content in `<Suspense>` for the URL-reading guards and list params, as the WS4 tip says.
+- The brief's Bangla for the MA roster link says সরাসরি ভর্তি, per the copy guide.
