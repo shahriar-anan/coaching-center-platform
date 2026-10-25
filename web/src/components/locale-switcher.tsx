@@ -6,11 +6,11 @@ export function LocaleSwitcher() {
   const { locale, setLocale, t } = useLocale();
 
   return (
-    <label className="flex items-center gap-2 text-sm text-zinc-600">
+    <label className="flex items-center gap-2 text-meta text-muted">
       <span className="sr-only">{t("locale.switch")}</span>
       <select
         aria-label={t("locale.switch")}
-        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-zinc-900"
+        className="rounded-control border border-border bg-card px-2 py-1 text-text"
         value={locale}
         onChange={(e) => setLocale(e.target.value as Locale)}
       >

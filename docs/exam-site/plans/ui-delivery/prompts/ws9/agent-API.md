@@ -31,3 +31,14 @@ R1/G8 (staff question PDF, a Blocker) first. Then G1, G2, G10, G11, G14, G15, G1
 ## Done
 
 Touched `*IT` green, the full suite from clean (only `BookOrderIT` and `CoursePurchaseIT` may fail), the dev guide boot-verified, your "Report — API" section filled in at the end of `ws9-gaps-and-polish.md`. Then send the ready message from `ws9-stages.md`. Ask the integrator before any business-rule change.
+
+## Follow-up from the integrator's audit (25 Oct, branch at `ef04b3e`)
+
+The branch matches the backlog shapes, and STU's assumptions for G7 and G12 hold. It can merge as it is. Fix these two Minors in one small commit on the same branch, run the touched `*IT`, and add a line to your report:
+
+- [ ] **A-1 (Minor) G13 copy title overflow.** `LiveExamService.copy` appends " (copy)" / " (কপি)" to titles that can already be 500 characters (`title_en`/`title_bn` are `VARCHAR(500)`). A long title then fails at the database and returns a 500. Trim the source title so the result fits in 500, and add an `*IT` case.
+- [ ] **A-2 (Minor) G12 upcoming look-back.** `LiveExamPublicService.upcoming` loads only exams with `liveAt` after `now - 1 day` and then keeps the ones whose end is after now. An exam whose window is longer than a day, and that started more than a day ago, drops out while it is still running. Filter on the end time (or widen the look-back to the longest allowed window), and test with a long written window.
+
+**Status at the 25 Oct check:** not started. The branch head is still `ef04b3e`, with no new commit. **A-1 and A-2 are immediate: do them now, before anything else, and send READY TO MERGE when they are committed.** API is held from the merge until then.
+
+**For the integrator, not for you:** G1 keeps the current rule that every save needs a new marked PDF. Shahriar decides whether a save may keep the stored PDF. Until then, MRK's form must say a PDF is required.

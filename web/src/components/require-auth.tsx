@@ -20,7 +20,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (session.status === "loading") {
     return (
-      <p className="p-8 text-center text-zinc-600">{t("auth.restoring")}</p>
+      <p className="p-8 text-center text-muted">{t("auth.restoring")}</p>
     );
   }
 

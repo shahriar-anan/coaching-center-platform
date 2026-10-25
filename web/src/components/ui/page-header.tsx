@@ -15,7 +15,7 @@ export function PageHeader({
     <header className="grid gap-2 pb-5">
       {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs items={breadcrumbs} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-text sm:text-[28px]">{title}</h1>
+        <h1 className="text-title tracking-tight text-text">{title}</h1>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
     </header>

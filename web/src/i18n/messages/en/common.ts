@@ -162,6 +162,28 @@ const common = {
     region: "Messages",
     dismiss: "Dismiss message",
   },
+  shortcuts: {
+    open: "Keyboard shortcuts",
+    title: "Keyboard shortcuts",
+  },
+  sectionNav: {
+    label: "Sections",
+  },
+  quickSearch: {
+    open: "Search",
+    label: "Quick search",
+    placeholder: "Find a student or module (/)",
+    students: "Students",
+    modules: "Modules",
+    loading: "Searching…",
+    empty: "No matches",
+  },
+  unsaved: {
+    title: "Leave without saving?",
+    body: "Your changes have not been saved yet.",
+    leave: "Leave",
+  },
+  unreadNotices: "{count} unread notices",
   pdf: {
     placeholder: "PDF",
     loading: "Loading PDF…",

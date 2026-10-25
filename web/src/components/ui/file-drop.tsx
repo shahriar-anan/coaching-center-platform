@@ -96,7 +96,7 @@ export function FileDrop({
             <FileText aria-hidden="true" className="size-8 shrink-0 text-muted" />
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-text">{file.name}</p>
-              <p className="text-sm text-muted">
+              <p className="text-meta text-muted">
                 {megabytes(file.size, locale)}
                 {file.uploadedAt ? ` · ${t("common.file.uploadedAt", { time: file.uploadedAt })}` : ""}
               </p>
@@ -105,7 +105,7 @@ export function FileDrop({
         ) : (
           <div className="flex items-center gap-3 text-muted">
             <Upload aria-hidden="true" className="size-6 shrink-0" />
-            <p className="text-[15px]">
+            <p className="text-body">
               {t("common.file.drop")} <span className="sr-only">{t("common.file.choose")}</span>
             </p>
           </div>
@@ -122,7 +122,7 @@ export function FileDrop({
             >
               <div className="h-full bg-action transition-[width] duration-200" style={{ width: `${progress ?? 0}%` }} />
             </div>
-            <p className="text-sm text-muted">
+            <p className="text-meta text-muted">
               {t("common.file.uploading", { percent: formatNumber(progress ?? 0, locale) })}
             </p>
           </div>
@@ -131,7 +131,7 @@ export function FileDrop({
           <Button variant="secondary" disabled={uploading} onClick={() => inputRef.current?.click()}>
             {file ? t("common.file.replace") : t("common.file.choose")}
           </Button>
-          <span className="text-sm text-muted">{hint}</span>
+          <span className="text-meta text-muted">{hint}</span>
         </div>
         <input
           ref={inputRef}
@@ -147,7 +147,7 @@ export function FileDrop({
         />
       </div>
       {shownError ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-meta text-danger">
           {shownError}
         </p>
       ) : null}

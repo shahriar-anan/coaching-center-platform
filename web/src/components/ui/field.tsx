@@ -34,7 +34,7 @@ export function Field({ label, hint, error, required, children }: FieldProps) {
 
   return (
     <div className="grid gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-text">
+      <label htmlFor={id} className="text-label font-medium text-text">
         {label}
         {required ? (
           <span className="ms-1 text-muted" aria-hidden="true">
@@ -45,12 +45,12 @@ export function Field({ label, hint, error, required, children }: FieldProps) {
       </label>
       {control as ReactNode}
       {hint && !error ? (
-        <p id={hintId} className="text-sm text-muted">
+        <p id={hintId} className="text-meta text-muted">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} className="text-sm text-danger">
+        <p id={errorId} className="text-meta text-danger">
           {error}
         </p>
       ) : null}

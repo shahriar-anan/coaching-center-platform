@@ -14,7 +14,7 @@ export function ErrorState({ onRetry, message }: { onRetry: () => void; message?
       role="alert"
       className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-danger/40 bg-danger/5 px-4 py-3"
     >
-      <p className="text-[15px] text-text">{message ?? t("common.states.errorBody")}</p>
+      <p className="text-body text-text">{message ?? t("common.states.errorBody")}</p>
       <Button variant="secondary" onClick={onRetry}>
         {t("common.actions.retry")}
       </Button>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Bell, BookOpen, CircleUserRound, Home, ListChecks, LogOut, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
@@ -11,7 +11,10 @@ import { staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { NoticeBell } from "@/components/student/notice-bell";
+import { formatNumber } from "@/lib/format";
+import { useUnreadCount } from "@/lib/api/exam/notices";
 import { OfflineBanner } from "@/components/ui/offline-banner";
+import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { cn } from "@/components/ui/cn";
 
 type TabItem = { href: string; key: "home" | "myExams" | "results" | "notices" | "account"; icon: typeof Home };
@@ -29,6 +32,12 @@ function hidesTabBar(pathname: string): boolean {
   return /^\/exam\/[^/]+\/sit(\/|$)/.test(pathname);
 }
 
+/** The tab bar is 3.5 rem plus the safe area. A sticky action bar sits above it (WS9 FN-2). */
+const tabBarVars = {
+  "--tabbar-h": "calc(3.5rem + env(safe-area-inset-bottom))",
+  "--sticky-pb": "0.75rem",
+} as CSSProperties;
+
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -41,7 +50,7 @@ function UserMenu() {
       <Link
         href="/login"
         prefetch={false}
-        className="inline-flex h-11 items-center rounded-control px-4 text-[15px] font-semibold text-text hover:bg-bg"
+        className="inline-flex h-11 items-center rounded-control px-4 text-label font-semibold text-text hover:bg-bg"
       >
         {t("common.nav.login")}
       </Link>
@@ -53,7 +62,7 @@ function UserMenu() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label={t("common.nav.userMenu", { name: user.fullName })}
-        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-[15px] font-semibold text-text hover:bg-bg"
+        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg"
       >
         <span className="truncate">{firstName}</span>
       </DropdownMenu.Trigger>
@@ -61,7 +70,7 @@ function UserMenu() {
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 grid min-w-48 gap-0.5 rounded-card border border-border bg-card p-1.5 text-[15px] text-text shadow-lg"
+          className="z-50 grid min-w-48 gap-0.5 rounded-card border border-border bg-card p-1.5 text-body text-text shadow-lg"
         >
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
@@ -114,8 +123,11 @@ function MenuLink({
 }
 
 function TabBar() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const pathname = usePathname() ?? "/";
+  // Same query as the header bell, so the badge costs no extra request.
+  const { data: unread } = useUnreadCount();
+  const unreadCount = unread?.count ?? 0;
   return (
     <nav
       aria-label={t("common.nav.tabs")}
@@ -132,12 +144,25 @@ function TabBar() {
                 prefetch
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                  "flex h-full flex-col items-center justify-center gap-0.5 text-pill font-medium",
                   active ? "text-text-accent" : "text-muted",
                 )}
               >
-                <Icon aria-hidden="true" className={cn("size-5", active && "text-accent")} />
+                <span className="relative inline-flex">
+                  <Icon aria-hidden="true" className={cn("size-5", active && "text-accent")} />
+                  {tab.key === "notices" && unreadCount > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -end-2 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-warn-fill px-1 text-pill text-on-warn tabular-nums"
+                    >
+                      {formatNumber(unreadCount, locale)}
+                    </span>
+                  ) : null}
+                </span>
                 {t(`common.nav.${tab.key}`)}
+                {tab.key === "notices" && unreadCount > 0 ? (
+                  <>{" "}<span className="sr-only">{t("common.unreadNotices", { count: formatNumber(unreadCount, locale) })}</span></>
+                ) : null}
               </Link>
             </li>
           );
@@ -159,7 +184,12 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
 
   return (
-    <div data-surface="site" className="flex min-h-dvh flex-col bg-bg text-text">
+    <div
+      data-surface="site"
+      data-tabbar={showTabs ? "true" : undefined}
+      style={showTabs ? tabBarVars : undefined}
+      className="flex min-h-dvh flex-col bg-bg text-text"
+    >
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-control focus:bg-card focus:px-4 focus:py-2"
@@ -189,7 +219,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
       </main>
       <footer className="border-t border-border bg-card">
         <nav aria-label={t("common.footer.label")} className="mx-auto grid w-full max-w-[760px] gap-3 px-4 py-6">
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
+          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-meta text-muted">
             <li>
               <Link href="/help" prefetch={false} className="hover:text-text hover:underline">
                 {t("common.footer.help")}
@@ -221,10 +251,11 @@ export function StudentShell({ children }: { children: ReactNode }) {
               </Link>
             </li>
           </ul>
-          <p className="text-sm text-muted">{t("common.footer.copyright")}</p>
+          <p className="text-meta text-muted">{t("common.footer.copyright")}</p>
         </nav>
       </footer>
       {showTabs ? <TabBar /> : null}
+      <UnsavedChangesDialog />
     </div>
   );
 }

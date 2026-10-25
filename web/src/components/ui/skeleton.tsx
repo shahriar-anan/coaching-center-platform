@@ -10,10 +10,13 @@ import { useLocale } from "@/i18n/locale-context";
 export function Skeleton({
   variant,
   count = 1,
+  height,
   className,
 }: {
   variant: "text" | "card" | "rows";
   count?: number;
+  /** A Tailwind height class, such as "h-40", so the placeholder matches the card it stands for. */
+  height?: string;
   className?: string;
 }) {
   const { t } = useLocale();
@@ -24,12 +27,12 @@ export function Skeleton({
       <div aria-hidden="true" className="grid gap-3">
         {Array.from({ length: count }, (_, i) => {
           if (variant === "text") {
-            return <div key={i} className={cn(pulse, "h-4 w-3/4")} />;
+            return <div key={i} className={cn(pulse, height ?? "h-4", "w-3/4")} />;
           }
           if (variant === "card") {
-            return <div key={i} className={cn(pulse, "h-24 rounded-card")} />;
+            return <div key={i} className={cn(pulse, height ?? "h-24", "rounded-card")} />;
           }
-          return <div key={i} className={cn(pulse, "h-12")} />;
+          return <div key={i} className={cn(pulse, height ?? "h-12")} />;
         })}
       </div>
     </div>

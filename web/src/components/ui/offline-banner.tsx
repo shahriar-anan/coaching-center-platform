@@ -26,7 +26,7 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="bg-warn/15 px-4 py-2 text-center text-sm text-warn"
+      className="bg-warn/15 px-4 py-2 text-center text-meta text-warn"
     >
       {t("common.states.offline")}
     </div>
