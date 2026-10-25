@@ -166,4 +166,6 @@ Still open:
 4. What to do with payments SSLCommerz marks risky. The API grants them today.
 5. Live store: the client confirms bKash and Nagad are enabled. Run the live wrong-OTP and success check, with a refund from the merchant panel (`todays-goals.md` section 5).
 6. `BookOrderIT` and `CoursePurchaseIT` fail on a reused test database (fixed `transactionRef`). Out of this delivery.
-7. Which channel paid order `3b03e8ed…` (bKash, Nagad or card) is not recorded. The API does not store the channel.
+7. The API does not store the payment channel. Per Shahriar, the successes were a VISA sandbox card (`9f458ada…`, seed student) and bKash (`3b03e8ed…`, his account), so both a card and a mobile wallet passed through IPN validation and grant.
+8. The IPN URL in the merchant panel was not needed for the sandbox: both successes received their IPN at the per-payment `ipn_url`. For the live store, the launch payment check confirms it (look for `…/ipn status=200`). If it is missing, the client asks SSLCommerz to clear the panel's IPN URL.
+9. Risky payments: SSLCommerz `risk_level=1` marks fraud signals (card country versus IP, many cards in a short time, known bad cards). The money is captured but can be charged back. Agent's recommendation: keep granting at these prices, and later record the flag for the Master Admin. Mobile wallets carry far less chargeback risk than cards. Shahriar decides.
