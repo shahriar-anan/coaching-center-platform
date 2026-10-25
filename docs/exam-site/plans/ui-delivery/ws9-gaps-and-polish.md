@@ -319,3 +319,31 @@ Skipped: <ids and why>
 API additions: <list>
 Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 ```
+
+## Report — FND
+
+Worktree `F:cc-wtw9-fnd`, branch `ui/w9-foundation`. Not ready to merge: F8, the in-app link guard of F2, and the remaining P2 and P3 work are open, and the build has not run yet (the heavy lock was held by API).
+
+**Done**
+- P1 type scale: named classes in `globals.css`. Every arbitrary size and `text-sm`/`text-xs`/`text-lg`/`text-xl`/`text-2xl` in `components/ui`, `components/shell` and `student/notice-bell` now uses the scale. Staff overrides live on `data-surface="staff"`.
+- P6: `form-error`, `locale-switcher` and `require-auth` use tokens instead of zinc and red.
+- Contracts, all real with tests: `Stepper`, `SummaryStrip`, `SplitBrowser` (phones stack the tree above the pane; no drawer yet), `RowMenu`, `ShortcutsPopover`, `SectionNav`, `StickyActionBar`, `PrintArea` (print rules in `globals.css`).
+- Hooks: `useListPrefs` (UF9), `useDraftForm` (UF10), `useUnsavedChangesGuard` (tab close only).
+- F1: notices tab badge from the shared unread query.
+- U8: staff quick search in the top bar (students by `q`, modules by G5 `q`, `/` focuses it). Shown to roles with authoring or student access.
+
+**Partly done**
+- F2: tab close is guarded; the in-app link ConfirmDialog is not wired.
+- P2 and P3: the shared components now carry the spacing and states they need; the rest of the shared component pass (button heights, skeleton fidelity, focus and hover on every control) is not done.
+
+**Skipped / open**
+- F8 (self-hosted fonts): the Google Fonts API is reachable, so the WOFF2 files can be fetched, but the subset split (Bangla and Latin) needs a `next/font/local` setup that has not been built yet.
+- Build: `npm run build` not run; it waits for the heavy lock.
+
+**Checks (web, this worktree)**
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: 0 errors, 2 warnings (existing `<img>`).
+- `npx vitest run`: 33 files, 246 tests passing.
+- `npm run build`: not run.
+
+**Contract changes:** none. `useListPrefs(key)` returns `[prefs, setPrefs]`; `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`. Both are the new signatures in the stub commit.
