@@ -30,7 +30,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { StickyActionBar } from "@/components/student/stand-ins/sticky-action-bar";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -279,7 +279,7 @@ export function ExamPage({ examId }: { examId: string }) {
           }}
         />
       ) : null}
-      <div className="h-24 md:hidden" aria-hidden="true" />
+      <div className="h-28 md:hidden" aria-hidden="true" />
     </>
   );
 }
