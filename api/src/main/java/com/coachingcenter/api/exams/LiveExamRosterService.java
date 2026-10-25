@@ -1,11 +1,19 @@
 package com.coachingcenter.api.exams;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +30,26 @@ import tools.jackson.databind.JsonNode;
 @Service
 public class LiveExamRosterService {
 
+	static final int MAX_SIZE = 100;
+
+	private static final String ROSTER_FROM = """
+			FROM live_exam_roster r
+			JOIN users u ON u.id = r.student_id
+			LEFT JOIN student_profiles sp ON sp.user_id = u.id
+			""";
+
+	private static final String ROSTER_WHERE = """
+			WHERE r.module_id = :moduleId AND u.deleted_at IS NULL
+			""";
+
+	private static final String ROSTER_QUERY_FILTER = """
+			AND (:q = '' OR sp.full_name ILIKE concat('%', :q, '%') OR u.phone ILIKE concat('%', :q, '%')
+			  OR u.email ILIKE concat('%', :q, '%') OR sp.student_code ILIKE concat('%', :q, '%'))
+			""";
+
 	private final LiveExamRosterRepository roster;
+
+	private final NamedParameterJdbcTemplate jdbc;
 
 	private final LiveExamModuleRepository modules;
 
@@ -37,8 +64,10 @@ public class LiveExamRosterService {
 	private final Clock clock;
 
 	public LiveExamRosterService(LiveExamRosterRepository roster, LiveExamModuleRepository modules, UserRepository users,
-			StudentProfileRepository profiles, ExamMailService examMail, AfterCommit afterCommit, Clock clock) {
+			StudentProfileRepository profiles, ExamMailService examMail, AfterCommit afterCommit, Clock clock,
+			JdbcTemplate jdbc) {
 		this.roster = roster;
+		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.modules = modules;
 		this.users = users;
 		this.profiles = profiles;
@@ -118,6 +147,37 @@ public class LiveExamRosterService {
 		roster.deleteByModuleIdAndStudentId(moduleId, studentId);
 	}
 
+	/**
+	 * The module's roster in name order. {@code q} matches name, phone, email or student code. {@code startedAny} is
+	 * true when the student has a sitting on any exam of this module, so removing them keeps that result.
+	 */
+	@Transactional(readOnly = true)
+	public Page<RosterRow> rows(UUID moduleId, String query, Pageable pageable) {
+		requireModule(moduleId);
+		String q = query == null ? "" : query.trim();
+		int size = Math.min(Math.max(pageable.getPageSize(), 1), MAX_SIZE);
+		Pageable page = PageRequest.of(pageable.getPageNumber(), size);
+		MapSqlParameterSource params = new MapSqlParameterSource("moduleId", moduleId).addValue("q", q);
+		Long total = jdbc.queryForObject("SELECT count(*) " + ROSTER_FROM + ROSTER_WHERE + ROSTER_QUERY_FILTER, params,
+				Long.class);
+		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
+		List<RosterRow> rows = jdbc.query("""
+				SELECT r.student_id, u.phone, u.email, sp.full_name, sp.student_code, r.created_at,
+				  exists (
+				    select 1 from live_exam_participants p
+				    join live_exams e on e.id = p.exam_id
+				    where e.module_id = r.module_id and p.student_id = r.student_id and p.deleted_at is null
+				  ) as started_any
+				""" + ROSTER_FROM + ROSTER_WHERE + ROSTER_QUERY_FILTER + """
+				ORDER BY sp.full_name NULLS LAST, sp.student_code, r.student_id
+				LIMIT :limit OFFSET :offset
+				""", params,
+				(rs, number) -> new RosterRow(rs.getObject("student_id", UUID.class), rs.getString("full_name"),
+						rs.getString("phone"), rs.getString("email"), rs.getString("student_code"),
+						rs.getTimestamp("created_at").toInstant(), rs.getBoolean("started_any")));
+		return new PageImpl<>(rows, page, total == null ? 0 : total);
+	}
+
 	public boolean marked(UUID moduleId, UUID studentId) {
 		return roster.existsByModuleIdAndStudentId(moduleId, studentId);
 	}
@@ -166,6 +226,10 @@ public class LiveExamRosterService {
 	}
 
 	public record PasteResult(List<StudentMatch> marked, List<String> unknown) {
+	}
+
+	public record RosterRow(UUID studentId, String fullName, String phone, String email, String studentCode,
+			Instant addedAt, boolean startedAny) {
 	}
 
 }

@@ -177,6 +177,79 @@ class LiveRosterIT extends PostgresIntegrationTest {
 		assertThat(marked(module, markedStudent.id())).isFalse();
 	}
 
+	@Test
+	void theRosterListIsPagedSearchableFlagsStartedStudentsAndRefusesOthers() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Admin"));
+		String instructor = token(seed("INSTRUCTOR", "Teacher"));
+		UUID module = publishModule(master, "Listed");
+		String prefix = "Listed " + UUID.randomUUID().toString().substring(0, 8);
+		Student ada = seedStudent(prefix + " Ada");
+		Student bela = seedStudent(prefix + " Bela");
+		Student cy = seedStudent(prefix + " Cy");
+		mark(master, module, ada.id());
+		mark(master, module, bela.id());
+		mark(master, module, cy.id());
+		UUID exam = createExam(master, module, "Listed exam", "2026-10-20T12:00:00+06:00", null);
+		new JdbcTemplate(dataSource).update("""
+				INSERT INTO live_exam_participants (id, exam_id, student_id, kind, started_at, deadline_at, status,
+				                                    created_at, updated_at)
+				VALUES (gen_random_uuid(), ?, ?, 'LIVE', now(), now(), 'IN_PROGRESS', now(), now())
+				""", exam, bela.id());
+
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.param("q", prefix)
+			.param("size", "2"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(3))
+			.andExpect(jsonPath("$.size").value(2))
+			.andExpect(jsonPath("$.content.length()").value(2))
+			.andExpect(jsonPath("$.content[0].studentId").value(ada.id().toString()))
+			.andExpect(jsonPath("$.content[0].fullName").value(prefix + " Ada"))
+			.andExpect(jsonPath("$.content[0].phone").value(ada.phone()))
+			.andExpect(jsonPath("$.content[0].email").value(ada.email()))
+			.andExpect(jsonPath("$.content[0].studentCode").exists())
+			.andExpect(jsonPath("$.content[0].addedAt").exists())
+			.andExpect(jsonPath("$.content[0].startedAny").value(false))
+			.andExpect(jsonPath("$.content[1].studentId").value(bela.id().toString()))
+			.andExpect(jsonPath("$.content[1].startedAny").value(true));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.param("q", prefix)
+			.param("size", "2")
+			.param("page", "1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content.length()").value(1))
+			.andExpect(jsonPath("$.content[0].studentId").value(cy.id().toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.param("q", cy.phone()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].studentId").value(cy.id().toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.param("q", ada.email().toUpperCase()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].studentId").value(ada.id().toString()));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.param("q", "no-such-person-" + UUID.randomUUID()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(0));
+
+		for (String token : new String[] { system, instructor, ada.token() }) {
+			mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + token))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		}
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster"))
+			.andExpect(status().isUnauthorized());
+
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+	}
+
 	private UUID publishModule(String token, String title) throws Exception {
 		UUID category = createCategory(token, title + " cat");
 		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + token)

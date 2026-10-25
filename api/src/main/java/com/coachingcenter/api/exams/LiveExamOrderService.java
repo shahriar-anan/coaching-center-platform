@@ -294,7 +294,7 @@ public class LiveExamOrderService {
 		return modules.findByIdAndDeletedAtIsNull(order.getModuleId()).orElseThrow(this::notFound).getTitleEn();
 	}
 
-	private static String publicStatus(String status) {
+	static String publicStatus(String status) {
 		return switch (status) {
 			case LiveExamOrder.INITIATED -> "PENDING";
 			case LiveExamOrder.SUCCEEDED -> "PAID";
