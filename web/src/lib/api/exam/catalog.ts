@@ -151,6 +151,47 @@ export function usePublicModuleExams(moduleId: string | undefined, examType: Exa
   });
 }
 
+/** An exam in the "upcoming" strip, with its module's titles (G12). */
+export type UpcomingExam = PublicExam & { moduleTitleEn?: string; moduleTitleBn?: string | null };
+
+/**
+ * Published modules matching `q` (G12). Only runs once there is text. An older
+ * API that ignores `q` returns everything, so the screen filters by title too.
+ */
+export function useModuleSearch(q: string) {
+  const term = q.trim();
+  return useQuery({
+    queryKey: ["catalog", "module-search", term] as const,
+    enabled: term.length > 0,
+    staleTime: CATALOG_STALE,
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<PublicModule>>(
+        `/api/v1/public/live-exam-modules?q=${encodeURIComponent(term)}&size=20`,
+        { signal },
+      ).then((page) => page.content),
+  });
+}
+
+/** The soonest upcoming exams of one type (G12). Empty until the API has the endpoint. */
+export function useUpcomingExams(examType: ExamType) {
+  return useQuery({
+    queryKey: ["catalog", "upcoming", examType] as const,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      try {
+        const page = await apiRequest<PageResponse<UpcomingExam>>(
+          `/api/v1/public/live-exams?examType=${examType}&upcoming=true&size=5`,
+          { signal },
+        );
+        return page.content;
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "RESOURCE_NOT_FOUND") return [];
+        throw error;
+      }
+    },
+  });
+}
+
 export function usePublicExam(id: string) {
   return useQuery({
     queryKey: catalogKeys.publicExam(id),

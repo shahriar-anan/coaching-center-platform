@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DoorDiscovery } from "./door-discovery";
 import {
   categoryPath,
   countModules,
@@ -107,6 +108,7 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
     return (
       <>
         <PageHeader title={doorTitle} breadcrumbs={[{ label: t("catalog.home"), href: "/" }, { label: doorLabel }]} />
+        <DoorDiscovery door={door} />
         {roots.length ? (
           <div className="grid gap-3">
             {roots.map((node) => (
