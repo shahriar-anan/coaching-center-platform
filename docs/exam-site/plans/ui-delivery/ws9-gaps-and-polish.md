@@ -319,3 +319,42 @@ Skipped: <ids and why>
 API additions: <list>
 Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 ```
+
+## Report — API
+
+Branch `ui/w9-api`, worktree `F:\cc-wt\w9-api`. Checks: full suite from clean, alone, under the lock: 322 run, only `BookOrderIT` and `CoursePurchaseIT` failing (both expected, not caused by this work). `LiveEvaluationIT` 44 of 44 green. `LiveExamIT`, `LiveSittingIT`, `LivePublicCatalogIT`, `LiveExamPurchaseIT`, `AuditLogIT` green in the targeted run. Dev guide boot-verified (API on `coaching_center_qa`, web `/`, `/mcq`, `/staff` 200).
+
+| Item | Status | Note |
+|---|---|---|
+| R1 / G8 | done | Staff (Master Admin, System Admin, assigned instructor) read the written question PDF. Unassigned instructor 404. Student rule unchanged. |
+| G1 | partly done | The read returns `comment` and `evaluatedFileName`. Not changed: the API still requires a new marked PDF on every save (the current rule). The form must say so. |
+| G2 | done | Exam and module titles, ids, `maximum` on the submission read. |
+| G3 | done | Clash 409 carries `details` `{ id, titleEn, titleBn, liveAt, endAt }`. Error body gains an optional `details` field, present only there. |
+| G4 | done | Staff module read returns `instructor` (`id`, `name`, `phone`) or `null`. Phone is staff-only. |
+| G5 | done | Staff list takes `status` and `q`, rows carry `mcqCount` and `writtenCount`. Server paging was already there. URL state is the web's. |
+| G6 | partly done | Real limits found and documented in `current-api.md` (question PDF 100 MiB via `MATERIAL_MAX_BYTES`, answer and marked PDF 80 MiB, multipart 100 MB, Nginx 105m). Over-cap upload now returns 413 `FILE_TOO_LARGE` (was 500). Client helper text and message are the web's. |
+| G7 | done | `PATCH /api/v1/me` `{ fullName }` for students, 1 to 100 characters after trim. Staff get 403. |
+| G8 | done | See R1. |
+| G9 | done (no change) | Confirmed: only Master Admin holds `EXAM_PRICE`; System Admin sending a price gets 403. |
+| G10 | done | Staff module rows and single read carry `categoryPath` (root first). Instructors get it for assigned modules. |
+| G11 | done | `GET /api/v1/live-exam-submissions` (cross-module feed). Instructor scope enforced in the service. Open sittings are excluded; a sitting shows once the deadline job posts it. |
+| G12 | done | Public `q` on modules. `GET /api/v1/public/live-exams?upcoming=true` (soonest first, ended exams dropped, no questions or PDFs). |
+| G13 | done | `POST /api/v1/live-exams/{id}/copy`, 201, draft, no date, no price. MCQ questions and the question PDF (as a new stored file) are copied. |
+| G14 / C1 | done | `GET /api/v1/live-exams/{id}/results`, body `{ summary, rows }`. Summary counts live sittings only; a score counts once final, as on the leaderboard. |
+| G15 / C2 | done | `GET /api/v1/students/{id}/live-exam-results` (Master Admin, System Admin). |
+| G16 / C3 | done | `POST /api/v1/live-exams/{id}/publish-results` (Master Admin only), returns `{ published: n }`, one audit row and notice per participant. The single publish now writes the same audit row (it did not before). |
+| R3 | done | Through G10 (`categoryPath`) on the module reads. |
+| R4 | done | Submission rows carry `submittedAt`, `evaluatedAt`, `publishedAt`. |
+| R8 (API part) | done | Through G12. |
+| Part 4 | done | `docs/exam-site/reports/ui-dev-qa-guide.md`, boot-verified. Visual and typography pass is Shahriar's, per Part 4 item 7. |
+| Skipped | none | |
+
+**API additions (for the integrator and the web agents):**
+- Error body: optional `details` (only the clash 409).
+- `SubmissionView` gains `comment`, `evaluatedFileName`, `moduleId`, `moduleTitleEn`, `moduleTitleBn`, `examTitleEn`, `examTitleBn`, `submittedAt`, `evaluatedAt`, `publishedAt`.
+- `ModuleView` gains `categoryPath`, `instructor`, `mcqCount`, `writtenCount`; null on student and public reads, and on create, update and publish responses.
+- New routes: `GET /api/v1/live-exam-submissions`, `GET /api/v1/live-exams/{id}/results`, `GET /api/v1/students/{id}/live-exam-results`, `POST /api/v1/live-exams/{id}/publish-results`, `POST /api/v1/live-exams/{id}/copy`, `GET /api/v1/public/live-exams`, `PATCH /api/v1/me`. All in `AuditLogIT`.
+- Changed: `GET /api/v1/live-exam-modules` accepts `status` and `q` (staff); `GET /api/v1/public/live-exam-modules` accepts `q`; `GET /api/v1/live-exams/{id}/question-pdf` serves staff.
+- No Flyway migration. No business rule changed.
+
+**Contract changes for the integrator:** the `details` error field, the new `SubmissionView` and `ModuleView` fields above, the `{ summary, rows }` results shape, and `PATCH /api/v1/me`.
