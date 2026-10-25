@@ -1,3 +1,5 @@
+"use client";
+
 import { cn } from "@/components/ui/cn";
 import { useLocale } from "@/i18n/locale-context";
 
