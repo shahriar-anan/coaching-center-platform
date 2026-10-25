@@ -364,3 +364,10 @@ Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 - **Bangla pass:** my student namespaces (`auth`, `account`, `catalog`, `purchase`, `result`, `sitting`, `notices`, `legal`) checked against the forbidden-term list; no changes were needed. `legacy`, `staff*` and FND's `common` are not STU's and were not touched.
 
 **Checks:** lint 0 errors; `tsc` clean; `npm test` (single process) 242 passed in 37 files; the build is re-run under the lock after these changes (see the build line above).
+
+### Addendum 2 — STU
+
+- **F10, now done:** take and retake redirects (a live start opens the paper in `live` mode, a later attempt in `retake` mode) and the offline flush (answers kept while offline are sent once the connection returns).
+- **F10, still open:** the deadline passing during a written upload (the test harness raised the rejected error from the test body; left for a later pass).
+- **Build:** the app code has not changed since the build that passed under the lock (BUILD_EXIT 0); later commits only add tests and docs.
+- **Checks:** `tsc` clean; lint 0 errors; `npm test` (single process) 245 passed in 39 files.
