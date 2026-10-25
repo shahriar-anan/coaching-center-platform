@@ -416,3 +416,9 @@ Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit.
 - **ST-8 (print):** the receipt sheet is wrapped in FND's `PrintArea`.
 - **Notice bell:** `text-white` changed to `text-on-warn`.
 - **Merge:** `catalog-acquisition` (with FND) merged; the one conflict was in this plan doc, and both report sections are kept.
+
+### Addendum 4 — STU, open items fixed
+
+- **Done:** the deadline passing during a written upload is now tested (the earlier harness problem did not come back). The result-page stat numbers are gold.
+- **Still open, not STU's to fix:** the API flag for module-only exams (ST-2), and the HTTP status on `ApiError` in `client.ts`, which would replace the status-text match in `isNotDeployed`.
+- **Still open, a decision:** the sitting jump grid stays at 44 px, the README's student target, instead of the 40 px in P4.
