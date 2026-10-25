@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { RequireStudent } from "@/lib/auth/guards";
+import { ApiError } from "@/lib/api/errors";
 import {
   isNotDeployed,
   useChangeName,
@@ -97,7 +98,13 @@ function AccountView() {
       toast({ title: t("account.profile.nameSaved"), tone: "ok" });
       setNameOpen(false);
     } catch (err) {
-      setNameError(isNotDeployed(err) ? t("account.profile.nameNotReady") : t("common.states.errorBody"));
+      if (isNotDeployed(err)) {
+        setNameError(t("account.profile.nameNotReady"));
+      } else if (err instanceof ApiError && err.fieldErrors?.some((item) => item.field === "fullName")) {
+        setNameError(t("account.profile.nameInvalid"));
+      } else {
+        setNameError(t("common.states.errorBody"));
+      }
       focusFirst(["account-name"]);
     }
   }
