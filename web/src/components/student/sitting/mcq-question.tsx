@@ -101,7 +101,7 @@ export const McqQuestion = memo(function McqQuestion({
                 >
                   {letters[position] ?? ""}
                 </span>
-                <span className="flex-1" style={paperFont}>{option.text}</span>
+                <span className="min-w-0 flex-1 break-words" style={paperFont}>{option.text}</span>
                 {picked && !reviewing ? <span className="text-meta font-semibold">{labels.selected}</span> : null}
                 {isCorrect ? <span className="text-meta font-semibold text-ok">{labels.correct}</span> : null}
                 {isWrongChoice ? <span className="text-meta font-semibold text-warn">{labels.yourAnswer}</span> : null}
