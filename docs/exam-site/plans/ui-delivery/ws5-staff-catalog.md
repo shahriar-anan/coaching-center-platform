@@ -49,4 +49,36 @@ Home cards per role (MA, SA, Instructor), category tree actions per role, module
 
 ## Report
 
-(Agent fills this in.)
+**Done (agent E, phase 1, round 2).** Branch `ui/ws5-staff-catalog`, merged with `catalog-acquisition` (WS0, WS1, WS4 included). P0 pages all exist with loading, empty, error and success states:
+
+- `/staff`: role homes. Master Admin and System Admin get the three cards (নম্বরের অপেক্ষায় / প্রকাশ বাকি / পেমেন্ট অপেক্ষমাণ), today's exams and the upcoming list. Instructor gets assigned module cards or the empty sentence.
+- `/staff/categories`, `/new`, `/[id]`: tree with search and expand/collapse. Archive and delete are Master Admin only. Editor with both titles, parent select, position, dirty line and leave warning.
+- `/staff/modules`, `/new`, `/[id]` with `?tab=`: list (search, category, status). Module editor with বিবরণ, পরীক্ষা, সরাসরি ভর্তি (Master Admin, roster list from WS1 C, search-to-add, paste, remove with a named confirm) and শিক্ষক (Master Admin, picker from the directory, remove confirm, conflict sentence). Price input for Master Admin only; System Admin sees the amount as text.
+- `/staff/exams/[examId]`: one editor for MCQ and written. Meta form with the start switch "তারিখ এখনো নয়", end time computed and shown. MCQ: question list, running total, add/edit dialog (dynamic import), up/down reorder, delete with confirm, one-correct radio. Written: stored PDF opened in `PdfViewer` (staff view, no download), replace by `FileDrop` with upload progress. After the start instant every form is read-only and says so.
+- Publish checklist on both editors, each open item links to its field. Publish stays disabled until it is clear.
+
+**P1 done:** student preview on both exam editors (MCQ without correct marks; written through `PdfViewer` with a watermark), checklist before publish, quick actions on the admin home, today's exams.
+
+**P2 done:** none. **Skipped:** paste many questions (P2), next-steps toast after publish (P2), drag reordering (up and down buttons are used instead).
+
+**Checks.** `npm run lint`: 0 errors, 2 warnings (old pages, `<img>`). `npm test` (single process): 24 files, 183 tests passed, including 17 in `tests/ws5/**`. `npm run build`: passed under the lock.
+
+**Not verified here.** The 1440 px and 375 px, light and dark, keyboard and Bangla read-aloud checks are not done. No browser was used, per the rules. Shahriar's browser pass is still needed.
+
+**Gaps and deviations (for the integrator):**
+- Modules list: the server filters only by `categoryId`. Search and status filter the loaded page (up to 100 rows). The API has no `q` or `status` for modules. Exam counts per module are not shown, because the module list has no counts. Contract ask if needed.
+- Module's current instructor: `GET /api/v1/instructors?assigned=true` filtered on the client by `modules[].id`, first 100 rows. There is no `moduleId` filter. Fine for demo size; a contract ask if the client has more instructors.
+- Category status chip is derived: archived, else published if any module is published, else draft.
+- The category and exam forms warn on tab close (`beforeunload`) and on the dirty line; in-app links do not ask first.
+- The 5-minute clash message is the generic conflict sentence. The server does not send the other exam's name in a field, so it cannot be named.
+- Written PDF size limit is 20 MB on the client; the server limit was not checked.
+- Preview of the written paper uses the same question-PDF endpoint as staff view, so it relies on staff being allowed to read it (it is, as far as the brief says).
+
+**Links that other workstreams must answer (by URL only):**
+- `/staff/participation?moduleId=` (WS6a) from module exams and the instructor card.
+- `/staff/submissions/m/[moduleId]?examId=` (WS6a) for the written awaiting count. The `examId` param name is mine. WS6a should accept it or ignore it.
+- `/staff/exams/[examId]/leaderboard` (WS6b) from module exams.
+- `/staff/payments?status=INITIATED` (WS6b) from the payment card.
+- `/staff/students` (WS6a) from the quick actions.
+
+**Contract issues:** none beyond the gaps above.
