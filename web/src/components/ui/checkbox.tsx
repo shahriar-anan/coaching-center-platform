@@ -12,7 +12,7 @@ export const Checkbox = forwardRef<
       type="checkbox"
       {...rest}
       className={cn(
-        "m-2.5 size-6 shrink-0 accent-action",
+        "m-2.5 size-6 shrink-0 accent-action disabled:cursor-not-allowed disabled:opacity-60",
         invalid && "outline-2 outline-danger",
         className,
       )}

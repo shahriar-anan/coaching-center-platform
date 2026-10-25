@@ -15,7 +15,7 @@ export function IconButton({ label, icon, className, ...rest }: IconButtonProps)
       title={label}
       {...rest}
       className={cn(
-        "inline-flex size-11 items-center justify-center rounded-control text-text hover:bg-bg disabled:opacity-60",
+        "inline-flex size-11 items-center justify-center rounded-control text-text transition-colors duration-150 hover:bg-bg active:bg-border disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
     >
