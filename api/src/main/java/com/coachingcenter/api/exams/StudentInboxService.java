@@ -32,17 +32,27 @@ public class StudentInboxService {
 
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
+	/**
+	 * An exam notice needs its live exam and module, not deleted. An announcement has no exam: it shows for everyone, or
+	 * for the module it names while that module is not deleted.
+	 */
 	private static final String FROM = """
 			from student_notices n
-			join live_exams e on e.id = n.exam_id and e.deleted_at is null
-			join live_exam_modules m on m.id = e.module_id and m.deleted_at is null
+			left join live_exams e on e.id = n.exam_id and e.deleted_at is null
+			left join live_exam_modules m on m.id = coalesce(e.module_id, n.module_id) and m.deleted_at is null
+			left join announcements a on a.id = n.announcement_id
 			left join live_exam_participants p on p.id = n.participant_id
 			where n.user_id = :me
+			  and (n.exam_id is null or e.id is not null)
+			  and (coalesce(e.module_id, n.module_id) is null or m.id is not null)
 			""";
 
 	private static final String SELECT = """
 			select n.id, n.kind, n.created_at, n.read_at, e.id as exam_id, e.module_id, e.exam_type, e.title_en, e.title_bn,
 			  e.live_at, e.duration_minutes, p.score, p.passed, p.published_at,
+			  n.module_id as notice_module_id, a.id as announcement_id, a.title_en as announcement_title_en,
+			  a.title_bn as announcement_title_bn, a.body_en as announcement_body_en, a.body_bn as announcement_body_bn,
+			  a.audience as announcement_audience,
 			  case when e.exam_type = 'WRITTEN' then coalesce(e.written_maximum, 0)
 			    else (select coalesce(sum(q.marks), 0) from live_exam_questions q
 			          where q.exam_id = e.id and q.deleted_at is null) end as maximum
@@ -113,23 +123,36 @@ public class StudentInboxService {
 			}
 		}
 		Timestamp readAt = rs.getTimestamp("read_at");
+		UUID examId = rs.getObject("exam_id", UUID.class);
+		NoticeExam exam = examId == null ? null
+				: new NoticeExam(examId, rs.getObject("module_id", UUID.class), rs.getString("exam_type"),
+						rs.getString("title_en"), rs.getString("title_bn"), start, end);
+		UUID announcementId = rs.getObject("announcement_id", UUID.class);
+		NoticeAnnouncement announcement = announcementId == null ? null
+				: new NoticeAnnouncement(announcementId, rs.getString("announcement_title_en"),
+						rs.getString("announcement_title_bn"), rs.getString("announcement_body_en"),
+						rs.getString("announcement_body_bn"), rs.getString("announcement_audience"),
+						rs.getObject("notice_module_id", UUID.class));
 		return new NoticeView(rs.getObject("id", UUID.class), kind, format(rs.getTimestamp("created_at").toInstant()),
-				readAt == null ? null : format(readAt.toInstant()),
-				new NoticeExam(rs.getObject("exam_id", UUID.class), rs.getObject("module_id", UUID.class),
-						rs.getString("exam_type"), rs.getString("title_en"), rs.getString("title_bn"), start, end),
-				score, maximum, passed);
+				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement);
 	}
 
 	private static String format(Instant instant) {
 		return instant.atZone(DHAKA).format(TIME);
 	}
 
+	/** {@code exam} is null for an announcement, and {@code announcement} is null for every other kind. */
 	public record NoticeView(UUID id, String kind, String createdAt, String readAt, NoticeExam exam, Integer score,
-			Integer maximum, Boolean passed) {
+			Integer maximum, Boolean passed, NoticeAnnouncement announcement) {
 	}
 
 	public record NoticeExam(UUID id, UUID moduleId, String examType, String titleEn, String titleBn, String liveAt,
 			String endAt) {
+	}
+
+	/** {@code moduleId} is set only for an announcement sent to one module. */
+	public record NoticeAnnouncement(UUID id, String titleEn, String titleBn, String bodyEn, String bodyBn, String audience,
+			UUID moduleId) {
 	}
 
 }

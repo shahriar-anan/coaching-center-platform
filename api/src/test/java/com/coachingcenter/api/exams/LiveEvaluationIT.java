@@ -1339,6 +1339,19 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aConfirmedPendingOrderWritesOnePurchaseNotice() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID master = seed("MASTER_ADMIN", "Master");
+		UUID module = publishModule(staff, "Confirm notice module");
+		UUID exam = writtenExam(staff, module);
+		Student buyer = seedStudent("Confirm buyer");
+
+		LiveExamOrder pending = orderTx.insert(buyer.id(), LiveExamOrder.EXAM, module, exam, new BigDecimal("10.00"));
+		orderTx.confirm(pending.getId(), master, "Checked at SSLCommerz");
+		assertThat(noticeCount("PURCHASE_GRANTED", buyer.id())).isEqualTo(1);
+	}
+
+	@Test
 	void eachNewKindListsWithItsExamAndModuleAndCarriesNoMarks() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Shape module");
@@ -1361,6 +1374,83 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			assertThat(row.get("exam").get("endAt").asText()).isEqualTo("2026-10-20T12:40:00+06:00");
 			assertThat(row.has("score")).isFalse();
 		}
+	}
+
+	@Test
+	void aManualExamGrantWritesOnePurchaseNoticeAndARepeatWritesNothing() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Manual grant notice module");
+		UUID exam = writtenExam(staff, module);
+		Student student = seedStudent("Manual grant student");
+		String grant = """
+				{"studentId":"%s","scope":"EXAM","moduleId":null,"examId":"%s","reason":"Paid by hand"}
+				""".formatted(student.id(), exam);
+
+		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content(grant))
+			.andExpect(status().isCreated());
+		assertThat(noticeCount("PURCHASE_GRANTED", student.id())).isEqualTo(1);
+
+		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content(grant))
+			.andExpect(status().isConflict());
+		assertThat(noticeCount("PURCHASE_GRANTED", student.id())).isEqualTo(1);
+	}
+
+	@Test
+	void anAnnouncementShowsWithItsTitleAndBodyAndNoExam() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Announcement inbox module");
+		Student rostered = seedStudent("Announcement rostered");
+		Student stranger = seedStudent("Announcement stranger");
+		mark(master, module, rostered.id());
+		String all = "Holiday " + UUID.randomUUID();
+		String one = "Module news " + UUID.randomUUID();
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"titleEn":"%s","titleBn":"ছুটি","bodyEn":"Closed on Friday","bodyBn":"শুক্রবার বন্ধ","audience":"ALL"}
+					""".formatted(all)))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"titleEn":"%s","titleBn":"মডিউল","bodyEn":"Read this","bodyBn":"","audience":"MODULE","moduleId":"%s"}
+					""".formatted(one, module)))
+			.andExpect(status().isCreated());
+
+		JsonNode mine = announcementTitled(notices(rostered.token()).get("content"), all);
+		assertThat(mine.get("kind").asText()).isEqualTo("ANNOUNCEMENT");
+		assertThat(mine.get("announcement").get("titleEn").asText()).isEqualTo(all);
+		assertThat(mine.get("announcement").get("bodyEn").asText()).isEqualTo("Closed on Friday");
+		assertThat(mine.get("announcement").get("bodyBn").asText()).isEqualTo("শুক্রবার বন্ধ");
+		assertThat(mine.has("exam")).isFalse();
+		assertThat(mine.get("announcement").has("moduleId")).isFalse();
+
+		JsonNode moduleNews = announcementTitled(notices(rostered.token()).get("content"), one);
+		assertThat(moduleNews.get("announcement").get("moduleId").asText()).isEqualTo(module.toString());
+		assertThat(announcementTitled(notices(stranger.token()).get("content"), all).get("kind").asText())
+			.isEqualTo("ANNOUNCEMENT");
+		assertThat(findAnnouncement(notices(stranger.token()).get("content"), one)).isNull();
+	}
+
+	private static JsonNode announcementTitled(JsonNode rows, String titleEn) {
+		JsonNode found = findAnnouncement(rows, titleEn);
+		if (found == null) {
+			throw new AssertionError("no announcement titled " + titleEn);
+		}
+		return found;
+	}
+
+	private static JsonNode findAnnouncement(JsonNode rows, String titleEn) {
+		for (JsonNode row : rows) {
+			if (row.has("announcement") && titleEn.equals(row.get("announcement").get("titleEn").asText())) {
+				return row;
+			}
+		}
+		return null;
 	}
 
 	private static JsonNode noticeOfKind(JsonNode rows, String kind) {
