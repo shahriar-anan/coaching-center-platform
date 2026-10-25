@@ -4,7 +4,7 @@ import bn from "@/i18n/messages/bn/purchase";
 
 describe("access object (S-003)", () => {
   it.each(["MODULE", "EXAM", "ROSTER", "MANUAL"] as const)("%s is owned, with its source", (state) => {
-    expect(resolveAccess({ state, buyable: false, blockedReason: "ALREADY_HAS_ACCESS" }, false)).toEqual({
+    expect(resolveAccess({ state, buyable: false, blockedReason: "ALREADY_HAS_ACCESS" })).toEqual({
       owned: true,
       via: state,
       buyable: false,
@@ -13,22 +13,23 @@ describe("access object (S-003)", () => {
   });
 
   it("NONE is not owned, and the object decides buyable and the reason", () => {
-    expect(resolveAccess({ state: "NONE", buyable: true, blockedReason: null }, true)).toEqual({
+    expect(resolveAccess({ state: "NONE", buyable: true, blockedReason: null })).toEqual({
       owned: false,
       via: null,
       buyable: true,
       blockedReason: null,
     });
+    expect(resolveAccess({ state: "NONE", buyable: false, blockedReason: "PRICE_REQUIRED" })).toEqual({
+      owned: false,
+      via: null,
+      buyable: false,
+      blockedReason: "PRICE_REQUIRED",
+    });
   });
 
-  it("when the object is present, the probe result is ignored", () => {
-    expect(resolveAccess({ state: "NONE", buyable: true, blockedReason: null }, true).owned).toBe(false);
-    expect(resolveAccess({ state: "EXAM", buyable: false, blockedReason: null }, false).owned).toBe(true);
-  });
-
-  it("when the object is absent (older API), the probe decides ownership and buyable is unknown", () => {
-    expect(resolveAccess(undefined, true)).toEqual({ owned: true, via: null, buyable: null, blockedReason: null });
-    expect(resolveAccess(null, false)).toEqual({ owned: false, via: null, buyable: null, blockedReason: null });
+  it("an absent object (visitor or staff) means nothing to show and nothing known about buying", () => {
+    expect(resolveAccess(undefined)).toEqual({ owned: false, via: null, buyable: null, blockedReason: null });
+    expect(resolveAccess(null)).toEqual({ owned: false, via: null, buyable: null, blockedReason: null });
   });
 });
 
