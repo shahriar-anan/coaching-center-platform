@@ -23,7 +23,7 @@ const category = {
   modules: [],
 };
 
-const module: StaffModule = {
+const moduleFixture: StaffModule = {
   id: "aaaaaaaa-0000-0000-0000-000000000001",
   categoryId: category.id,
   titleEn: "19th BCS",
@@ -39,7 +39,7 @@ const module: StaffModule = {
 
 const mcqExam: StaffExam = {
   id: "eeeeeeee-0000-0000-0000-000000000001",
-  moduleId: module.id,
+  moduleId: moduleFixture.id,
   examType: "MCQ",
   paperLanguage: "BN",
   titleEn: "CrPC",
@@ -102,18 +102,18 @@ describe("category tree actions by role", () => {
 describe("module details", () => {
   it("keeps publish disabled until the module is final saved", async () => {
     mockApi({ "GET /api/v1/live-exam-categories": [category] });
-    renderWithProviders(<ModuleDetails module={module} />, { user: fixtures.masterAdmin });
+    renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.masterAdmin });
     const publish = await screen.findByRole("button", { name: "প্রকাশ করুন" });
     expect(publish).toBeDisabled();
   });
 
   it("shows the price input to Master Admin only", async () => {
     mockApi({ "GET /api/v1/live-exam-categories": [category] });
-    const { unmount } = renderWithProviders(<ModuleDetails module={module} />, { user: fixtures.masterAdmin });
+    const { unmount } = renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.masterAdmin });
     expect(await screen.findByLabelText("মূল্য (৳)")).toBeInTheDocument();
     unmount();
 
-    renderWithProviders(<ModuleDetails module={module} />, { user: fixtures.systemAdmin });
+    renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.systemAdmin });
     await screen.findByRole("heading", { name: "প্রকাশের আগে" });
     expect(screen.queryByLabelText("মূল্য (৳)")).not.toBeInTheDocument();
   });
@@ -140,7 +140,7 @@ describe("roster (Master Admin)", () => {
         totalPages: 1,
       },
     });
-    renderWithProviders(<RosterTab moduleId={module.id} />, { user: fixtures.masterAdmin });
+    renderWithProviders(<RosterTab moduleId={moduleFixture.id} />, { user: fixtures.masterAdmin });
 
     expect((await screen.findAllByText("নাঈম হাসান"))[0]).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole("button", { name: "সরান" })[0]);
@@ -161,7 +161,7 @@ describe("roster (Master Admin)", () => {
         unknown: ["nobody@example.com"],
       },
     });
-    renderWithProviders(<RosterTab moduleId={module.id} />, { user: fixtures.masterAdmin });
+    renderWithProviders(<RosterTab moduleId={moduleFixture.id} />, { user: fixtures.masterAdmin });
 
     await userEvent.type(screen.getByLabelText("ইমেইল বা ফোন নম্বরের তালিকা"), "01711000010{enter}nobody@example.com");
     await userEvent.click(screen.getByRole("button", { name: "তালিকা যোগ করুন" }));
@@ -187,7 +187,7 @@ describe("instructor (Master Admin)", () => {
       "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/instructor": () =>
         apiError(409, "INSTRUCTOR_ALREADY_ASSIGNED", "Already assigned."),
     });
-    renderWithProviders(<InstructorTab moduleId={module.id} />, { user: fixtures.masterAdmin });
+    renderWithProviders(<InstructorTab moduleId={moduleFixture.id} />, { user: fixtures.masterAdmin });
 
     await userEvent.click(await screen.findByRole("button", { name: "শিক্ষক দিন" }));
     await userEvent.click((await screen.findAllByRole("button", { name: "বেছে নিন" }))[0]);
