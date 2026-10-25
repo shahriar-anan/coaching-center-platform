@@ -64,7 +64,7 @@ const legal = {
     title: "যোগাযোগ",
     body: "প্রশ্ন বা সমস্যা থাকলে নিচের ঠিকানায় যোগাযোগ করুন।",
     phoneLabel: "ফোন",
-    phoneValue: "০১৭০০-০০০০০০",
+    phoneValue: "01700-000000",
     emailLabel: "ইমেইল",
     emailValue: "info@example.com",
     addressLabel: "ঠিকানা",
