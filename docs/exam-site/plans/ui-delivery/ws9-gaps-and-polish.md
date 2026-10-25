@@ -507,7 +507,7 @@ Worktree `F:\cc-wt\stu-lms`, branch `ui/stu-lms`, from `catalog-acquisition`. St
 
 **Stand-ins:** none.
 
-**Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc` clean; `npm test` (single process) 332 passed in 57 files; `npm run build` under lock `STULMS` passed (BUILD_EXIT 0, no errors in the log).
+**Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc` clean; `npm test` (single process) 383 passed in 66 files; `npm run build` under lock `STULMS` passed (BUILD_EXIT 0, no errors in the log).
 
 ## Report — PUR-FND
 
