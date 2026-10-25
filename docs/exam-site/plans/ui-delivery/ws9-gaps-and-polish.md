@@ -322,28 +322,33 @@ Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 
 ## Report — FND
 
-Worktree `F:cc-wtw9-fnd`, branch `ui/w9-foundation`. Not ready to merge: F8, the in-app link guard of F2, and the remaining P2 and P3 work are open, and the build passed under the lock.
+Worktree `F:\cc-wt\w9-fnd`, branch `ui/w9-foundation`, head at the FN-11 commit. Ready to merge, with one known gap below (P2/P3 component list).
 
 **Done**
-- P1 type scale: named classes in `globals.css`. Every arbitrary size and `text-sm`/`text-xs`/`text-lg`/`text-xl`/`text-2xl` in `components/ui`, `components/shell` and `student/notice-bell` now uses the scale. Staff overrides live on `data-surface="staff"`.
-- P6: `form-error`, `locale-switcher` and `require-auth` use tokens instead of zinc and red.
-- Contracts, all real with tests: `Stepper`, `SummaryStrip`, `SplitBrowser` (phones stack the tree above the pane; no drawer yet), `RowMenu`, `ShortcutsPopover`, `SectionNav`, `StickyActionBar`, `PrintArea` (print rules in `globals.css`).
-- Hooks: `useListPrefs` (UF9), `useDraftForm` (UF10), `useUnsavedChangesGuard` (tab close only).
-- F1: notices tab badge from the shared unread query.
-- U8: staff quick search in the top bar (students by `q`, modules by G5 `q`, `/` focuses it). Shown to roles with authoring or student access.
+- P1 type scale: named classes in `globals.css`; every arbitrary size and `text-sm`/`xs`/`lg`/`xl`/`2xl` in `components/ui` and `components/shell` uses the scale. Staff overrides on `data-surface="staff"`.
+- P6: `form-error`, `locale-switcher` and `require-auth` use tokens (no zinc or red).
+- Contracts, all real, each with tests: `Stepper`, `SummaryStrip`, `SplitBrowser` (phones stack the tree above the pane), `RowMenu`, `ShortcutsPopover`, `SectionNav`, `StickyActionBar` (sits above the student tab bar and reserves page space on phones), `PrintArea` (print rules in `globals.css`).
+- F2: `useUnsavedChangesGuard(dirty, message?)` covers tab close, same-site link clicks (captured; the navigation is held until the shared `ConfirmDialog` confirms) and browser back. Both shells mount the dialog.
+- F1: notices tab badge from the shared unread query; the tab name includes the count for screen readers.
+- U8: staff quick search in the top bar (students by `q`, modules by G5 `q`), keyboard navigation (↑ ↓ Enter, `aria-activedescendant`), `/` focuses it, translated module status, and a phone button that opens the same search in a dialog.
+- UF9 and UF10: `useListPrefs` and `useDraftForm`. The draft is kept while the user types and until restore or clear. Storage is read through `useSyncExternalStore`, so server and client renders match.
+- P3 and P2 (shared components): button sizes sm 40, md 44 (default), lg 48; spinner over the label with no width change; active and aria-disabled states; state classes on icon buttons, text inputs, checkboxes and tabs; skeleton height prop.
+- F8: fonts are self-hosted from `web/src/app/fonts` with `@font-face` rules (unicode-range) in `globals.css`. The same families, weights and subsets as before. `next/font/local` cannot express unicode-range, so the faces are declared directly.
+- Integrator audit, FN-1 to FN-11: each one is a separate commit (FN-4 revert of the bell, FN-9 lint refactor, FN-1 lint fix included).
 
 **Partly done**
-- F2: tab close is guarded; the in-app link ConfirmDialog is not wired.
-- P2 and P3: the shared components now carry the spacing and states they need; the rest of the shared component pass (button heights, skeleton fidelity, focus and hover on every control) is not done.
+- P2 and P3 in the shared components. Still open, so page agents should know: pagination buttons have no hover or active state; `copy-field` and `file-drop` have no hover state; the select has only the hover from `controlBase`.
 
-**Skipped / open**
-- F8 (self-hosted fonts): the Google Fonts API is reachable, so the WOFF2 files can be fetched, but the subset split (Bangla and Latin) needs a `next/font/local` setup that has not been built yet.
-- Build: passed. The lock is released.
+**Not done / for STU**
+- `components/student/notice-bell.tsx` (STU's file, reverted per FN-4) still has `text-white` on its badge. STU should move it to `text-on-warn`, the token added in FN-10.
 
-**Checks (web, this worktree)**
+**Checks (web, this worktree, head of FN-11)**
 - `npx tsc --noEmit`: clean.
-- `npm run lint`: 0 errors, 2 warnings (existing `<img>`).
-- `npx vitest run`: 33 files, 246 tests passing.
-- `npm run build`: passed under the FND lock (lock released after).
+- `npm run lint`: 0 errors, 2 warnings (the existing `<img>` ones).
+- `npx vitest run`: 37 files, 265 tests passing.
+- `npm run build`: passed under the FND lock (lock released after). The built CSS references only the self-hosted fonts.
 
-**Contract changes:** none. `useListPrefs(key)` returns `[prefs, setPrefs]`; `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`. Both are the new signatures in the stub commit.
+**Contract changes**
+- None to existing props. Additive only: `Button` gets `size`; `Skeleton` gets `height`; `useUnsavedChangesGuard` keeps its signature and the shells mount `UnsavedChangesDialog`.
+- `useListPrefs(key)` returns `[prefs, setPrefs]`. `useDraftForm<T>(key, initial)` returns `{ value, setValue, hasDraft, restore, clear }`.
+- `common` gains: `shortcuts`, `sectionNav`, `quickSearch`, `unsaved`, `unreadNotices` (bn and en).
