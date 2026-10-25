@@ -118,6 +118,20 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void checkoutIsReportedOffWithoutAGatewayAndNeedsNoSignIn() throws Exception {
+		String body = mockMvc.perform(get("/api/v1/public/exam-site/status"))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(json.readTree(body).get("checkoutEnabled").asBoolean()).isFalse();
+		assertThat(json.readTree(body).size()).isEqualTo(1);
+		mockMvc.perform(get("/api/v1/public/exam-site/status").header("Authorization", "Bearer " + token(seed("STUDENT"))))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.checkoutEnabled").value(false));
+	}
+
+	@Test
 	void draftsAndArchivedBranchesStayOffThePublicRead() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));

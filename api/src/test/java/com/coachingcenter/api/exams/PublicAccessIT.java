@@ -111,6 +111,17 @@ class PublicAccessIT extends PostgresIntegrationTest {
 		assertAccess(examAccess(phonelessToken, unpriced), "NONE", false, "PRICE_REQUIRED");
 	}
 
+	@Test
+	void checkoutIsReportedOnWhenTheGatewayIsConfigured() throws Exception {
+		String body = mockMvc.perform(get("/api/v1/public/exam-site/status"))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(json.readTree(body).get("checkoutEnabled").asBoolean()).isTrue();
+		assertThat(json.readTree(body).size()).isEqualTo(1);
+	}
+
 	private static void assertAccess(JsonNode access, String state, boolean buyable, String blockedReason) {
 		assertThat(access).as("access").isNotNull();
 		assertThat(access.get("state").asText()).isEqualTo(state);
