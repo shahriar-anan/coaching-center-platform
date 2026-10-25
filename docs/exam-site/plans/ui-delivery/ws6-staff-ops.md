@@ -76,3 +76,23 @@ Student create code dialog, delete MA only, access list reasons, instructor filt
 - The leaderboard relies on the server for the instructor check: an instructor who is not assigned gets an error state, not a list.
 - Every route page wraps its content in `<Suspense>` for the URL-reading guards and list params, as the WS4 tip says.
 - The brief's Bangla for the MA roster link says সরাসরি ভর্তি, per the copy guide.
+
+### WS6a Report (agent B, round 3)
+
+**Done (P0):** `/staff/students` (search; create with the name, phone and email dialog, then the one-time code dialog; status; reissue for pending accounts; delete for Master Admin with the name typed to confirm), `/staff/students/[id]` (name edit; status; access list from `GET /students/{id}/live-exam-access` with the reasons সরাসরি ভর্তি / মডিউল কেনা / পরীক্ষা কেনা; links to the module, to `/staff/payments/{tranId}`, and for Master Admin to `/staff/modules/{id}?tab=roster`), `/staff/instructors` (Master Admin; search; status and assigned filters in the URL; module list or "কোনো মডিউল নেই"; create; reissue for pending), `/staff/admins` (Master Admin; paged; create without a password; status; reissue; delete with the name typed), `/staff/participation` (all staff; module, type, from/to, sort, text filters in the URL; summary numbers; MCQ rows show "—" in the written-only columns; written counts link to the module's scripts filtered to the exam), `/staff/submissions` (landing: written exams grouped by module with the awaiting and draft counts), `/staff/submissions/m/[moduleId]` (counts above; filters all / answer / failed / draft / published; exam filter; name search on the loaded rows), `/staff/submissions/[participantId]` (the per-role marking screen: instructor and Master Admin read the answer in `PdfViewer` with download, save a draft with marks, comment and the required marked PDF through `apiUpload`; Master Admin publishes behind a confirm, disabled until a draft exists; System Admin sees read-only facts including the examiner's name; no answer means the no-answer line and no form).
+
+**P1 done:** marking queue on the paper page: "আগের" and "পরের" in the module's list order, "সেভ করে পরেরটি" (saves, then opens the next paper with an answer and no draft), J and K when focus is outside a field, and the progress line "{total}টির মধ্যে {marked}টি মূল্যায়িত". Side-by-side on desktop (answer viewer left, form right; stacked on phones).
+
+**P2 skipped:** none in scope. Not built: a payments-style summary strip on the participation page.
+
+**Checks:** `npm run lint` 0 errors (2 existing `<img>` warnings). `npm run typecheck` (`tsc --noEmit`) clean. `npm test` 201 passed in 26 files (includes the WS6a tests in `tests/ws6a/**`). `npm run build` under the lock: **the default Turbopack build fails** inside Next's Google Font loader for `layout.tsx` ("next/font/google queries have exactly one entry", 21 errors). This is not in any WS6a file, and the font declarations and layout are unchanged on this branch. I did not confirm whether the base branch fails the same way. `npx next build --webpack` **passes** on this branch, and every staff route is generated. Turbopack is the default in Next 16, so this needs an owner to look at it before the deploy build.
+
+**Contract issues:**
+- `GET /live-exam-participants/{id}` (the `SubmissionView`) returns no comment, so a reopened paper cannot show the saved comment. The form starts with an empty comment box. Needs the comment in the view, or a note that it is write-only.
+- The submission view has no exam title or module id. The paper page reads them from the module's written participation rows (`?m=` in the link); a paper opened without `?m=` shows the student's name as the heading and no exam name.
+- The instructor who is not assigned to a module gets an error state on its submission list, from the server's refusal. There is no instructor-only participation read beyond the server's filter.
+
+**Notes for other agents:**
+- Routes: `/staff/students`, `/staff/students/[id]`, `/staff/instructors`, `/staff/admins`, `/staff/participation`, `/staff/submissions`, `/staff/submissions/m/[moduleId]`, `/staff/submissions/[participantId]`. Links out: `/staff/payments/{tranId}` (WS6b), `/staff/modules/{id}` and `/staff/modules/{id}?tab=roster` (WS5), `/staff/exams/{id}` (WS5).
+- The people hooks live in `lib/api/exam/staff-people.ts`, with their own `staffPeople` query-key prefix. Shared helpers were copied rather than imported across workstreams.
+- Every route page wraps its content in `<Suspense>`, as the WS4 tip says.
