@@ -23,8 +23,8 @@ export function EmptyState({
       )}
     >
       {icon ? <div className="text-muted">{icon}</div> : null}
-      <h2 className="text-lg font-semibold text-text">{title}</h2>
-      {body ? <p className="max-w-prose text-[15px] text-muted">{body}</p> : null}
+      <h2 className="text-section text-text">{title}</h2>
+      {body ? <p className="max-w-prose text-body text-muted">{body}</p> : null}
       {action ? <div className="pt-1">{action}</div> : null}
     </div>
   );

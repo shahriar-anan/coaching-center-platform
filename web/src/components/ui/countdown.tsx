@@ -54,8 +54,8 @@ export function Countdown({
           warning ? "bg-warn/15 text-warn" : "bg-card text-text",
         )}
       >
-        <span className="text-sm text-muted">{t("common.countdown.left")}</span>
-        <span className="text-lg font-semibold">{ended ? t("common.countdown.ended") : clock}</span>
+        <span className="text-meta text-muted">{t("common.countdown.left")}</span>
+        <span className="text-section font-semibold">{ended ? t("common.countdown.ended") : clock}</span>
         <span role="status" aria-live="polite" className="sr-only">
           {announced}
         </span>

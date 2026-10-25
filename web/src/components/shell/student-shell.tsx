@@ -41,7 +41,7 @@ function UserMenu() {
       <Link
         href="/login"
         prefetch={false}
-        className="inline-flex h-11 items-center rounded-control px-4 text-[15px] font-semibold text-text hover:bg-bg"
+        className="inline-flex h-11 items-center rounded-control px-4 text-label font-semibold text-text hover:bg-bg"
       >
         {t("common.nav.login")}
       </Link>
@@ -53,7 +53,7 @@ function UserMenu() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label={t("common.nav.userMenu", { name: user.fullName })}
-        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-[15px] font-semibold text-text hover:bg-bg"
+        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg"
       >
         <span className="truncate">{firstName}</span>
       </DropdownMenu.Trigger>
@@ -61,7 +61,7 @@ function UserMenu() {
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 grid min-w-48 gap-0.5 rounded-card border border-border bg-card p-1.5 text-[15px] text-text shadow-lg"
+          className="z-50 grid min-w-48 gap-0.5 rounded-card border border-border bg-card p-1.5 text-body text-text shadow-lg"
         >
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
@@ -132,7 +132,7 @@ function TabBar() {
                 prefetch
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                  "flex h-full flex-col items-center justify-center gap-0.5 text-pill font-medium",
                   active ? "text-text-accent" : "text-muted",
                 )}
               >
@@ -189,7 +189,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
       </main>
       <footer className="border-t border-border bg-card">
         <nav aria-label={t("common.footer.label")} className="mx-auto grid w-full max-w-[760px] gap-3 px-4 py-6">
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
+          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-meta text-muted">
             <li>
               <Link href="/help" prefetch={false} className="hover:text-text hover:underline">
                 {t("common.footer.help")}
@@ -221,7 +221,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
               </Link>
             </li>
           </ul>
-          <p className="text-sm text-muted">{t("common.footer.copyright")}</p>
+          <p className="text-meta text-muted">{t("common.footer.copyright")}</p>
         </nav>
       </footer>
       {showTabs ? <TabBar /> : null}

@@ -25,7 +25,7 @@ function RoleChip({ role }: { role: Role }) {
     return null;
   }
   return (
-    <span className="inline-flex rounded-control bg-action/10 px-2.5 py-1 text-sm font-medium text-action">
+    <span className="inline-flex rounded-control bg-action/10 px-2.5 py-1 text-pill text-action">
       {t(`common.roles.${role}`)}
     </span>
   );
@@ -46,7 +46,7 @@ function NavList({ items, onNavigate }: { items: StaffNavItem[]; onNavigate?: ()
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-10 items-center rounded-control px-3 text-[14px] font-medium",
+                "flex min-h-10 items-center rounded-control px-3 text-label font-medium",
                 active ? "bg-action/10 text-action" : "text-text hover:bg-bg",
               )}
             >
@@ -74,7 +74,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
   return (
     <div data-surface="staff" className="min-h-dvh bg-bg text-text md:grid md:grid-cols-[232px_1fr]">
       <aside className="hidden border-e border-border bg-card md:sticky md:top-0 md:flex md:h-dvh md:flex-col md:gap-5 md:p-4">
-        <Logo href="/staff" className="px-2 text-lg" />
+        <Logo href="/staff" className="px-2 text-section" />
         {role ? <RoleChip role={role} /> : null}
         <nav aria-label={t("common.nav.main")} className="min-h-0 flex-1 overflow-y-auto">
           <NavList items={items} />
@@ -102,7 +102,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
               <LocalePill />
               <ThemePill />
               {session.status === "authenticated" ? (
-                <span className="hidden text-sm text-muted sm:inline">{session.user.fullName}</span>
+                <span className="hidden text-meta text-muted sm:inline">{session.user.fullName}</span>
               ) : null}
               <Button variant="secondary" onClick={() => void logout()} className="min-h-10 px-3">
                 <LogOut aria-hidden="true" className="size-4" />

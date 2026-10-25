@@ -21,9 +21,9 @@ export function CopyField({ value, label }: { value: string; label: string }) {
 
   return (
     <div className="grid gap-1.5">
-      <span className="text-sm font-medium text-text">{label}</span>
+      <span className="text-label font-medium text-text">{label}</span>
       <div className="flex items-center gap-2">
-        <code className="min-h-11 flex-1 break-all rounded-control border border-border bg-bg px-3.5 py-2.5 font-latin text-[15px] tabular-nums text-text select-all">
+        <code className="min-h-11 flex-1 break-all rounded-control border border-border bg-bg px-3.5 py-2.5 font-latin text-body tabular-nums text-text select-all">
           {value}
         </code>
         <Button variant="secondary" onClick={copy}>

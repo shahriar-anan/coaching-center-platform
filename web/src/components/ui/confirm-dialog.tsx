@@ -89,7 +89,7 @@ export function ConfirmDialog({
         </Field>
       ) : null}
       {error ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-meta text-danger">
           {error}
         </p>
       ) : null}

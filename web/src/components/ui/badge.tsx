@@ -13,7 +13,7 @@ export function Badge({ count }: { count: number }) {
   return (
     <span
       aria-label={text}
-      className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-warn-fill px-1.5 text-xs font-semibold text-white tabular-nums"
+      className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-warn-fill px-1.5 text-pill text-white tabular-nums"
     >
       {text}
     </span>

@@ -10,7 +10,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   const { t } = useLocale();
   return (
     <nav aria-label={t("common.breadcrumbs.label")}>
-      <ol className="flex flex-wrap items-center gap-1 text-sm text-muted">
+      <ol className="flex flex-wrap items-center gap-1 text-meta text-muted">
         {items.map((item, i) => {
           const last = i === items.length - 1;
           return (

@@ -23,7 +23,7 @@ export type LinkButtonProps = SharedProps & {
 };
 
 const base =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-5 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-5 text-label transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60";
 
 const variants: Record<ButtonVariant, string> = {
   primary: "bg-action text-on-action hover:opacity-90",
