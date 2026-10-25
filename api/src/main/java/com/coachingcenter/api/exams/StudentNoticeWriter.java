@@ -39,6 +39,14 @@ class StudentNoticeWriter {
 			on conflict (kind, message_key) do nothing
 			""";
 
+	private static final String INSERT_MODULE = """
+			insert into student_notices (id, user_id, kind, message_key, exam_id, module_id, participant_id, created_at)
+			select ?, u.id, ?, ?, null, ?, null, ?
+			from users u
+			where u.id = ? and u.role = 'STUDENT' and u.status = 'ACTIVE' and u.deleted_at is null
+			on conflict (kind, message_key) do nothing
+			""";
+
 	private final JdbcTemplate jdbc;
 
 	private final Clock clock;
@@ -89,11 +97,13 @@ class StudentNoticeWriter {
 	/**
 	 * Joins the caller's transaction. Called once a grant is created, by a paid order or by a manual grant (API-ADMIN calls
 	 * this with the same three values). Keyed by student, target and scope, so a grant repeated for the same target adds
-	 * nothing. A module grant writes nothing yet: the notice row needs an exam, and a module has none.
+	 * nothing. An exam grant names its exam; a module grant names its module (V40 allows a module-level notice).
 	 */
 	void purchaseGranted(UUID studentId, UUID moduleOrExamId, String scope) {
 		if (LiveExamOrder.EXAM.equals(scope)) {
 			insert(PURCHASE_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId, null);
+		} else if (LiveExamOrder.MODULE.equals(scope)) {
+			insertForModule(PURCHASE_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId);
 		}
 	}
 
@@ -110,6 +120,11 @@ class StudentNoticeWriter {
 	private boolean insert(String kind, String key, UUID studentId, UUID examId, UUID participantId) {
 		return jdbc.update(INSERT, UUID.randomUUID(), kind, key, examId, participantId,
 				Timestamp.from(clock.instant()), studentId) == 1;
+	}
+
+	/** A module-level notice: no exam, the module named. Same student check and key rule as the exam insert. */
+	private boolean insertForModule(String kind, String key, UUID studentId, UUID moduleId) {
+		return jdbc.update(INSERT_MODULE, UUID.randomUUID(), kind, key, moduleId, Timestamp.from(clock.instant()), studentId) == 1;
 	}
 
 }

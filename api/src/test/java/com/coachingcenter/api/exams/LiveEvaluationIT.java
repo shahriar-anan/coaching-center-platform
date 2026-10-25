@@ -1432,6 +1432,21 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aPaidModuleOrderWritesOneModuleNotice() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Module purchase notice");
+		Student buyer = seedStudent("Module buyer");
+
+		LiveExamOrder paid = orderTx.insert(buyer.id(), LiveExamOrder.MODULE, module, null, new BigDecimal("500.00"));
+		LiveExamPaymentGateway.Verification valid = new LiveExamPaymentGateway.Verification(
+				LiveExamPaymentGateway.Verification.Outcome.VALID, paid.getTranId(), new BigDecimal("500.00"), "BDT",
+				"VAL-MODULE", "BKASH-BKash");
+		orderTx.verify(paid.getTranId(), valid);
+		orderTx.verify(paid.getTranId(), valid);
+		assertThat(noticeCount("PURCHASE_GRANTED", buyer.id())).isEqualTo(1);
+	}
+
+	@Test
 	void eachNewKindListsWithItsExamAndModuleAndCarriesNoMarks() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Shape module");
