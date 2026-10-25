@@ -24,6 +24,7 @@ const result = {
     pending: "Pending",
   },
   written: {
+    couldNotFinish: "The exam could not be finished.",
     notSubmitted: "No answer script was submitted in time, so the mark is 0.",
     awaiting: "Your script is being marked. The result will appear here once it is published.",
     comment: "Teacher's comment",

@@ -193,6 +193,7 @@ export function ResultPage({ examId }: { examId: string }) {
         <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
       ) : null}
 
+      {notSubmitted ? <p className="text-body font-semibold text-text">{t("result.written.couldNotFinish")}</p> : null}
       {notSubmitted ? <p className="text-body text-muted">{t("result.written.notSubmitted")}</p> : null}
 
       {awaiting && !notSubmitted ? <p className="text-body text-muted">{t("result.written.awaiting")}</p> : null}
