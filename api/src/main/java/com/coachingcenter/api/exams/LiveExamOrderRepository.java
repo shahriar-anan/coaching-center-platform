@@ -18,6 +18,8 @@ public interface LiveExamOrderRepository extends JpaRepository<LiveExamOrder, UU
 
 	boolean existsByExamIdAndStatus(UUID examId, String status);
 
+	boolean existsByStudentIdAndStatus(UUID studentId, String status);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	List<LiveExamOrder> findByExamIdAndStatus(UUID examId, String status);
 

@@ -342,6 +342,48 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.andExpect(status().isNotFound());
 	}
 
+	@Test
+	void aStudentWithPaidOrGrantedAccessCannotBeDeleted() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = module(system, "Deletion");
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+		UUID paid = seed("STUDENT", "Paid Student");
+		jdbc.update("""
+				INSERT INTO live_exam_orders (id, student_id, scope, module_id, exam_id, amount, currency, method, tran_id,
+				  status, created_at, updated_at)
+				VALUES (?, ?, 'MODULE', ?, NULL, 500.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
+				""", UUID.randomUUID(), paid, module, "D" + UUID.randomUUID().toString().replace("-", "").substring(0, 20));
+		mockMvc.perform(delete("/api/v1/students/" + paid).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ACCOUNT_HAS_PAID_ORDERS"));
+
+		UUID granted = seed("STUDENT", "Granted Student");
+		MvcResult grant = mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body(granted, "MODULE", module, null, "Trial access")))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID grantId = UUID.fromString(json.readTree(grant.getResponse().getContentAsString()).get("id").asText());
+		mockMvc.perform(delete("/api/v1/students/" + granted).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ACCOUNT_HAS_PAID_ORDERS"));
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grantId).param("reason", "Trial over")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(delete("/api/v1/students/" + granted).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict());
+
+		UUID plain = seed("STUDENT", "Plain Student");
+		mockMvc.perform(delete("/api/v1/students/" + plain).header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(delete("/api/v1/students/" + plain).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		assertThat(jdbc.queryForObject("select count(*) from users where id = ? and deleted_at is not null", Integer.class, plain))
+			.isOne();
+	}
+
 	private void publish(String token, UUID module) throws Exception {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
