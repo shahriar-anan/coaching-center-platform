@@ -352,4 +352,4 @@ Dev QA guide: docs/exam-site/reports/ui-dev-qa-guide.md (boot verified)
 
 **Notes for other agents:** `components/ui/toast.tsx` (FND) still uses `text-[15px]`; it is FND's file, so it was not changed here.
 
-**Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc --noEmit` clean; `npm test` (single process) 238 passed in 35 files; build: see below.
+**Checks:** lint 0 errors (2 existing `<img>` warnings); `tsc --noEmit` clean; `npm test` (single process) 238 passed in 35 files; `npm run build` under the lock: passed.
