@@ -162,6 +162,13 @@ const common = {
     region: "Messages",
     dismiss: "Dismiss message",
   },
+  shortcuts: {
+    open: "Keyboard shortcuts",
+    title: "Keyboard shortcuts",
+  },
+  sectionNav: {
+    label: "Sections",
+  },
   pdf: {
     placeholder: "PDF",
     loading: "Loading PDF…",

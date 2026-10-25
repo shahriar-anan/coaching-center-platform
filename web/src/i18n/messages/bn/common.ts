@@ -162,6 +162,13 @@ const common = {
     region: "বার্তা",
     dismiss: "বার্তাটি বন্ধ করুন",
   },
+  shortcuts: {
+    open: "কী-বোর্ড শর্টকাট",
+    title: "কী-বোর্ড শর্টকাট",
+  },
+  sectionNav: {
+    label: "সূচি",
+  },
   pdf: {
     placeholder: "পিডিএফ",
     loading: "পিডিএফ লোড হচ্ছে…",

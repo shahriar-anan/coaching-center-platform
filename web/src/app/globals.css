@@ -234,3 +234,19 @@ body {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Print (WS9 PrintArea): only the marked area prints, the shell and controls do not. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  [data-print-area],
+  [data-print-area] * {
+    visibility: visible;
+  }
+  [data-print-area] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+}
