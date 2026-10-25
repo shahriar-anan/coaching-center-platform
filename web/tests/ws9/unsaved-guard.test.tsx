@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- the guard intercepts plain anchors; these tests need one */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
