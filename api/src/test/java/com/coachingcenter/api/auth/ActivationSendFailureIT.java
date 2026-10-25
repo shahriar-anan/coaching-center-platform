@@ -83,6 +83,10 @@ class ActivationSendFailureIT extends PostgresIntegrationTest {
 				}
 
 				@Override
+				public void sendPhoneChanged(String to) {
+				}
+
+				@Override
 				public void sendActivation(String to, String code) {
 					throw new IllegalStateException("smtp down");
 				}

@@ -41,6 +41,8 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	private static final String CHANGED_SUBJECT = "Your password was changed";
 
+	private static final String PHONE_CHANGED_SUBJECT = "Your phone number was changed";
+
 	private static final String ACTIVATION_SUBJECT = "Activate your account";
 
 	private static final int TIMEOUT_MS = 10_000;
@@ -81,6 +83,11 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 	@Override
 	public void sendPasswordChanged(String to) {
 		dispatch(to, CHANGED_SUBJECT, passwordChangedBody(), "");
+	}
+
+	@Override
+	public void sendPhoneChanged(String to) {
+		dispatch(to, PHONE_CHANGED_SUBJECT, phoneChangedBody(), "");
 	}
 
 	@Override
@@ -192,6 +199,10 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	private static String passwordChangedBody() {
 		return "Your password was changed. If you did not change it, contact the center.";
+	}
+
+	private static String phoneChangedBody() {
+		return "The phone number on your account was changed. If you did not change it, contact the center.";
 	}
 
 	private static String redact(String value, String secret) {

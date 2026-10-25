@@ -82,7 +82,7 @@ Do not type a new password into `users.password_hash`. That column stores a hash
 After the account exists, the signed-in Master Admin can change two things:
 
 - The password, through change password. The current password is required. No other account can set it, and the API refuses a reset of this account.
-- The phone, through `POST /api/v1/me/phone`.
+- The phone, through `POST /api/v1/auth/change-phone` with the current password. `POST /api/v1/me/phone` only fills an empty phone and refuses this account.
 
 The email and the display name stay as they were at creation. The API does not change them, and it refuses a delete or a role change of the Master Admin.
 

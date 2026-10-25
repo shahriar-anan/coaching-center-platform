@@ -8,6 +8,8 @@ public interface EmailSender {
 
 	void sendPasswordChanged(String to);
 
+	void sendPhoneChanged(String to);
+
 	void sendActivation(String to, String code);
 
 }

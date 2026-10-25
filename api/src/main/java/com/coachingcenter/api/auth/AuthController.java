@@ -89,6 +89,12 @@ public class AuthController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/auth/change-phone")
+	public AuthService.MeView changePhone(@Valid @RequestBody ChangePhoneRequest request) {
+		auth.changePhone(currentUser().userId(), request.currentPassword(), request.phone());
+		return auth.me(currentUser().userId());
+	}
+
 	@PostMapping("/auth/forgot-password")
 	public MessageResponse forgotPassword(@Valid @RequestBody EmailRequest request, HttpServletRequest http) {
 		long started = System.nanoTime();
@@ -186,6 +192,9 @@ public class AuthController {
 
 	public record ChangePasswordRequest(@NotBlank String currentPassword,
 			@NotBlank @Size(min = 8, max = 72) String newPassword) {
+	}
+
+	public record ChangePhoneRequest(@NotBlank String currentPassword, @NotBlank String phone) {
 	}
 
 	public record EmailRequest(@Email @NotBlank String email) {

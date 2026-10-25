@@ -151,6 +151,11 @@ class SmtpEmailSenderTest {
 		String changed = mail.last.getContent().toString();
 		assertThat(changed).isEqualTo("Your password was changed. If you did not change it, contact the center.");
 		assertThat(changed).doesNotContain("K7M2Q9RX");
+
+		sender.sendPhoneChanged("student@example.com");
+		assertThat(mail.last.getSubject()).isEqualTo("Your phone number was changed");
+		assertThat(mail.last.getContent().toString()).isEqualTo(
+				"The phone number on your account was changed. If you did not change it, contact the center.");
 	}
 
 	@Test

@@ -47,6 +47,11 @@ public class LoggingEmailSender implements EmailSender {
 	}
 
 	@Override
+	public void sendPhoneChanged(String to) {
+		log.info("Phone changed message queued");
+	}
+
+	@Override
 	public void sendActivation(String to, String code) {
 		log.info("Activation message queued");
 		if (exposeCodes) {

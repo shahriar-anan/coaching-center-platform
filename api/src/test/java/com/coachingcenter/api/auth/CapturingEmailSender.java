@@ -14,6 +14,8 @@ public class CapturingEmailSender implements EmailSender {
 
 	private final ConcurrentHashMap<String, List<String>> passwordChanges = new ConcurrentHashMap<>();
 
+	private final ConcurrentHashMap<String, List<String>> phoneChanges = new ConcurrentHashMap<>();
+
 	@Override
 	public void sendEmailVerification(String to, String code) {
 		verifications.computeIfAbsent(to, ignored -> new ArrayList<>()).add(code);
@@ -27,6 +29,11 @@ public class CapturingEmailSender implements EmailSender {
 	@Override
 	public void sendPasswordChanged(String to) {
 		passwordChanges.computeIfAbsent(to, ignored -> new ArrayList<>()).add("changed");
+	}
+
+	@Override
+	public void sendPhoneChanged(String to) {
+		phoneChanges.computeIfAbsent(to, ignored -> new ArrayList<>()).add("changed");
 	}
 
 	@Override
@@ -48,6 +55,11 @@ public class CapturingEmailSender implements EmailSender {
 
 	public int passwordChangedCount(String email) {
 		List<String> notes = passwordChanges.get(email);
+		return notes == null ? 0 : notes.size();
+	}
+
+	public int phoneChangedCount(String email) {
+		List<String> notes = phoneChanges.get(email);
 		return notes == null ? 0 : notes.size();
 	}
 

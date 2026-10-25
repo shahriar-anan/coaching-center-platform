@@ -42,6 +42,7 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/auth/refresh",
 			"POST /api/v1/auth/logout",
 			"POST /api/v1/auth/change-password",
+			"POST /api/v1/auth/change-phone",
 			"POST /api/v1/auth/forgot-password",
 			"POST /api/v1/auth/reset-password",
 			"POST /api/v1/auth/verify-email",

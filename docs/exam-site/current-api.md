@@ -95,6 +95,8 @@ Live exam coverage is the `*IT` classes named from `docs/phases/phase-3/phase-3-
 
 Jobs: a one-minute deadline job posts expired sittings (index `V35`), at most 500 per run. A fifteen-minute job writes the inbox reminder for exams within 48 hours.
 
+Own phone change ([plans/master-admin-handover.md](plans/master-admin-handover.md)): `POST /api/v1/auth/change-phone` with `currentPassword` and `phone`, for every signed-in account that has a password, the Master Admin included. It returns `MeView`. A wrong or missing password gives `400 CURRENT_PASSWORD_INVALID`, a number in use `409 DUPLICATE_PHONE`, and a bad format `400 VALIDATION_FAILED`. The same number changes nothing. A change writes a `PHONE_CHANGED` audit row and mails a notice to the account email. Refresh tokens stay valid. No Flyway version. `POST /api/v1/me/phone` still only fills an empty phone after Google sign-up.
+
 Removed 25 October 2026: `POST /api/v1/admin/mail-test` and `MAIL_TEST_ENABLED`. A real mail check now uses a normal register and forgot-password.
 
 ## Limitations

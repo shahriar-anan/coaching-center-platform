@@ -237,6 +237,31 @@ public class AuthService {
 	}
 
 	@Transactional
+	public void changePhone(UUID userId, String currentPassword, String phone) {
+		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
+		if (user.getPasswordHash() == null || !passwords.matches(currentPassword, user.getPasswordHash())) {
+			throw new ApiException(ErrorCode.CURRENT_PASSWORD_INVALID, HttpStatus.BAD_REQUEST,
+					"Current password is incorrect.");
+		}
+		String normalizedPhone = PhoneNumbers.normalize(phone);
+		if (normalizedPhone.equals(user.getPhone())) {
+			return;
+		}
+		if (users.findByPhoneAndDeletedAtIsNull(normalizedPhone).isPresent()) {
+			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
+		}
+		user.setPhone(normalizedPhone);
+		try {
+			users.saveAndFlush(user);
+		}
+		catch (DataIntegrityViolationException exception) {
+			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
+		}
+		audit.record(AuditRecorder.PHONE_CHANGED, user.getId());
+		sendQuietly(() -> email.sendPhoneChanged(user.getEmail()));
+	}
+
+	@Transactional
 	public void forgotPassword(String emailAddress) {
 		String normalized = normalizeEmail(emailAddress);
 		users.findByEmailAndDeletedAtIsNull(normalized).ifPresentOrElse(user -> {
