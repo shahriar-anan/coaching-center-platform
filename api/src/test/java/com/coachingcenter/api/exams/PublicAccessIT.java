@@ -122,6 +122,32 @@ class PublicAccessIT extends PostgresIntegrationTest {
 		assertThat(json.readTree(body).size()).isEqualTo(1);
 	}
 
+	@Test
+	void aPublicModuleCarriesItsCategoryPathRootFirst() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID root = createCategory(master, "Path root", null);
+		UUID middle = createCategory(master, "Path middle", root);
+		UUID leaf = createCategory(master, "Path leaf", middle);
+		UUID module = publishedModule(master, leaf, "Path module", "300.00");
+		UUID top = publishedModule(master, root, "Top module", "300.00");
+
+		JsonNode path = read(null, "/api/v1/public/live-exam-modules/" + module).get("categoryPath");
+		assertThat(path.size()).isEqualTo(3);
+		assertThat(path.get(0).get("id").asText()).isEqualTo(root.toString());
+		assertThat(path.get(0).get("titleEn").asText()).isEqualTo("Path root");
+		assertThat(path.get(0).get("titleBn").asText()).isEqualTo("বিভাগ Path root");
+		assertThat(path.get(1).get("id").asText()).isEqualTo(middle.toString());
+		assertThat(path.get(2).get("id").asText()).isEqualTo(leaf.toString());
+		JsonNode listed = byId(read(null, "/api/v1/public/live-exam-modules?categoryId=" + leaf).get("content"), module);
+		assertThat(listed.get("categoryPath")).isEqualTo(path);
+		JsonNode searched = byId(read(null, "/api/v1/public/live-exam-modules?q=Path%20module&size=100").get("content"),
+				module);
+		assertThat(searched.get("categoryPath")).isEqualTo(path);
+		JsonNode topPath = read(null, "/api/v1/public/live-exam-modules/" + top).get("categoryPath");
+		assertThat(topPath.size()).isEqualTo(1);
+		assertThat(topPath.get(0).get("id").asText()).isEqualTo(root.toString());
+	}
+
 	private static void assertAccess(JsonNode access, String state, boolean buyable, String blockedReason) {
 		assertThat(access).as("access").isNotNull();
 		assertThat(access.get("state").asText()).isEqualTo(state);
