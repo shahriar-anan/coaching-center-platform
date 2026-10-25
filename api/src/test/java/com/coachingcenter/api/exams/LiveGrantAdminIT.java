@@ -211,6 +211,82 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 	}
 
+	@Test
+	void masterAdminConfirmsOrRejectsOnlyPendingOrders() throws Exception {
+		UUID masterId = seed("MASTER_ADMIN", "Master");
+		String master = token(masterId);
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID buyer = seed("STUDENT", "Stuck Buyer");
+		UUID other = seed("STUDENT", "Second Buyer");
+		String learner = token(buyer);
+		UUID module = module(system, "Stuck");
+		publish(system, module);
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		UUID confirmed = pendingOrder(jdbc, buyer, module);
+		UUID rejected = pendingOrder(jdbc, other, module);
+
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + confirmed + "/confirm").header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Checked\"}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + confirmed + "/confirm").header("Authorization", "Bearer " + learner)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Checked\"}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + confirmed + "/confirm").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"  \"}"))
+			.andExpect(status().isBadRequest());
+
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + confirmed + "/confirm").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Checked at SSLCommerz\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SUCCEEDED"));
+		assertThat(jdbc.queryForObject("select status from live_exam_orders where id = ?", String.class, confirmed))
+			.isEqualTo("SUCCEEDED");
+		assertThat(jdbc.queryForObject("select payment_channel from live_exam_orders where id = ?", String.class, confirmed))
+			.isEqualTo("MANUAL-CONFIRMED");
+		assertThat(jdbc.queryForObject("select confirmed_by from live_exam_orders where id = ?", UUID.class, confirmed))
+			.isEqualTo(masterId);
+		assertThat(jdbc.queryForObject("select source from live_exam_grants where order_id = ?", String.class, confirmed))
+			.isEqualTo("ORDER");
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + learner))
+			.andExpect(status().isOk());
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ORDER_CONFIRMED' and entity_id = ?",
+				Integer.class, confirmed)).isEqualTo(1);
+
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + confirmed + "/confirm").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Again\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ORDER_NOT_PENDING"));
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + confirmed + "/reject").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Too late\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ORDER_NOT_PENDING"));
+
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + rejected + "/reject").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"No payment found\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FAILED"));
+		assertThat(jdbc.queryForObject("select rejected_reason from live_exam_orders where id = ?", String.class, rejected))
+			.isEqualTo("No payment found");
+		assertThat(jdbc.queryForObject("select count(*) from live_exam_grants where order_id = ?", Integer.class, rejected))
+			.isZero();
+		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ORDER_REJECTED' and entity_id = ?",
+				Integer.class, rejected)).isEqualTo(1);
+
+		mockMvc.perform(post("/api/v1/live-exam-orders/" + UUID.randomUUID() + "/confirm").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Missing\"}"))
+			.andExpect(status().isNotFound());
+	}
+
+	private UUID pendingOrder(JdbcTemplate jdbc, UUID student, UUID module) {
+		UUID id = UUID.randomUUID();
+		jdbc.update("""
+				INSERT INTO live_exam_orders (id, student_id, scope, module_id, exam_id, amount, currency, method, tran_id,
+				  status, created_at, updated_at)
+				VALUES (?, ?, 'MODULE', ?, NULL, 500.00, 'BDT', 'SSLCOMMERZ', ?, 'INITIATED', now(), now())
+				""", id, student, module, "P" + id.toString().replace("-", "").substring(0, 20));
+		return id;
+	}
+
 	private void publish(String token, UUID module) throws Exception {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());

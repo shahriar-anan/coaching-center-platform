@@ -187,4 +187,39 @@ public class LiveExamOrder {
 		this.updatedAt = updatedAt;
 	}
 
+
+	/** Set when Master Admin confirms a pending order after checking the payment (V39). */
+	@Column(name = "confirmed_by")
+	private UUID confirmedBy;
+
+	@Column(name = "confirm_reason", length = 500)
+	private String confirmReason;
+
+	@Column(name = "rejected_reason", length = 500)
+	private String rejectedReason;
+
+	public UUID getConfirmedBy() {
+		return confirmedBy;
+	}
+
+	public void setConfirmedBy(UUID confirmedBy) {
+		this.confirmedBy = confirmedBy;
+	}
+
+	public String getConfirmReason() {
+		return confirmReason;
+	}
+
+	public void setConfirmReason(String confirmReason) {
+		this.confirmReason = confirmReason;
+	}
+
+	public String getRejectedReason() {
+		return rejectedReason;
+	}
+
+	public void setRejectedReason(String rejectedReason) {
+		this.rejectedReason = rejectedReason;
+	}
+
 }

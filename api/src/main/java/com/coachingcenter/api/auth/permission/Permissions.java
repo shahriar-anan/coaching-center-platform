@@ -80,6 +80,8 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_REVOKE = "LIVE_EXAM_REVOKE";
 
+	public static final String LIVE_EXAM_ORDER_CONFIRM = "LIVE_EXAM_ORDER_CONFIRM";
+
 	private Permissions() {
 	}
 

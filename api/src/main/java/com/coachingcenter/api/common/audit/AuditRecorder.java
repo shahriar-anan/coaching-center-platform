@@ -97,6 +97,12 @@ public class AuditRecorder {
 
 	public static final String ACCESS_REVOKED = "ACCESS_REVOKED";
 
+	public static final String ORDER_CONFIRMED = "ORDER_CONFIRMED";
+
+	public static final String ORDER_REJECTED = "ORDER_REJECTED";
+
+	public static final String LIVE_EXAM_ORDER_ENTITY = "LIVE_EXAM_ORDER";
+
 	public static final String LIVE_EXAM_GRANT_ENTITY = "LIVE_EXAM_GRANT";
 
 	private final AuditLogRepository auditLogs;

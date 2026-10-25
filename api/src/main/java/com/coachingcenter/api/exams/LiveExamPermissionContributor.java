@@ -23,6 +23,7 @@ public class LiveExamPermissionContributor implements PermissionContributor {
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_GRANT, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.LIVE_EXAM_GRANT, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_REVOKE, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_ORDER_CONFIRM, PermissionScope.ANY);
 		registry.grant(Role.INSTRUCTOR, Permissions.LIVE_EXAM_EVALUATE, PermissionScope.ANY);
 	}
 
