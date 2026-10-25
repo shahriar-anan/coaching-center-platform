@@ -153,7 +153,7 @@ function TabBar() {
                   {tab.key === "notices" && unreadCount > 0 ? (
                     <span
                       aria-hidden="true"
-                      className="absolute -end-2 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-warn-fill px-1 text-pill text-white tabular-nums"
+                      className="absolute -end-2 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-warn-fill px-1 text-pill text-on-warn tabular-nums"
                     >
                       {formatNumber(unreadCount, locale)}
                     </span>

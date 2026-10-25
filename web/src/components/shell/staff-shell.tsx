@@ -103,7 +103,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
               className="md:hidden"
             />
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Logo href="/staff" className="text-base md:hidden" />
+              <Logo href="/staff" className="text-card md:hidden" />
               <div className="hidden min-w-0 flex-1 md:block">
                 <StaffQuickSearch />
               </div>

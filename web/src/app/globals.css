@@ -19,6 +19,7 @@
   --color-on-accent: var(--on-accent);
   --color-action: var(--action);
   --color-on-action: var(--on-action);
+  --color-on-warn: var(--on-warn);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-warn-fill: var(--warn-fill);
@@ -114,6 +115,8 @@
   --radius-control-value: 12px;
   --action: #c8962e;
   --on-action: #14213d;
+  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  --on-warn: #ffffff;
 }
 
 /* Admin panel, light. */
@@ -154,6 +157,8 @@
     --danger: #f97066;
     --action: #e0b254;
     --on-action: #14213d;
+  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  --on-warn: #ffffff;
   }
 
   :root:not([data-theme="light"]) [data-surface="staff"] {
@@ -189,6 +194,8 @@
   --danger: #f97066;
   --action: #e0b254;
   --on-action: #14213d;
+  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  --on-warn: #ffffff;
 }
 
 :root[data-theme="dark"] [data-surface="staff"] {
