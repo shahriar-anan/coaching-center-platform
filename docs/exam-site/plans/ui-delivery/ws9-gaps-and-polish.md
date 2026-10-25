@@ -475,3 +475,34 @@ Branch `ui/w9-api`, worktree `F:\cc-wt\w9-api`. Checks: full suite from clean, a
 - **STU-FU-3:** the sitting score figure uses `text-section` (20 px, the mockup's stat size) in place of `text-2xl`.
 - **STU-FU-4 (decision, pending user confirmation):** the sitting jump grid stays at 44 px, the README's touch target. Accepted by STU; pending user confirmation.
 - **Not touched, per the follow-up's list:** `components/student/catalog/**`, `purchase/**`, `notice-bell.tsx`, the notices page, `result/**`, `home/**`, the listed `lib/api/exam` files, and the messages `catalog`, `purchase`, `notices`, `result`, `sitting`. ST-2 and ST-4 are not STU's.
+
+## Report — OPS
+
+Branch `ui/w9-ops`, worktree `F:\cc-wt\w9-ops`. Commits: `0f59e47` (C1, C3), `7cacf19` (UF8, with the Bangla pass and unused keys), `98c91d8` (C2), `d0d5e02` (F4), `6132ce3` (P5).
+
+| Item | Status | Note |
+|---|---|---|
+| C1 | done | Route `/staff/exams/[examId]/results`. Summary strip (eight counts; a missing score shows a dash), table with kind, status, search and sort in the URL, numbers right-aligned, status as pills. Built on G14. No phone numbers are read. Instructors see what the API returns; student links appear only for Master Admin and System Admin. |
+| C2 | done | "পরীক্ষার ইতিহাস" under the access list on `students/[id]`, newest first (G15). Each exam title opens its results report. The marked slot `SLOT: access list (phase 2, STAFF-ADMIN-UI)` sits above the section. |
+| C3 | done (bulk button) / partly (row selection) | Master Admin only: "সব খসড়া প্রকাশ করুন (N)" with a confirm that names the exam and the count, calling G16. The count is `GET /api/v1/live-exam-submissions?examId=…&status=DRAFT&size=1`, an existing endpoint. Not built: row checkboxes for "নির্বাচিতগুলো প্রকাশ করুন" (the gaps doc's C3 text mentions them; the OPS prompt does not). |
+| F4 | done (payments) / partly (participation) | Payments: successful today (count and total) and pending, cached 60 s. "Today" is orders created today (Dhaka day), because the orders list has no date filter or paid-at field; the walk reads newest first and stops at the first older order. Participation: the two counts the API sends. The API has no "sitting now" count, so that item is not shown. |
+| UF8 | done | RowMenu on students, teachers, system admins, participation, payments and the results report. Each offers only what the role may do. A teacher row with no action shows a dash, not an empty menu. |
+| P5 | partly | Page headers, the FND table (sticky header, stacked mobile view, right-aligned numbers) and status pills on every page I own. The filter bar pattern (reset link) is on the results report only; other lists keep their own filter grids. |
+| Bangla pass | done | `staffPeople`, `staffOps`, `staffResults` against the glossary: active is চালু, transaction id is লেনদেন নম্বর, paid is সফল, access reads as চালু, and the unused-key rule is kept. Bengali digits through the formatters. |
+| Unused keys | done | Removed: `staffPeople.submission.commentPlaceholder`, `staffOps.paymentDetail.student`, `staffOps.account.verifyTitle`, `staffResults.publish.writtenOnly`, `staffResults.history.open`. Scan checked every literal and template key in `web/src`. |
+
+**Checks**
+- `npm run lint`: 0 errors (two existing `<img>` warnings in files I do not own).
+- `npx tsc --noEmit`: clean.
+- `npm test`: 52 files, 316 tests pass. Baseline before OPS was 49 files, 297 tests. OPS adds 19 in `web/tests/ws9-ops/`: the results route per role (Master Admin, instructor), empty state, URL filters, the publish confirm, a Bangla case, the student history, the payments strip, the participation failure, the students row menu, and the summary copy.
+- Existing tests updated for the glossary copy: `tests/ws6a/people.test.tsx` (delete now opens the row menu; access copy) and `tests/ws6b/payments.test.tsx` (status and access copy).
+- `npm run build` under the lock: see the follow-up line below.
+
+**Not touched (other owners)**
+- `exams/[examId]/page.tsx` (AUT): the link to the results report is for AUT to add once this route is merged.
+- The module exam table in `components/staff/catalog` (AUT): same link.
+- `people/submission-form.tsx` (MRK moves it): not edited.
+
+**Contract changes:** none. The API is used as merged (G14, G15, G16, and G11's submissions feed for the draft count).
+
+**Commit grouping:** the message catalogs for `staffPeople` and `staffOps` are shared across C2, F4 and UF8, and the Bangla pass and unused-key changes are in the same files. They are in the UF8 commit (`7cacf19`), so each commit before the last compiles and keeps its tests green. Every other item has its own commit.
