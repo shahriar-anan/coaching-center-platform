@@ -1,6 +1,7 @@
 # Landing page plan: port the old SYMAM LAW homepage, improved
 
-Status: plan only. No code changed. Written for Shahriar and the agent that builds the page.
+Status: built on `catalog-acquisition` (commits `a4ced39` to `10274c1`), then the hero doors below. Written for Shahriar and the agent that builds the page.
+**Decision, 26 Oct 2026:** the old site governs this landing page only; the client mockup governs every other student page. The mockup's two doors are the hero's first action. See `../../decisions.md`, "Landing page and the client mockup".
 Checked against: `catalog-acquisition` at `18727c6`. The old homepage was read on 26 Oct 2026 from `client-vps` in `/root/symamlaw/symamlaw-frontend`, git `355ad45`. Access was read only: the source was copied out without `.env*`, `node_modules`, `.next` or `.git`, and the old server was not changed. Its live content came from the public endpoint `https://backoffice.symamlaw.com/api/settings`. Nothing was run in a browser.
 
 Ask: the client wants the exam site's landing page to look like the old site, with design improvements.
@@ -49,7 +50,7 @@ This page is what an anonymous visitor sees at `/`. Signed-in students keep toda
    - The photo loads with `next/image` `priority` at proper `sizes`. That image is the page's largest paint.
 4. **Batches.** The six batches from the banner as a 2×3 grid of check items, under two headings, **বিজেএস** and **বার কাউন্সিল**. MCQ and written items link to `/mcq` and `/written`. "Foundation" and "Special" follow Q2.
 5. **Numbers band.** A navy band with three or four large Bangla-digit figures. Only confirmed figures (Q3). The default is figures the system can count itself: number of exam modules, upcoming exams, MCQ and written exams.
-6. **Two doors, upgraded.** Today's MCQ and written cards become large cards with an icon, a one-line description, live counts (for example "১২টি মডিউল") and an arrow. They stay the product entrance.
+6. **Two doors, in the hero.** The mockup's MCQ and written cards (✅ এমসিকিউ · দ্রুত অনুশীলন, ✍️ রিটেন · লিখিত পরীক্ষা) sit in the hero as its first action, above "অ্যাকাউন্ট খুলুন". They replace the "এক্সাম দেখুন" button. They stay the product entrance (decision of 26 Oct).
 7. **Exam categories and modules.** These replace both old category sections. The top-level categories come from the public catalog. Each card shows the title, the number of modules, MCQ and written counts, and "শুরু ৩৯৯৳ থেকে". Cards link into the door page. At most six, then "সব দেখুন".
 8. **Upcoming exams.** New, and the strongest proof that the site is live. The next 3 to 5 exams, each showing date and time in Bangla, MCQ or written, module and price, linking to the exam page. Hidden when there are none.
 9. **Featured packages.** This replaces "Our Packages". A card has a fixed 4:3 image area, title, a short plain-text description (two to three lines, no raw HTML), "মেয়াদ", price with a struck-through old price when discounted, and a "বিস্তারিত" button. A badge appears only on the one card the client picks. Exam modules come from the catalog. Offline batches such as Foundation (15000৳) are not exam-site products and follow Q2.

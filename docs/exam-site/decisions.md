@@ -91,6 +91,18 @@ Use one of these at handover:
 1. Deliver the database that already has the Master Admin. Shahriar signs in with the password from first boot and changes the password. He changes the phone the same way if the client wants a different number. The email and the name remain the ones from first boot, so those two must already be acceptable to the client.
 2. Deliver a database that has no Master Admin. Put the client's phone, email, name, and password in the server environment before the first start. Start once, confirm the account exists, then remove `MASTER_ADMIN_PASSWORD` from the environment. Do not commit it.
 
+## Landing page and the client mockup
+
+Shahriar decided this on 26 October 2026. The client's student-flow mockup (`ui/client-mockup.html`) says to keep a 760 px column and not to become a split marketing page. His later request says the landing page should look like his old site. The two are settled like this:
+
+- **The old site governs the landing page only.** `/`, for anyone who is not a signed-in student, is the wide page from `plans/ui-delivery/landing-page-plan.md`.
+- **The mockup governs every other student page.** Catalog, module, exam, sitting, results, notices and account stay in the 760 px column, with the mockup's colours, cards and type. A signed-in student's home is the dashboard in that column.
+- **The mockup's entrance sits in the landing hero.** The two door cards (✅ এমসিকিউ · দ্রুত অনুশীলন, ✍️ রিটেন · লিখিত পরীক্ষা) are the first action. "অ্যাকাউন্ট খুলুন" is the main button under them.
+- **The logo is the school's real SYMAM mark with the mockup's "এক্সামপোর্টাল" wordmark.** The mockup's ⚖️ emoji was a placeholder.
+- Both sources share one palette (cream, gold, navy), the same fonts and the same card style, so the landing page and the app read as one site.
+
+Shahriar confirms this split with the client in the next meeting. If the client wants the mockup everywhere, the landing sections move into the 760 px column. They already stack in that width on a phone.
+
 ## Still open
 
 - The exam site's launch address. The old site keeps `symamlaw.com` (Shahriar, 25 October 2026). Then `WEB_ORIGIN`, `SSLCZ_CALLBACK_BASE_URL`, DNS, a certificate, and the live store's registered URL follow.

@@ -12,7 +12,6 @@ const landing = {
   chipOnline: "অনলাইন ব্যাচ",
   chipOffline: "অফলাইন ব্যাচ",
   ctaSignUp: "অ্যাকাউন্ট খুলুন",
-  ctaBrowse: "এক্সাম দেখুন",
   callNow: "এখনই কল করুন",
   photoAlt: "পরীক্ষার হলে শিক্ষার্থীরা লিখছে",
 

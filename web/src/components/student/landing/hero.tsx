@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { phones } from "@/content/site-info";
@@ -30,12 +31,29 @@ export function Hero() {
             </li>
           </ul>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
-            <Button href="/register" size="lg">
+          {/* The mockup's entrance: the two doors are the way into the product. */}
+          <div className="mx-auto mt-7 grid max-w-md grid-cols-2 gap-3 lg:mx-0">
+            <Link
+              href="/mcq"
+              className="block rounded-card border border-border bg-card p-5 text-center transition hover:-translate-y-0.5 hover:border-accent"
+            >
+              <span aria-hidden="true" className="block text-3xl">✅</span>
+              <span className="mt-1 block text-title font-bold">{t("home.doorMcqTitle")}</span>
+              <span className="block text-meta text-muted">{t("home.doorMcqSub")}</span>
+            </Link>
+            <Link
+              href="/written"
+              className="block rounded-card border border-border bg-card p-5 text-center transition hover:-translate-y-0.5 hover:border-accent"
+            >
+              <span aria-hidden="true" className="block text-3xl">✍️</span>
+              <span className="mt-1 block text-title font-bold">{t("home.doorWrittenTitle")}</span>
+              <span className="block text-meta text-muted">{t("home.doorWrittenSub")}</span>
+            </Link>
+          </div>
+
+          <div className="mx-auto mt-4 grid max-w-md lg:mx-0">
+            <Button href="/register" size="lg" fullWidth>
               {t("landing.ctaSignUp")}
-            </Button>
-            <Button href="/mcq" variant="secondary" size="lg">
-              {t("landing.ctaBrowse")}
             </Button>
           </div>
         </div>

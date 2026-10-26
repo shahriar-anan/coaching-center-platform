@@ -14,7 +14,6 @@ const landing: typeof bn = {
   chipOnline: "Online batches",
   chipOffline: "Offline batches",
   ctaSignUp: "Create account",
-  ctaBrowse: "Browse exams",
   callNow: "Call now",
   photoAlt: "Students writing an exam in a classroom",
 

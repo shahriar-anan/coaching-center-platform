@@ -125,6 +125,9 @@ describe("LandingPage", () => {
     renderWithProviders(<LandingPage />, { user: null, locale: "bn" });
 
     expect(screen.getByRole("heading", { level: 1, name: bn.heroTitle })).toBeInTheDocument();
+    // The mockup's two doors are the entrance in the hero.
+    expect(screen.getByRole("link", { name: /এমসিকিউ.*দ্রুত অনুশীলন/ })).toHaveAttribute("href", "/mcq");
+    expect(screen.getByRole("link", { name: /রিটেন.*লিখিত পরীক্ষা/ })).toHaveAttribute("href", "/written");
     expect(await screen.findByText("বিজেএস মডিউল")).toBeInTheDocument();
     expect(screen.getByText("বিজেএস মডিউল").closest("a")).toHaveAttribute("href", "/mcq/c/bjs");
     expect(screen.getByText("শুরু ৳২৫০ থেকে")).toBeInTheDocument();
