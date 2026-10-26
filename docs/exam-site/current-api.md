@@ -213,6 +213,19 @@ Every kind uses the existing `GET /api/v1/me/notices` and `POST /api/v1/me/notic
 
 **Announcement audience rule (decision, item 9).** `POST /api/v1/announcements` with `audience` = `MODULE` sends to the students who have access to that module: active students with a roster row in the module, or an active grant (module or exam scope) in it. Revoked grants do not count. Exam-only buyers are included, because they are in the module's grants. To narrow this to roster only, or to widen it, change the `TO_MODULE` query in `AnnouncementService`; the tests in `LiveGrantAdminIT` check the rule. Accounts that are suspended or deleted never receive a notice.
 
+## Added for the admin gaps (ADMIN-API)
+
+Plan: [plans/ui-delivery/student-purchase-lms-plan.md](plans/ui-delivery/student-purchase-lms-plan.md), section 2b (AG-01 to AG-04). Flyway: none. Tests named below are the new or extended assertions.
+
+| Call | Who | Notes |
+|---|---|---|
+| `GET /api/v1/announcements?page=&size=` | Master Admin only | Announcement history (AG-01), newest first, paged with `PageResponse` (`content`, `page`, `size`, `totalElements`, `totalPages`). Size defaults to 20 and is capped at 100. Each row: `id`, `titleEn`, `titleBn`, `audience`, `moduleId`, `moduleTitleEn`, `moduleTitleBn` (set for `MODULE` only), `createdAt`, and `recipients` (the count of `student_notices` rows with that `announcement_id`, so `0` when nobody got it). The body is not returned. Other roles get `403 ACCESS_DENIED`. Tests: `LiveGrantAdminIT.announcementHistoryIsMasterAdminOnlyNewestFirstWithoutBodiesAndCountsRecipients`. |
+| `GET /api/v1/live-exams/{id}` and `answersReleasedAt` | Staff (staff view), student (student view) | AG-02. The staff view carries `answersReleasedAt` only while the release is on. The student view never carries it. Tests: `LiveSittingIT.answersReleasedAtFollowsTheReleaseAndIsNeverOnTheStudentView` (null when withheld, set after release, null after withdraw, null on the student view in each state). |
+| `GET /api/v1/system-status` | Master Admin only | AG-03. Tests in the new `SystemStatusIT`: Master Admin gets `200` with the seven check names, each with `name`, `ok` (boolean) and `note`, and no configuration value; System Admin, Instructor and Student get `403 ACCESS_DENIED`. |
+| `GET /api/v1/students/{id}/live-exam-access` | Master Admin, System Admin | AG-04. Tests in `LiveGrantAdminIT.theAccessListGivesARosterRowNoGrantIdAndLeavesARevokedGrantOut`: a roster row has no `grantId`, a manual grant row carries its id, and after revoke the grant is gone from the list. |
+
+`GET /api/v1/announcements` is also listed in `AuditLogIT` (the OpenAPI operations check).
+
 ## Added for the API staff read
 
 | Call | Who | Notes |
