@@ -184,6 +184,11 @@ export function answerPaperBlob(participantId: string): Promise<Blob> {
   return apiBlob(`/api/v1/live-exam-participants/${participantId}/answer-pdf`);
 }
 
+/** The marked PDF already uploaded for a paper. Master Admin, System Admin and the assigned instructor; the API refuses others. */
+export function evaluatedPaperBlob(participantId: string): Promise<Blob> {
+  return apiBlob(`/api/v1/live-exam-participants/${participantId}/evaluated-pdf`);
+}
+
 /** The question paper. The server answers 404 to an instructor who is not assigned to the module. */
 export function questionPaperBlob(examId: string): Promise<Blob> {
   return apiBlob(`/api/v1/live-exams/${examId}/question-pdf`);
