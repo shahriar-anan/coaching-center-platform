@@ -6,7 +6,7 @@ import { useListParams } from "@/lib/url/list-params";
 import {
   useAssignInstructor,
   useInstructorDirectory,
-  useModuleInstructor,
+  useModule,
   useUnassignInstructor,
   type InstructorRow,
 } from "@/lib/api/exam/staff-catalog";
@@ -99,7 +99,7 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
           </Select>
         </div>
         {error ? (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className="text-meta text-danger">
             {error}
           </p>
         ) : null}
@@ -126,7 +126,7 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
 export function InstructorTab({ moduleId }: { moduleId: string }) {
   const { t } = useLocale();
   const { toast } = useToast();
-  const current = useModuleInstructor(moduleId);
+  const current = useModule(moduleId);
   const unassign = useUnassignInstructor(moduleId);
   const [picking, setPicking] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -138,15 +138,16 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
     return <ErrorState onRetry={() => current.refetch()} message={t("staffCatalog.instructor.currentLoadError")} />;
   }
 
-  const person = current.data;
+  // The single module read carries the instructor (G4); there is no directory scan.
+  const person = current.data?.instructor ?? null;
 
   return (
     <div className="grid gap-4">
       {person ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-4">
           <div>
-            <p className="font-medium">{person.fullName ?? "—"}</p>
-            <p className="text-sm text-muted" dir="ltr">{person.phone ?? ""}</p>
+            <p className="font-medium">{person.name}</p>
+            <p className="text-meta text-muted" dir="ltr">{person.phone ?? ""}</p>
           </div>
           <Button variant="danger" className="min-h-10" onClick={() => setRemoving(true)}>
             {t("staffCatalog.instructor.remove")}
@@ -160,7 +161,7 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
         />
       )}
       {person ? (
-        <p className="text-sm text-muted">{t("staffCatalog.instructor.oneOnly")}</p>
+        <p className="text-meta text-muted">{t("staffCatalog.instructor.oneOnly")}</p>
       ) : null}
 
       <InstructorPicker moduleId={moduleId} open={picking} onOpenChange={setPicking} />
@@ -168,7 +169,7 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
       <ConfirmDialog
         open={removing}
         onOpenChange={setRemoving}
-        title={t("staffCatalog.instructor.removeTitle", { name: person?.fullName ?? "" })}
+        title={t("staffCatalog.instructor.removeTitle", { name: person?.name ?? "" })}
         body={t("staffCatalog.instructor.removeBody")}
         confirmLabel={t("staffCatalog.instructor.removeConfirm")}
         tone="danger"

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
+import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import {
   useArchiveCategory,
@@ -51,6 +52,7 @@ type RowProps = {
 
 function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
   const { t, locale } = useLocale();
+  const { formatNumber } = useFormat();
   const { toast } = useToast();
   const archive = useArchiveCategory();
   const remove = useDeleteCategory();
@@ -82,8 +84,8 @@ function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
         <Link href={`/staff/categories/${node.id}`} className="min-w-0 flex-1 font-medium text-text hover:underline">
           {name}
         </Link>
-        <span className="text-sm text-muted">
-          {t("staffCatalog.categories.moduleCount", { count: node.modules.length })}
+        <span className="text-meta text-muted">
+          {t("staffCatalog.categories.moduleCount", { count: formatNumber(node.modules.length) })}
         </span>
         <StatusPill status={categoryStatus(node)} />
         {canDelete ? (
@@ -201,7 +203,14 @@ export function CategoryTree() {
 
   return (
     <div className="grid gap-4">
-      <SearchInput value={query} onChange={setQuery} placeholder={t("staffCatalog.categories.searchPlaceholder")} />
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={query} onChange={setQuery} placeholder={t("staffCatalog.categories.searchPlaceholder")} />
+        {query ? (
+          <Button variant="ghost" onClick={() => setQuery("")}>
+            {t("staffCatalog.filters.reset")}
+          </Button>
+        ) : null}
+      </div>
       {roots.length === 0 ? (
         <EmptyState
           title={t("staffCatalog.categories.emptyTitle")}

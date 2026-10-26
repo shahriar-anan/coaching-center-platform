@@ -239,8 +239,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
               </Field>
             ) : (
               <div className="grid gap-1">
-                <span className="text-sm font-medium text-muted">{t("staffCatalog.moduleForm.price")}</span>
-                <p className="text-[15px]">{formatMoney(priceDisplay) ?? t("staffCatalog.moduleForm.noPrice")}</p>
+                <span className="text-label font-medium text-muted">{t("staffCatalog.moduleForm.price")}</span>
+                <p className="text-body">{formatMoney(priceDisplay) ?? t("staffCatalog.moduleForm.noPrice")}</p>
               </div>
             )}
           </div>
@@ -250,16 +250,16 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                 {creating ? t("staffCatalog.moduleForm.create") : t("staffCatalog.moduleForm.save")}
               </Button>
               {dirty ? (
-                <span role="status" className="text-sm text-warn">
+                <span role="status" className="text-meta text-warn">
                   {t("staffCatalog.moduleForm.dirty")}
                 </span>
               ) : null}
-              <p className="text-sm text-muted">{t("staffCatalog.moduleForm.returnsToDraftHelp")}</p>
+              <p className="text-meta text-muted">{t("staffCatalog.moduleForm.returnsToDraftHelp")}</p>
             </div>
           ) : null}
         </fieldset>
         {formError ? (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className="text-meta text-danger">
             {formError}
           </p>
         ) : null}
@@ -268,7 +268,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
       {module && !readOnly && role.canAuthor ? (
         <section aria-labelledby="module-publish-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="module-publish-heading" className="text-base font-semibold">
+            <h2 id="module-publish-heading" className="text-card font-semibold">
               {t("staffCatalog.moduleForm.publishHeading")}
             </h2>
             {status ? <StatusPill status={status.status} /> : null}

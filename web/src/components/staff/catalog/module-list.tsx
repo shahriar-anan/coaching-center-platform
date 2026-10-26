@@ -1,19 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useListParams } from "@/lib/url/list-params";
 import { useRole } from "@/lib/auth/guards";
 import { useCategoryTree, useModules, type CategoryTreeNode, type StaffModule } from "@/lib/api/exam/staff-catalog";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { Select } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
 import { Table, type Column } from "@/components/ui/table";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
-import { Button } from "@/components/ui/button";
 
 type CategoryName = { id: string; titleEn: string; titleBn: string; depth: number };
 
@@ -24,15 +25,26 @@ function flattenNames(nodes: CategoryTreeNode[], depth = 0): CategoryName[] {
   ]);
 }
 
-/** The module list. The server filters by category; search and status narrow the loaded page. */
+/** The module list. Category, search and status are in the URL and applied by the server (G5). */
 export function ModuleList() {
   const { t, locale } = useLocale();
-  const { pickTitle, formatMoney } = useFormat();
+  const { pickTitle, formatMoney, formatNumber } = useFormat();
   const role = useRole();
   const router = useRouter();
   const [params, setParams] = useListParams({ q: "", status: "", category: "" });
+  const [text, setText] = useState(params.q);
   const tree = useCategoryTree();
-  const modules = useModules({ categoryId: params.category || undefined });
+  const modules = useModules({ categoryId: params.category || undefined, q: params.q || undefined, status: params.status || undefined });
+
+  // Search waits 300 ms after the last keystroke before it changes the URL and the server query.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (text !== params.q) {
+        setParams({ q: text });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [text, params.q, setParams]);
 
   const categoryNames = useMemo(() => flattenNames(tree.data ?? []), [tree.data]);
   const categoryLabel = (id: string) => {
@@ -43,18 +55,21 @@ export function ModuleList() {
     return locale === "bn" ? found.titleBn : found.titleEn;
   };
 
-  const rows = useMemo(() => {
-    const q = params.q.trim().toLowerCase();
-    return (modules.data?.content ?? []).filter((m) => {
-      if (params.status && m.status !== params.status) {
-        return false;
-      }
-      if (q && !`${m.titleEn} ${m.titleBn}`.toLowerCase().includes(q)) {
-        return false;
-      }
-      return true;
-    });
-  }, [modules.data, params.q, params.status]);
+  const rowMenu = (m: StaffModule) => {
+    const items: RowMenuItem[] = [{ label: t("staffCatalog.rowMenu.edit"), href: `/staff/modules/${m.id}` }];
+    items.push({ label: t("staffCatalog.rowMenu.exams"), href: `/staff/modules/${m.id}?tab=exams` });
+    if (role.canManageRoster) {
+      items.push({ label: t("staffCatalog.rowMenu.roster"), href: `/staff/modules/${m.id}?tab=roster` });
+    }
+    if (role.canAssignInstructor) {
+      items.push({ label: t("staffCatalog.rowMenu.instructor"), href: `/staff/modules/${m.id}?tab=instructor` });
+    }
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <RowMenu items={items} label={t("staffCatalog.rowMenu.label", { name: pickTitle(m) })} />
+      </div>
+    );
+  };
 
   const columns: Column<StaffModule>[] = [
     {
@@ -67,11 +82,24 @@ export function ModuleList() {
       header: t("staffCatalog.modules.columns.category"),
       cell: (m) => categoryLabel(m.categoryId),
     },
+    {
+      key: "mcq",
+      header: t("staffCatalog.modules.columns.mcq"),
+      align: "end",
+      cell: (m) => <span className="tabular-nums">{formatNumber(m.mcqCount ?? 0)}</span>,
+    },
+    {
+      key: "written",
+      header: t("staffCatalog.modules.columns.written"),
+      align: "end",
+      cell: (m) => <span className="tabular-nums">{formatNumber(m.writtenCount ?? 0)}</span>,
+    },
     ...(role.canEditPrice || role.isSystemAdmin
       ? [
           {
             key: "price",
             header: t("staffCatalog.modules.columns.price"),
+            align: "end" as const,
             cell: (m: StaffModule) => formatMoney(m.price) ?? t("staffCatalog.modules.noPrice"),
           },
         ]
@@ -81,14 +109,25 @@ export function ModuleList() {
       header: t("staffCatalog.modules.columns.status"),
       cell: (m) => <StatusPill status={m.status} />,
     },
+    ...(role.canAuthor
+      ? [
+          {
+            key: "actions",
+            header: <span className="sr-only">{t("staffCatalog.modules.columns.actions")}</span>,
+            align: "end" as const,
+            cell: rowMenu,
+          },
+        ]
+      : []),
   ];
 
   const canOpen = role.canAuthor;
+  const filtered = Boolean(params.q || params.category || params.status);
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-        <SearchInput value={params.q} onChange={(q) => setParams({ q })} placeholder={t("staffCatalog.modules.searchPlaceholder")} />
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+        <SearchInput value={text} onChange={setText} placeholder={t("staffCatalog.modules.searchPlaceholder")} />
         <Select
           aria-label={t("staffCatalog.modules.filterCategory")}
           value={params.category}
@@ -113,6 +152,17 @@ export function ModuleList() {
           <option value="PUBLISHED">{t("staffCatalog.status.PUBLISHED")}</option>
           <option value="ARCHIVED">{t("staffCatalog.status.ARCHIVED")}</option>
         </Select>
+        {filtered ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setText("");
+              setParams({ q: "", category: "", status: "" });
+            }}
+          >
+            {t("staffCatalog.filters.reset")}
+          </Button>
+        ) : null}
       </div>
 
       {modules.isError && !modules.data ? (
@@ -120,19 +170,19 @@ export function ModuleList() {
       ) : (
         <>
           {modules.isError ? (
-            <p role="alert" className="text-sm text-danger">
+            <p role="alert" className="text-meta text-danger">
               {t("staffCatalog.modules.staleError")}
             </p>
           ) : null}
           <Table
             columns={columns}
-            rows={rows}
+            rows={modules.data?.content ?? []}
             rowKey={(m) => m.id}
             loading={modules.isPending}
             onRowClick={canOpen ? (m) => router.push(`/staff/modules/${m.id}`) : undefined}
             empty={
               <EmptyState
-                title={t("staffCatalog.modules.emptyTitle")}
+                title={params.q || params.status || params.category ? t("staffCatalog.modules.emptyFiltered") : t("staffCatalog.modules.emptyTitle")}
                 body={role.canAuthor ? t("staffCatalog.modules.emptyBody") : t("staffCatalog.modules.emptyInstructorBody")}
                 action={canOpen ? <Button href="/staff/modules/new">{t("staffCatalog.modules.new")}</Button> : undefined}
               />

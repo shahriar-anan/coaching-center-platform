@@ -38,6 +38,24 @@ export function fieldErrorFor(error: unknown, field: string): string | null {
   return error.fieldErrors.find((item) => item.field === field)?.message ?? null;
 }
 
+/** The exam that clashes with the one being saved, from the 409 `details` (G3). */
+export type ClashExam = { id: string; titleEn: string; titleBn: string; liveAt: string; endAt: string };
+
+/** The clashing exam, or `null` when the error is not a clash or its details are not complete. */
+export function clashExamFor(error: unknown): ClashExam | null {
+  if (!(error instanceof ApiError) || error.code !== "EXAM_WINDOW_CONFLICT") {
+    return null;
+  }
+  const details = error.details as Partial<ClashExam> | undefined;
+  const complete =
+    typeof details?.id === "string" &&
+    typeof details.titleEn === "string" &&
+    typeof details.titleBn === "string" &&
+    typeof details.liveAt === "string" &&
+    typeof details.endAt === "string";
+  return complete ? (details as ClashExam) : null;
+}
+
 export function isApiError(error: unknown, code: string): boolean {
   return error instanceof ApiError && error.code === code;
 }

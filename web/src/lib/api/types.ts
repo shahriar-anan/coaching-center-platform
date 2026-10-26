@@ -12,6 +12,8 @@ export interface ApiErrorBody {
   requestId: string;
   orderId?: string;
   tranId?: string;
+  /** Only some errors carry this, such as the exam clash 409. Its shape depends on the code. */
+  details?: unknown;
 }
 
 export interface TokenResponse {

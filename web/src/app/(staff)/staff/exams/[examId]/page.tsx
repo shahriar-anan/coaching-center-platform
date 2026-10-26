@@ -11,6 +11,7 @@ function ExamPage() {
   return (
     <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
       <ExamEditor examId={examId} />
+      {/* SLOT: answer release (phase 2, STAFF-ADMIN-UI) */}
     </RequireStaff>
   );
 }

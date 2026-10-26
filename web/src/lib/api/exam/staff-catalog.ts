@@ -45,7 +45,14 @@ export type StaffModule = {
   position: number;
   /** `null` when no price is set. Only Master Admin sees it as an input. */
   price: number | null;
+  /** From the single module read (G4): the one assigned instructor, or `null`. Absent on list rows. */
+  instructor?: ModuleInstructor | null;
+  /** Exam counts per type, on list rows and the single read (G5). */
+  mcqCount?: number;
+  writtenCount?: number;
 };
+
+export type ModuleInstructor = { id: string; name: string; phone: string | null };
 
 export type StaffQuestionOption = { id: string; text: string; correct: boolean; position: number };
 
@@ -123,6 +130,7 @@ export type ExamInput = Partial<
     | "passPercent"
     | "maximum"
     | "liveAt"
+    | "price"
   >
 >;
 
@@ -148,7 +156,6 @@ export const staffCatalogKeys = {
   roster: (moduleId: string, q: string, page: number) => ["staffCatalog", "roster", moduleId, q, page] as const,
   rosterSearch: (moduleId: string, q: string) => ["staffCatalog", "rosterSearch", moduleId, q] as const,
   instructors: (params: InstructorListParams) => ["staffCatalog", "instructors", params] as const,
-  moduleInstructor: (moduleId: string) => ["staffCatalog", "moduleInstructor", moduleId] as const,
 };
 
 /* ---------- categories ---------- */
@@ -204,16 +211,19 @@ export function useArchiveCategory() {
 
 /* ---------- modules ---------- */
 
-export type ModuleListParams = { categoryId?: string };
+export type ModuleListParams = { categoryId?: string; q?: string; status?: string };
 
-/**
- * The server filters modules by category only. Search and status are applied to
- * the loaded page in the screen (see the WS5 Report).
- */
+/** Search (`q`, either title) and status are applied by the server (G5). */
 export function useModules(params: ModuleListParams = {}) {
   const query = new URLSearchParams({ size: "100" });
   if (params.categoryId) {
     query.set("categoryId", params.categoryId);
+  }
+  if (params.q) {
+    query.set("q", params.q);
+  }
+  if (params.status) {
+    query.set("status", params.status);
   }
   return useQuery({
     queryKey: staffCatalogKeys.modules(params),
@@ -272,11 +282,17 @@ export function useDeleteModule(id: string) {
 
 /* ---------- exams ---------- */
 
+/** The query for one module's exams, shared by the module page and the admin agenda (UF6). */
+export function moduleExamsQuery(moduleId: string) {
+  return {
+    queryKey: staffCatalogKeys.moduleExams(moduleId),
+    queryFn: () => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exam-modules/${moduleId}/exams?size=100`),
+  };
+}
+
 export function useModuleExams(moduleId: string | undefined) {
   return useQuery({
-    queryKey: staffCatalogKeys.moduleExams(moduleId ?? ""),
-    queryFn: () =>
-      apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exam-modules/${moduleId}/exams?size=100`),
+    ...moduleExamsQuery(moduleId ?? ""),
     enabled: Boolean(moduleId),
   });
 }
@@ -307,6 +323,15 @@ export function useSaveExam(id: string) {
       queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "moduleExams", saved.moduleId] });
     },
+  });
+}
+
+/** A draft copy in the same module, with no date and no price. The server adds "(কপি)" to the title (G13). */
+export function useCopyExam(moduleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (examId: string) => apiRequest<StaffExam>(`/api/v1/live-exams/${examId}/copy`, { method: "POST", body: {} }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) }),
   });
 }
 
@@ -456,17 +481,6 @@ export function useInstructorDirectory(params: InstructorListParams) {
   });
 }
 
-/** The one instructor of a module, found from the assigned directory. */
-export function useModuleInstructor(moduleId: string) {
-  return useQuery({
-    queryKey: staffCatalogKeys.moduleInstructor(moduleId),
-    queryFn: async () => {
-      const page = await apiRequest<PageResponse<InstructorRow>>("/api/v1/instructors?assigned=true&size=100");
-      return page.content.find((row) => row.modules.some((m) => m.id === moduleId)) ?? null;
-    },
-  });
-}
-
 export function useAssignInstructor(moduleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -476,7 +490,7 @@ export function useAssignInstructor(moduleId: string) {
         body: { instructorId },
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleInstructor(moduleId) });
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(moduleId) });
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "instructors"] });
     },
   });
@@ -487,7 +501,7 @@ export function useUnassignInstructor(moduleId: string) {
   return useMutation({
     mutationFn: () => apiRequest<void>(`/api/v1/live-exam-modules/${moduleId}/instructor`, { method: "DELETE" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleInstructor(moduleId) });
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(moduleId) });
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "instructors"] });
     },
   });

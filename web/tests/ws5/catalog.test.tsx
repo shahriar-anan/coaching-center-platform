@@ -183,6 +183,7 @@ describe("instructor (Master Admin)", () => {
     };
     const page = { content: [instructorRow], page: 0, size: 20, totalElements: 1, totalPages: 1 };
     mockApi({
+      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001": { ...moduleFixture, instructor: null },
       "GET /api/v1/instructors": (req: { url: URL }) => (req.url.searchParams.get("assigned") === "true" ? { ...page, content: [] } : page),
       "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/instructor": () =>
         apiError(409, "INSTRUCTOR_ALREADY_ASSIGNED", "Already assigned."),
@@ -198,7 +199,7 @@ describe("instructor (Master Admin)", () => {
 describe("MCQ editor", () => {
   it("adds the marks into the running total", async () => {
     renderWithProviders(<McqQuestions exam={mcqExam} locked={false} canDelete />, { user: fixtures.masterAdmin });
-    expect(screen.getByText("মোট ৫০")).toBeInTheDocument();
+    expect(screen.getByText(/মোট ৫০ নম্বর/)).toBeInTheDocument();
   });
 
   it("asks for exactly one correct option and clears the previous one", async () => {
@@ -220,7 +221,7 @@ describe("MCQ editor", () => {
 
 describe("after the start", () => {
   it("locks the meta form and says so", () => {
-    renderWithProviders(<ExamMetaForm exam={mcqExam} locked />, { user: fixtures.masterAdmin });
+    renderWithProviders(<ExamMetaForm exam={mcqExam} locked section="details" />, { user: fixtures.masterAdmin });
     expect(screen.getByText("পরীক্ষা শুরু হয়ে গেছে, তাই এখন আর কিছু বদলানো যাবে না।")).toBeInTheDocument();
     const form = screen.getByLabelText(/বাংলা নাম/);
     expect(form).toBeDisabled();

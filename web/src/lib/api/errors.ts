@@ -6,6 +6,7 @@ export class ApiError extends Error {
   readonly fieldErrors?: ApiErrorBody["fieldErrors"];
   readonly orderId?: string;
   readonly tranId?: string;
+  readonly details?: unknown;
   /** HTTP status of the response; 0 when the error did not come from a response. */
   readonly status: number;
 
@@ -18,6 +19,7 @@ export class ApiError extends Error {
     this.fieldErrors = body.fieldErrors;
     this.orderId = body.orderId;
     this.tranId = body.tranId;
+    this.details = body.details;
   }
 }
 

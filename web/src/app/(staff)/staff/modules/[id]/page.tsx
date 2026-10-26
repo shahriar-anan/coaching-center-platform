@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { ModuleDetails } from "@/components/staff/catalog/module-details";
+import { ModuleSetup } from "@/components/staff/catalog/module-setup";
 import { ModuleExams } from "@/components/staff/catalog/module-exams";
 import { RosterTab } from "@/components/staff/catalog/roster-tab";
 import { InstructorTab } from "@/components/staff/catalog/instructor-tab";
@@ -56,6 +57,7 @@ function ModuleEditor() {
         actions={<StatusPill status={data.status} />}
       />
       <div className="grid gap-6">
+        <ModuleSetup module={data} />
         <Tabs tabs={tabs} value={activeTab} onChange={(value) => setParams({ tab: value })} ariaLabel={t("staffCatalog.moduleTabs.label")} />
         {activeTab === "details" ? <ModuleDetails module={data} /> : null}
         {activeTab === "exams" ? <ModuleExams moduleId={data.id} /> : null}

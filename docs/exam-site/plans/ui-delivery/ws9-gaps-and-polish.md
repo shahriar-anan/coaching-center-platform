@@ -812,3 +812,46 @@ Checks, this branch: `npm run lint` 0 errors (2 warnings, both in files this bra
 - The full web test run hit a JavaScript heap out of memory once while the PC was short of memory (other agents running). It passed on re-run; the single-file runs were not affected.
 
 **API additions used:** `GET /api/v1/announcements?page=&size=` (mocked until ADMIN-API merges). **Contract changes:** none.
+## Report — AUT
+
+Branch `ui/w9-authoring`, worktree `F:\cc-wt\w9-aut`. Main merged: `catalog-acquisition` at `18727c6` (no conflicts; the shared report merged cleanly). Checks: lint 0 errors (2 warnings, both in files outside AUT), tsc clean, tests 96 files and 559 tests passed in one process, build ok under lock AUT.
+
+Nothing was checked in a browser (the brief forbids it). The 375 px and 1440 px, both-theme and keyboard checks are by reading the code and the component tests only; the integrator's visual pass is still needed.
+
+| Item | Status | Commit | Note |
+|---|---|---|---|
+| R2 | done | `4462106` | Master Admin edits the price; System Admin sees it as text with who can set it. |
+| U4 | done | `cd599bb` | Setup stepper on the module page. System Admin sees Master-Admin-only steps as information, never as a link. |
+| U5 | done | `7389e14` | Numbered exam sections with the section nav; the price section is read-only for System Admin. |
+| U6 | done | `cd599bb` | Module exam table: date or "তারিখ পরে জানানো হবে", price, content, status pill, row menu. |
+| U7 | done | `da89c35` | Three first-run steps on the admin home while no category exists. Committed with UF6 (see below). |
+| U9 | done | `d0070d8` | Walked the journey as System Admin. One gap fixed: MCQ question delete used the exam-delete capability, so System Admin never saw it. The API grants `EXAM_MANAGE` to System Admin, so the control now uses `canAuthor`. Teacher assignment and direct enrolment are Master-Admin-only in the API (`LIVE_EXAM_ASSIGN`, `LIVE_EXAM_ROSTER`); the module tabs stay hidden for System Admin and the setup panel says "Only the Master Admin sets this." for those steps. |
+| UF6 | done | `da89c35` | Next 14 days, grouped by Dhaka day. Status comes from each module's exam list (`moduleExamsQuery`), read once per module with an exam in the window. No new API. |
+| UF7 | done | `7389e14` | Publish summary dialog. |
+| UF8 (catalog) | done | `cd599bb` | Row menus on the module list, module exams and categories. |
+| F3 | done | `7389e14` | Next-step toast after publish, by role. |
+| F7 | done | `b7a6a92` | Paste dialog: format example, parsed preview with per-block errors, sequential create with progress, stop at the first failed create with its reason. Tests in `paste-questions.test.tsx`. |
+| F9 | **not started, waiting for the integrator** | — | Needs `@dnd-kit/core` and `@dnd-kit/sortable` in `package.json`, which AUT may not add without approval. The up and down buttons stay. Question for the integrator: may AUT add the two packages? |
+| G3 UI | done | `11b8c73` | The clash 409 shows the other exam, its time (Dhaka) and a link to `/staff/exams/{id}`. Without usable `details` it keeps the generic line. |
+| G4 UI | done | `cd599bb`, `4ba5cc3` | The module shows the teacher's name; assign and remove are Master Admin only. Note: the brief's G4 text gives System Admin assign and remove too, but the API (`LIVE_EXAM_ASSIGN`) refuses it, so the UI follows the API. `4ba5cc3` fixes the WS5 test that the G4 change broke. |
+| G5 UI | done | `cd599bb` | Server search and status in the URL; counts per row; server paging. |
+| G6 UI | done | `cd599bb` | 100 MiB question PDF limit in the helper text; 413 `FILE_TOO_LARGE` message. |
+| G13 UI | done | `cd599bb` | "কপি করুন" on the exam row for both admins. |
+| P5 (catalog pages) | done for the agreed pattern | `1fc08d2`, `03239b4`, `872a6f6` | Every catalog page has `PageHeader`; the shared `Table` gives the sticky header and end-aligned numbers; status is a pill; the module list and the category search have a reset link. Not audited: column alignment on the roster and instructor tables. |
+| Bangla pass | done | `a3c3334` | Every `staffCatalog` string read against `bangla-copy.md`. Fixed: the schedule is রুটিন, the teacher is শিক্ষক, the MCQ type is এমসিকিউ, the price is মূল্য, two wrong verb forms, one incomplete sentence. Counts and option labels now go through the number formatter. |
+| Unused keys | done | `eeeba3d` | 23 keys removed from both languages (checked against literal and template use in `web/src`). |
+
+**Coordination slots (AUT leaves these):**
+- `web/src/app/(staff)/staff/exams/[examId]/page.tsx`, in `de8a9b8`, placed after `<ExamEditor>` inside the guard, exact text: `{/* SLOT: answer release (phase 2, STAFF-ADMIN-UI) */}`. The exam status itself is rendered inside `exam-editor.tsx`, not in `page.tsx`, so the marker sits beside the editor. Nothing else is in the slot.
+- Results link: not added (OPS route not on main). A comment is in the module exam row menu in `module-exams.tsx`: `// SLOT: results link to /staff/exams/[examId]/results (OPS route). Add the menu item once that route is merged.`
+
+**Shared files touched (outside AUT's list), all small:**
+- `web/src/lib/api/types.ts` and `web/src/lib/api/errors.ts` (G3): one optional `details` field on the error body and on `ApiError`. No response changes.
+- `web/tests/ws5/catalog.test.tsx` (`4ba5cc3`): one mock line for the module read that G4 added.
+- Not touched: `messages/index.ts`, `staff-nav.ts`, `toast.tsx`, `package.json`, the API.
+
+**Deviations to review:**
+- U7 and UF6 share `admin-home.tsx` and its tests. They are one commit (`da89c35`), not two.
+- F9 is not built. Everything else in the brief is built.
+
+**Contract changes:** none. **API additions used:** the `details` field from G3 (read only).
