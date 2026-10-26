@@ -159,22 +159,22 @@ export function QuestionEditor({
         </div>
 
         <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">
+          <legend className="mb-1 text-label font-medium">
             {t("staffCatalog.question.options")} <span className="text-muted">{t("staffCatalog.question.optionsHint")}</span>
           </legend>
           {errors.options ? (
-            <p role="alert" className="text-sm text-danger">
+            <p role="alert" className="text-meta text-danger">
               {errors.options}
             </p>
           ) : null}
           {errors.correct ? (
-            <p role="alert" className="text-sm text-danger">
+            <p role="alert" className="text-meta text-danger">
               {errors.correct}
             </p>
           ) : null}
           {draft.options.map((option, index) => (
             <div key={index} className="flex items-center gap-2">
-              <label className="flex min-h-11 shrink-0 items-center gap-2 text-sm">
+              <label className="flex min-h-11 shrink-0 items-center gap-2 text-meta">
                 <input
                   type="radio"
                   name="correct"
@@ -213,7 +213,7 @@ export function QuestionEditor({
         </Field>
 
         {formError ? (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className="text-meta text-danger">
             {formError}
           </p>
         ) : null}

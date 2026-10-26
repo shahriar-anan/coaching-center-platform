@@ -159,7 +159,7 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
       </Field>
 
       {formError ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-meta text-danger">
           {formError}
         </p>
       ) : null}
@@ -169,7 +169,7 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
           {t("staffCatalog.categoryForm.save")}
         </Button>
         {dirty ? (
-          <span className="text-sm text-warn" role="status">
+          <span className="text-meta text-warn" role="status">
             {t("staffCatalog.categoryForm.dirty")}
           </span>
         ) : null}

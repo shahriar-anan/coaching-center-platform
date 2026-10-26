@@ -17,12 +17,12 @@ export function ExamChecklist({ items }: { items: ChecklistItem[] }) {
   const open = items.filter((item) => !item.done);
   return (
     <div className="grid gap-2">
-      <p className="text-sm font-medium">
+      <p className="text-label font-medium">
         {open.length === 0 ? t("staffCatalog.checklist.allDone") : t("staffCatalog.checklist.missing")}
       </p>
       <ul className="grid gap-1.5">
         {items.map((item) => (
-          <li key={item.key} className="flex items-center gap-2 text-sm">
+          <li key={item.key} className="flex items-center gap-2 text-meta">
             {item.done ? (
               <CheckCircle2 aria-hidden="true" className="size-4 shrink-0 text-ok" />
             ) : (

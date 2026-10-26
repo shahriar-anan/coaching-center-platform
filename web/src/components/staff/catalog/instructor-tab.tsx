@@ -99,7 +99,7 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
           </Select>
         </div>
         {error ? (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className="text-meta text-danger">
             {error}
           </p>
         ) : null}
@@ -147,7 +147,7 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-4">
           <div>
             <p className="font-medium">{person.name}</p>
-            <p className="text-sm text-muted" dir="ltr">{person.phone ?? ""}</p>
+            <p className="text-meta text-muted" dir="ltr">{person.phone ?? ""}</p>
           </div>
           <Button variant="danger" className="min-h-10" onClick={() => setRemoving(true)}>
             {t("staffCatalog.instructor.remove")}
@@ -161,7 +161,7 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
         />
       )}
       {person ? (
-        <p className="text-sm text-muted">{t("staffCatalog.instructor.oneOnly")}</p>
+        <p className="text-meta text-muted">{t("staffCatalog.instructor.oneOnly")}</p>
       ) : null}
 
       <InstructorPicker moduleId={moduleId} open={picking} onOpenChange={setPicking} />

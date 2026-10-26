@@ -53,10 +53,10 @@ function PasteBox({ moduleId }: { moduleId: string }) {
 
   return (
     <section aria-labelledby="roster-paste-heading" className="grid gap-3 rounded-card border border-border bg-card p-4">
-      <h3 id="roster-paste-heading" className="text-[15px] font-semibold">
+      <h3 id="roster-paste-heading" className="text-card font-semibold">
         {t("staffCatalog.roster.pasteHeading")}
       </h3>
-      <p className="text-sm text-muted">{t("staffCatalog.roster.pasteHelp")}</p>
+      <p className="text-meta text-muted">{t("staffCatalog.roster.pasteHelp")}</p>
       <form onSubmit={submit} noValidate className="grid gap-3">
         <label htmlFor="roster-paste" className="sr-only">
           {t("staffCatalog.roster.pasteLabel")}
@@ -72,7 +72,7 @@ function PasteBox({ moduleId }: { moduleId: string }) {
           dir="ltr"
         />
         {error ? (
-          <p id="roster-paste-error" role="alert" className="text-sm text-danger">
+          <p id="roster-paste-error" role="alert" className="text-meta text-danger">
             {error}
           </p>
         ) : null}
@@ -83,7 +83,7 @@ function PasteBox({ moduleId }: { moduleId: string }) {
         </div>
       </form>
       {result ? (
-        <div role="status" className="grid gap-2 rounded-control bg-bg p-3 text-sm">
+        <div role="status" className="grid gap-2 rounded-control bg-bg p-3 text-meta">
           <p className="font-medium">
             {t("staffCatalog.roster.pasteResult", { count: formatNumber(result.marked.length) })}
           </p>
@@ -152,7 +152,7 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
   return (
     <div className="grid gap-6">
       <section aria-labelledby="roster-add-heading" className="grid gap-3">
-        <h3 id="roster-add-heading" className="text-[15px] font-semibold">
+        <h3 id="roster-add-heading" className="text-card font-semibold">
           {t("staffCatalog.roster.addHeading")}
         </h3>
         <SearchInput value={addQuery} onChange={setAddQuery} placeholder={t("staffCatalog.roster.addPlaceholder")} />
@@ -162,10 +162,10 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
               <li key={hit.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
                 <span>
                   <span className="font-medium">{hit.fullName}</span>{" "}
-                  <span className="text-sm text-muted" dir="ltr">{hit.phone ?? hit.email ?? ""}</span>
+                  <span className="text-meta text-muted" dir="ltr">{hit.phone ?? hit.email ?? ""}</span>
                 </span>
                 {listed.has(hit.id) ? (
-                  <span className="text-sm text-muted">{t("staffCatalog.roster.alreadyListed")}</span>
+                  <span className="text-meta text-muted">{t("staffCatalog.roster.alreadyListed")}</span>
                 ) : (
                   <Button variant="secondary" className="min-h-10" loading={add.isPending} onClick={() => addStudent(hit.id)}>
                     {t("staffCatalog.roster.addOne")}
@@ -176,10 +176,10 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
           </ul>
         ) : null}
         {addQuery.trim().length >= 2 && hits.data && hits.data.length === 0 ? (
-          <p className="text-sm text-muted">{t("common.search.noResults")}</p>
+          <p className="text-meta text-muted">{t("common.search.noResults")}</p>
         ) : null}
         {addError ? (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className="text-meta text-danger">
             {addError}
           </p>
         ) : null}
@@ -189,7 +189,7 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
 
       <section aria-labelledby="roster-list-heading" className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 id="roster-list-heading" className="text-[15px] font-semibold">
+          <h3 id="roster-list-heading" className="text-card font-semibold">
             {t("staffCatalog.roster.listHeading")}
           </h3>
           <div className="w-full sm:w-72">

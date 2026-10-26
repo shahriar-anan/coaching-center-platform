@@ -93,7 +93,7 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
             <li key={question.id} id={`question-${question.id}`} className="grid scroll-mt-24 gap-3 rounded-card border border-border bg-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-muted">
+                  <p className="text-meta text-muted">
                     {t("staffCatalog.mcq.questionNumber", { n: formatNumber(index + 1) })} · {t("staffCatalog.mcq.marksOf", { marks: formatNumber(question.marks) })}
                   </p>
                   <p className="mt-1 font-medium">{question.stem}</p>
@@ -113,23 +113,23 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
                 {[...question.options]
                   .sort((a, b) => a.position - b.position)
                   .map((option, i) => (
-                    <li key={option.id} className="flex items-start gap-2 text-[15px]">
+                    <li key={option.id} className="flex items-start gap-2 text-body">
                       <span aria-hidden="true" className="w-6 shrink-0 text-muted">
                         {locale === "bn" ? ["ক", "খ", "গ", "ঘ", "ঙ", "চ"][i] : String.fromCharCode(65 + i)}
                       </span>
                       <span className={option.correct ? "font-semibold text-ok" : undefined}>{option.text}</span>
-                      {option.correct ? <span className="text-sm text-ok">· {t("staffCatalog.mcq.correctMark")}</span> : null}
+                      {option.correct ? <span className="text-meta text-ok">· {t("staffCatalog.mcq.correctMark")}</span> : null}
                     </li>
                   ))}
               </ul>
-              {question.explanation ? <p className="text-sm text-muted">{t("staffCatalog.mcq.explanation", { text: question.explanation })}</p> : null}
+              {question.explanation ? <p className="text-meta text-muted">{t("staffCatalog.mcq.explanation", { text: question.explanation })}</p> : null}
             </li>
           ))}
         </ol>
       )}
 
       {moveError ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-meta text-danger">
           {moveError}
         </p>
       ) : null}

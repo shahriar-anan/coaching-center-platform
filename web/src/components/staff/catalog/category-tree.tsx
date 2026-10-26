@@ -82,7 +82,7 @@ function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
         <Link href={`/staff/categories/${node.id}`} className="min-w-0 flex-1 font-medium text-text hover:underline">
           {name}
         </Link>
-        <span className="text-sm text-muted">
+        <span className="text-meta text-muted">
           {t("staffCatalog.categories.moduleCount", { count: node.modules.length })}
         </span>
         <StatusPill status={categoryStatus(node)} />
