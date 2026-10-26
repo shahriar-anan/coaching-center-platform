@@ -2,6 +2,7 @@ package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -50,10 +51,12 @@ public class LiveExamOrderService {
 
 	private final StudentPhoneGuard phones;
 
+	private final LiveExamOrderBundle bundles;
+
 	public LiveExamOrderService(LiveExamOrderRepository orders, LiveExamOrderTx tx, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamRosterRepository roster, LiveExamGrantRepository grants,
 			LiveExamCatalogVisibility visibility, UserRepository users, StudentProfileRepository profiles,
-			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones) {
+			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones, LiveExamOrderBundle bundles) {
 		this.orders = orders;
 		this.tx = tx;
 		this.modules = modules;
@@ -65,6 +68,7 @@ public class LiveExamOrderService {
 		this.profiles = profiles;
 		this.gateways = gateways;
 		this.phones = phones;
+		this.bundles = bundles;
 	}
 
 	public InitiateResult initiate(UUID studentId, JsonNode body) {
@@ -314,13 +318,21 @@ public class LiveExamOrderService {
 		};
 	}
 
-	private static OrderView view(LiveExamOrder order) {
+	private OrderView view(LiveExamOrder order) {
 		return view(order, null);
 	}
 
-	private static OrderView view(LiveExamOrder order, String redirectUrl) {
+	private OrderView view(LiveExamOrder order, String redirectUrl) {
 		return new OrderView(order.getId(), order.getTranId(), order.getStatus(), order.getAmount(), redirectUrl,
-				order.getScope(), order.getModuleId(), order.getExamId());
+				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order));
+	}
+
+	/** The exams the order covers: the bundle's list, the one exam, or null for a module (it covers future exams too). */
+	private List<UUID> examIds(LiveExamOrder order) {
+		if (LiveExamOrderBundle.SCOPE.equals(order.getScope())) {
+			return bundles.examIds(order.getId());
+		}
+		return order.getExamId() == null ? null : List.of(order.getExamId());
 	}
 
 	private static ApiException validationFailed() {
@@ -342,7 +354,7 @@ public class LiveExamOrderService {
 	}
 
 	public record OrderView(UUID orderId, String tranId, String status, BigDecimal amount, String redirectUrl,
-			String scope, UUID moduleId, UUID examId) {
+			String scope, UUID moduleId, UUID examId, List<UUID> examIds) {
 	}
 
 	private record Target(String scope, UUID moduleId, UUID examId, BigDecimal amount, String productName) {
