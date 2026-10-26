@@ -754,3 +754,32 @@ Checks: `npm run lint` 0 errors (2 warnings, both in files this branch does not 
 - OPS's `AccessRow` type in `staff-people.ts` has no `grantId` and old `via` values. `StudentAccessSection` uses its own `AdminAccessRow`, so the two do not clash.
 
 **API additions used:** none new. **Contract changes:** none.
+
+## Report — ADMIN-API
+
+Branch `ui/admin-api`, worktree `F:\cc-wt\admin-api`, from `catalog-acquisition` at `d83c068`. No migration.
+
+Items: AG-01, AG-02, AG-03 and AG-04 done. Item 5 (`AuditLogIT`, and the `current-api.md` section) done. Partly: none. Skipped: none.
+
+Checks (one run under the lock, `mvn clean verify -Dtest=...`, on the test database from `api/.env`):
+- `AuditLogIT` 3 run, 0 failures (includes the OpenAPI check; see the note on `system-status` below).
+- `LiveGrantAdminIT` 13 run, 0 failures (AG-01 and AG-04 added).
+- `PublicAccessIT` 4 run, 0 failures.
+- `AuthorizationIT` 5 run, 0 failures.
+- `SystemStatusIT` 2 run, 0 failures (new, AG-03).
+- `LiveSittingIT` 34 run, 0 failures when run alone (AG-02 added). In the combined run it had one error, `aRemovedRosterOrArchivedModuleRejectsAnotherSubmission`, a 500 from `LocalFileStorage.save` with "Insufficient system resources" from Windows. The machine was short of memory at the time (the JVM had crashed with a malloc failure on an earlier attempt). The same class passed 34 of 34 on its own rerun.
+
+The full suite was not run, as instructed.
+
+Items:
+- AG-01, announcement history: `GET /api/v1/announcements?page=&size=` (Master Admin only). Newest first, paged with `PageResponse`, no body. Rows carry the id, both titles, audience, module id and titles (MODULE only), `createdAt`, and `recipients`. Size defaults to 20 and is capped at 100. Tested by `announcementHistoryIsMasterAdminOnlyNewestFirstWithoutBodiesAndCountsRecipients`: order, zero recipients, module titles, paging, and 403 for System Admin, Instructor and Student.
+- AG-02, answers released: the staff view carries `answersReleasedAt` only while released, and the student view never does. Tested by `answersReleasedAtFollowsTheReleaseAndIsNeverOnTheStudentView` in `LiveSittingIT`. Plan wording kept: "cleared after withdraw" is asserted as absent (null is omitted).
+- AG-03, status role gate: `SystemStatusIT`. Master Admin gets 200, with the seven check names, each having exactly `name`, `ok` (boolean) and `note`, and no test secret in the body. System Admin, Instructor and Student get 403 `ACCESS_DENIED`.
+- AG-04, grant rows: `theAccessListGivesARosterRowNoGrantIdAndLeavesARevokedGrantOut` in `LiveGrantAdminIT`. A roster row has no `grantId`, the manual grant row carries its id, and after revoke only the roster row remains.
+
+Notes for the integrator:
+- The plan said `grantId` was already asserted in the access tests. A grep of the test folder found no assertion on `grantId` at all, so AG-04 adds the first one.
+- `AuditLogIT.openApiMatchesImplementedEndpoints` was already failing on `catalog-acquisition` before this branch: `GET /api/v1/system-status` (added in the S-005 commit) was missing from the expected set. I added it, together with `GET /api/v1/announcements`.
+- The tests ran against the database named in `api/.env`, mapped to `TEST_DB_URL`, `TEST_DB_USER` and `TEST_DB_PASSWORD`, because there is no Docker here. The values were not printed. The tests insert their own rows, and the announcement history test dates its rows at the real time, so reruns against that database stay ordered.
+- `current-api.md` has a new section, "Added for the admin gaps (ADMIN-API)", with the endpoint and the tests.
+- I took the Maven lock as `ADMIN-API <pid> <time>` on each run and released it after each run.
