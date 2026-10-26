@@ -924,3 +924,33 @@ Decisions for the integrator to note:
 - A bundle is priced as the sum of its exams, and the product name is the module's title. Exam-time mail uses the bundle's exams only.
 - A module order and a bundle both block a later purchase of an exam they already cover (the same `ALREADY_PURCHASED` rule as before).
 - A bundle's open order is reused only while INITIATED; cancelling it lets the same set start a new order.
+
+## Report — SEED-DATA
+
+Branch `ui/seed-data`, worktree `F:\cc-wt\seed-data`, from `catalog-acquisition` at `d6506c9`. API only; no web change.
+
+**Checks (run under the `API` lock):** `./mvnw -B -Dtest=DemoContentSeedIT,DemoContentSeedGuardTest,ExamMailIT,ExamMailHourGateTest verify`, against `coaching_center_test`. Tests run: 26, failures 0, errors 0. `DemoContentSeedIT` 11, `DemoContentSeedGuardTest` 1, `ExamMailIT` 13, `ExamMailHourGateTest` 1. BUILD SUCCESS. The full suite was not run (the integrator runs it after the merge).
+
+**Items (seed-data-plan section 11):**
+
+| Item | Status | Commit | Notes |
+|---|---|---|---|
+| 1 Catalog | Done, copy and questions are drafts | `eea9911`, `51cbe29` | Five categories, three packages (b1 5 MCQ, b2 4 written, b3 3 MCQ and 2 written), fourteen exams. 80 MCQs: 30 existing and 50 new. Every copy string and question is a draft for D-d10; the reviewer is not named yet. |
+| 2 Schedule refresh | Done | `51cbe29` | Exam dates, sittings, orders and notices reset on every run. e2 live at each run (test). |
+| 3 Students 5101 to 5105 | Done, phones differ from the plan | `51cbe29` | Phones are `+8801700005101`, `…102`, `…103`, `…105`. The plan's `…0101` style collides with 5001 to 5003. 5104 has no phone. Password hash from `SEED_TEST_STUDENT_PASSWORD` (test checks the hash). |
+| 4 Orders and stuck order | Done | `51cbe29` | Seven orders with fixed `DEMO-` tran ids. `DEMO-STUCK-E9-5001` is INITIATED, two days old, no grant. The recheck job's window is 24 hours to 10 minutes before now, so it skips this order by time. No test drives the job itself (SSLCommerz recheck is off in tests). |
+| 5 Results | Done | `51cbe29` | e1 MCQ scores for 5001 to 5008 (leaderboard); e10 for 5101; e7 awaiting (5003), draft (5004), FAILED_TO_SUBMIT (5005, score 0, no answer file); e13 published (5101, marked PDF, comment) and draft (5002). Answer and marked PDFs are generated once and reused on re-runs. |
+| 6 Answers released | Done | `51cbe29` | `e1` released; `e10` withheld (test). |
+| 7 Notices | Done, choice made | `51cbe29` | **Choice: direct calls to `StudentNoticeWriter` for the demo exams only**, not the global reminder scan. The scan covers every exam in the database, so it would write notices for real exams in a shared database. The writer is the one the job uses. Written: `PURCHASE_GRANTED` for each grant, `MCQ_SCORE` and `WRITTEN_RESULT` for 5101 only (plan 6.3), `EXAM_REMINDER` for e4 (5102) and e3 (5105), `EXAM_STARTING_SOON` for e3 (5105), `EXAM_OPEN` for e2 (5103). Test: two runs give the same count. |
+| 8 Announcement | Done, written directly | `51cbe29` | One `ANNOUNCEMENT` linked to its notices by `announcement_id`, for 5101 to 5105. Not sent through `AnnouncementService`, which writes to every active student. |
+| 9 Staff | Done | `51cbe29` | System Admin (`SEED_SYSTEM_ADMIN_*`), Instructor A (`SEED_INSTRUCTOR_*`) on b2 and b3, Instructor B (`SEED_INSTRUCTOR2_*`, optional) on b1. The 404 for an unassigned instructor on e7 is not tested over HTTP. |
+| 10 Mail | Done | `e882130` | Seed writes no `exam_outbound_mail` rows (test). No `HOUR_BEFORE` rows (test). The gate test `ExamMailHourGateTest` passes; the gate was already on main (`64ac138`). |
+| 11 Refusals | Done | `51cbe29` | Refuses `prod` and any profile other than `staging` or `dev` (test). `ProfileStartup` refusal unchanged. |
+| 12 Cleanup and re-run | Done | `e882130` | `demo-cleanup.sql` covers every new row. The seed refuses to write over an older catalog until cleanup runs (checked by title). Two runs, no duplicates (test). `demo-seed.md` rewritten. |
+| 13 Tests | Done, with gaps | `e882130` | Every section-10 check is covered except: 5101 `phoneRequired` over HTTP (checked at the hash and phone level), the reminder job's second scan (the seed's two runs cover duplicates, not the job), instructor B's 404 (not over HTTP), and the stuck order vs the recheck job (by time window, not run). |
+
+**Other changes:** `StagingExamSeed.java` is deleted (D-d7). Its helpers (`required`, `requirePassword`, `refuseProduction`) move into `DemoContentSeed`, and its test is renamed `DemoContentSeedGuardTest`. The `app.seed.enabled` keys in `application-dev.properties` and `application-staging.properties` are unchanged; `SystemStatusService` still reads that flag for the "seed off" check. `DemoContentSeed` no longer uses `MODULE_19` or the old names. The demo PDFs use an explicit 1 MB limit, because the test profile sets `MATERIAL_MAX_BYTES` to 1 KB.
+
+**Commit history note:** `e882130` (cleanup, docs, tests) landed before `51cbe29` (the seed code). Between those two commits the tree does not compile. The branch tip compiles and passes the 26 tests.
+
+**Not done:** the live run. No database has been named, so the seed has not been run against `coaching_center_dev`, `coaching_center_qa` or any other database. The plan's section 11 choice is open (the 26 Oct decision named `coaching_center_qa`, but the brief says to wait for the user to name the database).
