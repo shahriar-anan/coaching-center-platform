@@ -88,6 +88,8 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 
 	@Test
 	void theSeedRunsTwiceWithoutDuplicatesAndWritesNoMail() {
+		// The test database is shared and not reset between runs, so count the mail rows before and after the seed.
+		int hourBeforeBefore = jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE kind = 'HOUR_BEFORE'", Integer.class);
 		seed.seed(new String[] { "dev" }, env(), NOW);
 		assertCatalog();
 		seed.seed(new String[] { "dev" }, env(), NOW.plus(Duration.ofHours(3)));
@@ -96,7 +98,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE user_id::text LIKE ?", Integer.class,
 				DEMO_STUDENT)).isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE kind = 'HOUR_BEFORE'", Integer.class))
-			.isZero();
+			.isEqualTo(hourBeforeBefore);
 	}
 
 	@Test

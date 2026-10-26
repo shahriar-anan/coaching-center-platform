@@ -2,6 +2,7 @@ package com.coachingcenter.api.users;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import com.coachingcenter.api.auth.Role;
 import com.coachingcenter.api.common.config.AppProperties;
 
 @Component
+@Order(1)
 public class MasterAdminBootstrap implements ApplicationRunner {
 
 	private final UserRepository users;
