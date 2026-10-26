@@ -21,7 +21,7 @@ const MAX_PDF_BYTES = QUESTION_PDF_LIMIT_MB * 1024 * 1024;
  * check it; the student never downloads it. Replacing uploads a new file.
  */
 export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolean }) {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const { formatNumber } = useFormat();
   const { toast } = useToast();
   const upload = useUploadQuestionPdf(exam.id);
