@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnnouncementForm } from "@/components/staff/announcements/announcement-form";
+import { AnnouncementHistory } from "@/components/staff/announcements/announcement-history";
 import { RequireStaff, useRole } from "@/lib/auth/guards";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -32,6 +33,7 @@ function AnnouncementsPage() {
         <>
           <p className="text-meta text-muted">{t("staffAdmin.announce.intro")}</p>
           <AnnouncementForm />
+          <AnnouncementHistory />
         </>
       ) : (
         <EmptyState title={t("staffAdmin.announce.title")} body={t("staffAdmin.announce.readOnly")} />

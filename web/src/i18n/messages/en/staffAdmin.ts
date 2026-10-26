@@ -130,6 +130,18 @@ const staffAdmin = {
     confirmModule: "It goes to students with access to {module}. It cannot be changed after sending.",
     sent: "Announcement sent. {count} students received it.",
   },
+  history: {
+    title: "Sent announcements",
+    empty: "No announcements have been sent yet.",
+    loadError: "Could not load the announcements.",
+    untitled: "(no title)",
+    columns: {
+      title: "Title",
+      audience: "Who got it",
+      sent: "Sent at",
+      recipients: "Students",
+    },
+  },
   status: {
     title: "System status",
     intro: "The state of each setting. No values are shown here.",

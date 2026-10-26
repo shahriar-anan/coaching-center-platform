@@ -195,11 +195,42 @@ export type AnnouncementView = {
   createdAt: string;
 };
 
-/** Sent announcements cannot be edited or deleted, so nothing is cached to refresh. */
+/** One row of `GET /api/v1/announcements` (Master Admin only). Titles may be blank; the module fields are null for `ALL`. */
+export type AnnouncementHistoryRow = {
+  id: string;
+  titleEn: string;
+  titleBn: string;
+  audience: AnnouncementAudience;
+  moduleId: string | null;
+  moduleTitleEn: string | null;
+  moduleTitleBn: string | null;
+  createdAt: string;
+  recipients: number;
+};
+
+const HISTORY_PAGE_SIZE = 20;
+
+/** Sent announcements, newest first. Master Admin only. */
+export function useAnnouncementHistory(page: number) {
+  return useQuery({
+    queryKey: staffAdminKeys.announcements(page),
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<AnnouncementHistoryRow>>(
+        `/api/v1/announcements${queryString({ page, size: HISTORY_PAGE_SIZE })}`,
+        { signal },
+      ),
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+}
+
+/** A sent announcement cannot be edited or deleted, so the only thing to refresh is the history list. */
 export function useSendAnnouncement() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: AnnouncementRequest) =>
       apiRequest<AnnouncementView>("/api/v1/announcements", { method: "POST", body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "announcements"] }),
   });
 }
 
@@ -261,6 +292,7 @@ export function staffAdminErrorKey(code: string): string {
 
 export const staffAdminKeys = {
   access: (studentId: string, page: number) => ["staffAdmin", "access", studentId, page] as const,
+  announcements: (page: number) => ["staffAdmin", "announcements", page] as const,
   orders: (filters: PendingOrderFilters) => ["staffAdmin", "orders", filters] as const,
   release: (examId: string) => ["staffAdmin", "release", examId] as const,
   systemStatus: ["staffAdmin", "systemStatus"] as const,
