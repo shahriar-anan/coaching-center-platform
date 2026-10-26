@@ -29,16 +29,19 @@ const landing = {
   numbersWritten: "রিটেন এক্সাম",
 
   categoriesTitle: "এক্সাম ক্যাটাগরি",
-  categoriesSubtitle: "যে পরীক্ষার জন্য প্রস্তুতি নিচ্ছেন, সেটি বেছে নিন।",
+  categoriesSubtitle: "সেরা ক্যাটাগরির প্রশ্নপত্রের মাধ্যমে আপনার সাফল্যের যাত্রা শুরু করুন এখান থেকেই!",
   categoryModules: "{count}টি মডিউল",
   categoryFrom: "শুরু {price} থেকে",
   categoryNoPrice: "মূল্য এখনো ঠিক হয়নি",
+  categoryExplore: "এক্সপ্লোর করুন",
+  categoryExploreMcq: "এমসিকিউ এক্সপ্লোর করুন",
+  categoryExploreWritten: "লিখিত এক্সপ্লোর করুন",
   seeAll: "সব দেখুন",
 
   upcomingTitle: "আসন্ন পরীক্ষা",
   upcomingSubtitle: "সময়মতো বসুন। পরীক্ষা শুরু হওয়ার আগেই অ্যাকাউন্ট থাকা দরকার।",
 
-  packagesTitle: "জনপ্রিয় মডিউল",
+  packagesTitle: "আমাদের প্যাকেজ",
   packagesSubtitle: "এক মডিউলে একাধিক পরীক্ষা।",
   packageDetails: "বিস্তারিত",
   packageMcq: "এমসিকিউ {count}টি",

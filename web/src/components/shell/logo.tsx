@@ -19,8 +19,8 @@ export function Logo({ className, href = "/", compact = false }: { className?: s
       aria-label={t("common.brand.home")}
       className={cn("inline-flex min-w-0 items-center gap-2 text-section text-text", className)}
     >
-      <Image src="/brand/logo-light.svg" alt="" width={800} height={771} className="h-9 w-auto sm:h-12 dark:hidden" />
-      <Image src="/brand/logo-dark.svg" alt="" width={800} height={771} className="hidden h-9 w-auto sm:h-12 dark:block" />
+      <Image src="/brand/logo-light.png" alt="" width={35} height={40} className="h-10 w-auto sm:h-12 dark:hidden" />
+      <Image src="/brand/logo-dark.png" alt="" width={40} height={40} className="hidden h-10 w-auto sm:h-12 dark:block" />
       <span className={cn("truncate text-base sm:text-section", compact && "max-[399px]:sr-only")}>
         {t("common.brand.first")}
         <span className="text-text-accent">{t("common.brand.second")}</span>

@@ -31,16 +31,19 @@ const landing: typeof bn = {
   numbersWritten: "Written exams",
 
   categoriesTitle: "Exam categories",
-  categoriesSubtitle: "Choose the exam you are preparing for.",
+  categoriesSubtitle: "Start your journey to success here, with question papers from the best categories!",
   categoryModules: "{count} modules",
   categoryFrom: "From {price}",
   categoryNoPrice: "Price to be announced",
+  categoryExplore: "Explore",
+  categoryExploreMcq: "Explore MCQ",
+  categoryExploreWritten: "Explore written",
   seeAll: "See all",
 
   upcomingTitle: "Upcoming exams",
   upcomingSubtitle: "Be there on time. You need an account before the exam starts.",
 
-  packagesTitle: "Popular modules",
+  packagesTitle: "Our packages",
   packagesSubtitle: "Several exams in one module.",
   packageDetails: "Details",
   packageMcq: "{count} MCQ",

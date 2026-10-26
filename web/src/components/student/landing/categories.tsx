@@ -1,12 +1,13 @@
-import Link from "next/link";
-import { BookOpen } from "lucide-react";
+import { ClipboardList } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatMoney, pickTitle } from "@/lib/format";
+import { pickTitle } from "@/lib/format";
 import { useCategoryTree } from "@/lib/api/exam/catalog";
 import { useLocale } from "@/i18n/locale-context";
 import { categoryCards } from "@/components/student/landing/landing-data";
 import { Section } from "@/components/student/landing/section";
 
+/** The old site's exam category cards: an icon, the title, and an explore button for each exam type the category has. */
 export function Categories() {
   const { t, locale } = useLocale();
   const { data, isPending } = useCategoryTree(null);
@@ -15,7 +16,7 @@ export function Categories() {
 
   if (isPending) {
     return (
-      <Section id="landing-categories" title={title} subtitle={subtitle}>
+      <Section id="landing-categories" title={title} subtitle={subtitle} center tinted>
         <Skeleton variant="card" count={3} />
       </Section>
     );
@@ -24,31 +25,34 @@ export function Categories() {
   if (cards.length === 0) return null;
 
   return (
-    <Section id="landing-categories" title={title} subtitle={subtitle}>
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card) => {
-          const price = formatMoney(card.fromPrice, locale);
-          return (
-            <li key={card.id}>
-              <Link
-                href={card.href}
-                prefetch
-                className="flex h-full flex-col gap-4 rounded-card border border-border bg-card p-5 transition hover:-translate-y-0.5 hover:border-accent"
-              >
-                <span className="flex size-11 items-center justify-center rounded-full bg-accent/15 text-text-accent">
-                  <BookOpen aria-hidden="true" className="size-5" />
-                </span>
-                <span className="grid gap-1">
-                  <span className="text-lg font-bold">{pickTitle(card, locale)}</span>
-                  <span className="text-body text-muted">{t("landing.categoryModules", { count: card.moduleCount })}</span>
-                </span>
-                <span className="mt-auto text-label font-semibold text-text-accent">
-                  {price ? t("landing.categoryFrom", { price }) : t("landing.categoryNoPrice")}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
+    <Section id="landing-categories" title={title} subtitle={subtitle} center tinted>
+      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map((card) => (
+          <li key={card.id} className="flex flex-col items-center gap-4 rounded-card bg-card p-6 text-center shadow-lg md:p-8">
+            <span className="flex size-20 items-center justify-center rounded-2xl bg-action text-on-action">
+              <ClipboardList aria-hidden="true" className="size-10" />
+            </span>
+            <h3 className="text-xl font-semibold">{pickTitle(card, locale)}</h3>
+            <p className="text-body text-muted">{t("landing.categoryModules", { count: card.moduleCount })}</p>
+            <div className="mt-auto grid w-full gap-2 pt-2">
+              {card.mcqHref ? (
+                <Button href={card.mcqHref} fullWidth>
+                  {t("landing.categoryExploreMcq")}
+                </Button>
+              ) : null}
+              {card.writtenHref ? (
+                <Button href={card.writtenHref} variant={card.mcqHref ? "secondary" : "primary"} fullWidth>
+                  {t("landing.categoryExploreWritten")}
+                </Button>
+              ) : null}
+              {!card.mcqHref && !card.writtenHref ? (
+                <Button href={card.href} fullWidth>
+                  {t("landing.categoryExplore")}
+                </Button>
+              ) : null}
+            </div>
+          </li>
+        ))}
       </ul>
     </Section>
   );

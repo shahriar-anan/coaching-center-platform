@@ -22,7 +22,7 @@ export function Featured() {
 
   if (isPending) {
     return (
-      <Section id="landing-packages" title={title} subtitle={subtitle} action={action}>
+      <Section id="landing-packages" title={title} subtitle={subtitle} action={action} center>
         <Skeleton variant="card" count={3} />
       </Section>
     );
@@ -31,7 +31,7 @@ export function Featured() {
   if (cards.length === 0) return null;
 
   return (
-    <Section id="landing-packages" title={title} subtitle={subtitle} action={action}>
+    <Section id="landing-packages" title={title} subtitle={subtitle} action={action} center>
       <ul className="grid gap-5 md:grid-cols-3">
         {cards.map((card) => {
           const price = formatMoney(card.module.price, locale);

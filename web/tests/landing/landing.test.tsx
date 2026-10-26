@@ -89,11 +89,13 @@ describe("landing data", () => {
     const cards = categoryCards(tree);
     expect(cards.map((card) => card.id)).toEqual(["bjs"]);
     expect(cards[0]).toMatchObject({ moduleCount: 3, fromPrice: 250, href: "/mcq/c/bjs" });
+    expect(cards[0]).toMatchObject({ mcqHref: "/mcq/c/bjs", writtenHref: "/written/c/bjs" });
   });
 
   it("links a category to the written door when it has no MCQ modules", () => {
     const written = [category({ id: "w", modules: [module({ id: "x", writtenCount: 3 })] })];
     expect(categoryCards(written)[0].href).toBe("/written/c/w");
+    expect(categoryCards(written)[0]).toMatchObject({ mcqHref: null, writtenHref: "/written/c/w" });
   });
 
   it("features the chosen ids in order, or the first modules when none are chosen", () => {
@@ -129,8 +131,9 @@ describe("LandingPage", () => {
     expect(screen.getByRole("link", { name: /এমসিকিউ.*দ্রুত অনুশীলন/ })).toHaveAttribute("href", "/mcq");
     expect(screen.getByRole("link", { name: /রিটেন.*লিখিত পরীক্ষা/ })).toHaveAttribute("href", "/written");
     expect(await screen.findByText("বিজেএস মডিউল")).toBeInTheDocument();
-    expect(screen.getByText("বিজেএস মডিউল").closest("a")).toHaveAttribute("href", "/mcq/c/bjs");
-    expect(screen.getByText("শুরু ৳২৫০ থেকে")).toBeInTheDocument();
+    // The old site's exam category card: one explore button per exam type the category has.
+    expect(screen.getByRole("link", { name: bn.categoryExploreMcq })).toHaveAttribute("href", "/mcq/c/bjs");
+    expect(screen.getByRole("link", { name: bn.categoryExploreWritten })).toHaveAttribute("href", "/written/c/bjs");
     expect(screen.queryByText("খালি ক্যাটাগরি")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: bn.upcomingTitle })).not.toBeInTheDocument();
   });

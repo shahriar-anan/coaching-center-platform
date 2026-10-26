@@ -26,6 +26,10 @@ export interface CategoryCard {
   titleEn: string;
   titleBn: string;
   href: string;
+  /** The category in the MCQ list, or null when it has no MCQ exam. */
+  mcqHref: string | null;
+  /** The category in the written list, or null when it has no written exam. */
+  writtenHref: string | null;
   moduleCount: number;
   /** Lowest price among the category's priced modules, or null when none is priced. */
   fromPrice: number | null;
@@ -40,11 +44,14 @@ export function categoryCards(nodes: CategoryNode[]): CategoryCard[] {
         .map((module) => module.price)
         .filter((price): price is number => typeof price === "number");
       const hasMcq = modules.some((module) => (moduleTypeCount(module, "MCQ") ?? 0) > 0);
+      const hasWritten = modules.some((module) => (moduleTypeCount(module, "WRITTEN") ?? 0) > 0);
       return {
         id: node.id,
         titleEn: node.titleEn,
         titleBn: node.titleBn,
         href: categoryPath(hasMcq ? "mcq" : "written", node.id),
+        mcqHref: hasMcq ? categoryPath("mcq", node.id) : null,
+        writtenHref: hasWritten ? categoryPath("written", node.id) : null,
         moduleCount: modules.length,
         fromPrice: prices.length ? Math.min(...prices) : null,
       };
