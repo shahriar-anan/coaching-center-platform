@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { LandingPage } from "@/components/student/landing/landing-page";
 import {
@@ -119,7 +119,7 @@ describe("landing data", () => {
 });
 
 describe("LandingPage", () => {
-  it("shows the hero and the categories, and leaves out upcoming exams when there are none", async () => {
+  it("shows the hero with the exam category doors, and leaves out upcoming exams when there are none", async () => {
     mockApi({
       "GET /api/v1/public/live-exam-categories": tree,
       "GET /api/v1/public/live-exams": { content: [], page: 0, size: 5, totalElements: 0, totalPages: 0 },
@@ -127,23 +127,13 @@ describe("LandingPage", () => {
     renderWithProviders(<LandingPage />, { user: null, locale: "bn" });
 
     expect(screen.getByRole("heading", { level: 1, name: bn.heroTitle })).toBeInTheDocument();
-    expect(await screen.findByText("বিজেএস মডিউল")).toBeInTheDocument();
-    // The hero lists the exam categories, with one explore button per exam type the category has.
-    expect(screen.getByRole("link", { name: bn.categoryExploreMcq })).toHaveAttribute("href", "/mcq/c/bjs");
-    expect(screen.getByRole("link", { name: bn.categoryExploreWritten })).toHaveAttribute("href", "/written/c/bjs");
-    expect(screen.queryByText("খালি ক্যাটাগরি")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: bn.upcomingTitle })).not.toBeInTheDocument();
-  });
-
-  it("shows the two doors in the hero when the catalog has no categories", async () => {
-    mockApi({
-      "GET /api/v1/public/live-exam-categories": [],
-      "GET /api/v1/public/live-exams": { content: [], page: 0, size: 5, totalElements: 0, totalPages: 0 },
-    });
-    renderWithProviders(<LandingPage />, { user: null, locale: "bn" });
-
-    expect(await screen.findByRole("link", { name: /এমসিকিউ.*দ্রুত অনুশীলন/ })).toHaveAttribute("href", "/mcq");
+    expect(await screen.findByRole("heading", { name: bn.packagesTitle })).toBeInTheDocument();
+    // The two doors sit under the exam categories heading in the hero.
+    expect(screen.getByRole("heading", { name: bn.categoriesTitle })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /এমসিকিউ.*দ্রুত অনুশীলন/ })).toHaveAttribute("href", "/mcq");
     expect(screen.getByRole("link", { name: /রিটেন.*লিখিত পরীক্ষা/ })).toHaveAttribute("href", "/written");
+    expect(screen.queryByText("খালি ক্যাটাগরি")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: bn.upcomingTitle })).not.toBeInTheDocument());
   });
 
   it("lists upcoming MCQ exams from the API", async () => {
