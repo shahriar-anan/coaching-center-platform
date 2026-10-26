@@ -24,6 +24,7 @@ const result = {
     pending: "Pending",
   },
   written: {
+    couldNotFinish: "The exam could not be finished.",
     notSubmitted: "No answer script was submitted in time, so the mark is 0.",
     awaiting: "Your script is being marked. The result will appear here once it is published.",
     comment: "Teacher's comment",
@@ -31,8 +32,17 @@ const result = {
     hideMarked: "Close the script",
     markedScript: "Marked script",
   },
+  access: {
+    roster: "Added directly",
+    module: "Module purchase",
+    exam: "Exam purchase",
+    manual: "Added by the centre",
+  },
   review: {
     title: "Check your answers",
+    withheld: "Answers are not released yet. They will show here once the administrator releases them.",
+    withheldShort: "Not released",
+    filterWhy: "Right and wrong are shown once the answers are released.",
     filterAll: "All",
     filterWrong: "Wrong",
     filterRight: "Right",

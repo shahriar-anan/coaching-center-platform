@@ -77,11 +77,13 @@ public class LiveExamService {
 
 	private final LiveExamParticipantRepository participants;
 
+	private final StudentNoticeWriter notices;
+
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
 			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
 			LiveExamAccess access, LiveExamCatalogVisibility visibility, LocalFileStorage files, ExamMailService examMail,
 			AfterCommit afterCommit, Clock clock, AuditRecorder audit,
-			LiveExamParticipantRepository participants) {
+			LiveExamParticipantRepository participants, StudentNoticeWriter notices) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
@@ -95,6 +97,7 @@ public class LiveExamService {
 		this.clock = clock;
 		this.audit = audit;
 		this.participants = participants;
+		this.notices = notices;
 	}
 
 	@Transactional
@@ -369,6 +372,7 @@ public class LiveExamService {
 		visibility.requireOpen(requireModule(exam.getModuleId()).getCategoryId());
 		exam.setStatus(LiveExam.PUBLISHED);
 		UUID examId = exam.getId();
+		notices.published(examId, exams.findActiveStudentsWithAccess(exam.getModuleId(), examId));
 		afterCommit.run(() -> examMail.onExamPublished(examId));
 		return view(exam, true);
 	}
@@ -449,7 +453,7 @@ public class LiveExamService {
 				plain.titleBn(), plain.descriptionEn(), plain.descriptionBn(), plain.rulesEn(), plain.rulesBn(),
 				plain.liveAt(), plain.endAt(), plain.durationMinutes(), plain.passPercent(), plain.maximum(),
 				plain.status(), plain.finallySaved(), plain.price(), plain.questionPdf(), plain.questions(),
-				status.status(), status.retakeAvailable());
+				status.status(), status.retakeAvailable(), null);
 	}
 
 	private Map<UUID, LiveExamParticipant> participantsByExam(UUID studentId, List<UUID> examIds) {
@@ -561,7 +565,8 @@ public class LiveExamService {
 				exam.getTitleEn(), exam.getTitleBn(), exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(),
 				exam.getRulesBn(), format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(),
 				exam.getPassPercent(), maximum(exam), exam.getStatus(), exam.isFinallySaved(), exam.getPrice(),
-				questionPdf, questionViews, null, null);
+				questionPdf, questionViews, null, null,
+				staff && exam.getAnswersReleasedAt() != null ? exam.getAnswersReleasedAt().toString() : null);
 	}
 
 	private List<QuestionView> loadQuestions(UUID examId) {
@@ -813,7 +818,7 @@ public class LiveExamService {
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt, String endAt,
 			int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved, BigDecimal price,
 			Boolean questionPdf, List<QuestionView> questions, String myStatus,
-			Boolean retakeAvailable) {
+			Boolean retakeAvailable, String answersReleasedAt) {
 	}
 
 	public record QuestionView(UUID id, String stem, int marks, String explanation, int position, List<OptionView> options) {

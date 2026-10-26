@@ -25,7 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.exam-mail.hour-before.enabled=true")
 @Import({ ExamMailIT.ClockConfig.class, ExamMailIT.MailConfig.class })
 class ExamMailIT extends PostgresIntegrationTest {
 
@@ -360,8 +360,8 @@ class ExamMailIT extends PostgresIntegrationTest {
 				values (?, ?, 'EXAM', ?, ?, 15.00, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now())
 				""", orderId, buyer.id, fixture.moduleId, fixture.examId, tranId);
 		jdbc.update("""
-				insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at)
-				values (?, ?, 'EXAM', ?, ?, ?, now())
+				insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, source, created_at)
+				values (?, ?, 'EXAM', ?, ?, ?, 'ORDER', now())
 				""", UUID.randomUUID(), buyer.id, fixture.moduleId, fixture.examId, orderId);
 		jdbc.update("""
 				insert into exam_outbound_mail (id, kind, message_key, user_id, attempt_count, status, created_at, updated_at)

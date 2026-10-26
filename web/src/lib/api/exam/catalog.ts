@@ -64,7 +64,7 @@ export const catalogKeys = {
     ["catalog", "public-exams", moduleId, examType ?? "ALL"] as const,
   publicExam: (id: string) => ["catalog", "public-exam", id] as const,
   myModules: () => ["catalog", "my-modules"] as const,
-  myModule: (id: string) => ["catalog", "my-module", id] as const,
+  myAccess: () => ["catalog", "my-access"] as const,
   myExams: (moduleId: string, examType: ExamType | null) =>
     ["catalog", "my-exams", moduleId, examType ?? "ALL"] as const,
   myExam: (id: string) => ["catalog", "my-exam", id] as const,
@@ -152,7 +152,12 @@ export function usePublicModuleExams(moduleId: string | undefined, examType: Exa
 }
 
 /** An exam in the "upcoming" strip, with its module's titles (G12). */
-export type UpcomingExam = PublicExam & { moduleTitleEn?: string; moduleTitleBn?: string | null };
+/** `moduleOnly` (S-027, A1): true when the exam has no price of its own and is sold only in its module. */
+export type UpcomingExam = PublicExam & {
+  moduleTitleEn?: string;
+  moduleTitleBn?: string | null;
+  moduleOnly?: boolean;
+};
 
 /**
  * Published modules matching `q` (G12). Only runs once there is text. An older
@@ -192,6 +197,26 @@ export function useUpcomingExams(examType: ExamType) {
   });
 }
 
+/**
+ * Whether checkout is on (`GET /api/v1/public/exam-site/status`, cached a minute). An older
+ * API without the endpoint answers 404: then checkout counts as on and no notice shows.
+ */
+export function useCheckoutEnabled() {
+  return useQuery({
+    queryKey: ["catalog", "exam-site-status"] as const,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      try {
+        const status = await apiRequest<{ checkoutEnabled: boolean }>("/api/v1/public/exam-site/status", { signal });
+        return status.checkoutEnabled;
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "RESOURCE_NOT_FOUND") return true;
+        throw error;
+      }
+    },
+  });
+}
+
 export function usePublicExam(id: string) {
   return useQuery({
     queryKey: catalogKeys.publicExam(id),
@@ -213,14 +238,33 @@ export function useMyModules(enabled: boolean) {
   });
 }
 
-/** Null when the student has no module-wide access. */
-export function useMyModule(id: string, enabled: boolean) {
+/** One grant of the student's own (`GET /api/v1/me/live-exam-access`, API-ACCESS). */
+export interface OwnModuleGrant {
+  moduleId: string;
+  via: "ROSTER" | "MODULE" | "MANUAL";
+  orderId?: string;
+}
+
+export interface OwnExamGrant {
+  examId: string;
+  moduleId: string;
+  via: "EXAM" | "MANUAL";
+  orderId?: string;
+}
+
+/** Every module and exam the signed-in student owns. No paging. */
+export interface MyLiveExamAccess {
+  modules: OwnModuleGrant[];
+  exams: OwnExamGrant[];
+}
+
+/** The student's own grants, for "my modules". Ownership on a single page comes from its `access` object. */
+export function useMyLiveExamAccess(enabled: boolean) {
   return useQuery({
-    queryKey: catalogKeys.myModule(id),
+    queryKey: catalogKeys.myAccess(),
     staleTime: CATALOG_STALE,
     enabled,
-    queryFn: ({ signal }) =>
-      orNull(apiRequest<StudentModule>(`/api/v1/live-exam-modules/${id}`, { signal })),
+    queryFn: ({ signal }) => apiRequest<MyLiveExamAccess>("/api/v1/me/live-exam-access", { signal }),
   });
 }
 

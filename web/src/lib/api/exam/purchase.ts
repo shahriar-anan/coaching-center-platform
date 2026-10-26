@@ -11,7 +11,7 @@ export interface OrderView {
   status: PaymentState;
   amount: number;
   redirectUrl: string | null;
-  scope: "MODULE" | "EXAM";
+  scope: "MODULE" | "EXAM" | "BUNDLE";
   moduleId: string | null;
   examId: string | null;
 }
@@ -34,6 +34,15 @@ export function useStartOrder() {
     retry: false,
     mutationFn: (target: PurchaseTarget) =>
       apiRequest<OrderView>("/api/v1/live-exam-orders", { method: "POST", body: target }),
+  });
+}
+
+/** One payment for several exams (plan 8): `{ examIds }`. An owned exam refuses the whole request. */
+export function useBundleOrder() {
+  return useMutation({
+    retry: false,
+    mutationFn: (examIds: string[]) =>
+      apiRequest<OrderView>("/api/v1/live-exam-orders", { method: "POST", body: { examIds } }),
   });
 }
 
@@ -76,16 +85,6 @@ export function usePaymentStatus(tranId: string, enabled: boolean, startedAt: nu
         `/api/v1/live-exam-orders/status?tranId=${encodeURIComponent(tranId)}`,
         { signal },
       ),
-  });
-}
-
-export function useOrder(orderId: string | null, enabled: boolean) {
-  return useQuery({
-    queryKey: purchaseKeys.order(orderId ?? ""),
-    enabled: enabled && Boolean(orderId),
-    staleTime: 0,
-    retry: false,
-    queryFn: ({ signal }) => apiRequest<OrderView>(`/api/v1/live-exam-orders/${orderId}`, { signal }),
   });
 }
 

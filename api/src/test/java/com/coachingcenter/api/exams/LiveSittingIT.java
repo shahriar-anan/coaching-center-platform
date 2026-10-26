@@ -166,10 +166,116 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(posted).doesNotContain("correct", "Because");
 
 		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		String withheld = mockMvc
+			.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].stem").exists())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").doesNotExist())
+			.andExpect(jsonPath("$.questions[0].explanation").doesNotExist())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(withheld).doesNotContain("\"correct\"", "Because");
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").doesNotExist())
+			.andExpect(jsonPath("$.questions[0].explanation").doesNotExist());
+
+		releaseAnswers(holder.examId());
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
-			.andExpect(jsonPath("$.questions[0].options[0].correct").exists());
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].options[1].correct").value(false));
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+	}
+
+	@Test
+	void releasedAnswersStayHiddenWhileTheStudentsOwnSittingIsOpen() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		releaseAnswers(holder.examId());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		save(student, holder.examId(), holder.questions());
+
+		String during = mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(during).doesNotContain("\"correct\"", "Because");
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+		String early = mockMvc
+			.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions").doesNotExist())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(early).doesNotContain("\"correct\"", "Because");
+		assertThat(mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString()).doesNotContain("\"correct\"", "Because");
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+	}
+
+	/** AG-02: the staff exam view carries the release time, and the student view never does. */
+	@Test
+	void answersReleasedAtFollowsTheReleaseAndIsNeverOnTheStudentView() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		String exam = "/api/v1/live-exams/" + holder.examId();
+
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+
+		mockMvc.perform(put(exam + "/answers-released").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").isNotEmpty());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+
+		mockMvc.perform(put(exam + "/answers-released").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
 	}
 
 	@Test
@@ -318,6 +424,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(10))
 			.andExpect(jsonPath("$.passed").value(true));
+		releaseAnswers(holder.examId());
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(10))
@@ -357,6 +464,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + absent))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(10));
+		releaseAnswers(holder.examId());
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + absent))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(10))
@@ -507,6 +615,74 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(new JdbcTemplate(dataSource).queryForObject(
 				"select score from live_exam_participants where exam_id = ? and student_id = ?", Integer.class, exam, storedId))
 			.isNull();
+	}
+
+	/** R-7: uploads replace each other until the deadline, the last one counts without a submit, and none means zero. */
+	@Test
+	void aWrittenUploadAtTheDeadlineIsRefusedAndTheLastEarlierUploadCountsWithoutASubmit() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Deadline written");
+		UUID exam = createWritten(staff, module);
+		UUID uploaderId = seed("STUDENT");
+		UUID missingId = seed("STUDENT");
+		mark(master, module, uploaderId);
+		mark(master, module, missingId);
+		String uploader = token(uploaderId);
+		String missing = token(missingId);
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		for (String student : new String[] { uploader, missing }) {
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T13:25:00+06:00"));
+		}
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "first.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isNoContent());
+		clock.set(Instant.parse("2026-10-20T07:24:59Z"));
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "last.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isNoContent());
+		String last = storedAnswer(exam, uploaderId);
+
+		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "late.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("DEADLINE_PASSED"));
+		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(last);
+		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("IN_PROGRESS");
+
+		deadlineJob.settleDue();
+		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("SUBMITTED");
+		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(last);
+		assertThat(new JdbcTemplate(dataSource).queryForObject(
+				"select answer_original_file_name from live_exam_participants where exam_id = ? and student_id = ?",
+				String.class, exam, uploaderId)).isEqualTo("last.pdf");
+		assertThat(sittingStatus(exam, missingId)).isEqualTo("FAILED_TO_SUBMIT");
+		assertThat(sittingScore(exam, missingId)).isZero();
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + missing))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FAILED_TO_SUBMIT"))
+			.andExpect(jsonPath("$.score").value(0))
+			.andExpect(jsonPath("$.passed").value(false));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + uploader))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SUBMITTED"))
+			.andExpect(jsonPath("$.score").doesNotExist());
+
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "later.pdf",
+			"application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + missing))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("DEADLINE_PASSED"));
+		assertThat(storedAnswer(exam, missingId)).isNull();
 	}
 
 	@Test
@@ -860,6 +1036,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(during).doesNotContain("\"correct\"", "Because");
 
 		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		releaseAnswers(holder.examId());
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
@@ -1763,6 +1940,11 @@ class LiveSittingIT extends PostgresIntegrationTest {
 					{"studentId":"%s"}
 					""".formatted(studentId)))
 			.andExpect(status().isCreated());
+	}
+
+	/** What the staff release call sets (R-4). That call belongs to API-ADMIN, so the test writes the column. */
+	private void releaseAnswers(UUID examId) {
+		new JdbcTemplate(dataSource).update("update live_exams set answers_released_at = now() where id = ?", examId);
 	}
 
 	private int participantCount(UUID examId, UUID studentId) {

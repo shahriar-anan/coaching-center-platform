@@ -119,6 +119,6 @@ it("shows the price-not-set sentence and no button when a module has no price", 
   renderWithQuery(<ModulePage door="mcq" moduleId="m1" />);
 
   // The module bar and the exam rows both say it.
-  expect((await screen.findAllByText("Price not set yet")).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText("Price not set yet.")).length).toBeGreaterThan(0);
   expect(screen.queryByRole("link", { name: "Buy whole module" })).not.toBeInTheDocument();
 });

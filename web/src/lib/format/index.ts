@@ -5,7 +5,6 @@
  */
 import type { Locale } from "@/i18n/locale-context";
 
-export const TIME_ZONE = "Asia/Dhaka";
 
 /** Dhaka has no daylight saving: UTC+6 all year. */
 const DHAKA_OFFSET_MS = 6 * 60 * 60 * 1000;

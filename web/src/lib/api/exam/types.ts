@@ -67,6 +67,8 @@ export interface Titled {
 /** `GET /api/v1/public/live-exam-modules`, and the modules inside the category tree. */
 export interface PublicModule extends Titled {
   id: string;
+  /** The student's access, present when signed in (plan section 8, A1). */
+  access?: AccessInfo | null;
   categoryId: string;
   descriptionEn: string | null;
   descriptionBn: string | null;
@@ -90,6 +92,8 @@ export interface CategoryNode extends Titled {
 /** `GET /api/v1/public/live-exams/{id}` and the module exam list. */
 export interface PublicExam extends Titled {
   id: string;
+  /** The student's access, present when signed in (plan section 8, A1). */
+  access?: AccessInfo | null;
   moduleId: string;
   examType: ExamType;
   descriptionEn: string | null;
@@ -134,54 +138,11 @@ export interface StudentExam extends Omit<PublicExam, "price"> {
   retakeAvailable: boolean | null;
 }
 
-/** Error codes the exam pages map to copy. The API may send others. */
-export type ApiErrorCode =
-  | "VALIDATION_FAILED"
-  | "RESOURCE_NOT_FOUND"
-  | "UNAUTHENTICATED"
-  | "ACCESS_DENIED"
-  | "INVALID_CREDENTIALS"
-  | "LOGIN_LOCKED"
-  | "INVALID_CODE"
-  | "CODE_EXPIRED"
-  | "CODE_ALREADY_USED"
-  | "CODE_ATTEMPTS_EXCEEDED"
-  | "CURRENT_PASSWORD_INVALID"
-  | "PASSWORD_NOT_ACCEPTED"
-  | "DUPLICATE_PHONE"
-  | "DUPLICATE_EMAIL"
-  | "EMAIL_RATE_LIMITED"
-  | "FILE_TOO_LARGE"
-  | "PRICE_REQUIRED"
-  | "PRICE_NOT_ALLOWED"
-  | "CATEGORY_NOT_EMPTY"
-  | "CATEGORY_ARCHIVED"
-  | "CATEGORY_CYCLE"
-  | "EXAM_ACCESS_REQUIRED"
-  | "EXAM_NOT_FOR_SALE"
-  | "ALREADY_PURCHASED"
-  | "FINAL_SAVE_REQUIRED"
-  | "MODULE_ARCHIVED"
-  | "PASS_PERCENT_REQUIRED"
-  | "QUESTIONS_REQUIRED"
-  | "WRITTEN_PAPER_REQUIRED"
-  | "EXAM_WINDOW_CONFLICT"
-  | "EXAM_WINDOW_ENDED"
-  | "CONTENT_LOCKED"
-  | "EXAM_HAS_PARTICIPANTS"
-  | "EXAM_HAS_PURCHASES"
-  | "EXAM_TYPE_MISMATCH"
-  | "SITTING_NOT_OPEN"
-  | "RETAKE_NOT_ALLOWED"
-  | "DEADLINE_PASSED"
-  | "MARKS_OUT_OF_RANGE"
-  | "RESULTS_NOT_READY"
-  | "RESULTS_NOT_PUBLISHED"
-  | "INSTRUCTOR_ALREADY_ASSIGNED"
-  | "EVALUATION_NOT_ALLOWED"
-  | "PAYMENT_GATEWAY_UNAVAILABLE"
-  | "PHONE_REQUIRED"
-  | "PHONE_ALREADY_SET"
-  | "GOOGLE_SIGN_IN_UNAVAILABLE"
-  | "MASTER_ADMIN_PROTECTED"
-  | "ACTIVATION_NOT_PENDING";
+/** The `access` object on public module and exam responses (plan section 8). */
+export type AccessState = "NONE" | "MODULE" | "EXAM" | "ROSTER" | "MANUAL";
+export type BlockedReason = "PHONE_REQUIRED" | "PRICE_REQUIRED" | "ALREADY_HAS_ACCESS" | "CHECKOUT_OFF";
+export interface AccessInfo {
+  state: AccessState;
+  buyable: boolean;
+  blockedReason: BlockedReason | null;
+}

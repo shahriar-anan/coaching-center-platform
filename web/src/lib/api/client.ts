@@ -27,17 +27,20 @@ async function parseError(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as ApiErrorBody;
     if (body.code) {
-      return new ApiError(body);
+      return new ApiError(body, response.status);
     }
   } catch {
     /* fall through */
   }
-  return new ApiError({
-    code: "INTERNAL_ERROR",
-    message: response.statusText || "Request failed",
-    timestamp: new Date().toISOString(),
-    requestId: "",
-  });
+  return new ApiError(
+    {
+      code: "INTERNAL_ERROR",
+      message: response.statusText || "Request failed",
+      timestamp: new Date().toISOString(),
+      requestId: "",
+    },
+    response.status,
+  );
 }
 
 async function rawFetch(path: string, options: RequestOptions = {}): Promise<Response> {
@@ -185,17 +188,20 @@ function uploadError(result: UploadResult): ApiError {
   try {
     const body = JSON.parse(result.text) as ApiErrorBody;
     if (body.code) {
-      return new ApiError(body);
+      return new ApiError(body, result.status);
     }
   } catch {
     /* fall through */
   }
-  return new ApiError({
-    code: result.status === 413 ? "FILE_TOO_LARGE" : "INTERNAL_ERROR",
-    message: "Upload failed",
-    timestamp: new Date().toISOString(),
-    requestId: "",
-  });
+  return new ApiError(
+    {
+      code: result.status === 413 ? "FILE_TOO_LARGE" : "INTERNAL_ERROR",
+      message: "Upload failed",
+      timestamp: new Date().toISOString(),
+      requestId: "",
+    },
+    result.status,
+  );
 }
 
 /**

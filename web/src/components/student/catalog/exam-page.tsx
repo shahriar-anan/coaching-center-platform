@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import {
+  useCheckoutEnabled,
   useMyExam,
-  useMyModule,
   usePublicExam,
   usePublicModule,
   type StudentExam,
@@ -11,6 +11,9 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
+import { resolveAccess } from "@/components/student/purchase/access";
+import { AccessBadge } from "@/components/ui/purchase/access-badge";
+import { ConfigNotice } from "@/components/ui/purchase/config-notice";
 import {
   formatDateTime,
   formatDuration,
@@ -63,10 +66,14 @@ export function ExamPage({ examId }: { examId: string }) {
   const [buying, setBuying] = useState(false);
   const [moduleBuying, setModuleBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
+  const checkoutOff = useCheckoutEnabled().data === false;
 
   const { toast } = useToast();
   const exam = usePublicExam(examId);
-  const mine = useMyExam(examId, isStudent);
+  // Ownership comes from the access object on the exam response. The student's exam read is only
+  // asked for once the student owns this exam, so a visitor or a non-owner makes no such request.
+  const examAccess = resolveAccess(exam.data?.access);
+  const mine = useMyExam(examId, isStudent && examAccess.owned);
 
   async function copyLink() {
     try {
@@ -79,7 +86,6 @@ export function ExamPage({ examId }: { examId: string }) {
   const data = exam.data;
   const moduleId = data?.moduleId ?? "";
   const moduleQuery = usePublicModule(moduleId);
-  const myModule = useMyModule(moduleId, isStudent && Boolean(moduleId));
 
   if (exam.isPending) {
     return (
@@ -112,10 +118,12 @@ export function ExamPage({ examId }: { examId: string }) {
   const description = pickText({ ...data }, "description", locale);
   const rules = pickText({ ...data }, "rules", locale);
   const owned: StudentExam | null = mine.data ?? null;
+  const ownsExam = examAccess.owned;
   const status = owned?.myStatus ?? null;
   const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data, locale) : "";
   const modulePrice = moduleQuery.data?.price ?? null;
-  const moduleOwned = Boolean(myModule.data);
+  const moduleAccess = resolveAccess(moduleQuery.data?.access);
+  const moduleOwned = moduleAccess.owned;
   const crumbs = [
     { label: t("catalog.home"), href: "/" },
     { label: doorLabel, href: doorPath(door) },
@@ -139,13 +147,13 @@ export function ExamPage({ examId }: { examId: string }) {
     primary = price !== null && price !== undefined ? (
       <Button fullWidth href={loginHref}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>
     ) : null;
-  } else if (isStudent && !owned) {
-    if (phoneRequired) {
+  } else if (isStudent && !ownsExam) {
+    if (phoneRequired || examAccess.blockedReason === "PHONE_REQUIRED") {
       primary = <Button fullWidth href={`/set-phone?next=${encodeURIComponent(examPath(examId))}`}>{t("catalog.exam.addPhone")}</Button>;
     } else if (price !== null && price !== undefined) {
-      primary = <Button fullWidth onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>;
+      primary = <Button fullWidth disabled={checkoutOff || examAccess.buyable === false} onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>;
     }
-  } else if (owned) {
+  } else if (ownsExam) {
     if (status === "NOT_ANNOUNCED") {
       primary = <Button fullWidth disabled>{t("catalog.status.NOT_ANNOUNCED")}</Button>;
     } else if (status === "UPCOMING") {
@@ -173,15 +181,17 @@ export function ExamPage({ examId }: { examId: string }) {
   return (
     <>
       <PageHeader title={title} breadcrumbs={crumbs} />
+      <ConfigNotice show={checkoutOff} />
       <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
         <TypePill type={examType} />
         {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
+        {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
       </div>
 
       <div className="mb-4 grid gap-3">
         {primary ? <StickyActionBar>{primary}</StickyActionBar> : null}
-        {isStudent && !owned && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
-          <Button variant="secondary" fullWidth onClick={() => setModuleBuying(true)}>
+        {isStudent && !ownsExam && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
+          <Button variant="secondary" fullWidth disabled={checkoutOff || moduleAccess.buyable === false} onClick={() => setModuleBuying(true)}>
             {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
           </Button>
         ) : null}
@@ -232,7 +242,7 @@ export function ExamPage({ examId }: { examId: string }) {
           </Section>
         ) : null}
         <Section title={t("catalog.exam.price")}>
-          {owned ? (
+          {ownsExam ? (
             <p className="text-ok">✓ {t("catalog.exam.unlockedNote")}</p>
           ) : price !== null && price !== undefined ? (
             <p className="font-bold">{formatMoney(price, locale)}</p>
@@ -242,7 +252,7 @@ export function ExamPage({ examId }: { examId: string }) {
         </Section>
       </div>
 
-      {isStudent && price !== null && price !== undefined && !owned ? (
+      {isStudent && price !== null && price !== undefined && !ownsExam ? (
         <PurchaseSheet
           open={buying}
           onOpenChange={setBuying}

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/components/ui/cn";
@@ -18,6 +18,7 @@ export function Dialog({
   children,
   footer,
   className,
+  initialFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,13 +27,34 @@ export function Dialog({
   children?: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /** Element to focus on open, instead of the first focusable one. Returns null to keep the default. */
+  initialFocus?: () => HTMLElement | null | undefined;
 }) {
   const { t } = useLocale();
+  // The control that had focus when the dialog opened. Radix only returns focus to a
+  // `Dialog.Trigger`, and the dialogs here are opened by state, so this does it.
+  const returnFocus = useRef<HTMLElement | null>(null);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-40 bg-black/40 motion-safe:animate-in motion-safe:fade-in" />
         <RadixDialog.Content
+          onOpenAutoFocus={(event) => {
+            returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            const target = initialFocus?.();
+            if (target) {
+              event.preventDefault();
+              target.focus();
+            }
+          }}
+          onCloseAutoFocus={(event) => {
+            const previous = returnFocus.current;
+            returnFocus.current = null;
+            if (previous) {
+              event.preventDefault();
+              previous.focus();
+            }
+          }}
           className={cn(
             "fixed z-50 grid max-h-[85dvh] w-full gap-4 overflow-y-auto bg-card p-5 text-text shadow-xl",
             "inset-x-0 bottom-0 rounded-t-card pb-[max(1.25rem,env(safe-area-inset-bottom))]",

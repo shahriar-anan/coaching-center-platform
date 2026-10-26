@@ -212,6 +212,7 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"GET /api/v1/live-exam-modules/{moduleId}/submissions",
 			"GET /api/v1/live-exam-participants/{id}",
 			"GET /api/v1/live-exam-participants/{id}/answer-pdf",
+			"GET /api/v1/live-exam-participants/{id}/evaluated-pdf",
 			"POST /api/v1/live-exam-participants/{id}/evaluation",
 			"GET /api/v1/live-exams/{id}/leaderboard",
 			"GET /api/v1/live-exams/{id}/evaluated-pdf",
@@ -251,6 +252,8 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/me/notices/{id}/read",
 			"POST /api/v1/me/notices/read-all",
 			"GET /api/v1/me/live-exam-orders",
+			"GET /api/v1/me/live-exam-access",
+			"GET /api/v1/public/exam-site/status",
 			"GET /api/v1/live-exam-modules/{moduleId}/roster",
 			"GET /api/v1/students/{id}/live-exam-access",
 			"GET /api/v1/students/{id}/live-exam-results",
@@ -259,7 +262,17 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"GET /api/v1/live-exams/{id}/results",
 			"POST /api/v1/live-exams/{id}/publish-results",
 			"POST /api/v1/live-exams/{id}/copy",
-			"GET /api/v1/public/live-exams");
+			"GET /api/v1/public/live-exams",
+			"POST /api/v1/live-exam-grants",
+			"DELETE /api/v1/live-exam-grants/{id}",
+			"POST /api/v1/live-exam-orders/{id}/confirm",
+			"POST /api/v1/live-exam-orders/{id}/reject",
+			"PUT /api/v1/live-exams/{id}/answers-released",
+			"PATCH /api/v1/instructors/{id}/status",
+			"DELETE /api/v1/instructors/{id}",
+			"POST /api/v1/announcements",
+			"GET /api/v1/announcements",
+			"GET /api/v1/system-status");
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -320,7 +333,13 @@ class AuditLogIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"status\":\"INACTIVE\"}"))
 			.andExpect(status().isNoContent());
-		assertAudit(jdbc, AuditRecorder.USER_STATUS_CHANGED, masterId, studentId);
+		assertAudit(jdbc, AuditRecorder.USER_SUSPENDED, masterId, studentId);
+
+		mockMvc.perform(patch("/api/v1/students/" + studentId + "/status").header("Authorization", "Bearer " + access)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"status\":\"ACTIVE\"}"))
+			.andExpect(status().isNoContent());
+		assertAudit(jdbc, AuditRecorder.USER_RESTORED, masterId, studentId);
 
 		mockMvc.perform(delete("/api/v1/students/" + studentId).header("Authorization", "Bearer " + access))
 			.andExpect(status().isNoContent());

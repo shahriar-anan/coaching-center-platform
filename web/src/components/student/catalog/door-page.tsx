@@ -1,7 +1,7 @@
 "use client";
 
 import { useCategoryTree, type CategoryNode, type PublicModule } from "@/lib/api/exam/catalog";
-import { formatMoney, formatNumber, pickText, pickTitle } from "@/lib/format";
+import { formatNumber, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DoorDiscovery } from "./door-discovery";
+import { ProductCard } from "@/components/ui/purchase/product-card";
 import {
   categoryPath,
   countModules,
@@ -47,25 +48,14 @@ function ModuleCard({ door, module }: { door: Door; module: PublicModule }) {
   const count = moduleTypeCount(module, type);
   const description = firstLine(pickText({ ...module }, "description", locale));
   return (
-    <Card href={modulePath(door, module.id)}>
-      <p className="text-card font-bold">📚 {pickTitle(module, locale)}</p>
-      {description ? <p className="text-body text-muted">{description}</p> : null}
-      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body">
-        <span className="text-accent">{t("catalog.viewExams")}</span>
-        {count !== null ? (
-          <span className="text-muted">
-            {t(type === "MCQ" ? "catalog.countMcq" : "catalog.countWritten", {
-              n: formatNumber(count, locale),
-            })}
-          </span>
-        ) : null}
-        <span className="font-semibold">
-          {module.price !== null && module.price !== undefined
-            ? formatMoney(module.price, locale)
-            : t("catalog.priceNotSet")}
-        </span>
-      </p>
-    </Card>
+    <ProductCard
+      href={modulePath(door, module.id)}
+      title={`📚 ${pickTitle(module, locale)}`}
+      subtitle={description || undefined}
+      price={module.price ?? null}
+      examCount={count ?? 0}
+      footer={<span className="text-accent">{t("catalog.viewExams")}</span>}
+    />
   );
 }
 

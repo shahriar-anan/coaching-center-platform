@@ -14,6 +14,10 @@ public class IdentityPermissionContributor implements PermissionContributor {
 		registry.grant(Role.MASTER_ADMIN, Permissions.ADMIN_DELETE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.ADMIN_MANAGE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.AUDIT_READ, PermissionScope.ANY);
+			registry.grant(Role.MASTER_ADMIN, Permissions.SYSTEM_STATUS_READ, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.STUDENT_STATUS, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.INSTRUCTOR_STATUS, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.INSTRUCTOR_DELETE, PermissionScope.ANY);
 
 		grantStaff(registry, Role.SYSTEM_ADMIN);
 
@@ -25,7 +29,6 @@ public class IdentityPermissionContributor implements PermissionContributor {
 		registry.grant(role, Permissions.STUDENT_READ, PermissionScope.ANY);
 		registry.grant(role, Permissions.STUDENT_CREATE, PermissionScope.ANY);
 		registry.grant(role, Permissions.STUDENT_UPDATE, PermissionScope.ANY);
-		registry.grant(role, Permissions.STUDENT_STATUS, PermissionScope.ANY);
 		registry.grant(role, Permissions.STUDENT_ISSUE_ACTIVATION_CODE, PermissionScope.ANY);
 	}
 

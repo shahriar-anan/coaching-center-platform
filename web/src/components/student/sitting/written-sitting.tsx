@@ -107,6 +107,7 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
       <Card>
         <h2 className="text-label font-semibold text-muted">{t("sitting.written.script")}</h2>
         <p className="mt-1 text-body text-muted">{t("sitting.written.instruction")}</p>
+        <p className="mt-1 text-body text-muted">{t("sitting.written.lateUpload")}</p>
         {!closed ? (
           <div className="mt-3">
             <FileDrop

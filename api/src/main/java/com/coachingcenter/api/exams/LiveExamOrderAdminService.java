@@ -69,7 +69,7 @@ public class LiveExamOrderAdminService {
 				  o.val_id, o.created_at, o.updated_at, m.title_en as module_title_en, m.title_bn as module_title_bn,
 				  e.title_en as exam_title_en, e.title_bn as exam_title_bn, u.id as student_id, u.phone, u.email,
 				  sp.full_name, sp.student_code,
-				  exists (select 1 from live_exam_grants g where g.order_id = o.id) as access_granted
+				  exists (select 1 from live_exam_grants g where g.order_id = o.id and g.revoked_at is null) as access_granted
 				%s
 				order by o.created_at desc, o.id
 				limit :limit offset :offset

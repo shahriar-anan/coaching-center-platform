@@ -20,6 +20,9 @@ public final class Permissions {
 
 	public static final String AUDIT_READ = "AUDIT_READ";
 
+	/** The Master Admin's configuration status page: names and yes or no only. */
+	public static final String SYSTEM_STATUS_READ = "SYSTEM_STATUS_READ";
+
 	public static final String COURSE_READ = "COURSE_READ";
 
 	public static final String COURSE_MANAGE = "COURSE_MANAGE";
@@ -75,6 +78,20 @@ public final class Permissions {
 	public static final String LIVE_EXAM_PUBLISH = "LIVE_EXAM_PUBLISH";
 
 	public static final String LIVE_EXAM_ORDER_READ = "LIVE_EXAM_ORDER_READ";
+
+	public static final String LIVE_EXAM_GRANT = "LIVE_EXAM_GRANT";
+
+	public static final String LIVE_EXAM_REVOKE = "LIVE_EXAM_REVOKE";
+
+	public static final String LIVE_EXAM_ORDER_CONFIRM = "LIVE_EXAM_ORDER_CONFIRM";
+
+	public static final String LIVE_EXAM_RELEASE = "LIVE_EXAM_RELEASE";
+
+	public static final String INSTRUCTOR_STATUS = "INSTRUCTOR_STATUS";
+
+	public static final String INSTRUCTOR_DELETE = "INSTRUCTOR_DELETE";
+
+	public static final String LIVE_EXAM_ANNOUNCE = "LIVE_EXAM_ANNOUNCE";
 
 	private Permissions() {
 	}
