@@ -53,6 +53,9 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 	@Autowired
 	private ObjectMapper json;
 
+	@Autowired
+	private MutableClock clock;
+
 	@Test
 	void masterAndSystemAdminGrantAModuleOrAnExamByHandAndTheRowIsAudited() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
@@ -515,6 +518,89 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(announcementJson("", "", "", "b".repeat(5001), "ALL", null)))
 			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void announcementHistoryIsMasterAdminOnlyNewestFirstWithoutBodiesAndCountsRecipients() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		String teacher = token(seed("INSTRUCTOR", "Teacher"));
+		String learner = token(seed("STUDENT", "Listener"));
+		UUID empty = module(system, "No readers yet");
+		UUID rostered = module(system, "One reader");
+		UUID reader = seed("STUDENT", "History Reader");
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + rostered + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + reader + "\"}"))
+			.andExpect(status().isCreated());
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+		// Each send is dated a minute apart, so the newest-first order is fixed. The dates start at the real time now,
+		// which is later than every other test's clock and than earlier runs against a kept database. The clock goes
+		// back to its start afterwards.
+		Instant start = clock.instant();
+		Instant now = Instant.now();
+		UUID emptyAnnouncement;
+		UUID rosteredAnnouncement;
+		UUID allAnnouncement;
+		try {
+			clock.set(now);
+			emptyAnnouncement = sendAnnouncement(master,
+					announcementJson("Nobody yet", "", "Hidden body", "", "MODULE", empty));
+			clock.set(now.plusSeconds(60));
+			rosteredAnnouncement = sendAnnouncement(master,
+					announcementJson("Module news", "মডিউলের খবর", "Read this", "", "MODULE", rostered));
+			clock.set(now.plusSeconds(120));
+			allAnnouncement = sendAnnouncement(master,
+					announcementJson("School closed", "", "", "স্কুল বন্ধ", "ALL", null));
+		}
+		finally {
+			clock.set(start);
+		}
+		int allRecipients = jdbc.queryForObject("select count(*) from student_notices where announcement_id = ?", Integer.class,
+				allAnnouncement);
+		int total = jdbc.queryForObject("select count(*) from announcements", Integer.class);
+
+		mockMvc.perform(get("/api/v1/announcements").param("size", "3").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.size").value(3))
+			.andExpect(jsonPath("$.totalElements").value(total))
+			.andExpect(jsonPath("$.content[0].id").value(allAnnouncement.toString()))
+			.andExpect(jsonPath("$.content[0].audience").value("ALL"))
+			.andExpect(jsonPath("$.content[0].titleEn").value("School closed"))
+			.andExpect(jsonPath("$.content[0].moduleId").doesNotExist())
+			.andExpect(jsonPath("$.content[0].moduleTitleEn").doesNotExist())
+			.andExpect(jsonPath("$.content[0].recipients").value(allRecipients))
+			.andExpect(jsonPath("$.content[0].bodyEn").doesNotExist())
+			.andExpect(jsonPath("$.content[0].createdAt").isNotEmpty())
+			.andExpect(jsonPath("$.content[1].id").value(rosteredAnnouncement.toString()))
+			.andExpect(jsonPath("$.content[1].audience").value("MODULE"))
+			.andExpect(jsonPath("$.content[1].moduleId").value(rostered.toString()))
+			.andExpect(jsonPath("$.content[1].moduleTitleEn").value("One reader"))
+			.andExpect(jsonPath("$.content[1].moduleTitleBn").value("মডিউল"))
+			.andExpect(jsonPath("$.content[1].recipients").value(1))
+			.andExpect(jsonPath("$.content[2].id").value(emptyAnnouncement.toString()))
+			.andExpect(jsonPath("$.content[2].recipients").value(0))
+			.andExpect(jsonPath("$.content[2].moduleTitleEn").value("No readers yet"));
+		mockMvc.perform(get("/api/v1/announcements").param("page", "1").param("size", "1")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content[0].id").value(rosteredAnnouncement.toString()));
+
+		mockMvc.perform(get("/api/v1/announcements").header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/announcements").header("Authorization", "Bearer " + teacher))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/announcements").header("Authorization", "Bearer " + learner))
+			.andExpect(status().isForbidden());
+	}
+
+	private UUID sendAnnouncement(String master, String payload) throws Exception {
+		MvcResult sent = mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(payload))
+			.andExpect(status().isCreated())
+			.andReturn();
+		return UUID.fromString(json.readTree(sent.getResponse().getContentAsString()).get("id").asText());
 	}
 
 	private static String announcementJson(String titleEn, String titleBn, String bodyEn, String bodyBn, String audience,

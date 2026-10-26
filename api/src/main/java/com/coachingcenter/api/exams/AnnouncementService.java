@@ -3,8 +3,13 @@ package com.coachingcenter.api.exams;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -56,6 +61,19 @@ public class AnnouncementService {
 			    OR EXISTS (SELECT 1 FROM live_exam_grants g
 			      WHERE g.module_id = :moduleId AND g.student_id = u.id AND g.revoked_at IS NULL))
 			""";
+
+	/** Newest first. The body is left out on purpose: the history shows what was sent and to how many. */
+	private static final String HISTORY = """
+			SELECT a.id, a.title_en, a.title_bn, a.audience, a.module_id, m.title_en AS module_title_en,
+			  m.title_bn AS module_title_bn, a.created_at,
+			  (SELECT count(*) FROM student_notices n WHERE n.announcement_id = a.id) AS recipients
+			FROM announcements a
+			LEFT JOIN live_exam_modules m ON m.id = a.module_id
+			ORDER BY a.created_at DESC, a.id DESC
+			LIMIT :limit OFFSET :offset
+			""";
+
+	private static final int MAX_PAGE_SIZE = 100;
 
 	private final NamedParameterJdbcTemplate jdbc;
 
@@ -127,6 +145,20 @@ public class AnnouncementService {
 		return new AnnouncementView(id, audience, moduleId, recipients, now);
 	}
 
+	/** The sent announcements, newest first, without bodies (AG-01). Size is capped at {@link #MAX_PAGE_SIZE}. */
+	@Transactional(readOnly = true)
+	public Page<AnnouncementRow> history(Pageable pageable) {
+		int size = Math.min(Math.max(pageable.getPageSize(), 1), MAX_PAGE_SIZE);
+		Long total = plain.queryForObject("SELECT count(*) FROM announcements", Long.class);
+		MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", size)
+			.addValue("offset", (long) pageable.getPageNumber() * size);
+		List<AnnouncementRow> rows = jdbc.query(HISTORY, params, (rs, number) -> new AnnouncementRow(
+				rs.getObject("id", UUID.class), rs.getString("title_en"), rs.getString("title_bn"),
+				rs.getString("audience"), rs.getObject("module_id", UUID.class), rs.getString("module_title_en"),
+				rs.getString("module_title_bn"), rs.getTimestamp("created_at").toInstant(), rs.getInt("recipients")));
+		return new PageImpl<>(rows, PageRequest.of(pageable.getPageNumber(), size), total == null ? 0 : total);
+	}
+
 	static final String AUDIENCE_ALL = "ALL";
 
 	static final String AUDIENCE_MODULE = "MODULE";
@@ -155,6 +187,11 @@ public class AnnouncementService {
 
 	/** {@code recipients} is how many students got the notice. */
 	public record AnnouncementView(UUID id, String audience, UUID moduleId, int recipients, Instant createdAt) {
+	}
+
+	/** One history row. The module titles are set for a MODULE audience only. {@code recipients} is the notice count. */
+	public record AnnouncementRow(UUID id, String titleEn, String titleBn, String audience, UUID moduleId,
+			String moduleTitleEn, String moduleTitleBn, Instant createdAt, int recipients) {
 	}
 
 }
