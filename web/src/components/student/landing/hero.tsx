@@ -15,28 +15,20 @@ export function Hero() {
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
         <div className="text-center lg:text-start">
           <p className="text-label font-bold text-text-accent">{t("landing.heroLabel")}</p>
-          <h1 id="landing-hero" className="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">
+          {/* The headline stays short so the exam categories below lead the hero. */}
+          <h1 id="landing-hero" className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
             {t("landing.heroTitle")}
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-body text-muted md:text-lg lg:mx-0">
+          <p className="mx-auto mt-3 max-w-xl text-body text-muted lg:mx-0">
             {t("landing.heroLead")}
           </p>
 
-          <ul className="mt-6 flex flex-wrap justify-center gap-2 lg:justify-start">
-            <li className="rounded-full bg-accent px-4 py-1.5 text-label font-bold text-on-accent">
-              {t("landing.chipOnline")}
-            </li>
-            <li className="rounded-full border border-border bg-card px-4 py-1.5 text-label font-semibold">
-              {t("landing.chipOffline")}
-            </li>
-          </ul>
-
           {/* The way into the product: the exam categories, as on the old site's home page. */}
-          <div className="mx-auto mt-7 max-w-md lg:mx-0">
+          <div className="mx-auto mt-8 max-w-lg lg:mx-0">
             <HeroCategories />
           </div>
 
-          <div className="mx-auto mt-4 grid max-w-md lg:mx-0">
+          <div className="mx-auto mt-4 grid max-w-lg lg:mx-0">
             <Button href="/register" size="lg" fullWidth>
               {t("landing.ctaSignUp")}
             </Button>
