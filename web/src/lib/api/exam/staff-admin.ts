@@ -134,7 +134,8 @@ function useOrderDecision(action: "confirm" | "reject") {
         method: "POST",
         body: { reason: reason.trim() },
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
+    // Also on failure: ORDER_NOT_PENDING means the list is stale, and the copy says it reloads.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
   });
 }
 
@@ -272,14 +273,25 @@ export function useSystemStatus() {
 
 /* ---------- errors and keys ---------- */
 
+/**
+ * Every code the admin routes can return: the grant, order, announcement, account
+ * and system status services, and the global handler that answers for all routes.
+ * Each has its own message; `tests/staff-admin/copy.test.ts` fails if one is missing.
+ */
 const ERROR_KEYS: Record<string, string> = {
   GRANT_ALREADY_ACTIVE: "errors.grantAlreadyActive",
   ORDER_NOT_PENDING: "errors.orderNotPending",
   ACCOUNT_HAS_PAID_ORDERS: "errors.accountHasPaidOrders",
   ACCOUNT_HAS_MARKED_WORK: "errors.accountHasMarkedWork",
+  MASTER_ADMIN_PROTECTED: "errors.masterAdminProtected",
   RESOURCE_NOT_FOUND: "errors.notFound",
   ACCESS_DENIED: "errors.accessDenied",
+  UNAUTHENTICATED: "errors.unauthenticated",
   VALIDATION_FAILED: "errors.validation",
+  MALFORMED_REQUEST: "errors.malformed",
+  METHOD_NOT_ALLOWED: "errors.methodNotAllowed",
+  UNSUPPORTED_MEDIA_TYPE: "errors.unsupportedMedia",
+  INTERNAL_ERROR: "errors.internal",
 };
 
 /**

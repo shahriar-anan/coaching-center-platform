@@ -13,6 +13,12 @@ const staffAdmin = {
       "This student has a payment or access, so they cannot be deleted. Suspend the account instead.",
     accountHasMarkedWork:
       "This instructor has marked work, so they cannot be deleted. Suspend the account instead.",
+    masterAdminProtected: "A Master Admin account cannot be changed this way.",
+    unauthenticated: "Your sign-in has ended. Sign in again to continue.",
+    malformed: "The request could not be read. Reload the page and try again.",
+    methodNotAllowed: "This action is not available here.",
+    unsupportedMedia: "This request format is not supported.",
+    internal: "The server had a problem. Try again in a moment.",
   },
   access: {
     title: "Exam access",
