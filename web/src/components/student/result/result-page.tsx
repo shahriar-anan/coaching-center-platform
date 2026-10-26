@@ -15,6 +15,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { McqQuestion, type OptionLabels } from "@/components/student/sitting/mcq-question";
 import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
+import { useNotice } from "@/lib/notices/use-notice";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam } from "@/lib/api/exam/sitting";
@@ -62,6 +63,7 @@ const jumpTone: Record<Outcome, string> = {
  */
 export function ResultPage({ examId }: { examId: string }) {
   const { t, locale } = useLocale();
+  useNotice();
   const n = (value: number) => formatNumber(value, locale);
   const exam = useStudentExam(examId);
   const result = useSittingResult(examId);

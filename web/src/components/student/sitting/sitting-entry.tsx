@@ -135,7 +135,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
         exam={data}
         deadlineAt={sitting.deadlineAt}
         watermark={watermark}
-        onClosed={() => router.replace(`/exam/${examId}/result`)}
+        onClosed={(hasScript) => router.replace(`/exam/${examId}/result?notice=${hasScript ? "timeUpScript" : "timeUpNoScript"}`)}
       />
     );
   }
@@ -156,7 +156,8 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
       startedAt={sitting.startedAt}
       deadlineAt={sitting.deadlineAt}
       kind={sitting.kind}
-      onClosed={() => router.replace(`/exam/${examId}/result`)}
+      onClosed={() => router.replace(`/exam/${examId}/result?notice=timeUp`)}
+      onSubmitted={() => router.replace(`/exam/${examId}?notice=submitted`)}
     />
   );
 }

@@ -37,6 +37,8 @@ const CLOSED_CODES = new Set(["DEADLINE_PASSED", "SITTING_NOT_OPEN"]);
 type SaveState = "saved" | "saving" | "failed" | "offline" | "idle";
 
 type Props = {
+  /** Called after a successful submit. The parent decides where the student goes next. */
+  onSubmitted?: () => void;
   exam: StudentExam;
   studentId: string;
   /** When the student's own sitting started. Part of the backup key, so a new sitting never reads an old one. */
@@ -47,7 +49,7 @@ type Props = {
   onClosed: () => void;
 };
 
-export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClosed }: Props) {
+export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClosed, onSubmitted }: Props) {
   const { t, locale } = useLocale();
   const questions = exam.questions ?? [];
   const paperLanguage: PaperLanguage = exam.paperLanguage === "EN" ? "EN" : "BN";
@@ -285,6 +287,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
       const posted = await submit.mutateAsync();
       setResult(posted);
       setConfirmOpen(false);
+      onSubmitted?.();
     } catch {
       setSubmitError(true);
     } finally {

@@ -7,6 +7,7 @@ import { useBundleOrder } from "@/lib/api/exam/purchase";
 import { useLocale } from "@/i18n/locale-context";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { SelectableExamList } from "@/components/ui/purchase/selectable-exam-list";
+import { remember } from "@/components/student/purchase/purchase-sheet";
 
 export type BundleItem = {
   id: string;
@@ -55,7 +56,13 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
     try {
       const ids = chosen.map((item) => item.id);
       const result = await order.mutateAsync(ids);
-      if (result.redirectUrl) window.location.assign(result.redirectUrl);
+      if (!result.redirectUrl) {
+        setError(t("purchase.errors.generic"));
+        return;
+      }
+      // The result page reads these details to show the title, amount and the way back.
+      remember(result.tranId, { scope: "BUNDLE", examId: null, moduleId: null, door: null, title: t("purchase.bundleTitle", { count: ids.length }), amount: result.amount });
+      window.location.assign(result.redirectUrl);
     } catch (caught) {
       setError(
         caught instanceof ApiError && caught.code === "ALREADY_PURCHASED"

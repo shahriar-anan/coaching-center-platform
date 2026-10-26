@@ -453,6 +453,7 @@ const staffCatalog = {
     visible: "Students can see and buy this module now.",
   },
   paste: {
+    added: "Questions added: {n}.",
     open: "Paste many questions",
     title: "Paste many questions",
     body: "Type or paste them in the format below. Separate the questions with a blank line.",

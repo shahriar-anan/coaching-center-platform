@@ -28,6 +28,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { useNotice } from "@/lib/notices/use-notice";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { ruleLines } from "./lms-blocks";
 import { StartConfirm } from "./start-confirm";
@@ -67,6 +68,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const checkoutOff = useCheckoutEnabled().data === false;
 
   const { toast } = useToast();
+  useNotice();
   const exam = usePublicExam(examId, signedIn);
   // Ownership comes from the access object on the exam response. The student's exam read is only
   // asked for once the student owns this exam, so a visitor or a non-owner makes no such request.
@@ -172,7 +174,7 @@ export function ExamPage({ examId }: { examId: string }) {
     } else if (status === "OPEN") {
       primary = <Button fullWidth onClick={() => setStarting("live")}>{t("catalog.exam.startExam")}</Button>;
     } else if ((status === "IN_PROGRESS" || (status === "SUBMITTED" && windowOpen)) && !sittingEnded) {
-      primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t("catalog.exam.resume")}</Button>;
+      primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t(status === "SUBMITTED" ? "catalog.exam.reviewAnswers" : "catalog.exam.resume")}</Button>;
     } else if (status === "MISSED") {
       primary = retakeOffer ? (
         <Button fullWidth variant="secondary" onClick={() => setStarting("retake")}>{t("catalog.exam.practice")}</Button>
@@ -234,6 +236,11 @@ export function ExamPage({ examId }: { examId: string }) {
         </div>
         <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
         <p className="text-body text-muted">{timingLine}</p>
+        {status === "SUBMITTED" && owned?.sitting?.submittedAt ? (
+          <p className="text-body font-semibold text-ok">
+            {t("catalog.exam.submittedLine", { time: formatTime(owned.sitting.submittedAt, locale), deadline: formatTime(owned.sitting.deadlineAt, locale) })}
+          </p>
+        ) : null}
       </header>
 
       <section className="mt-5 grid gap-5 rounded-card border border-border bg-card p-5">

@@ -160,7 +160,7 @@ function LoginForm() {
         </div>
 
         <nav aria-label={t("common.nav.main")} className="grid gap-2 text-center text-body">
-          <Link href="/forgot-password" className="font-semibold text-text-accent underline underline-offset-4">
+          <Link href={`/forgot-password${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.forgot")}
           </Link>
           <Link href={`/register${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">

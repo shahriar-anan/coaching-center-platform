@@ -16,6 +16,13 @@ const catalog = {
   countModules: "{n}টি মডিউল",
   countCategories: "{n}টি ক্যাটাগরি",
   tabCategories: "ক্যাটাগরি",
+  notice: {
+    submitted: "উত্তর জমা হয়েছে। সময় শেষ হওয়ার আগে উত্তর বদলাতে পারবেন।",
+    timeUp: "সময় শেষ। আপনার উত্তর স্বয়ংক্রিয়ভাবে জমা হয়েছে।",
+    timeUpScript: "সময় শেষ। আপনার খাতা জমা হয়েছে।",
+    timeUpNoScript: "সময় শেষ। কোনো খাতা জমা হয়নি।",
+    uploaded: "খাতা জমা হয়েছে: {name}।",
+  },
   package: {
     about: "বিবরণ",
     included: "এই প্যাকেজে যা থাকছে",
@@ -93,6 +100,8 @@ const catalog = {
   summaryTitle: "কী পাবেন",
   summaryNext: "পরবর্তী পরীক্ষা {date}",
   exam: {
+    reviewAnswers: "উত্তর দেখুন",
+    submittedLine: "{time}-এ জমা হয়েছে। {deadline} পর্যন্ত উত্তর বদলানো যাবে।",
     copyLink: "লিংক কপি করুন",
     linkCopied: "লিংক কপি হয়েছে",
     linkCopyFailed: "লিংক কপি করা যায়নি। ঠিকানাটি নিজে কপি করুন।",

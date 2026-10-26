@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,7 +16,9 @@ import { FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_compone
 import { isEmail } from "@/app/(auth)/_components/validate";
 
 /** Always answers with the same sentence, so it never reveals whether an email has an account. */
-export default function ForgotPasswordPage() {
+function ForgotPasswordPageForm() {
+  const next = useSearchParams().get("next");
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
   const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -57,8 +61,8 @@ export default function ForgotPasswordPage() {
         <Card padding="lg" className="grid gap-5">
           <FormNotice>{t("auth.forgot.sent")}</FormNotice>
           <p className="text-body text-muted">{t("auth.forgot.sentBody")}</p>
-          <Button href="/reset-password">{t("auth.forgot.next")}</Button>
-          <Link href="/login" className="text-center font-semibold text-text-accent underline underline-offset-4">
+          <Button href={`/reset-password${nextQuery}`}>{t("auth.forgot.next")}</Button>
+          <Link href={`/login${nextQuery}`} className="text-center font-semibold text-text-accent underline underline-offset-4">
             {t("auth.forgot.back")}
           </Link>
         </Card>
@@ -92,10 +96,18 @@ export default function ForgotPasswordPage() {
             {t("auth.forgot.submit")}
           </Button>
         </form>
-        <Link href="/login" className="text-center font-semibold text-text-accent underline underline-offset-4">
+        <Link href={`/login${nextQuery}`} className="text-center font-semibold text-text-accent underline underline-offset-4">
           {t("auth.forgot.back")}
         </Link>
       </Card>
     </>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <ForgotPasswordPageForm />
+    </Suspense>
   );
 }

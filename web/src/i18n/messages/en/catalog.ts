@@ -18,6 +18,13 @@ const catalog: typeof bn = {
   countModules: "{n} modules",
   countCategories: "{n} categories",
   tabCategories: "Categories",
+  notice: {
+    submitted: "Answers submitted. You can change them until the deadline.",
+    timeUp: "Time is up. Your answers were submitted automatically.",
+    timeUpScript: "Time is up. Your script was submitted.",
+    timeUpNoScript: "Time is up. No script was submitted.",
+    uploaded: "Script uploaded: {name}.",
+  },
   package: {
     about: "About",
     included: "What's included",
@@ -95,6 +102,8 @@ const catalog: typeof bn = {
   summaryTitle: "What you get",
   summaryNext: "Next exam {date}",
   exam: {
+    reviewAnswers: "Review answers",
+    submittedLine: "Submitted at {time}. You can change answers until {deadline}.",
     copyLink: "Copy link",
     linkCopied: "Link copied",
     linkCopyFailed: "Could not copy the link. Copy the address yourself.",

@@ -42,7 +42,7 @@ export interface OrderMemo {
   amount?: number;
 }
 
-function remember(tranId: string, memo: OrderMemo) {
+export function remember(tranId: string, memo: OrderMemo) {
   try {
     window.sessionStorage.setItem(`${ORDER_MEMO_PREFIX}${tranId}`, JSON.stringify(memo));
   } catch {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
+import { useToast } from "@/components/ui/toast";
 import { useFormat } from "@/lib/format/use-format";
 import { useAddQuestion, type QuestionInput, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import { Button } from "@/components/ui/button";
@@ -108,6 +109,7 @@ export function PasteQuestions({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useLocale();
+  const { toast } = useToast();
   const { formatNumber } = useFormat();
   const add = useAddQuestion(exam.id);
   const [text, setText] = useState("");
@@ -132,6 +134,7 @@ export function PasteQuestions({
       }
     }
     setProgress(null);
+    toast({ title: t("staffCatalog.paste.added", { n: formatNumber(ready.length) }), tone: "ok" });
     setText("");
     setBlocks(null);
     onOpenChange(false);

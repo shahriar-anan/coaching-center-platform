@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { RequireStudent } from "@/lib/auth/guards";
 import { useLocale } from "@/i18n/locale-context";
+import { useToast } from "@/components/ui/toast";
 import { useMarkAllNoticesRead, useMarkNoticeRead, useNotices, type Notice } from "@/lib/api/exam/notices";
 import { useListParams } from "@/lib/url/list-params";
 import { formatDateTime, formatNumber, pickTitle } from "@/lib/format";
@@ -143,13 +144,14 @@ function NoticesView() {
   const query = useNotices(params.page);
   const markOne = useMarkNoticeRead();
   const markAll = useMarkAllNoticesRead();
+  const { toast } = useToast();
   const rows = query.data?.content ?? [];
   const anyUnread = rows.some((row) => row.readAt === null);
 
   // The row is a link to the exam page; opening it also marks the notice read.
   function open(notice: Notice) {
     if (notice.readAt === null) {
-      markOne.mutate(notice.id);
+      markOne.mutate(notice.id, { onError: () => toast({ title: t("common.states.errorBody"), tone: "danger" }) });
     }
   }
 
@@ -162,7 +164,12 @@ function NoticesView() {
             <Button
               variant="secondary"
               loading={markAll.isPending}
-              onClick={() => markAll.mutate()}
+              onClick={() =>
+                markAll.mutate(undefined, {
+                  onSuccess: () => toast({ title: t("notices.markedAll"), tone: "ok" }),
+                  onError: () => toast({ title: t("common.states.errorBody"), tone: "danger" }),
+                })
+              }
               className="min-h-10"
             >
               {t("notices.markAll")}

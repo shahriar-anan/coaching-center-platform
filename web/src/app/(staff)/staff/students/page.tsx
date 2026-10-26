@@ -27,6 +27,8 @@ import {
 } from "@/lib/api/exam/staff-people";
 import { useListParams } from "@/lib/url/list-params";
 import { useLocale } from "@/i18n/locale-context";
+import { useToast } from "@/components/ui/toast";
+import { adminErrorText } from "@/components/staff/access/admin-error";
 
 export default function StaffStudentsPage() {
   return (
@@ -45,6 +47,7 @@ function StudentList() {
   const students = useStudents(params);
   const create = useCreateStudent();
   const setStatus = useSetStatus("students");
+  const { toast } = useToast();
   const reissue = useReissueCode("students");
 
   const [creating, setCreating] = useState(false);
@@ -68,7 +71,11 @@ function StudentList() {
     } else if (isMasterAdmin) {
       items.push({
         label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
-        onClick: () => setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }),
+        onClick: () =>
+          setStatus.mutate(
+            { id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" },
+            { onSuccess: () => toast({ title: t("staffAdmin.account.statusChanged"), tone: "ok" }), onError: (e) => toast({ title: adminErrorText(e, t), tone: "danger" }) },
+          ),
       });
     }
     if (isMasterAdmin) {

@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,7 +16,9 @@ import { TextInput } from "@/components/ui/text-input";
 import { CODE_DEAD, FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
 import { isPasswordLength } from "@/app/(auth)/_components/validate";
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageForm() {
+  const next = useSearchParams().get("next");
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
   const { t } = useLocale();
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +64,7 @@ export default function ResetPasswordPage() {
         <PageHeader title={t("auth.reset.title")} />
         <Card padding="lg" className="grid gap-5">
           <FormNotice>{t("auth.reset.success")}</FormNotice>
-          <Button href="/login">{t("auth.reset.successLogin")}</Button>
+          <Button href={`/login${nextQuery}`}>{t("auth.reset.successLogin")}</Button>
         </Card>
       </>
     );
@@ -101,10 +105,18 @@ export default function ResetPasswordPage() {
             {t("auth.reset.submit")}
           </Button>
         </form>
-        <Link href="/login" className="text-center font-semibold text-text-accent underline underline-offset-4">
+        <Link href={`/login${nextQuery}`} className="text-center font-semibold text-text-accent underline underline-offset-4">
           {t("auth.forgot.back")}
         </Link>
       </Card>
     </>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <ResetPasswordPageForm />
+    </Suspense>
   );
 }

@@ -11,6 +11,7 @@ import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { questionPdfPath, useUploadAnswer, type StudentExam } from "@/lib/api/exam/sitting";
 import { formatNumber } from "@/lib/format";
+import { useToast } from "@/components/ui/toast";
 
 export const MAX_ANSWER_BYTES = 80 * 1024 * 1024;
 
@@ -25,7 +26,8 @@ type Props = {
   deadlineAt: string;
   /** Shown diagonally over the question paper, for example "নাঈম হাসান · S18492017". */
   watermark: string;
-  onClosed: () => void;
+  /** Called at the deadline. `hasScript` says whether a script was stored by then. */
+  onClosed: (hasScript: boolean) => void;
 };
 
 /**
@@ -34,6 +36,7 @@ type Props = {
  */
 export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props) {
   const { t, locale } = useLocale();
+  const { toast } = useToast();
   const n = (value: number) => formatNumber(value, locale);
   const [progress, setProgress] = useState(0);
   const upload = useUploadAnswer(exam.id, setProgress);
@@ -64,6 +67,7 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
     try {
       await upload.mutateAsync(pending);
       setStored({ name: pending.name, size: pending.size, uploadedAt: new Date().toISOString() });
+      toast({ title: t("catalog.notice.uploaded", { name: pending.name }), tone: "ok" });
       setPending(null);
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "DEADLINE_PASSED") {
@@ -85,7 +89,7 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
   return (
     <div className="flex flex-col gap-4 pb-28">
       <div className="sticky top-0 z-10">
-        <Countdown deadline={deadlineAt} onEnd={onClosed} variant="bar" warnAt={[10, 5, 1]} />
+        <Countdown deadline={deadlineAt} onEnd={() => onClosed(Boolean(stored || exam.answerStored))} variant="bar" warnAt={[10, 5, 1]} />
       </div>
 
       <Card>

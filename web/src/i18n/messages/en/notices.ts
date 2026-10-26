@@ -3,6 +3,7 @@ import type { MessageTree } from "../types";
 const notices = {
   title: "Notices",
   markAll: "Mark all as read",
+  markedAll: "All notices are marked as read.",
   unreadCount: "{count} unread notices",
   unreadDot: "Unread",
   empty: "No notices yet.",

@@ -62,4 +62,14 @@ describe("written sitting", () => {
     expect(uploadMock).toHaveBeenCalledTimes(2);
     expect(uploadMock.mock.calls[1][0]).toMatchObject({ name: "second.pdf" });
   });
+
+  it("a successful upload says which file was stored, in a toast", async () => {
+    uploadMock.mockResolvedValue(undefined);
+    renderSitting();
+
+    await userEvent.upload(fileInput(), pdf("script.pdf"));
+    await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
+
+    expect(await screen.findByText("খাতা জমা হয়েছে: script.pdf।")).toBeInTheDocument();
+  });
 });

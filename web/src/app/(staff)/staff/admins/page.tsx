@@ -26,6 +26,8 @@ import {
 } from "@/lib/api/exam/staff-people";
 import { useListParams } from "@/lib/url/list-params";
 import { useLocale } from "@/i18n/locale-context";
+import { useToast } from "@/components/ui/toast";
+import { adminErrorText } from "@/components/staff/access/admin-error";
 
 export default function StaffAdminsPage() {
   return (
@@ -44,6 +46,7 @@ function AdminList() {
   const admins = useAdmins(params.page);
   const create = useCreateAdmin();
   const setStatus = useSetStatus("admins");
+  const { toast } = useToast();
   const reissue = useReissueCode("admins");
   const remove = useDeletePerson("admins");
   const [creating, setCreating] = useState(false);
@@ -78,7 +81,10 @@ function AdminList() {
               : {
                   label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
                   onClick: () =>
-                    setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }),
+                    setStatus.mutate(
+                      { id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" },
+                      { onSuccess: () => toast({ title: t("staffAdmin.account.statusChanged"), tone: "ok" }), onError: (e) => toast({ title: adminErrorText(e, t), tone: "danger" }) },
+                    ),
                 },
             { label: t("staffPeople.admins.delete"), tone: "danger", onClick: () => setDeleting(row) },
           ]}
@@ -130,7 +136,12 @@ function AdminList() {
         typeToConfirm={deleting?.fullName ?? ""}
         onConfirm={async () => {
           if (deleting) {
-            await remove.mutateAsync(deleting.id);
+            try {
+              await remove.mutateAsync(deleting.id);
+              toast({ title: t("staffAdmin.account.deleted"), tone: "ok" });
+            } catch (e) {
+              toast({ title: adminErrorText(e, t), tone: "danger" });
+            }
           }
           setDeleting(null);
         }}
