@@ -201,7 +201,14 @@ export function CategoryTree() {
 
   return (
     <div className="grid gap-4">
-      <SearchInput value={query} onChange={setQuery} placeholder={t("staffCatalog.categories.searchPlaceholder")} />
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={query} onChange={setQuery} placeholder={t("staffCatalog.categories.searchPlaceholder")} />
+        {query ? (
+          <Button variant="ghost" onClick={() => setQuery("")}>
+            {t("staffCatalog.filters.reset")}
+          </Button>
+        ) : null}
+      </div>
       {roots.length === 0 ? (
         <EmptyState
           title={t("staffCatalog.categories.emptyTitle")}

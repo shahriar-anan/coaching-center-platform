@@ -82,6 +82,19 @@ describe("module list (G5)", () => {
     await waitFor(() => expect(routerState.replace.mock.calls.some((call) => String(call[0]).includes("q=BCS"))).toBe(true));
     expect(api.calls.some((call) => call.path === "/api/v1/live-exam-modules")).toBe(true);
   });
+
+  it("shows a reset link while a filter is set, and clears every filter", async () => {
+    mockApi({
+      "GET /api/v1/live-exam-categories": categories,
+      "GET /api/v1/live-exam-modules": { content: [moduleFixture], page: 0, size: 100, totalElements: 1, totalPages: 1 },
+    });
+    renderWithProviders(<ModuleList />, { user: fixtures.masterAdmin, route: "/staff/modules?status=DRAFT" });
+
+    await userEvent.click(await screen.findByRole("button", { name: "ফিল্টার সরান" }));
+    await waitFor(() => expect(routerState.replace.mock.calls.length + routerState.push.mock.calls.length).toBeGreaterThan(0));
+    const written = [...routerState.replace.mock.calls, ...routerState.push.mock.calls].map((call) => String(call[0])).pop();
+    expect(written).not.toContain("status=DRAFT");
+  });
 });
 
 describe("module exams table (U6, G13)", () => {

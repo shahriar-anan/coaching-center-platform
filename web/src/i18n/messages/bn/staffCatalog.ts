@@ -502,6 +502,9 @@ const staffCatalog = {
       badMarks: "নম্বর ১ বা তার বেশি হতে হবে।",
     },
   },
+  filters: {
+    reset: "ফিল্টার সরান",
+  },
   clash: {
     message: "{title} ({when}) শেষ হওয়ার অন্তত ৫ মিনিট পরে শুরু করতে হবে।",
   },

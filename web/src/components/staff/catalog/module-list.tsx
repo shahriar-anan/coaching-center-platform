@@ -122,10 +122,11 @@ export function ModuleList() {
   ];
 
   const canOpen = role.canAuthor;
+  const filtered = Boolean(params.q || params.category || params.status);
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
         <SearchInput value={text} onChange={setText} placeholder={t("staffCatalog.modules.searchPlaceholder")} />
         <Select
           aria-label={t("staffCatalog.modules.filterCategory")}
@@ -151,6 +152,17 @@ export function ModuleList() {
           <option value="PUBLISHED">{t("staffCatalog.status.PUBLISHED")}</option>
           <option value="ARCHIVED">{t("staffCatalog.status.ARCHIVED")}</option>
         </Select>
+        {filtered ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setText("");
+              setParams({ q: "", category: "", status: "" });
+            }}
+          >
+            {t("staffCatalog.filters.reset")}
+          </Button>
+        ) : null}
       </div>
 
       {modules.isError && !modules.data ? (
