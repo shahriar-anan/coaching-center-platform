@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
+import { useRole } from "@/lib/auth/guards";
 import { useFormat } from "@/lib/format/use-format";
 import { useExamAnswerRelease, useSetAnswersReleased } from "@/lib/api/exam/staff-admin";
 import { adminErrorText } from "./admin-error";
@@ -14,10 +15,19 @@ import { adminErrorText } from "./admin-error";
 /**
  * Shows and changes whether the MCQ correct answers of one exam are released to
  * students. Each change asks first and names the exam. Written papers have no
- * answers to release, so the switch is not shown for them. `SLOT: answer
- * release` on the exam page.
+ * answers to release, so the switch is not shown for them. Only Master Admin and
+ * System Admin see it; any other role gets nothing, and no request is made.
+ * `SLOT: answer release` on the exam page.
  */
 export function AnswerReleaseSwitch({ examId }: { examId: string }) {
+  const { isMasterAdmin, isSystemAdmin } = useRole();
+  if (!isMasterAdmin && !isSystemAdmin) {
+    return null;
+  }
+  return <ReleaseSwitch examId={examId} />;
+}
+
+function ReleaseSwitch({ examId }: { examId: string }) {
   const { t } = useLocale();
   const { pickTitle } = useFormat();
   const { toast } = useToast();
