@@ -886,3 +886,40 @@ Branch `ui/w9-ops`, worktree `F:\cc-wt\w9-ops`. Commits: `0f59e47` (C1, C3), `7c
 **Contract changes:** none. The API is used as merged (G14, G15, G16, and G11's submissions feed for the draft count).
 
 **Commit grouping:** the message catalogs for `staffPeople` and `staffOps` are shared across C2, F4 and UF8, and the Bangla pass and unused-key changes are in the same files. They are in the UF8 commit (`7cacf19`), so each commit before the last compiles and keeps its tests green. Every other item has its own commit.
+
+## Report — ADMIN-UI, placement
+
+Branch `ui/admin-ui`, worktree `F:\cc-wt\admin-ui`, fast-forwarded to `catalog-acquisition` at `d6506c9`. Items P1, P2, P3, P4, G1 and T of the placement prompt (AG-05 part 2, plan section 5a). Web only; no API change.
+
+Checks, this branch: `npm run lint` 0 errors (2 warnings, both in `authorized-file.tsx` and `book-details-form.tsx`, not touched here); `npx tsc --noEmit` clean; `npx vitest run` 102 files, 610 tests passed; `npm run build` passed under lock `ADMINUI` (lock taken at 02:34:03Z after waiting for `API 1907`, released at 02:34:39Z, file left empty). Not done: a browser pass at 375 px and 1440 px, in both themes, and by keyboard. Nothing here is checked by eye.
+
+| Item | Status | Commit | Note |
+|---|---|---|---|
+| P1 exam page | done | `3fb38fc` | `AnswerReleaseSwitch` placed where the slot was. The switch's section got `mt-6`, because the staff `main` has no gap between children. Written papers still get nothing. |
+| P2 student page | done | `fe26e27` | One access list (`StudentAccessSection`) above the exam history. The old access table, the old status toggle and `useStudentAccess` are removed. `AccountStatusToggle` and `DeleteAccountButton` replace the toggle. Delete goes back to `/staff/students` through the new `onDeleted` prop. Master Admin gets the roster link in the access list. Name card, facts and exam history are unchanged. |
+| P3 instructors page | done | `c251dbe` | Active and suspended instructors get suspend or restore and delete in the actions cell. Pending keeps the reissue row menu. The marked-work refusal shows its own message and offers suspend. |
+| P4 students list | done | `61c65b5` | The row menu shows suspend or restore to Master Admin only. Delete now opens `DeleteAccountDialog`, the same dialog the student and instructor pages use, so the paid-orders refusal shows its message and offers suspend. Other errors go through `adminErrorText`. |
+| G1 marked PDF | done | `3ef0127` | `MarkedPdfView` under `marking/`, shown in the submission form when `evaluatedPdf` is true. A "দেখুন" / "View" button opens the file from `GET .../evaluated-pdf` in a dialog with `PdfViewer`. Added `evaluatedPaperBlob` in `staff-marking.ts`. Shown in the main paper view, so every role that gets the full paper view sees it. |
+| T tests | done | `41cdfcb` | New `tests/staff-admin/placement.test.tsx` (15 tests), `tests/staff-admin/marked-pdf.test.tsx` (3 tests), and `access-matrix.test.tsx` extended to the students list, the student page and the instructors page, rendered whole, for each role (23 tests in the file). |
+
+**Commit grouping:** P2 includes the `tests/ws6a` updates its markup change needed, so that commit is green on its own. P4 and P1 needed no older test changes. `tests/ws6b` and `tests/ws9-aut` were checked and needed no change. The new behaviour tests are in T.
+
+**Removed (orphaned by this branch), with the code that went with them:**
+- `staffPeople.student.accessTitle`, `accessEmpty`, `columns.module`, `columns.reason`, `columns.scope`, `reason.ROSTER`, `reason.MODULE_PURCHASE`, `reason.EXAM_PURCHASE`, `wholeModule`, `openPayment` (bn and en). Code: `accessReasonKey` and its test in `tests/ws6a/people-copy.test.ts`, `useStudentAccess`, the `AccessRow` type, and `AccessTable` and `StatusToggle` on the student page.
+- `staffPeople.students.deleteTitle`, `deleteBody`, `deleteConfirm` (bn and en). Replaced by the dialog's `staffAdmin.account` keys. Code: the `ConfirmDialog` and `useDeletePerson` use in the students list.
+- Kept: `staffPeople.student.addToRoster` and `nameSaved`, `staffPeople.students.delete`, `activate`, `deactivate`, and `staffResults.result.none` (still used elsewhere).
+
+**Added:** `staffMarking.form.viewMarked` (bn "দেখুন", en "View"). One key, as specified.
+
+**Behaviour changes to check in review:**
+- The student page's access list is now the admin list (`/live-exam-access` through `staffAdmin`). Its rows show the via label from `staffAdmin.access.via` ("রোস্টার" for roster, where the old page showed "সরাসরি ভর্তি"), and the payment link is the transaction ID itself, as the admin list already did.
+- The instructors page's actions cell wraps suspend and delete in a flex row rather than stacking them or moving them to the row menu. On a 375 px screen they wrap onto a second line. Not checked by eye.
+- `DeleteAccountButton` now opens a `DeleteAccountDialog` that the students list uses directly. The dialog state is reset on close.
+- The marked-PDF dialog is widened with `sm:max-w-3xl` on the shared `Dialog`'s `className`.
+
+**Limits:**
+- No browser pass. The touch layout, the focus return from the new dialogs, and both themes are unverified.
+- The new Bangla copy (`viewMarked` and the reused account and refusal messages) was not checked by a Bangla reader.
+- Test rows render twice in `Table` (desktop and phone markup), so tests use `getAll` for table cells.
+
+**API:** no change. **Contract changes:** none. **New routes used:** `GET /api/v1/live-exam-participants/{id}/evaluated-pdf` (already on the API, per the plan).
