@@ -356,6 +356,6 @@ Copy and style fixes made during these checks:
 - The cover section heading now reads "Cover image" (or the Bangla equivalent) instead of "Upload cover", because it also covers replacing and removing a cover.
 
 Still open:
-- The cover heading change and the pending footer change are in the code but are not in the running site until it is rebuilt.
+- The cover heading change and the pending footer change are committed and the site is rebuilt from the same code.
 - The live SSLCommerz payment remains a manual QA item.
-- Nothing is committed yet.
+- Committed as `5657be3`. The site was rebuilt from that commit and is running on port 3000 (build exit 0, root and /mcq answer 200).
