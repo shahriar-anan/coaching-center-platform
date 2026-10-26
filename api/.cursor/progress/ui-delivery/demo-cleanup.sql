@@ -1,26 +1,61 @@
--- Removes every row the demo seed (DemoContentSeed) wrote, and nothing else.
+-- Removes every row the demo seed (DemoContentSeed) writes, and nothing else.
 -- Demo ids all share the shape <letter-or-digit>0000000-0000-4000-8000-<12 digits>, so each table is matched by its prefix:
---   a = categories, b = modules, e = exams, f = questions, 9 = options, 7 = participants, 5 = demo students, 6 = instructor.
--- Run it once, in one transaction, against the staging database:
+--   4 = System Admin, 5 = demo students (5001-5008 and the login students 5101-5105), 6 = instructors A and B,
+--   8 = the announcement, a = categories, b = modules, c = orders, d = grants, e = exams, f = questions, 9 = options,
+--   7 = sittings.
+-- Demo orders have tran ids starting with DEMO-; real tran ids are 30 hex characters and never match.
+-- Run it once, in one transaction, before every re-seed (the seed refuses to write over an older catalog):
 --   psql -1 -v ON_ERROR_STOP=1 -f .cursor/progress/ui-delivery/demo-cleanup.sql
--- Stored PDFs for the demo papers stay on disk under FILE_STORAGE_DIR; the rows that name them are removed here.
--- Remove the files by hand if you want the disk clean too: the question_stored_file_name values are listed by
+-- Stored PDFs for the demo papers and sittings stay on disk under FILE_STORAGE_DIR; the rows that name them are removed here.
+-- To remove the files as well, list them first:
 --   SELECT question_stored_file_name FROM live_exams WHERE id::text LIKE 'e0000000-0000-4000-8000-%';
--- before running this script.
+--   SELECT answer_stored_file_name, evaluated_stored_file_name FROM live_exam_participants WHERE id::text LIKE '70000000-0000-4000-8000-%';
 
 DELETE FROM student_notices
-WHERE user_id::text LIKE '50000000-0000-4000-8000-%' OR user_id::text LIKE '60000000-0000-4000-8000-%';
+WHERE user_id::text LIKE '50000000-0000-4000-8000-%'
+   OR user_id::text LIKE '40000000-0000-4000-8000-%'
+   OR user_id::text LIKE '60000000-0000-4000-8000-%'
+   OR announcement_id::text LIKE '80000000-0000-4000-8000-%'
+   OR exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR module_id::text LIKE 'b0000000-0000-4000-8000-%';
+
+DELETE FROM announcements
+WHERE id::text LIKE '80000000-0000-4000-8000-%';
 
 DELETE FROM exam_outbound_mail
-WHERE user_id::text LIKE '50000000-0000-4000-8000-%' OR user_id::text LIKE '60000000-0000-4000-8000-%';
+WHERE user_id::text LIKE '50000000-0000-4000-8000-%'
+   OR user_id::text LIKE '40000000-0000-4000-8000-%'
+   OR user_id::text LIKE '60000000-0000-4000-8000-%';
+
+DELETE FROM refresh_tokens
+WHERE user_id::text LIKE '50000000-0000-4000-8000-%'
+   OR user_id::text LIKE '40000000-0000-4000-8000-%'
+   OR user_id::text LIKE '60000000-0000-4000-8000-%';
+
+DELETE FROM one_time_codes
+WHERE user_id::text LIKE '50000000-0000-4000-8000-%'
+   OR user_id::text LIKE '40000000-0000-4000-8000-%'
+   OR user_id::text LIKE '60000000-0000-4000-8000-%';
+
+DELETE FROM live_exam_order_exams
+WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR order_id IN (
+    SELECT id FROM live_exam_orders
+    WHERE tran_id LIKE 'DEMO-%'
+       OR student_id::text LIKE '50000000-0000-4000-8000-%'
+       OR module_id::text LIKE 'b0000000-0000-4000-8000-%'
+       OR exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+);
 
 DELETE FROM live_exam_grants
 WHERE student_id::text LIKE '50000000-0000-4000-8000-%'
    OR module_id::text LIKE 'b0000000-0000-4000-8000-%'
-   OR exam_id::text LIKE 'e0000000-0000-4000-8000-%';
+   OR exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR order_id IN (SELECT id FROM live_exam_orders WHERE tran_id LIKE 'DEMO-%');
 
 DELETE FROM live_exam_orders
-WHERE student_id::text LIKE '50000000-0000-4000-8000-%'
+WHERE tran_id LIKE 'DEMO-%'
+   OR student_id::text LIKE '50000000-0000-4000-8000-%'
    OR module_id::text LIKE 'b0000000-0000-4000-8000-%'
    OR exam_id::text LIKE 'e0000000-0000-4000-8000-%';
 
@@ -63,7 +98,10 @@ DELETE FROM student_profiles
 WHERE user_id::text LIKE '50000000-0000-4000-8000-%';
 
 DELETE FROM admin_profiles
-WHERE user_id::text LIKE '60000000-0000-4000-8000-%';
+WHERE user_id::text LIKE '40000000-0000-4000-8000-%'
+   OR user_id::text LIKE '60000000-0000-4000-8000-%';
 
 DELETE FROM users
-WHERE id::text LIKE '50000000-0000-4000-8000-%' OR id::text LIKE '60000000-0000-4000-8000-%';
+WHERE id::text LIKE '50000000-0000-4000-8000-%'
+   OR id::text LIKE '40000000-0000-4000-8000-%'
+   OR id::text LIKE '60000000-0000-4000-8000-%';
