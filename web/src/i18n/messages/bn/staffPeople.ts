@@ -40,16 +40,6 @@ const staffPeople = {
     emptyBody: "খোঁজের শব্দ বদলে আবার দেখুন, অথবা নতুন শিক্ষার্থী যোগ করুন।",
   },
   student: {
-    accessTitle: "কোন কোন পরীক্ষায় বসতে পারবেন",
-    accessEmpty: "কোনো পরীক্ষা চালু নেই",
-    columns: { module: "মডিউল", reason: "কারণ", scope: "কতটুকু" },
-    reason: {
-      ROSTER: "সরাসরি ভর্তি",
-      MODULE_PURCHASE: "মডিউল কেনা",
-      EXAM_PURCHASE: "পরীক্ষা কেনা",
-    },
-    wholeModule: "পুরো মডিউল",
-    openPayment: "পেমেন্ট দেখুন",
     addToRoster: "সরাসরি ভর্তিতে যোগ করুন",
     nameSaved: "নাম সেভ হয়েছে।",
   },

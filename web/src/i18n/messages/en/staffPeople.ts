@@ -40,16 +40,6 @@ const staffPeople = {
     emptyBody: "Change the search and look again, or add a new student.",
   },
   student: {
-    accessTitle: "Exams this student can sit",
-    accessEmpty: "No exam access",
-    columns: { module: "Module", reason: "Reason", scope: "Covers" },
-    reason: {
-      ROSTER: "Direct enrolment",
-      MODULE_PURCHASE: "Module bought",
-      EXAM_PURCHASE: "Exam bought",
-    },
-    wholeModule: "Whole module",
-    openPayment: "View payment",
     addToRoster: "Add to direct enrolment",
     nameSaved: "Name saved.",
   },

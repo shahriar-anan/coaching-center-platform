@@ -125,10 +125,10 @@ describe("student access", () => {
       { user: fixtures.masterAdmin, route: `/staff/students/${STUDENT_ID}` },
     );
 
-    expect((await screen.findAllByText("সরাসরি ভর্তি")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("রোস্টার")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("পরীক্ষা কেনা")).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "সরাসরি ভর্তিতে যোগ করুন" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "পেমেন্ট দেখুন" })[0]).toHaveAttribute("href", "/staff/payments/TRAN-1");
+    expect(screen.getAllByRole("link", { name: "TRAN-1" })[0]).toHaveAttribute("href", "/staff/payments/TRAN-1");
   });
 
   it("gives System Admin the same list without the roster link", async () => {
@@ -142,7 +142,7 @@ describe("student access", () => {
       </Suspense>,
       { user: fixtures.systemAdmin, route: `/staff/students/${STUDENT_ID}` },
     );
-    expect(await screen.findByText("কোনো পরীক্ষা চালু নেই")).toBeInTheDocument();
+    expect(await screen.findByText("এই শিক্ষার্থীর এখনো কোনো অ্যাক্সেস নেই।")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "সরাসরি ভর্তিতে যোগ করুন" })).toBeNull();
   });
 });

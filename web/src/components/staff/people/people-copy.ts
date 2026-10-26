@@ -1,11 +1,6 @@
 import type { PillTone } from "@/components/ui/pill";
 import type { AccountStatus } from "@/lib/api/exam/types";
-import type { AccessRow, SubmissionRow } from "@/lib/api/exam/staff-people";
-
-/** The reason on a student's access row: a roster mark, a module purchase, or an exam purchase. */
-export function accessReasonKey(via: AccessRow["via"]): string {
-  return `staffPeople.student.reason.${via}`;
-}
+import type { SubmissionRow } from "@/lib/api/exam/staff-people";
 
 export function accountStatusTone(status: AccountStatus): PillTone {
   switch (status) {

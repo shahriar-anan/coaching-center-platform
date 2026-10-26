@@ -68,10 +68,13 @@ export function DeleteAccountButton({
   kind,
   id,
   name,
+  onDeleted,
 }: {
   kind: AccountKind;
   id: string;
   name: string;
+  /** Called after the account is deleted, for a page that leaves the account's own page. */
+  onDeleted?: () => void;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -104,6 +107,7 @@ export function DeleteAccountButton({
       await remove.mutateAsync(id);
       toast({ title: t("staffAdmin.account.deleted"), tone: "ok" });
       close(false);
+      onDeleted?.();
     } catch (e) {
       setError(adminErrorText(e, t));
       setBlocked(e instanceof ApiError && (e.code === "ACCOUNT_HAS_PAID_ORDERS" || e.code === "ACCOUNT_HAS_MARKED_WORK"));
