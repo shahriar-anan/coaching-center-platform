@@ -97,7 +97,7 @@ describe("exam editor sections (U5)", () => {
     mockApi(routes(writtenExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
-    expect(await screen.findByText("এই মডিউলে এখনো শিক্ষক দেওয়া নেই। শিক্ষক দেন মাস্টার অ্যাডমিন।")).toBeInTheDocument();
+    expect(await screen.findByText("এই মডিউলে এখনো শিক্ষক দেওয়া নেই। শিক্ষক দেবেন মাস্টার অ্যাডমিন।")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "শিক্ষক দিন" })).not.toBeInTheDocument();
   });
 

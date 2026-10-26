@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
+import { useFormat } from "@/lib/format/use-format";
 import { useAddQuestion, useUpdateQuestion, type QuestionInput, type StaffQuestion } from "@/lib/api/exam/staff-catalog";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -60,6 +61,7 @@ export function QuestionEditor({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useLocale();
+  const { formatNumber } = useFormat();
   const { toast } = useToast();
   const add = useAddQuestion(examId);
   const update = useUpdateQuestion(examId);
@@ -99,7 +101,7 @@ export function QuestionEditor({
     }
     const filled = draft.options.filter((o) => o.text.trim() !== "");
     if (filled.length < MIN_OPTIONS || filled.length !== draft.options.length) {
-      next.options = t("staffCatalog.question.optionsRequired", { min: MIN_OPTIONS });
+      next.options = t("staffCatalog.question.optionsRequired", { min: formatNumber(MIN_OPTIONS) });
     }
     if (draft.correct === null || !draft.options[draft.correct]?.text.trim()) {
       next.correct = t("staffCatalog.question.correctRequired");
@@ -182,16 +184,16 @@ export function QuestionEditor({
                   onChange={() => setDraft((c) => ({ ...c, correct: index }))}
                   className="size-4"
                 />
-                <span className="sr-only">{t("staffCatalog.question.correctFor", { n: index + 1 })}</span>
+                <span className="sr-only">{t("staffCatalog.question.correctFor", { n: formatNumber(index + 1) })}</span>
                 <span aria-hidden="true" className="w-6 text-muted">{index + 1}</span>
               </label>
               <TextInput
-                aria-label={t("staffCatalog.question.optionLabel", { n: index + 1 })}
+                aria-label={t("staffCatalog.question.optionLabel", { n: formatNumber(index + 1) })}
                 value={option.text}
                 onChange={(e) => setOption(index, e.target.value)}
               />
               {draft.options.length > MIN_OPTIONS ? (
-                <IconButton label={t("staffCatalog.question.removeOption", { n: index + 1 })} icon={<Trash2 className="size-4" />} onClick={() => removeOption(index)} />
+                <IconButton label={t("staffCatalog.question.removeOption", { n: formatNumber(index + 1) })} icon={<Trash2 className="size-4" />} onClick={() => removeOption(index)} />
               ) : null}
             </div>
           ))}

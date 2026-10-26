@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
+import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import {
   useArchiveCategory,
@@ -51,6 +52,7 @@ type RowProps = {
 
 function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
   const { t, locale } = useLocale();
+  const { formatNumber } = useFormat();
   const { toast } = useToast();
   const archive = useArchiveCategory();
   const remove = useDeleteCategory();
@@ -83,7 +85,7 @@ function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
           {name}
         </Link>
         <span className="text-meta text-muted">
-          {t("staffCatalog.categories.moduleCount", { count: node.modules.length })}
+          {t("staffCatalog.categories.moduleCount", { count: formatNumber(node.modules.length) })}
         </span>
         <StatusPill status={categoryStatus(node)} />
         {canDelete ? (
