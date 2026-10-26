@@ -35,26 +35,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
+import { FactTile, SectionCard, ruleLines } from "./lms-blocks";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-card border border-border bg-card p-4">
-      <h2 className="mb-2 text-card-title font-bold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-control bg-bg p-3 text-center">
-      <p className="text-card-title font-bold">{value}</p>
-      <p className="text-meta text-muted">{label}</p>
-    </div>
-  );
-}
 
 export function ExamPage({ examId }: { examId: string }) {
   const { t, locale } = useLocale();
@@ -142,6 +125,7 @@ export function ExamPage({ examId }: { examId: string }) {
   // The sitting's deadline has passed, but the server has not posted it yet: show the result, not Resume.
   const sittingEnded = Boolean(owned?.sitting && Date.parse(owned.sitting.deadlineAt) <= now);
   const loginHref = `/login?next=${encodeURIComponent(examPath(examId))}`;
+  const ruleItems = rules ? ruleLines(rules) : [];
 
   // One primary action, chosen by state.
   let primary: React.ReactNode = null;
@@ -180,78 +164,107 @@ export function ExamPage({ examId }: { examId: string }) {
     }
   }
 
+  // The fourth fact: full marks once the student owns the exam, otherwise the price.
+  const fourth =
+    owned && owned.maximum
+      ? { icon: "🎯", label: t("catalog.exam.fullMarks"), value: formatNum(owned.maximum, locale) }
+      : price !== null && price !== undefined
+        ? { icon: "💳", label: t("catalog.exam.price"), value: formatMoney(price, locale) ?? "" }
+        : null;
+
   return (
     <>
       <PageHeader title={title} breadcrumbs={crumbs} />
       <ConfigNotice show={checkoutOff} />
-      <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
-        <TypePill type={examType} />
-        {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
-        {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
-      </div>
 
-      <div className="mb-4 grid gap-3">
-        {primary ? <StickyActionBar>{primary}</StickyActionBar> : null}
-        {isStudent && !ownsExam && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
-          <Button variant="secondary" fullWidth disabled={checkoutOff || moduleAccess.buyable === false} onClick={() => setModuleBuying(true)}>
-            {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
+      <section className="mb-4 grid gap-4 rounded-card border border-border bg-card p-5 md:p-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <TypePill type={examType} />
+          {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
+          {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+          <FactTile icon="⏱️" label={t("catalog.exam.duration")} value={formatDuration(data.durationMinutes, locale)} />
+          <FactTile
+            icon="🗓️"
+            label={t("catalog.exam.start")}
+            value={startsAt ? formatDateTime(startsAt, locale) : t("catalog.dateTbd")}
+            sub={endsAt ? `${t("catalog.exam.end")}: ${formatTime(endsAt, locale)}` : undefined}
+          />
+          <FactTile
+            icon="🌐"
+            label={t("catalog.exam.paperLanguage")}
+            value={data.paperLanguage === "EN" ? t("catalog.exam.langEn") : t("catalog.exam.langBn")}
+          />
+          {fourth ? <FactTile icon={fourth.icon} label={fourth.label} value={fourth.value} /> : null}
+        </div>
+
+        {beforeStart || primary || (isStudent && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned && !ownsExam) ? (
+          <div className="grid gap-3 border-t border-border pt-4">
+            {primary ? <StickyActionBar>{primary}</StickyActionBar> : null}
+            {isStudent && !ownsExam && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
+              <Button variant="secondary" fullWidth disabled={checkoutOff || moduleAccess.buyable === false} onClick={() => setModuleBuying(true)}>
+                {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
+              </Button>
+            ) : null}
+            {owned && beforeStart && startsAt ? (
+              <Card>
+                <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>
+                <p className="text-card-title font-bold"><Countdown deadline={startsAt} /></p>
+              </Card>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={() => void copyLink()}>
+            {t("catalog.exam.copyLink")}
           </Button>
-        ) : null}
-        <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
-          {t("catalog.exam.copyLink")}
-        </Button>
-        {owned && beforeStart && startsAt ? (
-          <Card>
-            <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>
-            <p className="text-card-title font-bold"><Countdown deadline={startsAt} /></p>
-          </Card>
-        ) : null}
-      </div>
+        </div>
+      </section>
 
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         {description ? (
-          <Section title={t("catalog.exam.description")}>
-            <p className="whitespace-pre-line text-muted">{description}</p>
-          </Section>
+          <SectionCard icon="📄" title={t("catalog.exam.description")}>
+            <p className="whitespace-pre-line leading-relaxed text-muted">{description}</p>
+          </SectionCard>
         ) : null}
-        {rules ? (
-          <Section title={t("catalog.exam.rules")}>
-            <p className="whitespace-pre-line text-muted">{rules}</p>
-          </Section>
+        {ruleItems.length > 0 ? (
+          <SectionCard icon="📋" title={t("catalog.exam.rules")} count={ruleItems.length > 1 ? String(ruleItems.length) : undefined}>
+            {ruleItems.length > 1 ? (
+              <ol className="grid list-decimal gap-2.5 ps-5 leading-relaxed text-muted marker:font-semibold marker:text-text-accent">
+                {ruleItems.map((rule, index) => (
+                  <li key={index}>{rule}</li>
+                ))}
+              </ol>
+            ) : (
+              <p className="whitespace-pre-line leading-relaxed text-muted">{rules}</p>
+            )}
+          </SectionCard>
         ) : null}
         {examType === "WRITTEN" ? (
-          <Section title={t("catalog.exam.paperTitle")}>
-            <ul className="grid list-disc gap-1 pl-5 text-muted">
+          <SectionCard icon="✍️" title={t("catalog.exam.paperTitle")}>
+            <ul className="grid list-disc gap-2 ps-5 text-muted">
               <li>{t("catalog.exam.paperUnlock")}</li>
               <li>{t("catalog.exam.paperPdf")}</li>
             </ul>
-          </Section>
+          </SectionCard>
         ) : null}
-        <Section title={t("catalog.exam.paperLanguage")}>
-          <p className="text-muted">{data.paperLanguage === "EN" ? t("catalog.exam.langEn") : t("catalog.exam.langBn")}</p>
-        </Section>
-        <div className="grid grid-cols-2 gap-2.5">
-          <Fact label={t("catalog.exam.duration")} value={formatDuration(data.durationMinutes, locale)} />
-          {owned && owned.maximum ? <Fact label={t("catalog.exam.fullMarks")} value={formatNum(owned.maximum, locale)} /> : null}
-        </div>
-        <Section title={t("catalog.exam.start")}>
-          <p>{startsAt ? formatDateTime(startsAt, locale) : t("catalog.dateTbd")}</p>
-          {endsAt ? <p className="text-muted">{t("catalog.exam.end")}: {formatTime(endsAt, locale)}</p> : null}
-        </Section>
         {owned && owned.passPercent !== null && owned.passPercent !== undefined ? (
-          <Section title={t("catalog.exam.passMark")}>
-            <p>{t("catalog.exam.passMarkValue", { p: formatNum(owned.passPercent, locale) })}</p>
-          </Section>
+          <SectionCard icon="🎯" title={t("catalog.exam.passMark")}>
+            <p className="text-card-title font-bold">{t("catalog.exam.passMarkValue", { p: formatNum(owned.passPercent, locale) })}</p>
+          </SectionCard>
         ) : null}
-        <Section title={t("catalog.exam.price")}>
+        <SectionCard icon="💳" title={t("catalog.exam.price")}>
           {ownsExam ? (
-            <p className="text-ok">✓ {t("catalog.exam.unlockedNote")}</p>
+            <p className="font-semibold text-ok">✓ {t("catalog.exam.unlockedNote")}</p>
           ) : price !== null && price !== undefined ? (
-            <p className="font-bold">{formatMoney(price, locale)}</p>
+            <p className="text-card-title font-bold text-text-accent">{formatMoney(price, locale)}</p>
           ) : (
             <p className="text-muted">{t("catalog.priceNotSet")}</p>
           )}
-        </Section>
+        </SectionCard>
       </div>
 
       {isStudent && price !== null && price !== undefined && !ownsExam ? (
