@@ -5,19 +5,21 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { dhakaParts } from "@/lib/format";
 import { useServerNow } from "@/lib/time/clock";
+import { useQueries } from "@tanstack/react-query";
+import { moduleExamsQuery, useCategoryTree, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import { useParticipationRows, useParticipationSummary, useOpenOrderCount, type ParticipationRow } from "@/lib/api/exam/staff-home";
+import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
-function sameDhakaDay(iso: string | null, now: number): boolean {
-  if (!iso) {
-    return false;
-  }
-  const a = dhakaParts(iso);
-  const b = dhakaParts(now);
-  return a.year === b.year && a.month === b.month && a.day === b.day;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const AGENDA_DAYS = 14;
+
+/** The Dhaka calendar day of an instant, as a key that sorts and compares. */
+function dhakaDayKey(time: number): number {
+  const parts = dhakaParts(new Date(time).toISOString());
+  return parts.year * 10_000 + parts.month * 100 + parts.day;
 }
 
 /** Three cards: the two participation counts and the payments waiting at the gateway. */
@@ -64,8 +66,8 @@ function SummaryCards({ showPayments }: { showPayments: boolean }) {
       {cards.map((card) => (
         <li key={card.key}>
           <Card href={card.href} className="h-full">
-            <p className="text-sm text-muted">{card.label}</p>
-            <p className="mt-1 text-3xl font-bold tabular-nums">{formatNumber(card.value)}</p>
+            <p className="text-meta text-muted">{card.label}</p>
+            <p className="mt-1 text-section font-semibold tabular-nums">{formatNumber(card.value)}</p>
           </Card>
         </li>
       ))}
@@ -73,137 +75,163 @@ function SummaryCards({ showPayments }: { showPayments: boolean }) {
   );
 }
 
-function ExamRow({ row }: { row: ParticipationRow }) {
+/** Shown while the catalog has no category: the first three steps, each linked (first-run, U7). */
+function FirstRun() {
+  const { t } = useLocale();
+  const steps = [
+    { key: "category", label: t("staffCatalog.home.onboarding.category"), href: "/staff/categories/new" },
+    { key: "module", label: t("staffCatalog.home.onboarding.module"), href: "/staff/modules/new" },
+    { key: "exam", label: t("staffCatalog.home.onboarding.exam"), href: "/staff/modules" },
+  ];
+  return (
+    <section aria-labelledby="first-run-heading" className="grid gap-3 rounded-card border border-border bg-card p-5">
+      <h2 id="first-run-heading" className="text-card font-semibold">
+        {t("staffCatalog.home.onboarding.title")}
+      </h2>
+      <p className="text-meta text-muted">{t("staffCatalog.home.onboarding.body")}</p>
+      <ol className="grid gap-3 sm:grid-cols-3">
+        {steps.map((step, index) => (
+          <li key={step.key}>
+            <Link href={step.href} prefetch className="grid h-full gap-1 rounded-card border border-border p-4 outline-none hover:bg-bg focus-visible:outline-accent">
+              <span aria-hidden="true" className="text-meta tabular-nums text-muted">{index + 1}</span>
+              <span className="text-label font-medium">{step.label}</span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** One exam in the agenda: time, title, module, type and how many sat it. */
+function AgendaRow({ row, status }: { row: ParticipationRow; status: StaffExam["status"] | undefined }) {
   const { t, locale } = useLocale();
-  const { formatNumber, formatDateTime } = useFormat();
-  const isWritten = row.examType === "WRITTEN";
-  const count = (value: number | null) => (isWritten && value !== null ? formatNumber(value) : "—");
+  const { formatNumber, formatTime } = useFormat();
   const moduleTitle = locale === "bn" ? row.moduleTitleBn : row.moduleTitleEn;
   const examTitle = locale === "bn" ? row.titleBn : row.titleEn;
-
   return (
-    <li className="grid gap-2 border-b border-border py-3 last:border-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium">{examTitle}</p>
-          <p className="text-sm text-muted">
-            {moduleTitle} · {t(`staffCatalog.examType.${row.examType}`)} ·{" "}
-            {row.liveAt ? formatDateTime(row.liveAt) : t("staffCatalog.dateNotSet")}
-          </p>
-        </div>
-        <Link href={`/staff/modules/${row.moduleId}?tab=exams`} className="text-sm text-action hover:underline">
+    <li className="grid gap-1 border-b border-border py-3 last:border-0 sm:grid-cols-[6rem_minmax(0,1fr)_auto] sm:items-baseline sm:gap-4">
+      <span className="text-meta tabular-nums text-muted">{row.liveAt ? formatTime(row.liveAt) : t("staffCatalog.dateNotSet")}</span>
+      <span className="min-w-0">
+        <span className="font-medium">{examTitle}</span>
+        <span className="block text-meta text-muted">
+          {moduleTitle} · {t(`staffCatalog.examType.${row.examType}`)}
+        </span>
+      </span>
+      <span className="flex flex-wrap items-center gap-3 text-meta">
+        {status ? <StatusPill status={status} /> : null}
+        <span className="tabular-nums">{t("staffCatalog.home.agenda.participants", { n: formatNumber(row.sitting) })}</span>
+        <Link href={`/staff/modules/${row.moduleId}?tab=exams`} className="text-action hover:underline">
           {t("staffCatalog.home.openModule")}
         </Link>
-      </div>
-      <dl className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm sm:grid-cols-6">
-        <div>
-          <dt className="text-muted">{t("staffCatalog.home.counts.sitting")}</dt>
-          <dd className="tabular-nums">{formatNumber(row.sitting)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">{t("staffCatalog.home.counts.submitted")}</dt>
-          <dd className="tabular-nums">{formatNumber(row.submitted)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">{t("staffCatalog.home.counts.failed")}</dt>
-          <dd className="tabular-nums">{formatNumber(row.failedToSubmit)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">{t("staffCatalog.home.counts.awaiting")}</dt>
-          <dd className="tabular-nums">
-            {isWritten && row.awaitingMarking !== null ? (
-              <Link href={`/staff/submissions/m/${row.moduleId}?examId=${row.examId}`} className="text-action hover:underline">
-                {formatNumber(row.awaitingMarking)}
-              </Link>
-            ) : (
-              count(null)
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted">{t("staffCatalog.home.counts.drafts")}</dt>
-          <dd className="tabular-nums">{count(row.draftsAwaitingPublish)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">{t("staffCatalog.home.counts.published")}</dt>
-          <dd className="tabular-nums">{count(row.published)}</dd>
-        </div>
-      </dl>
+      </span>
     </li>
   );
 }
 
-function ExamList({ title, rows, empty }: { title: string; rows: ParticipationRow[]; empty: string }) {
+/**
+ * The next 14 days of dated exams across all modules, grouped by Dhaka day (UF6).
+ * The participation rows have no exam status, so the status comes from each module's exam list,
+ * read once per module that has an exam in the window.
+ */
+function Agenda({ rows, now }: { rows: ParticipationRow[]; now: number }) {
+  const { t } = useLocale();
+  const { formatDate } = useFormat();
+  const today = dhakaDayKey(now);
+  const end = now + AGENDA_DAYS * DAY_MS;
+  const dated = rows
+    .filter((row) => row.liveAt !== null && new Date(row.liveAt).getTime() >= now && new Date(row.liveAt).getTime() < end)
+    .sort((a, b) => new Date(a.liveAt as string).getTime() - new Date(b.liveAt as string).getTime());
+
+  const moduleIds = [...new Set(dated.map((row) => row.moduleId))];
+  const moduleExams = useQueries({ queries: moduleIds.map((moduleId) => moduleExamsQuery(moduleId)) });
+  const statusByExam = new Map<string, StaffExam["status"]>();
+  for (const result of moduleExams) {
+    for (const exam of result.data?.content ?? []) {
+      statusByExam.set(exam.id, exam.status);
+    }
+  }
+
+  const groups = new Map<number, ParticipationRow[]>();
+  for (const row of dated) {
+    const key = dhakaDayKey(new Date(row.liveAt as string).getTime());
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
   return (
-    <section aria-label={title} className="grid gap-2">
-      <h2 className="text-base font-semibold">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="rounded-card border border-border bg-card p-4 text-sm text-muted">{empty}</p>
+    <section aria-labelledby="agenda-heading" className="grid gap-3">
+      <h2 id="agenda-heading" className="text-card font-semibold">
+        {t("staffCatalog.home.agenda.title")}
+      </h2>
+      {groups.size === 0 ? (
+        <p className="rounded-card border border-border bg-card p-4 text-meta text-muted">{t("staffCatalog.home.agenda.empty")}</p>
       ) : (
-        <ul className="rounded-card border border-border bg-card px-4">
-          {rows.map((row) => (
-            <ExamRow key={row.examId} row={row} />
-          ))}
-        </ul>
+        [...groups.entries()].map(([key, list]) => (
+          <div key={key} className="grid gap-1">
+            <h3 className="text-label font-medium">
+              {key === today ? t("staffCatalog.home.agenda.today") : formatDate(new Date(list[0].liveAt as string))}
+            </h3>
+            <ul className="rounded-card border border-border bg-card px-4">
+              {list.map((row) => (
+                <AgendaRow key={row.examId} row={row} status={statusByExam.get(row.examId)} />
+              ))}
+            </ul>
+          </div>
+        ))
       )}
     </section>
   );
 }
 
-/** Master Admin and System Admin home: counts, quick actions, today's exams and the next dated exams. */
+/** Master Admin and System Admin home: counts, first-run steps while the catalog is empty, quick actions and the agenda. */
 export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
   const { t } = useLocale();
   const now = useServerNow(60_000);
-  const rows = useParticipationRows({ sort: "date", size: 20 });
-
-  const list = rows.data?.content ?? [];
-  const today = list.filter((row) => sameDhakaDay(row.liveAt, now));
-  const upcoming = list.filter((row) => row.liveAt === null || new Date(row.liveAt).getTime() >= now).slice(0, 10);
+  const categories = useCategoryTree();
+  const rows = useParticipationRows({ sort: "date", size: 100 });
+  const catalogEmpty = categories.isSuccess && categories.data.length === 0;
 
   return (
     <div className="grid gap-8">
+      {catalogEmpty ? <FirstRun /> : null}
+
       <SummaryCards showPayments />
 
       <section aria-labelledby="quick-heading" className="grid gap-2">
-        <h2 id="quick-heading" className="text-base font-semibold">
+        <h2 id="quick-heading" className="text-card font-semibold">
           {t("staffCatalog.home.quick.title")}
         </h2>
         <ul className="flex flex-wrap gap-2">
           <li>
-            <Link href="/staff/modules/new" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-sm font-medium hover:bg-bg">
+            <Link href="/staff/modules/new" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
               {t("staffCatalog.home.quick.newModule")}
             </Link>
           </li>
           <li>
-            <Link href="/staff/modules" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-sm font-medium hover:bg-bg">
+            <Link href="/staff/modules" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
               {t("staffCatalog.home.quick.newExam")}
             </Link>
           </li>
           <li>
-            <Link href="/staff/payments" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-sm font-medium hover:bg-bg">
+            <Link href="/staff/payments" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
               {t("staffCatalog.home.quick.payments")}
             </Link>
           </li>
           <li>
-            <Link href="/staff/students" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-sm font-medium hover:bg-bg">
+            <Link href="/staff/students" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
               {t("staffCatalog.home.quick.findStudent")}
             </Link>
           </li>
         </ul>
-        {!isMasterAdmin ? <p className="text-sm text-muted">{t("staffCatalog.home.quick.systemAdminNote")}</p> : null}
+        {!isMasterAdmin ? <p className="text-meta text-muted">{t("staffCatalog.home.quick.systemAdminNote")}</p> : null}
       </section>
 
       {rows.isPending ? (
         <Skeleton variant="rows" count={3} />
       ) : rows.isError && !rows.data ? (
         <ErrorState onRetry={() => rows.refetch()} message={t("staffCatalog.home.examsError")} />
-      ) : list.length === 0 ? (
-        <EmptyState title={t("staffCatalog.home.noExamsTitle")} body={t("staffCatalog.home.noExamsBody")} />
       ) : (
-        <>
-          <ExamList title={t("staffCatalog.home.todayTitle")} rows={today} empty={t("staffCatalog.home.todayEmpty")} />
-          <ExamList title={t("staffCatalog.home.upcomingTitle")} rows={upcoming} empty={t("staffCatalog.home.upcomingEmpty")} />
-        </>
+        <Agenda rows={rows.data?.content ?? []} now={now} />
       )}
     </div>
   );

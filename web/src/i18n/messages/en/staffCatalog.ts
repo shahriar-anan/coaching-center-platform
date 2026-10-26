@@ -26,6 +26,19 @@ const staffCatalog = {
   },
   dateNotSet: "Date to be announced",
   home: {
+    onboarding: {
+      title: "Create your first exam",
+      body: "Start in three steps: category, module, exam. Finish them one at a time.",
+      category: "Create a category",
+      module: "Create a module",
+      exam: "Add an exam",
+    },
+    agenda: {
+      title: "Exams in the next 14 days",
+      empty: "No dated exams in the next 14 days.",
+      today: "Today",
+      participants: "Sitting {n}",
+    },
     title: "Dashboard",
     awaitingMarking: "Awaiting a mark",
     awaitingPublish: "Awaiting publish",

@@ -282,11 +282,17 @@ export function useDeleteModule(id: string) {
 
 /* ---------- exams ---------- */
 
+/** The query for one module's exams, shared by the module page and the admin agenda (UF6). */
+export function moduleExamsQuery(moduleId: string) {
+  return {
+    queryKey: staffCatalogKeys.moduleExams(moduleId),
+    queryFn: () => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exam-modules/${moduleId}/exams?size=100`),
+  };
+}
+
 export function useModuleExams(moduleId: string | undefined) {
   return useQuery({
-    queryKey: staffCatalogKeys.moduleExams(moduleId ?? ""),
-    queryFn: () =>
-      apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exam-modules/${moduleId}/exams?size=100`),
+    ...moduleExamsQuery(moduleId ?? ""),
     enabled: Boolean(moduleId),
   });
 }
