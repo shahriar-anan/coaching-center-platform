@@ -13,6 +13,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { PasteQuestions } from "@/components/staff/catalog/paste-questions";
 
 /** The editor is only needed when a question is opened, so it loads on demand. */
 const QuestionEditor = dynamic(
@@ -42,6 +43,7 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
   const update = useUpdateQuestion(exam.id);
   const remove = useDeleteQuestion(exam.id);
   const [editing, setEditing] = useState<{ question?: StaffQuestion } | null>(null);
+  const [pasting, setPasting] = useState(false);
   const [deleting, setDeleting] = useState<StaffQuestion | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const nextPosition = questions.length === 0 ? 1 : Math.max(...questions.map((q) => q.position)) + 1;
@@ -75,7 +77,13 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
             </>
           ) : null}
         </p>
+        {!locked ? (
+          <Button variant="secondary" onClick={() => setPasting(true)}>
+            {t("staffCatalog.paste.open")}
+          </Button>
+        ) : null}
       </div>
+      <PasteQuestions exam={exam} nextPosition={nextPosition} open={pasting} onOpenChange={setPasting} />
 
       {questions.length === 0 ? (
         <EmptyState title={t("staffCatalog.mcq.emptyTitle")} body={t("staffCatalog.mcq.emptyBody")} />
