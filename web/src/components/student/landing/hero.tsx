@@ -1,9 +1,9 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { phones } from "@/content/site-info";
 import { useLocale } from "@/i18n/locale-context";
+import { HeroCategories } from "@/components/student/landing/categories";
 
 /** The navy chevron from the client's banner: a flat left point, cut square on the right. */
 const CHEVRON = "[clip-path:polygon(16%_0,100%_0,100%_100%,16%_100%,0_50%)]";
@@ -31,24 +31,9 @@ export function Hero() {
             </li>
           </ul>
 
-          {/* The mockup's entrance: the two doors are the way into the product. */}
-          <div className="mx-auto mt-7 grid max-w-md grid-cols-2 gap-3 lg:mx-0">
-            <Link
-              href="/mcq"
-              className="block rounded-card border border-border bg-card p-5 text-center transition hover:-translate-y-0.5 hover:border-accent"
-            >
-              <span aria-hidden="true" className="block text-3xl">✅</span>
-              <span className="mt-1 block text-title font-bold">{t("home.doorMcqTitle")}</span>
-              <span className="block text-meta text-muted">{t("home.doorMcqSub")}</span>
-            </Link>
-            <Link
-              href="/written"
-              className="block rounded-card border border-border bg-card p-5 text-center transition hover:-translate-y-0.5 hover:border-accent"
-            >
-              <span aria-hidden="true" className="block text-3xl">✍️</span>
-              <span className="mt-1 block text-title font-bold">{t("home.doorWrittenTitle")}</span>
-              <span className="block text-meta text-muted">{t("home.doorWrittenSub")}</span>
-            </Link>
+          {/* The way into the product: the exam categories, as on the old site's home page. */}
+          <div className="mx-auto mt-7 max-w-md lg:mx-0">
+            <HeroCategories />
           </div>
 
           <div className="mx-auto mt-4 grid max-w-md lg:mx-0">

@@ -14,6 +14,7 @@ const common = {
     account: "Account",
     myAccount: "My account",
     login: "Log in",
+    signUp: "Sign up",
     logout: "Log out",
     menu: "Menu",
     openMenu: "Open menu",

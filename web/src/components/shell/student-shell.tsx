@@ -71,14 +71,18 @@ function UserMenu() {
   const { t } = useLocale();
   const { session, logout } = useSession();
   if (session.status !== "authenticated") {
+    // The old site's single pill: log in, a divider, sign up.
+    const half = "inline-flex h-full items-center px-3 hover:bg-black/10 sm:px-4";
     return (
-      <Link
-        href="/login"
-        prefetch={false}
-        className="inline-flex h-11 items-center rounded-control px-4 text-label font-semibold text-text hover:bg-bg"
-      >
-        {t("common.nav.login")}
-      </Link>
+      <span className="inline-flex h-11 shrink-0 items-center overflow-hidden rounded-full bg-action text-label font-semibold text-on-action">
+        <Link href="/login" prefetch={false} className={half}>
+          {t("common.nav.login")}
+        </Link>
+        <span aria-hidden="true" className="h-5 w-px bg-on-action/40" />
+        <Link href="/register" prefetch={false} className={half}>
+          {t("common.nav.signUp")}
+        </Link>
+      </span>
     );
   }
   const user = session.user;
@@ -223,19 +227,6 @@ function WideNav() {
   );
 }
 
-function SignUpLink() {
-  const { t } = useLocale();
-  return (
-    <Link
-      href="/register"
-      prefetch={false}
-      className="hidden h-11 items-center rounded-control bg-action px-4 text-label font-semibold text-on-action sm:inline-flex"
-    >
-      {t("landing.signUpShort")}
-    </Link>
-  );
-}
-
 /**
  * The student surface: a 760 px column with a header, a footer and, on phones,
  * a bottom tab bar for signed-in students. Pages render their content only.
@@ -270,7 +261,6 @@ export function StudentShell({ children }: { children: ReactNode }) {
           {wide ? <WideNav /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
-            {wide && !signedIn ? <SignUpLink /> : null}
             <span className="flex items-center gap-1.5 max-[399px]:hidden sm:gap-2">
               <LocalePill />
               <ThemePill />

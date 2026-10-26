@@ -3,9 +3,8 @@ import { cn } from "@/components/ui/cn";
 
 /**
  * One landing section: a heading, an optional line under it, and the content
- * in the wide column. `band` turns the section into the navy strip, `tinted`
- * into the soft band the old site puts behind its category cards, and `center`
- * centres the heading as the old site does.
+ * in the wide column. `band` turns the section into the navy strip, and
+ * `center` centres the heading as the old site does.
  */
 export function Section({
   id,
@@ -13,7 +12,6 @@ export function Section({
   subtitle,
   action,
   band = false,
-  tinted = false,
   center = false,
   children,
 }: {
@@ -22,14 +20,13 @@ export function Section({
   subtitle?: string;
   action?: ReactNode;
   band?: boolean;
-  tinted?: boolean;
   center?: boolean;
   children: ReactNode;
 }) {
   return (
     <section
       aria-labelledby={id}
-      className={cn("px-4 py-12 md:py-16", band && "bg-band text-on-band", tinted && "bg-accent/10")}
+      className={cn("px-4 py-12 md:py-16", band && "bg-band text-on-band")}
     >
       <div className="mx-auto max-w-6xl">
         <div
