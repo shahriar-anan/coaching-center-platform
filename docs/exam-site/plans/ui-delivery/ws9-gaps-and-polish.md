@@ -886,3 +886,41 @@ Branch `ui/w9-ops`, worktree `F:\cc-wt\w9-ops`. Commits: `0f59e47` (C1, C3), `7c
 **Contract changes:** none. The API is used as merged (G14, G15, G16, and G11's submissions feed for the draft count).
 
 **Commit grouping:** the message catalogs for `staffPeople` and `staffOps` are shared across C2, F4 and UF8, and the Bangla pass and unused-key changes are in the same files. They are in the UF8 commit (`7cacf19`), so each commit before the last compiles and keeps its tests green. Every other item has its own commit.
+
+## Report — API-BUNDLE
+
+Plan D1 and section 8 (bundle order). Branch `ui/api-bundle`, worktree `F:\cc-wt\api-bundle`. The web flag `NEXT_PUBLIC_BUNDLE_ORDERS` stays off; no web file changed. No migration (V39 covers it).
+
+| Item | Status | Commit | Notes |
+|---|---|---|---|
+| B1 contract: `OrderView.examIds` | done | `ba899f3` | Bundle: the exams. Exam order: a one-item list. Module order: null. Additive. |
+| B2 validation | done | `dc8354b` | Exactly one of `moduleId`, `examId`, `examIds`; 1 to 20 distinct; one module; published exam in a published, visible module (404); price (409). |
+| B3 ownership | done | `a064173` | Roster or module grant on the module, or an active exam grant on any listed exam: 409 `ALREADY_PURCHASED`, nothing written. |
+| B4 insert | done | `6480320` | One order (`BUNDLE`, module set, exam null, sum, BDT, SSLCOMMERZ, INITIATED) and one `live_exam_order_exams` row per exam, one transaction. |
+| B5 open orders | done | `8d15f9e` | Matched by the exact exam set (order of ids ignored), among the student's INITIATED bundles in that module. Checked again under a per-student advisory lock inside the insert. A different set makes a new order. |
+| B6 grants | done | `2e5b9eb` | Verify, return, recheck and confirm write one `EXAM` grant per exam, `source` `BUNDLE`, `order_id` set, and one `PURCHASE_GRANTED` per exam. The held check is per exam, so a replay adds nothing and a partial earlier grant is completed. Amount, currency, store and tran id checks unchanged. |
+| B7 read paths | done | `b58eb86` | Product name: the module's English title for a bundle (and for a module order). Staff and student lists and the status page handle the null exam id. `OrderView` lists the exams. |
+| B8 recheck job | done, no code change | — | `LiveExamPaymentRecheck` already reads only INITIATED rows and grants through `tx.verify`. Covered by `BundleOrderIT.theRecheckJobGrantsAPaidBundle`. |
+| B9 mail | done | `8e78a84` | Before this, a bundle fell into the module branch of `ExamMailQueue` and queued exam-time mail for every exam of the module. Now the bundle's exams only. Receipt and Master Admin notice once per order. |
+| B10 tests | done | `8be3cba` | `BundleOrderIT`, 8 tests. Also `current-api.md` heading `API-BUNDLE`. |
+
+Not touched: the notice writers (`StudentNoticeWriter`, `StudentInboxService`, `StudentReminderJob`), which only gained a call from `writeBundleGrants` through the existing `purchaseGranted`; `LiveExamPublicService`; migrations; the web.
+
+Tests run (`./mvnw -Dtest=… verify`, under the `API` lock, test database `coaching_center_test`):
+
+| Class | Result |
+|---|---|
+| `BundleOrderIT` | 8 of 8 pass |
+| `LiveExamPurchaseIT` | 15 of 15 pass |
+| `LiveExamPaymentRecheckTest` | 6 of 6 pass |
+| `ExamMailIT` | 13 of 13 pass |
+| `AuditLogIT` | 3 of 3 pass |
+| `OrderFulfillmentIT` | 1 of 1 pass |
+| `LiveGrantAdminIT` | 12 of 13 pass; 1 fails |
+
+The one failure is `LiveGrantAdminIT.announcementHistoryIsMasterAdminOnlyNewestFirstWithoutBodiesAndCountsRecipients` at line 581 (`$.content[2].id`). It fails the same way on the base commit `d6506c9` when run alone in this shared test database, so it is not from the bundle work. The announcement list is API-ADMIN's code and was not changed here. Likely cause: announcement rows left in the kept test database from earlier runs. For the integrator to decide: run the full suite from clean, or fix the test's data isolation.
+
+Decisions for the integrator to note:
+- A bundle is priced as the sum of its exams, and the product name is the module's title. Exam-time mail uses the bundle's exams only.
+- A module order and a bundle both block a later purchase of an exam they already cover (the same `ALREADY_PURCHASED` rule as before).
+- A bundle's open order is reused only while INITIATED; cancelling it lets the same set start a new order.

@@ -18,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * A student's own exam orders, newest first. Status uses the public words of {@code /live-exam-orders/status}, and the
- * row carries no {@code valId} or contact details.
+ * row carries no {@code valId} or contact details. A bundle row ({@code scope = BUNDLE}) has no exam id and carries
+ * the module's titles; its exams are on {@code GET /live-exam-orders/{id}} as {@code examIds}.
  */
 @Service
 public class LiveExamOrderHistoryService {

@@ -2,7 +2,11 @@ package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -50,10 +54,12 @@ public class LiveExamOrderService {
 
 	private final StudentPhoneGuard phones;
 
+	private final LiveExamOrderBundle bundles;
+
 	public LiveExamOrderService(LiveExamOrderRepository orders, LiveExamOrderTx tx, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamRosterRepository roster, LiveExamGrantRepository grants,
 			LiveExamCatalogVisibility visibility, UserRepository users, StudentProfileRepository profiles,
-			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones) {
+			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones, LiveExamOrderBundle bundles) {
 		this.orders = orders;
 		this.tx = tx;
 		this.modules = modules;
@@ -65,6 +71,7 @@ public class LiveExamOrderService {
 		this.profiles = profiles;
 		this.gateways = gateways;
 		this.phones = phones;
+		this.bundles = bundles;
 	}
 
 	public InitiateResult initiate(UUID studentId, JsonNode body) {
@@ -77,6 +84,11 @@ public class LiveExamOrderService {
 		Optional<LiveExamOrder> open = findOpen(studentId, target);
 		if (open.isPresent()) {
 			return checkout(open.get(), false, studentId, target.productName());
+		}
+		if (LiveExamOrderBundle.SCOPE.equals(target.scope())) {
+			LiveExamOrderBundle.Inserted inserted = tx.insertBundle(studentId, target.moduleId(), target.examIds(),
+					target.amount());
+			return checkout(inserted.order(), inserted.created(), studentId, target.productName());
 		}
 		LiveExamOrder order;
 		try {
@@ -220,8 +232,12 @@ public class LiveExamOrderService {
 	private Target readTarget(JsonNode body) {
 		boolean module = present(body, "moduleId");
 		boolean exam = present(body, "examId");
-		if (module == exam) {
+		boolean bundle = body.has("examIds") && !body.get("examIds").isNull();
+		if ((module ? 1 : 0) + (exam ? 1 : 0) + (bundle ? 1 : 0) != 1) {
 			throw validationFailed();
+		}
+		if (bundle) {
+			return readBundle(body.get("examIds"));
 		}
 		if (exam) {
 			LiveExam row = exams.findByIdAndDeletedAtIsNull(readId(body, "examId")).orElseThrow(this::notFound);
@@ -230,11 +246,45 @@ public class LiveExamOrderService {
 				throw notFound();
 			}
 			return new Target(LiveExamOrder.EXAM, parent.getId(), row.getId(), requirePrice(row.getPrice()),
-					row.getTitleEn());
+					row.getTitleEn(), List.of(row.getId()));
 		}
 		UUID moduleId = readId(body, "moduleId");
 		LiveExamModule row = publishedModule(moduleId);
-		return new Target(LiveExamOrder.MODULE, row.getId(), null, requirePrice(row.getPrice()), row.getTitleEn());
+		return new Target(LiveExamOrder.MODULE, row.getId(), null, requirePrice(row.getPrice()), row.getTitleEn(),
+				List.of());
+	}
+
+	/**
+	 * A bundle (plan D1): 1 to 20 distinct exams of one module, each published and priced as for one exam. The amount is
+	 * the sum of the prices, and the product name is the module's title.
+	 */
+	private Target readBundle(JsonNode node) {
+		if (!node.isArray() || node.isEmpty() || node.size() > LiveExamOrderBundle.MAX_EXAMS) {
+			throw validationFailed();
+		}
+		Set<UUID> ids = new LinkedHashSet<>();
+		for (JsonNode item : node) {
+			if (!item.isValueNode() || !ids.add(parseId(item.asText()))) {
+				throw validationFailed();
+			}
+		}
+		List<LiveExam> rows = new ArrayList<>();
+		for (UUID id : ids) {
+			rows.add(exams.findByIdAndDeletedAtIsNull(id).orElseThrow(this::notFound));
+		}
+		UUID moduleId = rows.get(0).getModuleId();
+		if (rows.stream().anyMatch(row -> !row.getModuleId().equals(moduleId))) {
+			throw validationFailed();
+		}
+		LiveExamModule parent = publishedModule(moduleId);
+		if (rows.stream().anyMatch(row -> !LiveExam.PUBLISHED.equals(row.getStatus()))) {
+			throw notFound();
+		}
+		BigDecimal amount = BigDecimal.ZERO.setScale(2);
+		for (LiveExam row : rows) {
+			amount = amount.add(requirePrice(row.getPrice()));
+		}
+		return new Target(LiveExamOrderBundle.SCOPE, parent.getId(), null, amount, parent.getTitleEn(), List.copyOf(ids));
 	}
 
 	private LiveExamModule publishedModule(UUID moduleId) {
@@ -250,13 +300,17 @@ public class LiveExamOrderService {
 				|| grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(studentId, LiveExamOrder.MODULE, target.moduleId())) {
 			throw alreadyPurchased();
 		}
-		if (target.examId() != null
-				&& grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, target.examId())) {
-			throw alreadyPurchased();
+		for (UUID examId : target.examIds()) {
+			if (grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, examId)) {
+				throw alreadyPurchased();
+			}
 		}
 	}
 
 	private Optional<LiveExamOrder> findOpen(UUID studentId, Target target) {
+		if (LiveExamOrderBundle.SCOPE.equals(target.scope())) {
+			return bundles.findOpen(studentId, target.moduleId(), target.examIds()).flatMap(orders::findById);
+		}
 		if (target.examId() == null) {
 			return orders.findByStudentIdAndScopeAndModuleIdAndExamIdIsNullAndStatus(studentId, LiveExamOrder.MODULE,
 					target.moduleId(), LiveExamOrder.INITIATED);
@@ -282,8 +336,12 @@ public class LiveExamOrderService {
 	}
 
 	private static UUID readId(JsonNode body, String field) {
+		return parseId(body.get(field).asText());
+	}
+
+	private static UUID parseId(String value) {
 		try {
-			return UUID.fromString(body.get(field).asText().trim());
+			return UUID.fromString(value.trim());
 		}
 		catch (IllegalArgumentException exception) {
 			throw validationFailed();
@@ -297,8 +355,9 @@ public class LiveExamOrderService {
 		return price.setScale(2, RoundingMode.UNNECESSARY);
 	}
 
+	/** The exam's title, or the module's title for a module order and for a bundle (which has no exam id). */
 	private String productName(LiveExamOrder order) {
-		if (order.getExamId() != null) {
+		if (LiveExamOrder.EXAM.equals(order.getScope())) {
 			return exams.findByIdAndDeletedAtIsNull(order.getExamId()).orElseThrow(this::notFound).getTitleEn();
 		}
 		return modules.findByIdAndDeletedAtIsNull(order.getModuleId()).orElseThrow(this::notFound).getTitleEn();
@@ -314,13 +373,21 @@ public class LiveExamOrderService {
 		};
 	}
 
-	private static OrderView view(LiveExamOrder order) {
+	private OrderView view(LiveExamOrder order) {
 		return view(order, null);
 	}
 
-	private static OrderView view(LiveExamOrder order, String redirectUrl) {
+	private OrderView view(LiveExamOrder order, String redirectUrl) {
 		return new OrderView(order.getId(), order.getTranId(), order.getStatus(), order.getAmount(), redirectUrl,
-				order.getScope(), order.getModuleId(), order.getExamId());
+				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order));
+	}
+
+	/** The exams the order covers: the bundle's list, the one exam, or null for a module (it covers future exams too). */
+	private List<UUID> examIds(LiveExamOrder order) {
+		if (LiveExamOrderBundle.SCOPE.equals(order.getScope())) {
+			return bundles.examIds(order.getId());
+		}
+		return order.getExamId() == null ? null : List.of(order.getExamId());
 	}
 
 	private static ApiException validationFailed() {
@@ -342,10 +409,12 @@ public class LiveExamOrderService {
 	}
 
 	public record OrderView(UUID orderId, String tranId, String status, BigDecimal amount, String redirectUrl,
-			String scope, UUID moduleId, UUID examId) {
+			String scope, UUID moduleId, UUID examId, List<UUID> examIds) {
 	}
 
-	private record Target(String scope, UUID moduleId, UUID examId, BigDecimal amount, String productName) {
+	/** {@code examIds} lists the exams owned checks cover: the bundle's, the one exam, or none for a module. */
+	private record Target(String scope, UUID moduleId, UUID examId, BigDecimal amount, String productName,
+			List<UUID> examIds) {
 	}
 
 }

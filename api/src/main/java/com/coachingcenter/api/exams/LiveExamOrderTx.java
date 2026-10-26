@@ -3,6 +3,8 @@ package com.coachingcenter.api.exams;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -37,8 +39,11 @@ class LiveExamOrderTx {
 
 	private final AuditRecorder audit;
 
+	private final LiveExamOrderBundle bundles;
+
 	LiveExamOrderTx(LiveExamOrderRepository orders, LiveExamGrantRepository grants, ExamMailService examMail,
-			AfterCommit afterCommit, StudentNoticeWriter notices, Clock clock, AuditRecorder audit) {
+			AfterCommit afterCommit, StudentNoticeWriter notices, Clock clock, AuditRecorder audit,
+			LiveExamOrderBundle bundles) {
 		this.orders = orders;
 		this.grants = grants;
 		this.examMail = examMail;
@@ -46,6 +51,7 @@ class LiveExamOrderTx {
 		this.notices = notices;
 		this.clock = clock;
 		this.audit = audit;
+		this.bundles = bundles;
 	}
 
 	@Transactional
@@ -65,6 +71,24 @@ class LiveExamOrderTx {
 		order.setCreatedAt(now);
 		order.setUpdatedAt(now);
 		return orders.saveAndFlush(order);
+	}
+
+	/**
+	 * One bundle order and one {@code live_exam_order_exams} row per exam, in one transaction (plan D1). Under the
+	 * student's lock, an open bundle with the same exam set is returned instead, so a double click gets one order.
+	 */
+	@Transactional
+	public LiveExamOrderBundle.Inserted insertBundle(UUID studentId, UUID moduleId, List<UUID> examIds,
+			BigDecimal amount) {
+		bundles.lockStudent(studentId);
+		Optional<UUID> open = bundles.findOpen(studentId, moduleId, examIds);
+		if (open.isPresent()) {
+			return new LiveExamOrderBundle.Inserted(orders.findById(open.get()).orElseThrow(LiveExamOrderTx::notFound),
+					false);
+		}
+		LiveExamOrder order = insert(studentId, LiveExamOrderBundle.SCOPE, moduleId, null, amount);
+		bundles.insertExams(order.getId(), examIds);
+		return new LiveExamOrderBundle.Inserted(order, true);
 	}
 
 	@Transactional
@@ -158,6 +182,10 @@ class LiveExamOrderTx {
 	}
 
 	private void writeGrant(LiveExamOrder order) {
+		if (LiveExamOrderBundle.SCOPE.equals(order.getScope())) {
+			writeBundleGrants(order);
+			return;
+		}
 		boolean held = LiveExamOrder.MODULE.equals(order.getScope())
 				? grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.MODULE, order.getModuleId())
 				: grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.EXAM, order.getExamId());
@@ -176,6 +204,29 @@ class LiveExamOrderTx {
 		grants.saveAndFlush(grant);
 		notices.purchaseGranted(order.getStudentId(),
 				LiveExamOrder.MODULE.equals(order.getScope()) ? order.getModuleId() : order.getExamId(), order.getScope());
+	}
+
+	/**
+	 * One exam grant per bundle exam ({@code source = BUNDLE}). The held check is per exam, so a replay adds nothing and
+	 * an exam already granted another way is skipped while the rest are granted.
+	 */
+	private void writeBundleGrants(LiveExamOrder order) {
+		for (UUID examId : bundles.examIds(order.getId())) {
+			if (grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.EXAM, examId)) {
+				continue;
+			}
+			LiveExamGrant grant = new LiveExamGrant();
+			grant.setId(UUID.randomUUID());
+			grant.setStudentId(order.getStudentId());
+			grant.setScope(LiveExamOrder.EXAM);
+			grant.setModuleId(order.getModuleId());
+			grant.setExamId(examId);
+			grant.setOrderId(order.getId());
+			grant.setSource(LiveExamGrant.SOURCE_BUNDLE);
+			grant.setCreatedAt(clock.instant());
+			grants.saveAndFlush(grant);
+			notices.purchaseGranted(order.getStudentId(), examId, LiveExamOrder.EXAM);
+		}
 	}
 
 	private static boolean matches(LiveExamOrder order, LiveExamPaymentGateway.Verification verification) {
