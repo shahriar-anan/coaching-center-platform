@@ -754,3 +754,33 @@ Checks: `npm run lint` 0 errors (2 warnings, both in files this branch does not 
 - OPS's `AccessRow` type in `staff-people.ts` has no `grantId` and old `via` values. `StudentAccessSection` uses its own `AdminAccessRow`, so the two do not clash.
 
 **API additions used:** none new. **Contract changes:** none.
+
+## Report — ADMIN-UI
+
+Branch `ui/admin-ui`, worktree `F:\cc-wt\admin-ui`, cut from `catalog-acquisition` at `d83c068`. Items AG-06 to AG-10 (section 2b of the plan). Item 6 (AG-05, placement) is not started: it waits for the integrator's word that OPS and AUT are merged.
+
+Checks, this branch: `npm run lint` 0 errors (2 warnings, both in files this branch does not own); `npx tsc --noEmit` clean; `npx vitest run` 90 files, 529 tests passed; `npm run build` passed under lock `ADMINUI`, and `/staff/announcements` and `/staff/system-status` are in the route list. Not done: a browser pass at 375 px and 1440 px, in both themes, and by keyboard. Nothing here is checked by eye.
+
+| Item | Status | Note |
+|---|---|---|
+| AG-06 announcement history | done | Under the send form, Master Admin only. Title in the reader's language with fallback, audience (all students, or the module's name), time sent, recipient count. Loading, empty, error (with retry) and success states, paged. A send refreshes the list. Tested against the mocked `GET /api/v1/announcements` contract. |
+| AG-07 access matrix | done, two fixes | `tests/staff-admin/access-matrix.test.tsx` covers the student, instructor, exam, orders, announcements and system status screens for each role, and checks System Admin never sees the refused controls. Two components fetched and rendered for Instructor: `StudentAccessSection` and `AnswerReleaseSwitch`. Both now render nothing for other roles, and make no request. The two instructor cases fail on the old code. |
+| AG-08 dialogs | done, one shared fix | Focus goes into revoke, confirm, reject, release, announcement and delete on open, Escape closes, and focus goes back to the control that opened it. Focus did not go back before: see the note below. |
+| AG-09 error copy | done | `ADMIN_ROUTE_ERROR_CODES` in `copy.test.ts` lists the codes the admin services and the global handler return (13). Each has its own message in both languages; the test fails if one has none. Six were missing and are added. An unknown code shows the generic message; a component test checks the raw code does not reach the grant form or the delete dialog. |
+| AG-10 status page | done | The page writes its own note for each check, from the check's name. The API's `note` is no longer shown, so no value in it can reach the screen. A test puts fake secrets in a note, an extra field and a check name, and checks the page text and markup show none. It fails on the old component. |
+| Placement (AG-05) | not started | Waits for the integrator. |
+
+**Changed outside the owned list, for the integrator to know:**
+- `web/src/components/ui/dialog.tsx` (shared FND component). `Dialog` says it returns focus to the trigger, but Radix only does that for `Dialog.Trigger`, and these dialogs open by state, so focus fell to the page body. The dialog now records the focused control on open and gives focus back on close. Every dialog in the app gets this. FND owners should look at it when they merge.
+- `ORDER_NOT_PENDING` now also refreshes the pending list (the copy says it reloads).
+
+**Behaviour changes to check in review:**
+- The status page no longer shows the API's `note` text. Each check has a note written in the page copy. If you want the API's note back, that is a one-line change, but it means trusting the note to carry no value.
+- `useSendAnnouncement` now refreshes the history list on success.
+
+**Limits:**
+- The announcement history depends on `GET /api/v1/announcements` from ADMIN-API. Until that branch merges, the page shows its error state on a real server; tests use the mocked contract.
+- The new Bangla copy (history, error messages, status notes) was written here and has not been checked by a Bangla reader.
+- The full web test run hit a JavaScript heap out of memory once while the PC was short of memory (other agents running). It passed on re-run; the single-file runs were not affected.
+
+**API additions used:** `GET /api/v1/announcements?page=&size=` (mocked until ADMIN-API merges). **Contract changes:** none.
