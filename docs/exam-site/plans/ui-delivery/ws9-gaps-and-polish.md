@@ -721,3 +721,36 @@ Branch `ui/w9-marking`, worktree `F:\cc-wt\w9-mrk`. Checks: `npm run lint` 0 err
 **API additions used:** none new. Uses `GET /api/v1/live-exam-submissions`, `GET /api/v1/live-exam-participants/{id}` (with `comment`, `evaluatedFileName`, titles), `POST .../evaluation`, `POST .../publish`, `POST /api/v1/live-exams/{id}/publish-results`, `GET /api/v1/live-exams/{id}/question-pdf`, `GET /api/v1/live-exam-modules` (with `categoryPath` and `instructor`).
 
 **Contract changes:** none.
+
+## Report — STAFF-ADMIN-UI
+
+Branch `ui/staff-admin`, worktree `F:\cc-wt\staff-admin`, cut from `catalog-acquisition` at `02481d5`. The prompt gave no item IDs, so this report uses SA-0 (shared client and copy) and SA-1 to SA-6 for the six items in the prompt.
+
+Checks: `npm run lint` 0 errors (2 warnings, both in files this branch does not own); `npx tsc --noEmit` clean; `npx vitest run` 85 files, 482 tests passed (new: `tests/staff-admin`, 7 files, 28 tests); `npm run build` passed under lock `STAFFADMIN`, and `/staff/announcements` and `/staff/system-status` are in the route list. Not done: a browser pass at 375 px and 1440 px, in both themes, and by keyboard. Nothing here is checked by eye.
+
+| Item | Status | Note |
+|---|---|---|
+| SA-0 client and copy | done | `lib/api/exam/staff-admin.ts` covers every route in the prompt. `messages/{bn,en}/staffAdmin.ts`, with a parity test. An unknown error code shows the generic message. |
+| SA-1 student access section | done, slot pending | `StudentAccessSection`: source label, module, exams, transaction ID linked to the payment. Master Admin revokes a row with a `grantId`, after a reason dialog. System Admin has the grant form and the sentence on who can revoke. The student page has no `SLOT: access list` marker on this branch, so the integrator places the component. |
+| SA-2 answer release | done, slot pending | `AnswerReleaseSwitch`. The confirm dialog names the exam. Hidden for written papers. The exam page has no `SLOT: answer release` marker on this branch. |
+| SA-3 pending orders | done, route pending | `PendingOrders` (search by transaction ID, paged, Confirm and Reject with a required reason for Master Admin, a sentence for System Admin). No route is in the owned files, so the integrator adds one. |
+| SA-4 announcements | done | `/staff/announcements`. Master Admin gets the form (four optional fields, not all blank; audience; module picker; confirm names the audience). System Admin gets the page as information only. |
+| SA-5 instructor and student accounts | partly | `AccountStatusToggle` and `DeleteAccountButton` in `components/staff/status/`. A refused delete shows the server's message with a suspend button. Not placed on the instructors or students page (integrator). |
+| SA-6 system status | done | `/staff/system-status`: plain-words name, Yes or No pill, the API note, and one fix sentence per failed check. System Admin is sent to `/staff`. |
+| Skipped | none | |
+
+**Limits:**
+- The API `note` is shown as sent (English). Only the names and the fix sentences are in Bangla.
+- Tests register the `staffAdmin` copy themselves (`tests/staff-admin/copy-setup.ts`), because `messages/index.ts` is not in the owned files. Without that, `t()` returns the keys.
+- Table rows render twice (a table and phone cards, hidden by CSS), so tests expect two matching cells per row.
+
+**For the integrator:**
+- Register `staffAdmin` in `web/src/i18n/messages/index.ts` for both languages. Then drop the `copy-setup.ts` import from the tests.
+- Student page (OPS): replace or sit beside the existing access table with `<StudentAccessSection studentId={id} studentName={row.fullName} />`, and add `<AccountStatusToggle kind="students" id={id} status={row.status} />` and `<DeleteAccountButton kind="students" id={id} name={row.fullName} />`. Once the section is in, the old access table in that page is a second list of the same rows.
+- Exam page (AUT): add `<AnswerReleaseSwitch examId={examId} />` to `ExamEditor`'s MCQ view. The page itself has no marker.
+- Pending orders: add `/staff/orders` (Master Admin and System Admin) that renders `PendingOrders`, or embed it in the payments page.
+- Instructors page (OPS): on each row, `<AccountStatusToggle kind="instructors" .../>` and `<DeleteAccountButton kind="instructors" .../>`. Both API routes exist.
+- Staff navigation (`components/shell/staff-nav.ts`): `/staff/announcements` and `/staff/system-status` for Master Admin, and the orders route if added.
+- OPS's `AccessRow` type in `staff-people.ts` has no `grantId` and old `via` values. `StudentAccessSection` uses its own `AdminAccessRow`, so the two do not clash.
+
+**API additions used:** none new. **Contract changes:** none.
