@@ -48,6 +48,9 @@ const common = {
     STUDENT: "শিক্ষার্থী",
   },
   staffNav: {
+    announcements: "ঘোষণা",
+    systemStatus: "সিস্টেম স্ট্যাটাস",
+    orders: "অপেক্ষমাণ পেমেন্ট",
     dashboard: "ড্যাশবোর্ড",
     categories: "ক্যাটাগরি",
     modules: "মডিউল",

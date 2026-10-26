@@ -11,7 +11,10 @@ export type StaffNavKey =
   | "admins"
   | "payments"
   | "audit"
-  | "account";
+  | "account"
+  | "orders"
+  | "announcements"
+  | "systemStatus";
 
 export type StaffNavItem = {
   key: StaffNavKey;
@@ -53,6 +56,9 @@ export const STAFF_NAV: StaffNavItem[] = [
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "read" },
   },
   { key: "audit", href: "/staff/audit", access: { MASTER_ADMIN: "full" } },
+  { key: "orders", href: "/staff/orders", access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "read" } },
+  { key: "announcements", href: "/staff/announcements", access: { MASTER_ADMIN: "full" } },
+  { key: "systemStatus", href: "/staff/system-status", access: { MASTER_ADMIN: "full" } },
   {
     key: "account",
     href: "/staff/account",

@@ -48,6 +48,9 @@ const common = {
     STUDENT: "Student",
   },
   staffNav: {
+    announcements: "Announcements",
+    systemStatus: "System status",
+    orders: "Pending orders",
     dashboard: "Dashboard",
     categories: "Categories",
     modules: "Modules",
