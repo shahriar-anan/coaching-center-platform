@@ -56,7 +56,7 @@ export function CoverUploader({ module }: { module: StaffModule }) {
   return (
     <section aria-labelledby="module-cover-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card p-5">
       <h2 id="module-cover-heading" className="text-card-title font-semibold">
-        {t("catalog.package.cover.upload")}
+        {t("catalog.package.cover.heading")}
       </h2>
       <div className="grid gap-4 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-start">
         <PackageCover

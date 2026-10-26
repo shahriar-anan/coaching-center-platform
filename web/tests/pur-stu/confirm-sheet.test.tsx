@@ -52,7 +52,7 @@ describe("confirm sheet copy (S-005 and the sheet spec)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /কিনুন/ }));
 
     expect(await screen.findByText("শুধু এই পরীক্ষাটি খুলবে।")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "পেমেন্টে যান" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /নিরাপদে পেমেন্ট করুন/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "বাতিল" })).toBeInTheDocument();
     expect(screen.queryByText("শুধু এই পরীক্ষাটি চালু হবে।")).not.toBeInTheDocument();
   });
@@ -68,6 +68,6 @@ describe("confirm sheet copy (S-005 and the sheet spec)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "পুরো মডিউল কিনুন" }));
 
     expect(await screen.findByText("এই মডিউলের বর্তমান ও ভবিষ্যতের সব পরীক্ষা খুলবে।")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "পেমেন্টে যান" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /নিরাপদে পেমেন্ট করুন/ })).toBeInTheDocument();
   });
 });

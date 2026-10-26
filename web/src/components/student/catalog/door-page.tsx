@@ -37,7 +37,7 @@ function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
         : t("catalog.countModules", { n: formatNumber(modules, locale) });
   return (
     <Card href={categoryPath(door, node.id)}>
-      <p className="text-card-title font-bold">⚖️ {pickTitle(node, locale)}</p>
+      <p className="text-card-title font-bold">{pickTitle(node, locale)}</p>
       <p className="text-body text-muted">{subtitle}</p>
     </Card>
   );

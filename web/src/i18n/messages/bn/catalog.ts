@@ -23,6 +23,7 @@ const catalog = {
     futureExams: "পরে যোগ হওয়া পরীক্ষাও, আলাদা কোনো খরচ ছাড়া",
     coverAlt: "{title}-এর ছবি",
     cover: {
+      heading: "প্রচ্ছদ ছবি",
       upload: "ছবি আপলোড করুন",
       replace: "ছবি বদলান",
       remove: "ছবি সরান",

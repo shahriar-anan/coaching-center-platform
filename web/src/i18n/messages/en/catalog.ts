@@ -25,6 +25,7 @@ const catalog: typeof bn = {
     futureExams: "Exams added later, with no extra payment",
     coverAlt: "Cover of {title}",
     cover: {
+      heading: "Cover image",
       upload: "Upload cover",
       replace: "Replace cover",
       remove: "Remove cover",

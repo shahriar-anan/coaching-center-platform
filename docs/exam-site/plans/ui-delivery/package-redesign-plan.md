@@ -1,5 +1,7 @@
 # Package redesign: module pages, package cards, purchase sheet, cover images
 
+> **Status (2026-10-26):** the API, the module page, package cards and the staff uploader are committed (`e387608`). The exam page and purchase flow are built but not committed. Deviations from this plan and the current progress are recorded in [package-page-design-plan.md](package-page-design-plan.md), section 10. Where the two documents differ, section 10 is the current record.
+
 Written 2026-10-26 for Shahriar. Decided after an LMS practice review (course-page patterns from Coursera, Udemy, Teachable and Moodle). Scope is confirmed: a **package is a module**, each package has **one cover image**, and **only the Master Admin** uploads it. Image rules: JPG, PNG or WebP, up to 2 MB, shown in a 16:9 crop.
 
 Checks are run once, at the end (section 9). Steps are built in the order in section 8.

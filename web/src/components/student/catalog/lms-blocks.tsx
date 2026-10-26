@@ -67,6 +67,6 @@ export function FactTile({
 export function ruleLines(text: string): string[] {
   return text
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => line.trim().replace(/^[০-৯0-9]+\s*[.)।:-]\s*/, ""))
     .filter(Boolean);
 }

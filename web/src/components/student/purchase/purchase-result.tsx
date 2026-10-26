@@ -7,6 +7,10 @@ import { usePaymentStatus, useInvalidateCatalog, type PaymentState } from "@/lib
 import { useSession } from "@/lib/auth/session-context";
 import { ORDER_MEMO_PREFIX, type OrderMemo } from "./purchase-sheet";
 import { useLocale } from "@/i18n/locale-context";
+import { Check, Clock, Info, X } from "lucide-react";
+import { phones } from "@/content/site-info";
+import { cn } from "@/components/ui/cn";
+import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -85,18 +89,49 @@ function SignInForm() {
   );
 }
 
-function Outcome({ title, body, actions }: { title: string; body: string; actions: React.ReactNode }) {
+const TONE = {
+  ok: "bg-ok/15 text-ok",
+  warn: "bg-warn/15 text-warn",
+  danger: "bg-danger/15 text-danger",
+  neutral: "bg-bg text-muted",
+} as const;
+
+const ICON = { ok: Check, warn: Clock, danger: X, neutral: Info } as const;
+
+function Outcome({
+  tone = "neutral",
+  title,
+  body,
+  details,
+  actions,
+  footer,
+}: {
+  tone?: keyof typeof TONE;
+  title: string;
+  body: string;
+  details?: React.ReactNode;
+  actions: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  const Icon = ICON[tone];
   return (
-    <div className="grid gap-4 rounded-card border border-border bg-card p-6 text-center">
-      <h2 className="text-section font-bold">{title}</h2>
-      <p className="text-muted">{body}</p>
-      <div className="flex flex-wrap justify-center gap-2">{actions}</div>
+    <div className="mx-auto grid w-full max-w-xl justify-items-center gap-5 rounded-card border border-border bg-card p-6 text-center md:p-8">
+      <span className={cn("flex size-16 items-center justify-center rounded-full", TONE[tone])}>
+        <Icon aria-hidden="true" className="size-8" strokeWidth={2.5} />
+      </span>
+      <div className="grid gap-2">
+        <h2 className="text-xl font-bold md:text-2xl">{title}</h2>
+        <p className="leading-relaxed text-muted">{body}</p>
+      </div>
+      {details ? <dl className="grid w-full gap-2 rounded-control bg-bg p-4 text-start text-body">{details}</dl> : null}
+      <div className="flex w-full flex-wrap justify-center gap-2">{actions}</div>
+      {footer ? <div className="text-meta text-muted">{footer}</div> : null}
     </div>
   );
 }
 
 export function PurchaseResult() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const params = useSearchParams();
   const tranId = params.get("tranId")?.trim() ?? "";
   const { session } = useSession();
@@ -139,12 +174,14 @@ export function PurchaseResult() {
   const error = status.error;
   const notFound = error instanceof ApiError && (error.code === "RESOURCE_NOT_FOUND" || error.code === "ACCESS_DENIED");
 
+  const memoAmount = memo?.amount;
   let body: React.ReactNode;
   if (status.isPending) {
     body = <Skeleton variant="card" count={2} />;
   } else if (notFound) {
     body = (
       <Outcome
+        tone="neutral"
         title={t("purchase.result.notFoundTitle")}
         body={t("purchase.result.notFoundBody")}
         actions={<Button variant="secondary" href="/">{t("purchase.result.home")}</Button>}
@@ -158,32 +195,53 @@ export function PurchaseResult() {
     const goExam = memo?.examId ? examPath(memo.examId) : null;
     body = (
       <Outcome
+        tone="ok"
         title={t("purchase.result.paidTitle", { name: name || t("purchase.result.title") })}
         body={t("purchase.result.paidBody")}
+        details={
+          <>
+            {memoAmount !== undefined ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">{t("purchase.result.amountPaid")}</dt>
+                <dd className="font-bold tabular-nums">{formatMoney(memoAmount, locale)}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">{t("purchase.result.tranId")}</dt>
+              <dd className="font-mono text-meta">{tranId}</dd>
+            </div>
+          </>
+        }
         actions={
           <>
             {goModule ? <Button href={goModule}>{t("purchase.result.goModule")}</Button> : null}
             {goExam ? <Button variant={goModule ? "secondary" : "primary"} href={goExam}>{t("purchase.result.goExam")}</Button> : null}
             {!goModule && !goExam ? <Button href="/my-modules">{t("purchase.result.goMine")}</Button> : null}
+            <Button variant="ghost" href="/account/payments">{t("purchase.result.receipts")}</Button>
           </>
         }
       />
     );
   } else if (current === "FAILED" || current === "CANCELLED") {
     const retry = memo?.examId ? examPath(memo.examId) : memo?.moduleId && memo.door ? modulePath(memo.door, memo.moduleId) : "/";
+    const failed = current === "FAILED";
     body = (
       <Outcome
-        title={t(current === "FAILED" ? "purchase.result.failedTitle" : "purchase.result.cancelledTitle")}
-        body={t(current === "FAILED" ? "purchase.result.failedBody" : "purchase.result.cancelledBody")}
+        tone={failed ? "danger" : "neutral"}
+        title={t(failed ? "purchase.result.failedTitle" : "purchase.result.cancelledTitle")}
+        body={t(failed ? "purchase.result.failedBody" : "purchase.result.cancelledBody")}
         actions={<Button href={retry}>{t("purchase.result.tryAgain")}</Button>}
+        footer={failed && phones[0] ? t("purchase.result.failedHelp", { phone: phones[0].display }) : undefined}
       />
     );
   } else {
     // PENDING, still inside the first minute or past it.
     body = (
       <Outcome
+        tone="warn"
         title={waiting ? t("purchase.result.pendingLateTitle") : t("purchase.result.pendingTitle")}
         body={waiting ? t("purchase.result.pendingLate") : t("purchase.result.pendingBody")}
+        footer={t("purchase.result.pendingWhat")}
         actions={
           waiting ? (
             <Button
@@ -207,11 +265,6 @@ export function PurchaseResult() {
   return (
     <>
       <PageHeader title={t("purchase.result.title")} breadcrumbs={crumbs} />
-      {status.data ? (
-        <p className="mb-3 text-body text-muted">
-          {t("purchase.result.tranId")}: <span className="font-mono">{tranId}</span>
-        </p>
-      ) : null}
       {body}
     </>
   );

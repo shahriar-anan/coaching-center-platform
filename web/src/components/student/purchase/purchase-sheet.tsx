@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/exam/purchase";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
@@ -37,6 +38,8 @@ export interface OrderMemo {
   moduleId: string | null;
   door: "mcq" | "written" | null;
   title: string;
+  /** The amount the student agreed to pay, shown on the success page. */
+  amount?: number;
 }
 
 function remember(tranId: string, memo: OrderMemo) {
@@ -132,6 +135,7 @@ export function PurchaseSheet({
         moduleId: order.moduleId ?? examMeta?.moduleId ?? null,
         door: item.door ?? examMeta?.door ?? null,
         title: item.title,
+        amount: item.price,
       });
       setLeaving(true);
       window.location.assign(order.redirectUrl);
@@ -194,13 +198,17 @@ export function PurchaseSheet({
             </button>
           </p>
         ) : null}
-        <p className="text-body text-muted">🔒 {t("purchase.trust")}</p>
-        <p className="text-body text-muted">
-          {t("purchase.leaving")}{" "}
-          <Link href="/refund" className="text-accent underline" onClick={() => close(false)}>
-            {t("purchase.refundLink")}
-          </Link>
-        </p>
+        <div className="grid gap-3 rounded-card border border-border p-3">
+          {/* The payment logos are a static image from the brand folder, not run through the optimiser. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/payment-methods.png" alt={t("purchase.paymentsAlt")} className="h-10 w-full object-contain object-left" />
+          <p className="flex items-center gap-1.5 text-meta text-muted"><Lock aria-hidden="true" className="size-3.5 shrink-0" />{t("purchase.trust")}</p>
+          <ol className="grid gap-1.5 text-body text-muted">
+            <li className="flex gap-2"><span className="font-bold text-text-accent">1.</span>{t("purchase.next1")}</li>
+            <li className="flex gap-2"><span className="font-bold text-text-accent">2.</span>{t("purchase.next2")}</li>
+            <li className="flex gap-2"><span className="font-bold text-text-accent">3.</span>{t("purchase.next3")}</li>
+          </ol>
+        </div>
         {problem ? (
           <div role="alert" className="rounded-control border border-border p-3 text-meta">
             <p className={problem.kind === "cancelled" || problem.kind === "owned" ? "" : "text-danger"}>
@@ -227,16 +235,21 @@ export function PurchaseSheet({
             ) : null}
           </div>
         ) : null}
+        <p className="text-meta text-muted">
+          <Link href="/refund" className="text-accent underline" onClick={() => close(false)}>
+            {t("purchase.refundLink")}
+          </Link>
+        </p>
         {problem?.kind === "owned" ? (
           <Button fullWidth onClick={() => close(false)}>
             {t("catalog.unlocked")}
           </Button>
         ) : (
           <Button fullWidth loading={busy} onClick={() => void pay()}>
-            {busy ? t("purchase.redirecting") : t("purchase.pay")}
+            {busy ? t("purchase.redirecting") : t("purchase.payWithPrice", { price: formatMoney(item.price, locale) ?? "" })}
           </Button>
         )}
-        <Button variant="secondary" fullWidth onClick={() => close(false)}>
+        <Button variant="ghost" fullWidth onClick={() => close(false)}>
           {t("purchase.cancel")}
         </Button>
       </div>
