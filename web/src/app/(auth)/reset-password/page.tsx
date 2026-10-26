@@ -78,10 +78,11 @@ export default function ResetPasswordPage() {
             <TextInput
               id="reset-code"
               name="code"
-              inputMode="numeric"
+              autoCapitalize="characters"
+              spellCheck={false}
               autoComplete="one-time-code"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
               invalid={Boolean(errors.code)}
             />
           </Field>

@@ -182,10 +182,11 @@ function AccountView() {
                   <TextInput
                     id="account-code"
                     name="verificationCode"
-                    inputMode="numeric"
+                    autoCapitalize="characters"
+                    spellCheck={false}
                     autoComplete="one-time-code"
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
                     invalid={Boolean(codeError)}
                   />
                 </Field>

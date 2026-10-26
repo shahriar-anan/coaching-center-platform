@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
+import { useResendEmailVerification, useVerifyEmail } from "@/lib/api/exam/account";
+import type { Me } from "@/lib/api/exam/types";
+import { destinationFor, useSession } from "@/lib/auth/session-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
-import { FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+import { CODE_DEAD, FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import {
@@ -36,10 +39,15 @@ export default function RegisterPage() {
 type Values = { fullName: string; phone: string; email: string; password: string };
 type FieldErrors = Partial<Record<keyof Values, string>>;
 
-/** Account creation. Registration does not sign the student in; the next step is the login page. */
+/**
+ * Account creation. After the account is made the student is signed in with the
+ * same details and asked for the emailed code, then sent home (or back to `next`).
+ * If that sign-in fails, the page falls back to a link to the login page.
+ */
 function RegisterForm() {
   const { t, locale } = useLocale();
-  // Keep the buy path: the login link and the success button carry `next` on to the login page.
+  const { login } = useSession();
+  // Keep the buy path: the student returns to `next`, and the login links carry it on.
   const next = useSearchParams().get("next");
   const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
 
@@ -52,19 +60,24 @@ function RegisterForm() {
   const [values, setValues] = useState<Values>({ fullName: "", phone: "", email: "", password: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  /** The signed-in student after registration, or "manual" when the automatic sign-in failed. */
+  const [created, setCreated] = useState<Me | "manual" | null>(null);
 
   const mutation = useMutation({
     mutationFn: (body: Values) =>
       api.register({ fullName: body.fullName.trim(), phone: normalizePhone(body.phone), email: body.email.trim(), password: body.password }),
-    onSuccess: () => {
+    onSuccess: async (_data, body) => {
       // WS3's home shows a one-time welcome card when this flag is set.
       try {
         window.localStorage.setItem("exam-portal.welcome", "1");
       } catch {
         /* storage blocked: the welcome card is simply not shown */
       }
-      setDone(true);
+      try {
+        setCreated(await login(normalizePhone(body.phone), body.password, { redirect: false }));
+      } catch {
+        setCreated("manual");
+      }
     },
     onError: (err) => {
       setFormError(null);
@@ -114,7 +127,7 @@ function RegisterForm() {
     mutation.mutate(values);
   }
 
-  if (done) {
+  if (created === "manual") {
     return (
       <>
         <PageHeader title={t("auth.register.successTitle")} />
@@ -124,6 +137,9 @@ function RegisterForm() {
         </Card>
       </>
     );
+  }
+  if (created) {
+    return <VerifyEmailStep user={created} email={values.email.trim()} next={next} />;
   }
 
   return (
@@ -200,6 +216,95 @@ function RegisterForm() {
             {t("auth.login.submit")}
           </Link>
         </p>
+      </Card>
+    </>
+  );
+}
+
+/**
+ * The second step: the code the API emailed at registration. Verifying is not
+ * required to use the site, so the student may also skip it and verify later
+ * from the account page.
+ */
+function VerifyEmailStep({ user, email, next }: { user: Me; email: string; next: string | null }) {
+  const { t } = useLocale();
+  const router = useRouter();
+  const { refreshMe } = useSession();
+  const verify = useVerifyEmail();
+  const resend = useResendEmailVerification();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const destination = destinationFor(user, next);
+
+  function goOn() {
+    if (/^https?:\/\//.test(destination)) window.location.assign(destination);
+    else router.replace(destination);
+  }
+
+  async function onVerify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (!code.trim()) {
+      setError(t("auth.register.fieldRequired"));
+      focusFirst(["register-code"]);
+      return;
+    }
+    try {
+      await verify.mutateAsync({ code: code.trim() });
+      await refreshMe();
+      goOn();
+    } catch (err) {
+      const cd = codeOf(err);
+      setError(cd && CODE_DEAD.has(cd) ? t("auth.reset.invalidCode") : t("common.states.errorBody"));
+      focusFirst(["register-code"]);
+    }
+  }
+
+  async function onResend() {
+    setError(null);
+    setNotice(null);
+    try {
+      await resend.mutateAsync({ email: user.email ?? email });
+      setNotice(t("auth.register.verifyResent"));
+    } catch (err) {
+      setError(codeOf(err) === "EMAIL_RATE_LIMITED" ? t("auth.register.rateLimited") : t("common.states.errorBody"));
+    }
+  }
+
+  return (
+    <>
+      <PageHeader title={t("auth.register.verifyTitle")} />
+      <Card padding="lg" className="grid gap-5">
+        <FormNotice>{t("auth.register.verifyBody", { email: user.email ?? email })}</FormNotice>
+        <form onSubmit={onVerify} noValidate className="grid gap-4">
+          <Field label={t("auth.register.verifyCode")} error={error ?? undefined} required>
+            <TextInput
+              id="register-code"
+              name="verificationCode"
+              autoCapitalize="characters"
+              spellCheck={false}
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              invalid={Boolean(error)}
+            />
+          </Field>
+          {notice ? <FormNotice>{notice}</FormNotice> : null}
+          <Button type="submit" fullWidth loading={verify.isPending}>
+            {t("auth.register.verifySubmit")}
+          </Button>
+          <Button type="button" variant="secondary" fullWidth loading={resend.isPending} onClick={onResend}>
+            {t("auth.register.verifyResend")}
+          </Button>
+        </form>
+        <div className="grid gap-2 border-t border-border pt-4 text-center">
+          <p className="text-body text-muted">{t("auth.register.verifySkipNote")}</p>
+          <Button type="button" variant="ghost" onClick={goOn}>
+            {t("auth.register.verifySkip")}
+          </Button>
+        </div>
       </Card>
     </>
   );

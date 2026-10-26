@@ -146,10 +146,11 @@ export function EmailCard({
           <form className="grid gap-4" onSubmit={submit} noValidate>
             <Field label={t("staffOps.account.verifyCode")} error={error} required>
               <TextInput
-                inputMode="numeric"
+                autoCapitalize="characters"
+                spellCheck={false}
                 autoComplete="one-time-code"
                 value={code}
-                onChange={(event) => setCode(event.target.value)}
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
                 invalid={Boolean(error)}
               />
             </Field>

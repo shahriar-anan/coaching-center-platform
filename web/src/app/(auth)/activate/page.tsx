@@ -99,10 +99,11 @@ export default function ActivatePage() {
             <TextInput
               id="activate-code"
               name="code"
-              inputMode="numeric"
+              autoCapitalize="characters"
+              spellCheck={false}
               autoComplete="one-time-code"
               value={values.code}
-              onChange={(e) => set("code", e.target.value)}
+              onChange={(e) => set("code", e.target.value.toUpperCase())}
               invalid={Boolean(errors.code)}
             />
           </Field>

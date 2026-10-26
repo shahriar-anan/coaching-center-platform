@@ -13,6 +13,8 @@ export type RenderWithProvidersOptions = Omit<RenderOptions, "wrapper"> & {
   locale?: Locale;
   /** Initial route, such as "/mcq?page=2". */
   route?: string;
+  /** Replaces parts of the session, such as `login`, for a test that signs in. */
+  session?: Partial<SessionContextValue>;
 };
 
 function sessionValue(user: Me | null | undefined): SessionContextValue {
@@ -37,13 +39,13 @@ function sessionValue(user: Me | null | undefined): SessionContextValue {
  */
 export function renderWithProviders(
   ui: ReactElement,
-  { user = null, locale = "bn", route = "/", ...options }: RenderWithProvidersOptions = {},
+  { user = null, locale = "bn", route = "/", session, ...options }: RenderWithProvidersOptions = {},
 ) {
   resetRouter(route);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  const value = sessionValue(user);
+  const value = { ...sessionValue(user), ...session };
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
