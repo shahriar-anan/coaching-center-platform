@@ -1,5 +1,6 @@
 import { Closing } from "@/components/student/landing/closing";
 import { Contact } from "@/components/student/landing/contact";
+import { ExamCategories } from "@/components/student/landing/categories";
 import { Featured } from "@/components/student/landing/featured";
 import { Hero } from "@/components/student/landing/hero";
 import { Numbers } from "@/components/student/landing/numbers";
@@ -17,6 +18,7 @@ export function LandingPage() {
   return (
     <div className="flex flex-col">
       <Hero />
+      <ExamCategories />
       <Numbers />
       <Featured />
       <Upcoming />

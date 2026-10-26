@@ -1,15 +1,17 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import { phones } from "@/content/site-info";
+import { Users } from "lucide-react";
+import { phones, registeredStudents } from "@/content/site-info";
 import { useLocale } from "@/i18n/locale-context";
+import { formatNumber } from "@/lib/format";
 import { HeroCategories } from "@/components/student/landing/categories";
 
 /** The navy chevron from the client's banner: a flat left point, cut square on the right. */
 const CHEVRON = "[clip-path:polygon(16%_0,100%_0,100%_100%,16%_100%,0_50%)]";
 
 export function Hero() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   return (
     <section aria-labelledby="landing-hero" className="px-4 pb-12 pt-10 md:pb-16 md:pt-14">
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
@@ -41,6 +43,15 @@ export function Hero() {
               {t("landing.ctaSignUp")}
             </Button>
           </div>
+
+          {/* The old site's registered-students figure, under the sign-up button. */}
+          <p className="mt-5 flex items-center justify-center gap-2 lg:justify-start">
+            <Users aria-hidden="true" className="size-5 text-accent" />
+            <span className="text-title font-bold text-text-accent">
+              {formatNumber(registeredStudents, locale)}+
+            </span>
+            <span className="text-body text-muted">{t("landing.registeredStudents")}</span>
+          </p>
         </div>
 
         <div className="relative mx-auto w-full max-w-sm lg:max-w-none">
