@@ -17,7 +17,7 @@ export function Batches() {
     <Section id="landing-batches" title={t("landing.batchesTitle")} subtitle={t("landing.batchesSubtitle")}>
       <div className="grid gap-4 md:grid-cols-2">
         {groups.map((group) => (
-          <div key={group.title} className="rounded-card border border-border bg-card p-5">
+          <div key={group.title} className="min-w-0 rounded-card border border-border bg-card p-5">
             <h3 className="text-lg font-bold text-text-accent">{group.title}</h3>
             <ul className="mt-3 grid gap-2">
               {group.items.map((batch) => (
@@ -40,7 +40,7 @@ function BatchRow({ batch }: { batch: Batch }) {
     <>
       <span className="flex min-w-0 items-center gap-2 font-semibold">
         <Check aria-hidden="true" className="size-4 shrink-0 text-accent" />
-        <span className="truncate">{batch.name}</span>
+        <span className="min-w-0">{batch.name}</span>
       </span>
     </>
   );

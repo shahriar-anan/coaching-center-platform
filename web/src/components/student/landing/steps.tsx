@@ -1,6 +1,7 @@
-import Image from "next/image";
 import { Section } from "@/components/student/landing/section";
 import { useLocale } from "@/i18n/locale-context";
+
+const paymentMethods = ["bKash", "Nagad", "Visa", "Mastercard"];
 
 /** Three steps, then the payment methods the gateway accepts. */
 export function Steps() {
@@ -25,16 +26,14 @@ export function Steps() {
           </li>
         ))}
       </ol>
-      <div className="mt-8 rounded-card border border-border bg-card p-4">
-        <Image
-          src="/brand/payment-methods.png"
-          alt={t("landing.paymentsAlt")}
-          width={1200}
-          height={39}
-          sizes="(min-width: 1024px) 960px, 100vw"
-          className="h-auto w-full"
-        />
-      </div>
+      {/* Text, not the strip image: that image is 39 px tall and cannot be read at phone width. */}
+      <ul aria-label={t("landing.paymentsAlt")} className="mt-8 flex flex-wrap justify-center gap-2">
+        {paymentMethods.map((name) => (
+          <li key={name} className="rounded-control border border-border bg-card px-4 py-2 text-label font-semibold">
+            {name}
+          </li>
+        ))}
+      </ul>
     </Section>
   );
 }

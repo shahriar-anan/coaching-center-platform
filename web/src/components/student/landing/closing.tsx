@@ -10,6 +10,7 @@ export function Closing() {
         <h2 id="landing-closing" className="text-2xl font-extrabold md:text-4xl">
           {t("landing.closingTitle")}
         </h2>
+        <p className="text-body text-on-band/80">{t("landing.closingLead")}</p>
         <Button href="/register" size="lg">
           {t("landing.ctaSignUp")}
         </Button>

@@ -241,7 +241,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
         <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4", column)}>
           <Logo />
           {wide ? <WideNav /> : null}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             {wide && !signedIn ? <SignUpLink /> : null}
             <LocalePill />

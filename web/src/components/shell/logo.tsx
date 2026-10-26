@@ -16,11 +16,11 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
     <Link
       href={href}
       aria-label={t("common.brand.home")}
-      className={cn("inline-flex items-center gap-2 text-section text-text", className)}
+      className={cn("inline-flex min-w-0 items-center gap-2 text-section text-text", className)}
     >
-      <Image src="/brand/logo-light.png" alt="" width={35} height={40} className="h-10 w-auto dark:hidden" />
-      <Image src="/brand/logo-dark.png" alt="" width={40} height={40} className="hidden h-10 w-auto dark:block" />
-      <span>
+      <Image src="/brand/logo-light.svg" alt="" width={800} height={771} className="h-9 w-auto sm:h-12 dark:hidden" />
+      <Image src="/brand/logo-dark.svg" alt="" width={800} height={771} className="hidden h-9 w-auto sm:h-12 dark:block" />
+      <span className="truncate text-base sm:text-section">
         {t("common.brand.first")}
         <span className="text-text-accent">{t("common.brand.second")}</span>
       </span>

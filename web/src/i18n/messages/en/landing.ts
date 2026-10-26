@@ -9,8 +9,8 @@ const landing: typeof bn = {
   signUpShort: "Create account",
 
   heroLabel: "SYMAM LAW",
-  heroTitle: "Complete preparation for the BJS and Bar Council exams",
-  heroLead: "Live exams at set times, MCQ scores straight away, and written scripts marked by our teachers.",
+  heroTitle: "Structured preparation for the BJS and Bar Council examinations",
+  heroLead: "Take part in live MCQ and written examinations held at scheduled times.",
   chipOnline: "Online batches",
   chipOffline: "Offline batches",
   ctaSignUp: "Create account",
@@ -18,7 +18,7 @@ const landing: typeof bn = {
   photoAlt: "Students writing an exam in a classroom",
 
   batchesTitle: "Running batches",
-  batchesSubtitle: "Admissions are open for online and offline batches.",
+  batchesSubtitle: "Admissions are currently open for online and offline batches.",
   groupBjs: "BJS",
   groupBar: "Bar Council",
   kindFoundation: "Foundation",
@@ -41,7 +41,7 @@ const landing: typeof bn = {
   upcomingSubtitle: "Be there on time. You need an account before the exam starts.",
 
   packagesTitle: "Popular modules",
-  packagesSubtitle: "Several exams in one module, with every question and result included.",
+  packagesSubtitle: "Several exams in one module.",
   packageDetails: "Details",
   packageMcq: "{count} MCQ",
   packageWritten: "{count} written",
@@ -64,7 +64,8 @@ const landing: typeof bn = {
   contactMap: "Open in Maps",
   contactFollow: "Follow us",
 
-  closingTitle: "Start preparing today",
+  closingTitle: "Begin your preparation today",
+  closingLead: "Create an account, select the examination you require, and attend at the scheduled time.",
   closingLogin: "Already have an account? Sign in",
 };
 
