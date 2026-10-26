@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { DoorDiscovery, searchMatches } from "@/components/student/catalog/door-discovery";
 import { apiError, mockApi, renderWithProviders } from "../helpers";
@@ -24,6 +25,33 @@ describe("door discovery", () => {
     renderWithProviders(<DoorDiscovery door="mcq" />);
     expect(await screen.findByRole("heading", { name: "আসন্ন পরীক্ষা" })).toBeInTheDocument();
     expect(await screen.findByText("বিজেএস মক ১")).toBeInTheDocument();
+  });
+
+  it("keeps the categories in front, and puts upcoming exams behind their own tab", async () => {
+    mockApi({
+      "GET /api/v1/public/live-exams": { content: [upcoming], page: 0, totalPages: 1 },
+    });
+    renderWithProviders(
+      <DoorDiscovery door="mcq" categories={<p>বিজেএস ক্যাটাগরি</p>} />,
+    );
+    expect(await screen.findByText("বিজেএস ক্যাটাগরি")).toBeInTheDocument();
+    expect(screen.queryByText("বিজেএস মক ১")).not.toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("tab", { name: /আসন্ন পরীক্ষা/ }));
+    expect(await screen.findByText("বিজেএস মক ১")).toBeInTheDocument();
+    expect(screen.queryByText("বিজেএস ক্যাটাগরি")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "ক্যাটাগরি" }));
+    expect(screen.getByText("বিজেএস ক্যাটাগরি")).toBeInTheDocument();
+  });
+
+  it("shows the categories with no tab bar when there are no upcoming exams", async () => {
+    mockApi({
+      "GET /api/v1/public/live-exams": { content: [], page: 0, totalPages: 0 },
+    });
+    renderWithProviders(<DoorDiscovery door="mcq" categories={<p>বিজেএস ক্যাটাগরি</p>} />);
+    expect(await screen.findByText("বিজেএস ক্যাটাগরি")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
   it("hides the strip while the API does not have the endpoint yet", async () => {

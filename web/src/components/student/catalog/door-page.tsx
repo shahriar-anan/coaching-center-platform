@@ -98,16 +98,20 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
     return (
       <>
         <PageHeader title={doorTitle} breadcrumbs={[{ label: t("catalog.home"), href: "/" }, { label: doorLabel }]} />
-        <DoorDiscovery door={door} />
-        {roots.length ? (
-          <div className="grid gap-3">
-            {roots.map((node) => (
-              <CategoryCard key={node.id} door={door} node={node} />
-            ))}
-          </div>
-        ) : (
-          <ComingSoonCard />
-        )}
+        <DoorDiscovery
+          door={door}
+          categories={
+            roots.length ? (
+              <div className="grid gap-3">
+                {roots.map((node) => (
+                  <CategoryCard key={node.id} door={door} node={node} />
+                ))}
+              </div>
+            ) : (
+              <ComingSoonCard />
+            )
+          }
+        />
       </>
     );
   }

@@ -15,6 +15,8 @@ const catalog = {
   countWritten: "{n}টি রিটেন",
   countModules: "{n}টি মডিউল",
   countCategories: "{n}টি ক্যাটাগরি",
+  tabCategories: "ক্যাটাগরি",
+  tabs: { label: "পরীক্ষার বিভাগ" },
   loadFailed: "তথ্য আনা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।",
   retry: "আবার চেষ্টা করুন",
   notFound: "কিছু পাওয়া যায়নি",

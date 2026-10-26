@@ -17,6 +17,8 @@ const catalog: typeof bn = {
   countWritten: "{n} written",
   countModules: "{n} modules",
   countCategories: "{n} categories",
+  tabCategories: "Categories",
+  tabs: { label: "Exam sections" },
   loadFailed: "We couldn't load this. Check your connection and try again.",
   retry: "Try again",
   notFound: "Nothing found",

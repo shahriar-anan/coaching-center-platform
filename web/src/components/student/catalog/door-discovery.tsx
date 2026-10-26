@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { Tabs } from "@/components/ui/tabs";
 import { useLocale } from "@/i18n/locale-context";
 import { useModuleSearch, useUpcomingExams, type PublicModule, type UpcomingExam } from "@/lib/api/exam/catalog";
 import type { ExamType } from "@/lib/api/exam/types";
@@ -25,24 +26,57 @@ export function searchMatches(modules: PublicModule[], term: string, type: ExamT
   });
 }
 
-/** Search and the upcoming strip above a door's categories. Uses the URL for the search text. */
-export function DoorDiscovery({ door }: { door: Door }) {
+/**
+ * Search, then the door's exam categories. The upcoming exams sit in a second
+ * tab, so they never push the categories off the screen. With no `categories`,
+ * the upcoming list shows on its own.
+ */
+export function DoorDiscovery({ door, categories }: { door: Door; categories?: ReactNode }) {
   return (
     <Suspense fallback={null}>
-      <Discovery door={door} />
+      <Discovery door={door} categories={categories} />
     </Suspense>
   );
 }
 
-function Discovery({ door }: { door: Door }) {
+type DiscoveryTab = "categories" | "upcoming";
+
+function Discovery({ door, categories }: { door: Door; categories?: ReactNode }) {
   const { t, locale } = useLocale();
   const [params, setParams] = useListParams({ q: "" });
+  const [tab, setTab] = useState<DiscoveryTab>("categories");
   const term = params.q.trim();
   const results = useModuleSearch(term);
   const type = doorType(door);
   const upcoming = useUpcomingExams(type);
 
   const matches = searchMatches(results.data ?? [], term, type);
+  const upcomingExams = upcoming.data ?? [];
+  const hasUpcoming = upcomingExams.length > 0;
+
+  const upcomingSection = hasUpcoming ? (
+    <section aria-labelledby="door-upcoming" className="grid gap-2.5">
+      <h2 id="door-upcoming" className="text-card-title font-bold">{t("catalog.upcoming.title")}</h2>
+      {upcomingExams.map((exam) => (
+        <Card key={exam.id} href={examPath(exam.id)}>
+          <UpcomingRow exam={exam} />
+        </Card>
+      ))}
+    </section>
+  ) : null;
+
+  // Two tabs only when both lists have something to show; otherwise one list, with no tab bar.
+  const tabs =
+    categories && hasUpcoming
+      ? [
+          { value: "categories", label: t("catalog.tabCategories") },
+          { value: "upcoming", label: t("catalog.upcoming.title"), badge: upcomingExams.length },
+        ]
+      : null;
+
+  let body: ReactNode;
+  if (tabs) body = tab === "upcoming" ? upcomingSection : categories;
+  else body = categories ?? upcomingSection;
 
   return (
     <div className="mb-5 grid gap-5">
@@ -70,16 +104,15 @@ function Discovery({ door }: { door: Door }) {
         </section>
       ) : null}
 
-      {upcoming.data && upcoming.data.length > 0 ? (
-        <section aria-labelledby="door-upcoming" className="grid gap-2.5">
-          <h2 id="door-upcoming" className="text-card-title font-bold">{t("catalog.upcoming.title")}</h2>
-          {upcoming.data.map((exam) => (
-            <Card key={exam.id} href={examPath(exam.id)}>
-              <UpcomingRow exam={exam} />
-            </Card>
-          ))}
-        </section>
+      {tabs ? (
+        <Tabs
+          tabs={tabs}
+          value={tab}
+          onChange={(value) => setTab(value as DiscoveryTab)}
+          ariaLabel={t("catalog.tabs.label")}
+        />
       ) : null}
+      {body}
     </div>
   );
 }
