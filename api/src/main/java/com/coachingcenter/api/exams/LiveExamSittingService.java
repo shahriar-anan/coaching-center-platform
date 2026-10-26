@@ -99,7 +99,8 @@ public class LiveExamSittingService {
 				shell.titleBn(), shell.descriptionEn(), shell.descriptionBn(), shell.rulesEn(), shell.rulesBn(),
 				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shell.passPercent(), shell.maximum(),
 				shell.status(), shell.finallySaved(), shell.price(), questionPdf, questionViews, shell.myStatus(),
-				shell.retakeAvailable(), sittingView(participant));
+				shell.retakeAvailable(), sittingView(participant),
+				participant != null && participant.getAnswerStoredFileName() != null);
 	}
 
 	@Transactional
@@ -530,7 +531,7 @@ public class LiveExamSittingService {
 			String titleBn, String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt,
 			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
-			Boolean retakeAvailable, SittingView sitting) {
+			Boolean retakeAvailable, SittingView sitting, Boolean answerStored) {
 	}
 
 	public record StudentQuestion(UUID id, String stem, int marks, String explanation, List<StudentOption> options) {

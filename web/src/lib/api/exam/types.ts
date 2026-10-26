@@ -136,6 +136,8 @@ export interface StudentExam extends Omit<PublicExam, "price"> {
   questions: StudentQuestion[] | null;
   myStatus: MyStatus;
   retakeAvailable: boolean | null;
+  /** The student's own sitting: deadline and kind. Null when there is none. */
+  sitting?: { kind: "LIVE" | "RETAKE"; startedAt: string; deadlineAt: string; submittedAt: string | null } | null;
 }
 
 /** The `access` object on public module and exam responses (plan section 8). */

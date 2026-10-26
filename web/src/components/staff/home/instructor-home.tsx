@@ -190,7 +190,7 @@ function ModuleCard({ module, rows }: { module: MarkingModule; rows: Participati
   return (
     <Card className="grid h-full gap-3">
       <div className="grid gap-1">
-        <h4 className="text-card font-semibold text-text">{format.pickTitle(module)}</h4>
+        <h4 className="text-card-title font-semibold text-text">{format.pickTitle(module)}</h4>
         <p className="text-meta text-muted">
           {t("staffMarking.home.moduleWaiting", { count: format.formatNumber(waiting) })}
         </p>

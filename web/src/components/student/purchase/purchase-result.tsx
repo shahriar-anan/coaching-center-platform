@@ -124,7 +124,7 @@ export function PurchaseResult() {
     return (
       <>
         <PageHeader title={t("purchase.result.title")} />
-        <EmptyState title={t("purchase.result.missingRef")} action={<Button variant="secondary" href="/my-modules">{t("myModules.title")}</Button>} />
+        <EmptyState title={t("purchase.result.missingRef")} action={<Button variant="secondary" href="/my-modules">{t("catalog.myModules.title")}</Button>} />
       </>
     );
   }

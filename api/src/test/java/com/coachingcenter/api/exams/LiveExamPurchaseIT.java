@@ -467,7 +467,8 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 
 		clock.set(NOON);
 		JsonNode routine = routine(student);
-		assertThat(ids(routine)).contains(dated).doesNotContain(undated);
+		// An exam with no start time stays on the routine, with its status, until a date is set.
+		assertThat(ids(routine)).contains(dated, undated);
 	}
 
 	@Test

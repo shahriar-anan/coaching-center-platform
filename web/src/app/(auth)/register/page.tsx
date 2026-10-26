@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
@@ -12,6 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
 import { FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import {
   formatPhone,
@@ -22,12 +24,24 @@ import {
   passwordStatus,
 } from "@/app/(auth)/_components/validate";
 
+/** The form reads the URL (?next=), so it sits inside a Suspense boundary for the static build. */
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<Skeleton variant="card" />}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
 type Values = { fullName: string; phone: string; email: string; password: string };
 type FieldErrors = Partial<Record<keyof Values, string>>;
 
 /** Account creation. Registration does not sign the student in; the next step is the login page. */
-export default function RegisterPage() {
+function RegisterForm() {
   const { t, locale } = useLocale();
+  // Keep the buy path: the login link and the success button carry `next` on to the login page.
+  const next = useSearchParams().get("next");
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
 
   function passwordHint(value: string): string {
     const status = passwordStatus(value);
@@ -106,7 +120,7 @@ export default function RegisterPage() {
         <PageHeader title={t("auth.register.successTitle")} />
         <Card padding="lg" className="grid gap-5">
           <FormNotice>{t("auth.register.successBody")}</FormNotice>
-          <Button href="/login">{t("auth.register.successLogin")}</Button>
+          <Button href={`/login${nextQuery}`}>{t("auth.register.successLogin")}</Button>
         </Card>
       </>
     );
@@ -182,7 +196,7 @@ export default function RegisterPage() {
         </form>
         <p className="text-center text-body text-muted">
           {t("auth.register.haveAccount")}{" "}
-          <Link href="/login" className="font-semibold text-text-accent underline underline-offset-4">
+          <Link href={`/login${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.submit")}
           </Link>
         </p>

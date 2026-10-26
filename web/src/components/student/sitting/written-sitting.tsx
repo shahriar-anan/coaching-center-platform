@@ -125,7 +125,9 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
             {t("sitting.written.deadlinePassed")}
           </p>
         )}
-        {stored && !pending ? <p className="mt-2 text-body text-ok">{t("sitting.written.stored")}</p> : null}
+        {!pending && (stored || exam.answerStored) ? (
+          <p className="mt-2 text-body text-ok">{stored ? t("sitting.written.stored") : t("sitting.written.storedEarlier")}</p>
+        ) : null}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-body text-muted">{t("sitting.written.replaceNote")}</p>
           <Button

@@ -53,7 +53,7 @@ function PasteBox({ moduleId }: { moduleId: string }) {
 
   return (
     <section aria-labelledby="roster-paste-heading" className="grid gap-3 rounded-card border border-border bg-card p-4">
-      <h3 id="roster-paste-heading" className="text-card font-semibold">
+      <h3 id="roster-paste-heading" className="text-card-title font-semibold">
         {t("staffCatalog.roster.pasteHeading")}
       </h3>
       <p className="text-meta text-muted">{t("staffCatalog.roster.pasteHelp")}</p>
@@ -152,7 +152,7 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
   return (
     <div className="grid gap-6">
       <section aria-labelledby="roster-add-heading" className="grid gap-3">
-        <h3 id="roster-add-heading" className="text-card font-semibold">
+        <h3 id="roster-add-heading" className="text-card-title font-semibold">
           {t("staffCatalog.roster.addHeading")}
         </h3>
         <SearchInput value={addQuery} onChange={setAddQuery} placeholder={t("staffCatalog.roster.addPlaceholder")} />
@@ -189,7 +189,7 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
 
       <section aria-labelledby="roster-list-heading" className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 id="roster-list-heading" className="text-card font-semibold">
+          <h3 id="roster-list-heading" className="text-card-title font-semibold">
             {t("staffCatalog.roster.listHeading")}
           </h3>
           <div className="w-full sm:w-72">

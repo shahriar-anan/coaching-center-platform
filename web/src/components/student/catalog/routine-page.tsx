@@ -26,7 +26,7 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
     <li className="grid gap-2 rounded-card border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-body font-semibold text-muted">
-          {formatTime(row.liveAt, locale)} – {formatTime(row.endAt, locale)}
+          {row.liveAt && row.endAt ? `${formatTime(row.liveAt, locale)} – ${formatTime(row.endAt, locale)}` : t("catalog.dateTbd")}
         </p>
         {live ? (
           <Pill tone="warn" pulse>{t("catalog.routine.live")}</Pill>
@@ -34,7 +34,7 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
           <ExamStatusPill status={row.myStatus} examType={row.examType} retakeAvailable={row.retakeAvailable} />
         ) : null}
       </div>
-      <Link href={examPath(row.id)} className="text-card font-bold text-text">
+      <Link href={examPath(row.id)} className="text-card-title font-bold text-text">
         {pickTitle(row, locale)}
       </Link>
       <p className="flex flex-wrap items-center gap-2 text-body text-muted">
@@ -43,17 +43,19 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
       </p>
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" href={examPath(row.id)}>{t("catalog.routine.open")}</Button>
-        <Button
-          variant="ghost"
-          onClick={() =>
-            downloadIcs(
-              fileName(row),
-              buildIcs({ id: row.id, title: pickTitle(row, "en"), start: row.liveAt, end: row.endAt, url }),
-            )
-          }
-        >
-          {t("catalog.routine.addCalendar")}
-        </Button>
+        {row.liveAt && row.endAt ? (
+          <Button
+            variant="ghost"
+            onClick={() =>
+              downloadIcs(
+                fileName(row),
+                buildIcs({ id: row.id, title: pickTitle(row, "en"), start: row.liveAt as string, end: row.endAt as string, url }),
+              )
+            }
+          >
+            {t("catalog.routine.addCalendar")}
+          </Button>
+        ) : null}
       </div>
     </li>
   );
@@ -81,8 +83,8 @@ export function RoutinePage() {
       </>
     );
   }
-  const { live, days } = groupRoutine(routine.data ?? [], now);
-  const empty = live.length === 0 && days.length === 0;
+  const { live, days, undated } = groupRoutine(routine.data ?? [], now);
+  const empty = live.length === 0 && days.length === 0 && undated.length === 0;
 
   return (
     <>
@@ -101,7 +103,7 @@ export function RoutinePage() {
       ) : null}
       {days.map((day) => (
         <section key={day.key} aria-label={day.key} className="mb-6">
-          <h2 className="mb-2 text-card font-bold">
+          <h2 className="mb-2 text-card-title font-bold">
             {day.relative === "today"
               ? t("catalog.routine.today")
               : day.relative === "tomorrow"
@@ -115,6 +117,17 @@ export function RoutinePage() {
           </ul>
         </section>
       ))}
+      {undated.length > 0 ? (
+        <section aria-label={t("catalog.dateTbd")} className="mb-6">
+          <h2 className="mb-1 text-card font-bold">{t("catalog.dateTbd")}</h2>
+          <p className="mb-2 text-body text-muted">{t("catalog.routine.undated")}</p>
+          <ul className="grid gap-3">
+            {undated.map((row) => (
+              <RoutineItem key={row.id} row={row} live={false} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {!empty ? <p className="text-body text-muted">{t("catalog.routine.footer")}</p> : null}
     </>
   );

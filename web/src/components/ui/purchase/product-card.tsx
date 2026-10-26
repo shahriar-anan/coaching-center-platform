@@ -35,7 +35,7 @@ export function ProductCard({
       className="grid gap-3 rounded-card border border-border bg-card p-4 transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent"
     >
       <div className="grid gap-1">
-        <span className="text-card font-bold text-text">{title}</span>
+        <span className="text-card-title font-bold text-text">{title}</span>
         {subtitle ? <span className="text-meta text-muted">{subtitle}</span> : null}
       </div>
       {pills ? <div className="flex flex-wrap gap-2">{pills}</div> : null}

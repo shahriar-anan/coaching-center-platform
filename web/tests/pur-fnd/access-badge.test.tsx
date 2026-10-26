@@ -17,6 +17,6 @@ describe("AccessBadge (P-2)", () => {
 
   it("uses the ok tone", () => {
     renderWithProviders(<AccessBadge via="MODULE" />, { locale: "bn" });
-    expect(screen.getByText("অ্যাক্সেস আছে").closest("span.inline-flex")).toHaveClass("text-ok");
+    expect(screen.getByText("অ্যাক্সেস আছে").closest("span.inline-flex")).toHaveClass("text-ok-text");
   });
 });

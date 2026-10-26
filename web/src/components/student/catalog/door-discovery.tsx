@@ -55,7 +55,7 @@ function Discovery({ door }: { door: Door }) {
 
       {term ? (
         <section aria-labelledby="door-search-results" className="grid gap-2.5">
-          <h2 id="door-search-results" className="text-card font-bold">{t("catalog.search.results")}</h2>
+          <h2 id="door-search-results" className="text-card-title font-bold">{t("catalog.search.results")}</h2>
           {results.isPending ? null : results.isError && !results.data ? (
             <ErrorState onRetry={() => void results.refetch()} />
           ) : matches.length === 0 ? (
@@ -63,7 +63,7 @@ function Discovery({ door }: { door: Door }) {
           ) : (
             matches.map((module) => (
               <Card key={module.id} href={modulePath(door, module.id)}>
-                <p className="text-card font-bold">📚 {pickTitle(module, locale)}</p>
+                <p className="text-card-title font-bold">📚 {pickTitle(module, locale)}</p>
               </Card>
             ))
           )}
@@ -72,7 +72,7 @@ function Discovery({ door }: { door: Door }) {
 
       {upcoming.data && upcoming.data.length > 0 ? (
         <section aria-labelledby="door-upcoming" className="grid gap-2.5">
-          <h2 id="door-upcoming" className="text-card font-bold">{t("catalog.upcoming.title")}</h2>
+          <h2 id="door-upcoming" className="text-card-title font-bold">{t("catalog.upcoming.title")}</h2>
           {upcoming.data.map((exam) => (
             <Card key={exam.id} href={examPath(exam.id)}>
               <UpcomingRow exam={exam} />

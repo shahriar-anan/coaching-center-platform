@@ -508,6 +508,12 @@ function SubmitDialog({
   n: (value: number) => string;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
+  // Focus starts on Cancel, so a stray Enter does not submit the paper.
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busy) {
@@ -521,7 +527,7 @@ function SubmitDialog({
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 p-4 sm:items-center">
       <div role="dialog" aria-modal="true" aria-labelledby="submit-title" className="w-full max-w-md rounded-card bg-card p-5">
-        <h2 id="submit-title" className="text-card font-semibold text-text">
+        <h2 id="submit-title" className="text-card-title font-semibold text-text">
           {t("sitting.submit.title")}
         </h2>
         <p className="mt-2 text-text">
@@ -536,6 +542,7 @@ function SubmitDialog({
         ) : null}
         <div className="mt-5 flex justify-end gap-3">
           <button
+            ref={cancelRef}
             type="button"
             onClick={onCancel}
             disabled={busy}

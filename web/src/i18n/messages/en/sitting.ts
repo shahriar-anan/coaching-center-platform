@@ -3,6 +3,7 @@ const sitting = {
     opening: "Opening the exam…",
     notOpen: "This exam is not open right now.",
     notFound: "We could not find this exam.",
+    noAccess: "You do not have access to this exam.",
     phoneRequired: "You need a phone number on your account to sit an exam.",
     addPhone: "Add phone number",
     retakeNotAllowed: "This exam can no longer be taken as practice.",

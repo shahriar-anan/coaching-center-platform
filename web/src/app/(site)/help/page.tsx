@@ -77,7 +77,7 @@ export default function HelpPage() {
       )}
 
       <Card padding="lg" className="mt-10 grid gap-2">
-        <h2 className="text-card font-bold text-text">{t("legal.help.contactTitle")}</h2>
+        <h2 className="text-card-title font-bold text-text">{t("legal.help.contactTitle")}</h2>
         <p className="text-body text-muted">{t("legal.help.contactBody")}</p>
         <Link href="/contact" prefetch className="font-semibold text-text-accent underline underline-offset-4">
           {t("legal.help.contactLink")}

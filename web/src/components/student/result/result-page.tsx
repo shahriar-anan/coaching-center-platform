@@ -19,6 +19,7 @@ import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam } from "@/lib/api/exam/sitting";
 import { formatNumber, pickTitle } from "@/lib/format";
+import { useUser } from "@/lib/auth/session-context";
 
 const LETTERS_BN = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"] as const;
 const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
@@ -70,11 +71,14 @@ export function ResultPage({ examId }: { examId: string }) {
   const [showScript, setShowScript] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const textSize = usePaperTextSize();
+  const user = useUser();
+  // The marked script is shown over the same watermark as the question paper.
+  const watermark = user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined;
 
   const header = (
     <PageHeader
       title={exam.data ? pickTitle(exam.data, locale) : t("result.page.title")}
-      breadcrumbs={[{ label: t("result.page.title") }]}
+      breadcrumbs={[{ label: t("result.hub.title"), href: "/results" }, { label: t("result.page.title") }]}
     />
   );
 
@@ -129,7 +133,7 @@ export function ResultPage({ examId }: { examId: string }) {
   const awaiting = written && !published && !notSubmitted;
 
   const scoreCell = notSubmitted
-    ? "০"
+    ? n(0)
     : data.score === null
       ? t("result.stat.none")
       : t("result.stat.score", { score: n(data.score), maximum: n(data.maximum) });
@@ -214,6 +218,7 @@ export function ResultPage({ examId }: { examId: string }) {
             <div className="mt-4">
               <PdfViewer
                 load={() => apiBlob(evaluatedPdfPath(examId))}
+                watermark={watermark}
                 allowDownload={false}
                 label={t("result.written.markedScript")}
               />
@@ -245,13 +250,13 @@ export function ResultPage({ examId }: { examId: string }) {
           />
           {anyWithheld ? <p className="text-meta text-muted">{t("result.review.filterWhy")}</p> : null}
           <PaperTextSizeControl size={textSize} className="justify-end" />
-          <nav aria-label={t("result.review.jumpLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] gap-2">
+          <nav aria-label={t("result.review.jumpLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-2">
             {visibleItems.map((item) => (
               <a
                 key={item.question.id}
                 href={`#review-q-${item.number}`}
                 aria-label={t("result.review.jumpItem", { number: n(item.number), outcome: outcomeLabel[item.outcome] })}
-                className={`flex h-10 items-center justify-center rounded-control border text-body tabular-nums ${jumpTone[item.outcome]}`}
+                className={`flex h-11 items-center justify-center rounded-control border text-body tabular-nums ${jumpTone[item.outcome]}`}
               >
                 {n(item.number)}
               </a>

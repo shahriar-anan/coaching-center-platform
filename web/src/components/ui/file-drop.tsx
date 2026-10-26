@@ -17,7 +17,8 @@ async function startsWithPdfMagic(file: File): Promise<boolean> {
 }
 
 function megabytes(bytes: number, locale: "bn" | "en"): string {
-  return `${formatNumber(Math.round((bytes / (1024 * 1024)) * 10) / 10, locale, { decimals: 1 })} MB`;
+  const value = Math.round((bytes / (1024 * 1024)) * 10) / 10;
+  return `${formatNumber(value, locale)} ${locale === "bn" ? "এমবি" : "MB"}`;
 }
 
 /**

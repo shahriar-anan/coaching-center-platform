@@ -65,6 +65,8 @@ const result = {
     summaryWaiting: "Results waiting",
     tabResults: "Results",
     tabMarking: "Being marked",
+    tabOther: "Other",
+    emptyOther: "No other exams yet.",
     empty: "No results yet",
     emptyBody: "Your results will appear here after you sit an exam.",
     emptyAction: "See the exam schedule",

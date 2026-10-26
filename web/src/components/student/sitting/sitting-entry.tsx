@@ -93,7 +93,15 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
 
   if (exam.isError) {
     if (exam.error instanceof ApiError && exam.error.code === "RESOURCE_NOT_FOUND") {
-      router.replace(`/exam/${examId}`);
+      // No roster row or paid grant for this exam: say so, and offer the way back to the exam page.
+      return (
+        <div role="status" className="rounded-card border border-border bg-card p-6 text-center">
+          <p className="text-text">{t("sitting.entry.noAccess")}</p>
+          <Link href={`/exam/${examId}`} className="mt-4 inline-flex min-h-11 items-center text-accent underline">
+            {t("sitting.entry.backToExam")}
+          </Link>
+        </div>
+      );
     }
     return (
       <div role="alert" className="rounded-card border border-border bg-card p-6 text-center">

@@ -57,6 +57,8 @@ export type StudentExam = {
   retakeAvailable: boolean | null;
   /** The student's own sitting, or null when there is none (API: `sitting`). */
   sitting: SittingBlock | null;
+  /** True once the student's written script is stored on the server (API: `answerStored`). */
+  answerStored?: boolean | null;
 };
 
 export type TakeResult = {

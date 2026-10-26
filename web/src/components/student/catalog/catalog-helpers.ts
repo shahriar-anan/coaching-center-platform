@@ -138,28 +138,33 @@ export interface RoutineDay {
 }
 
 /** Rows still to come, grouped by Asia/Dhaka day; live rows first. */
-export function groupRoutine(rows: RoutineRow[], now: number): { live: RoutineRow[]; days: RoutineDay[] } {
-  const pending = rows.filter((row) => Date.parse(row.endAt) > now).sort(bySchedule);
-  const live = pending.filter((row) => isLive(row, now));
-  const later = pending.filter((row) => !isLive(row, now));
+export function groupRoutine(
+  rows: RoutineRow[],
+  now: number,
+): { live: RoutineRow[]; days: RoutineDay[]; undated: RoutineRow[] } {
+  const pending = rows.filter((row) => !row.endAt || Date.parse(row.endAt) > now).sort(bySchedule);
+  // Exams with no start time are listed last, with their status, until the date is announced.
+  const undated = pending.filter((row) => !row.liveAt);
+  const live = pending.filter((row) => row.liveAt && isLive(row, now));
+  const later = pending.filter((row) => row.liveAt && !isLive(row, now));
   const today = dhakaDayKey(new Date(now).toISOString());
   const tomorrow = dhakaDayKey(new Date(now + 86_400_000).toISOString());
   const days: RoutineDay[] = [];
   for (const row of later) {
-    const key = dhakaDayKey(row.liveAt);
+    const key = dhakaDayKey(row.liveAt as string);
     let day = days.find((d) => d.key === key);
     if (!day) {
       day = {
         key,
         relative: key === today ? "today" : key === tomorrow ? "tomorrow" : null,
-        firstStart: row.liveAt,
+        firstStart: row.liveAt as string,
         rows: [],
       };
       days.push(day);
     }
     day.rows.push(row);
   }
-  return { live, days };
+  return { live, days, undated };
 }
 
 function icsDate(iso: string): string {

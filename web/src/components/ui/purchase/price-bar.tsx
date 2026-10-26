@@ -31,7 +31,7 @@ export function PriceBar({
         {formatted !== null ? (
           <p className="text-section font-semibold tabular-nums text-text-accent">{formatted}</p>
         ) : (
-          <p className="text-card font-medium text-muted">{t("common.purchase.shared.noPrice")}</p>
+          <p className="text-card-title font-medium text-muted">{t("common.purchase.shared.noPrice")}</p>
         )}
         {priceNote ? <p className="text-meta text-muted">{priceNote}</p> : null}
         {secondary ? <div className="text-meta text-muted">{secondary}</div> : null}

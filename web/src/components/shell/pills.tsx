@@ -23,9 +23,9 @@ export function LocalePill() {
       type="button"
       onClick={() => setLocale(next)}
       aria-label={t("common.locale.switchLabel")}
-      className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-label font-semibold text-text hover:bg-bg sm:px-3"
+      className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 text-label font-semibold text-text hover:bg-bg max-[379px]:px-2.5"
     >
-      <Languages aria-hidden="true" className="hidden size-4 sm:block" />
+      <Languages aria-hidden="true" className="size-4 max-[379px]:hidden" />
       <span>{locale === "bn" ? "EN" : "বাং"}</span>
     </button>
   );

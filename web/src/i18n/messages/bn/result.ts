@@ -65,6 +65,8 @@ const result = {
     summaryWaiting: "ফলাফল বাকি",
     tabResults: "ফলাফল",
     tabMarking: "মূল্যায়ন চলছে",
+    tabOther: "অন্যান্য",
+    emptyOther: "এখানে এখনো কোনো পরীক্ষা নেই।",
     empty: "এখনো কোনো ফলাফল নেই",
     emptyBody: "পরীক্ষা দেওয়ার পর ফলাফল এখানে দেখা যাবে।",
     emptyAction: "পরীক্ষার রুটিন দেখুন",

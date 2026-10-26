@@ -7,7 +7,7 @@ const tones: Record<PillTone, string> = {
   muted: "bg-bg text-muted border-border",
   accent: "bg-accent/15 text-accent-text border-accent/40",
   warn: "bg-warn/10 text-warn border-warn/40",
-  ok: "bg-ok/10 text-ok border-ok/40",
+  ok: "bg-ok/10 text-ok-text border-ok/40",
   danger: "bg-danger/10 text-danger border-danger/40",
 };
 

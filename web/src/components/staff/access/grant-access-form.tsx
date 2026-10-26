@@ -69,7 +69,7 @@ export function GrantAccessForm({ studentId, onDone }: { studentId: string; onDo
 
   return (
     <form className="grid gap-4" onSubmit={submit} noValidate>
-      <h3 className="text-card font-semibold text-text">{t("staffAdmin.grant.title")}</h3>
+      <h3 className="text-card-title font-semibold text-text">{t("staffAdmin.grant.title")}</h3>
 
       <fieldset className="grid gap-2">
         <legend className="text-label font-medium text-text">{t("staffAdmin.grant.scope")}</legend>

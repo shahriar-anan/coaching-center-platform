@@ -15,11 +15,15 @@ import { useLocale } from "@/i18n/locale-context";
 import { apiRequest } from "@/lib/api/client";
 import { sittingKeys, useModuleExams, useMyModules, type HubExam, type ReviewedResult } from "@/lib/api/exam/sitting";
 import { formatDate, formatNumber, pickTitle } from "@/lib/format";
+import { ExamStatusPill } from "@/components/student/catalog/status-pill";
+import type { MyStatus } from "@/lib/api/exam/catalog";
 
 const RESULT_STATUSES = new Set(["RESULT_READY", "FAILED_TO_SUBMIT"]);
 const MARKING_STATUSES = new Set(["AWAITING_RESULT"]);
+/** Missed, open, or submitted but not yet due: listed on their own tab so the history is complete. */
+const OTHER_STATUSES = new Set(["MISSED", "OPEN", "IN_PROGRESS", "SUBMITTED"]);
 
-type Tab = "results" | "marking";
+type Tab = "results" | "marking" | "other";
 
 /** Newest first, by the day the exam is live. Undated exams sort last. */
 function newestFirst(a: HubExam, b: HubExam): number {
@@ -48,17 +52,19 @@ export function ResultsHub() {
     () =>
       examQueries
         .flatMap((query) => query.data?.content ?? [])
-        .filter((exam) => RESULT_STATUSES.has(exam.myStatus) || MARKING_STATUSES.has(exam.myStatus))
+        .filter((exam) => RESULT_STATUSES.has(exam.myStatus) || MARKING_STATUSES.has(exam.myStatus) || OTHER_STATUSES.has(exam.myStatus))
         .sort(newestFirst),
     [examQueries],
   );
   const resultRows = exams.filter((exam) => RESULT_STATUSES.has(exam.myStatus));
   const markingRows = exams.filter((exam) => MARKING_STATUSES.has(exam.myStatus));
-  const visible = tab === "results" ? resultRows : markingRows;
+  const otherRows = exams.filter((exam) => OTHER_STATUSES.has(exam.myStatus));
+  const visible = tab === "results" ? resultRows : tab === "marking" ? markingRows : otherRows;
 
-  // Marks and pass are fetched for the visible result rows only.
+  // Marks and pass for each result row, used by the Passed count and the result tab.
   const resultQueries = useQueries({
-    queries: (tab === "results" ? resultRows : []).map((exam) => ({
+    // Marks feed the Passed count on every tab, so they are fetched for every result row.
+    queries: resultRows.map((exam) => ({
       queryKey: sittingKeys.result(exam.id),
       queryFn: () => apiRequest<ReviewedResult>(`/api/v1/live-exams/${exam.id}/result`),
       staleTime: 60_000,
@@ -105,6 +111,7 @@ export function ResultsHub() {
         tabs={[
           { value: "results", label: t("result.hub.tabResults"), badge: resultRows.length },
           { value: "marking", label: t("result.hub.tabMarking"), badge: markingRows.length },
+          { value: "other", label: t("result.hub.tabOther"), badge: otherRows.length },
         ]}
         value={tab}
         onChange={(value) => setTab(value as Tab)}
@@ -112,7 +119,7 @@ export function ResultsHub() {
 
       {visible.length === 0 ? (
         <EmptyState
-          title={tab === "results" ? t("result.hub.empty") : t("result.hub.emptyMarking")}
+          title={tab === "results" ? t("result.hub.empty") : tab === "marking" ? t("result.hub.emptyMarking") : t("result.hub.emptyOther")}
           body={tab === "results" ? t("result.hub.emptyBody") : undefined}
           action={
             tab === "results" ? (
@@ -128,7 +135,7 @@ export function ResultsHub() {
             const result = resultById.get(exam.id);
             return (
               <li key={exam.id}>
-                <Card href={`/exam/${exam.id}/result`}>
+                <Card href={tab === "other" ? `/exam/${exam.id}` : `/exam/${exam.id}/result`}>
                   <p className="text-body text-muted">{moduleTitle.get(exam.moduleId) ?? ""}</p>
                   <p className="font-semibold text-text">{pickTitle(exam, locale)}</p>
                   {exam.passPercent !== null && exam.passPercent !== undefined ? (
@@ -151,6 +158,9 @@ export function ResultsHub() {
                       <Pill tone="warn">{t("result.page.practice")}</Pill>
                     ) : null}
                     {tab === "marking" ? <Pill tone="warn">{t("result.hub.awaiting")}</Pill> : null}
+                    {tab === "other" ? (
+                      <ExamStatusPill status={exam.myStatus as MyStatus} examType={exam.examType} retakeAvailable={null} />
+                    ) : null}
                   </p>
                 </Card>
               </li>

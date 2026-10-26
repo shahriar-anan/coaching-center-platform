@@ -268,7 +268,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
       {module && !readOnly && role.canAuthor ? (
         <section aria-labelledby="module-publish-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="module-publish-heading" className="text-card font-semibold">
+            <h2 id="module-publish-heading" className="text-card-title font-semibold">
               {t("staffCatalog.moduleForm.publishHeading")}
             </h2>
             {status ? <StatusPill status={status.status} /> : null}

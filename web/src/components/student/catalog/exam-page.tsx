@@ -41,7 +41,7 @@ import { ExamStatusPill, TypePill } from "./status-pill";
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-card border border-border bg-card p-4">
-      <h2 className="mb-2 text-card font-bold">{title}</h2>
+      <h2 className="mb-2 text-card-title font-bold">{title}</h2>
       {children}
     </section>
   );
@@ -50,7 +50,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-control bg-bg p-3 text-center">
-      <p className="text-card font-bold">{value}</p>
+      <p className="text-card-title font-bold">{value}</p>
       <p className="text-meta text-muted">{label}</p>
     </div>
   );
@@ -69,7 +69,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const checkoutOff = useCheckoutEnabled().data === false;
 
   const { toast } = useToast();
-  const exam = usePublicExam(examId);
+  const exam = usePublicExam(examId, signedIn);
   // Ownership comes from the access object on the exam response. The student's exam read is only
   // asked for once the student owns this exam, so a visitor or a non-owner makes no such request.
   const examAccess = resolveAccess(exam.data?.access);
@@ -85,7 +85,7 @@ export function ExamPage({ examId }: { examId: string }) {
   }
   const data = exam.data;
   const moduleId = data?.moduleId ?? "";
-  const moduleQuery = usePublicModule(moduleId);
+  const moduleQuery = usePublicModule(moduleId, signedIn);
 
   if (exam.isPending) {
     return (
@@ -139,6 +139,8 @@ export function ExamPage({ examId }: { examId: string }) {
   const price = data.price;
   const examType = data.examType;
   const retakeOffer = status === "MISSED" && owned?.retakeAvailable === true && examType === "MCQ";
+  // The sitting's deadline has passed, but the server has not posted it yet: show the result, not Resume.
+  const sittingEnded = Boolean(owned?.sitting && Date.parse(owned.sitting.deadlineAt) <= now);
   const loginHref = `/login?next=${encodeURIComponent(examPath(examId))}`;
 
   // One primary action, chosen by state.
@@ -165,7 +167,7 @@ export function ExamPage({ examId }: { examId: string }) {
       );
     } else if (status === "OPEN") {
       primary = <Button fullWidth onClick={() => setStarting("live")}>{t("catalog.exam.startExam")}</Button>;
-    } else if (status === "IN_PROGRESS" || (status === "SUBMITTED" && windowOpen)) {
+    } else if ((status === "IN_PROGRESS" || (status === "SUBMITTED" && windowOpen)) && !sittingEnded) {
       primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t("catalog.exam.resume")}</Button>;
     } else if (status === "MISSED") {
       primary = retakeOffer ? (
@@ -173,7 +175,7 @@ export function ExamPage({ examId }: { examId: string }) {
       ) : (
         <p className="text-center text-muted">{t("catalog.exam.missedBody")}</p>
       );
-    } else if (status === "AWAITING_RESULT" || status === "RESULT_READY" || status === "FAILED_TO_SUBMIT" || status === "SUBMITTED") {
+    } else if (sittingEnded || status === "AWAITING_RESULT" || status === "RESULT_READY" || status === "FAILED_TO_SUBMIT" || status === "SUBMITTED") {
       primary = <Button fullWidth href={`${examPath(examId)}/result`}>{t("catalog.exam.viewResult")}</Button>;
     }
   }
@@ -201,7 +203,7 @@ export function ExamPage({ examId }: { examId: string }) {
         {owned && beforeStart && startsAt ? (
           <Card>
             <p className="text-body text-muted">{t("catalog.exam.startsIn")}</p>
-            <p className="text-card font-bold"><Countdown deadline={startsAt} /></p>
+            <p className="text-card-title font-bold"><Countdown deadline={startsAt} /></p>
           </Card>
         ) : null}
       </div>

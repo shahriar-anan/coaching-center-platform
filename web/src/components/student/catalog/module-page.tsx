@@ -110,8 +110,8 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const phoneRequired = isStudent && Boolean(session.user.phoneRequired);
 
   const tree = useCategoryTree(type);
-  const moduleQuery = usePublicModule(moduleId);
-  const exams = usePublicModuleExams(moduleId, type);
+  const moduleQuery = usePublicModule(moduleId, signedIn);
+  const exams = usePublicModuleExams(moduleId, type, signedIn);
   // Ownership comes from the access object on the responses. The student's exam reads are
   // only asked for when the student owns something here, so a visitor makes no such request.
   const moduleAccess = resolveAccess(moduleQuery.data?.access);
@@ -238,7 +238,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
           <p className="text-muted">{t("catalog.priceNotSet")}</p>
         ) : (
           <>
-            <p className="text-card font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
+            <p className="text-card-title font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
             <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
             {!signedIn ? (
               <Button fullWidth className="mt-2" href={loginHref}>
@@ -267,11 +267,11 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </section>
 
       <section id="module-routine" className="mb-3.5 rounded-card border border-border bg-card p-4">
-        <h2 className="mb-2.5 text-card font-bold">📅 {t("catalog.routineTitle")}</h2>
+        <h2 className="mb-2.5 text-card-title font-bold">📅 {t("catalog.routineTitle")}</h2>
         {list.length === 0 ? (
           <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-md:[mask-image:linear-gradient(to_right,#000_88%,transparent)] max-md:[-webkit-mask-image:linear-gradient(to_right,#000_88%,transparent)]">
             <table className="w-full min-w-[420px] border-collapse text-body">
               <thead>
                 <tr className="text-left text-muted">
@@ -301,7 +301,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </section>
 
       <section id="module-exams" className="mb-3.5 rounded-card border border-border bg-card p-4">
-        <h2 className="mb-2.5 text-card font-bold">📚 {t("catalog.examListTitle")}</h2>
+        <h2 className="mb-2.5 text-card-title font-bold">📚 {t("catalog.examListTitle")}</h2>
         {list.length === 0 ? (
           <EmptyState
             title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
@@ -325,7 +325,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                     className="flex items-center justify-between gap-3 rounded-card border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-accent"
                   >
                     <span className="min-w-0">
-                      <span className="block text-card font-bold">
+                      <span className="block text-card-title font-bold">
                         {type === "MCQ" ? "📝" : "📖"} {pickTitle(exam, locale)}
                       </span>
                       {subtitle ? <span className="block text-meta text-muted">{subtitle}</span> : null}
@@ -342,7 +342,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                       ) : exam.price !== null && exam.price !== undefined ? (
                         <span className="block text-meta">
                           <span className="block font-bold">{formatMoney(exam.price, locale)}</span>
-                          <span className="text-accent">{t("catalog.buy")} ›</span>
+                          <span className="text-text-accent">{t("catalog.buy")} ›</span>
                         </span>
                       ) : (
                         <span className="block max-w-28 text-meta text-muted">{t("catalog.priceNotSet")}</span>

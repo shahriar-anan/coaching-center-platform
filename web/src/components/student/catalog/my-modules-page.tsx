@@ -74,14 +74,17 @@ export function MyModulesPage() {
             const mine: StudentExam[] = (exams[index]?.data as StudentExam[] | undefined) ?? [];
             const done = mine.filter((e) => isDone(e.myStatus)).length;
             const sourceKey = moduleAccessKey(access.data, module.id);
-            const nextRows: RoutineRow[] = (routine.data ?? [])
-              .filter((row) => row.moduleId === module.id && Date.parse(row.endAt) > now)
+            // Only dated exams are "next"; an undated one has no time to show here.
+            const nextRows = (routine.data ?? [])
+              .filter((row): row is RoutineRow & { liveAt: string; endAt: string } =>
+                row.moduleId === module.id && Boolean(row.liveAt && row.endAt) && Date.parse(row.endAt as string) > now,
+              )
               .sort((a, b) => Date.parse(a.liveAt) - Date.parse(b.liveAt))
               .slice(0, 2);
             return (
               <li key={module.id}>
                 <Card padding="lg">
-                  <p className="text-card font-bold">📚 {pickTitle(module, locale)}</p>
+                  <p className="text-card-title font-bold">📚 {pickTitle(module, locale)}</p>
                   {sourceKey ? (
                     <p className="mt-1">
                       <Pill tone="muted">{t(sourceKey)}</Pill>

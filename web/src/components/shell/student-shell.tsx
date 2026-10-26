@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CircleUserRound, Home, ListChecks, LogOut, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
@@ -42,6 +42,31 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** Below 400 px the language and theme switches move into one menu, so the header fits at large text sizes. */
+function SettingsMenu() {
+  const { t } = useLocale();
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        aria-label={t("common.nav.openMenu")}
+        className="hidden size-11 items-center justify-center rounded-full border border-border bg-card text-text hover:bg-bg max-[399px]:inline-flex"
+      >
+        <MenuIcon aria-hidden="true" className="size-5" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={6}
+          className="z-50 grid gap-2 rounded-card border border-border bg-card p-2 shadow-lg"
+        >
+          <LocalePill />
+          <ThemePill />
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 function UserMenu() {
   const { t } = useLocale();
   const { session, logout } = useSession();
@@ -62,9 +87,10 @@ function UserMenu() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label={t("common.nav.userMenu", { name: user.fullName })}
-        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg"
+        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg max-[379px]:max-w-11 max-[379px]:px-2"
       >
-        <span className="truncate">{firstName}</span>
+        <span className="truncate max-[379px]:hidden">{firstName}</span>
+        <CircleUserRound aria-hidden="true" className="hidden size-5 max-[379px]:block" />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
@@ -75,6 +101,7 @@ function UserMenu() {
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
+          <MenuLink href="/routine" icon={CalendarDays} label={t("catalog.routine.title")} />
           {user.role !== "STUDENT" ? (
             <MenuLink href={staffHome} icon={ListChecks} label={t("common.nav.adminPanel")} external />
           ) : null}
@@ -238,14 +265,17 @@ export function StudentShell({ children }: { children: ReactNode }) {
       </a>
       <OfflineBanner />
       <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
-        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4", column)}>
-          <Logo />
+        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", column)}>
+          <Logo compact />
           {wide ? <WideNav /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             {wide && !signedIn ? <SignUpLink /> : null}
-            <LocalePill />
-            <ThemePill />
+            <span className="flex items-center gap-1.5 max-[399px]:hidden sm:gap-2">
+              <LocalePill />
+              <ThemePill />
+            </span>
+            <SettingsMenu />
             <UserMenu />
           </div>
         </div>

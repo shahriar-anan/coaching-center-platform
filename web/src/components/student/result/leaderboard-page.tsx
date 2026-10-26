@@ -36,7 +36,11 @@ export function LeaderboardPage({ examId }: { examId: string }) {
   const header = (
     <PageHeader
       title={exam.data ? pickTitle(exam.data, locale) : t("result.board.title")}
-      breadcrumbs={[{ label: t("result.board.title") }]}
+      breadcrumbs={[
+        { label: t("result.hub.title"), href: "/results" },
+        { label: t("result.page.title"), href: `/exam/${examId}/result` },
+        { label: t("result.board.title") },
+      ]}
     />
   );
 

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Pill } from "@/components/ui/pill";
 import { TextInput } from "@/components/ui/text-input";
-import { useSession, WrongAudienceError } from "@/lib/auth/session-context";
+import { destinationFor, useSession, WrongAudienceError } from "@/lib/auth/session-context";
 import { apiUrl, googleEnabled, staffLogin, studentLogin } from "@/lib/config";
 import { ApiError } from "@/lib/api/errors";
 import { FormError, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
@@ -23,9 +23,18 @@ import { FormError, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui"
  */
 function LoginForm() {
   const { t } = useLocale();
-  const { login } = useSession();
+  const { login, session } = useSession();
+  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next");
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
+
+  // A signed-in student does not need the form: send them where they were going.
+  useEffect(() => {
+    if (session.status === "authenticated" && session.user.role === "STUDENT") {
+      router.replace(destinationFor(session.user, next));
+    }
+  }, [session, next, router]);
   const expired = params.get("reason") === "expired";
 
   const [identifier, setIdentifier] = useState("");
@@ -95,9 +104,9 @@ function LoginForm() {
         title={t("auth.login.title")}
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.login.title") }]}
       />
-      <Card padding="lg" className="grid gap-5">
+      <Card padding="lg" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
         {expired ? <p className="text-body text-muted">{t("auth.login.expired")}</p> : null}
-        <form onSubmit={onSubmit} noValidate className="grid gap-4">
+        <form onSubmit={onSubmit} noValidate className="grid min-w-0 gap-4">
           <Field label={t("auth.login.identifier")} error={fieldError.identifier} required>
             <TextInput
               ref={identifierRef}
@@ -130,7 +139,7 @@ function LoginForm() {
         </form>
 
         <div className="grid gap-3">
-          <p className="text-center text-body text-muted">{t("auth.login.divider")}</p>
+          <p className="min-w-0 text-center text-body text-muted">{t("auth.login.divider")}</p>
           {googleEnabled ? (
             <a
               href={apiUrl("/api/v1/auth/google")}
@@ -139,7 +148,7 @@ function LoginForm() {
               {t("auth.login.googleButton")}
             </a>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Button variant="secondary" fullWidth disabled aria-describedby="google-soon">
                 {t("auth.login.googleButton")}
               </Button>
@@ -154,7 +163,7 @@ function LoginForm() {
           <Link href="/forgot-password" className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.forgot")}
           </Link>
-          <Link href="/register" className="font-semibold text-text-accent underline underline-offset-4">
+          <Link href={`/register${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.register")}
           </Link>
           <Link href="/activate" className="font-semibold text-text-accent underline underline-offset-4">

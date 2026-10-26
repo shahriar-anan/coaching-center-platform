@@ -85,7 +85,7 @@ function FirstRun() {
   ];
   return (
     <section aria-labelledby="first-run-heading" className="grid gap-3 rounded-card border border-border bg-card p-5">
-      <h2 id="first-run-heading" className="text-card font-semibold">
+      <h2 id="first-run-heading" className="text-card-title font-semibold">
         {t("staffCatalog.home.onboarding.title")}
       </h2>
       <p className="text-meta text-muted">{t("staffCatalog.home.onboarding.body")}</p>
@@ -160,7 +160,7 @@ function Agenda({ rows, now }: { rows: ParticipationRow[]; now: number }) {
 
   return (
     <section aria-labelledby="agenda-heading" className="grid gap-3">
-      <h2 id="agenda-heading" className="text-card font-semibold">
+      <h2 id="agenda-heading" className="text-card-title font-semibold">
         {t("staffCatalog.home.agenda.title")}
       </h2>
       {groups.size === 0 ? (
@@ -198,7 +198,7 @@ export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
       <SummaryCards showPayments />
 
       <section aria-labelledby="quick-heading" className="grid gap-2">
-        <h2 id="quick-heading" className="text-card font-semibold">
+        <h2 id="quick-heading" className="text-card-title font-semibold">
           {t("staffCatalog.home.quick.title")}
         </h2>
         <ul className="flex flex-wrap gap-2">

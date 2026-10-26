@@ -47,8 +47,9 @@ export interface RoutineRow {
   moduleTitleEn: string;
   moduleTitleBn: string;
   categories: { id: string; titleEn: string; titleBn: string }[];
-  liveAt: string;
-  endAt: string;
+  /** Null until the start is announced; the row stays on the routine with its status. */
+  liveAt: string | null;
+  endAt: string | null;
   durationMinutes: number;
   myStatus: MyStatus | null;
   retakeAvailable: boolean | null;
@@ -125,18 +126,22 @@ export function useCategoryTree(examType: ExamType | null) {
   });
 }
 
-export function usePublicModule(id: string) {
+/**
+ * `signedIn` is part of the key so the read runs again once the session is restored. A page that
+ * loads before that gets the guest view (no access block) and would keep it until it went stale.
+ */
+export function usePublicModule(id: string, signedIn = false) {
   return useQuery({
-    queryKey: catalogKeys.publicModule(id),
+    queryKey: [...catalogKeys.publicModule(id), signedIn],
     staleTime: CATALOG_STALE,
     queryFn: ({ signal }) =>
       apiRequest<PublicModule>(`/api/v1/public/live-exam-modules/${id}`, { signal }),
   });
 }
 
-export function usePublicModuleExams(moduleId: string | undefined, examType: ExamType | null) {
+export function usePublicModuleExams(moduleId: string | undefined, examType: ExamType | null, signedIn = false) {
   return useQuery({
-    queryKey: catalogKeys.publicExams(moduleId ?? "", examType),
+    queryKey: [...catalogKeys.publicExams(moduleId ?? "", examType), signedIn],
     staleTime: CATALOG_STALE,
     enabled: Boolean(moduleId),
     queryFn: ({ signal }) =>
@@ -217,9 +222,9 @@ export function useCheckoutEnabled() {
   });
 }
 
-export function usePublicExam(id: string) {
+export function usePublicExam(id: string, signedIn = false) {
   return useQuery({
-    queryKey: catalogKeys.publicExam(id),
+    queryKey: [...catalogKeys.publicExam(id), signedIn],
     staleTime: CATALOG_STALE,
     queryFn: ({ signal }) => apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
   });
@@ -306,11 +311,15 @@ export function useMyModulesExams(moduleIds: string[], enabled: boolean) {
 
 /** Null when the student may not sit this exam. */
 export function useMyExam(id: string, enabled: boolean) {
-  return useQuery({
+  return useQuery<StudentExam | null>({
     queryKey: catalogKeys.myExam(id),
     staleTime: 0,
     enabled,
     refetchOnWindowFocus: true,
+    // Before the window opens the status is UPCOMING (NOT_ANNOUNCED with no date yet); poll so
+    // Start, or a newly announced date, shows without a reload.
+    refetchInterval: (query) =>
+      query.state.data?.myStatus === "UPCOMING" || query.state.data?.myStatus === "NOT_ANNOUNCED" ? 15_000 : false,
     queryFn: ({ signal }) => orNull(apiRequest<StudentExam>(`/api/v1/live-exams/${id}`, { signal })),
   });
 }

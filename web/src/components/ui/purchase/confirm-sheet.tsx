@@ -39,7 +39,7 @@ export function ConfirmSheet({
       initialFocus={() => footerRef.current?.querySelector<HTMLElement>("[data-primary] button, [data-primary] a[href]") ?? null}
     >
       <div className="grid gap-3">
-        <p className="text-card font-semibold tabular-nums text-text">{amountLabel}</p>
+        <p className="text-card-title font-semibold tabular-nums text-text">{amountLabel}</p>
         <p className="text-body text-muted">{unlock}</p>
         {children}
         <div ref={footerRef} className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -10,7 +10,8 @@ import { cn } from "@/components/ui/cn";
  * site's logo files), next to the portal name. Links to the site home, relative,
  * on either surface.
  */
-export function Logo({ className, href = "/" }: { className?: string; href?: string }) {
+/** `compact` hides the wordmark below 400 px, so the student header fits at large text sizes (the mark and the name stay for screen readers). */
+export function Logo({ className, href = "/", compact = false }: { className?: string; href?: string; compact?: boolean }) {
   const { t } = useLocale();
   return (
     <Link
@@ -20,7 +21,7 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
     >
       <Image src="/brand/logo-light.svg" alt="" width={800} height={771} className="h-9 w-auto sm:h-12 dark:hidden" />
       <Image src="/brand/logo-dark.svg" alt="" width={800} height={771} className="hidden h-9 w-auto sm:h-12 dark:block" />
-      <span className="truncate text-base sm:text-section">
+      <span className={cn("truncate text-base sm:text-section", compact && "max-[399px]:sr-only")}>
         {t("common.brand.first")}
         <span className="text-text-accent">{t("common.brand.second")}</span>
       </span>

@@ -57,7 +57,7 @@ function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: 
         <time dateTime={notice.createdAt}>{formatDateTime(notice.createdAt, locale)}</time>
         {unread ? <span className="sr-only">({t("notices.unreadDot")})</span> : null}
       </p>
-      <h2 className="text-card font-bold text-text">{title || t("notices.kind.ANNOUNCEMENT")}</h2>
+      <h2 className="text-card-title font-bold text-text">{title || t("notices.kind.ANNOUNCEMENT")}</h2>
       {body ? (
         <p className="whitespace-pre-line text-body text-text">{expanded || !long ? body : previewBody(body)}</p>
       ) : null}
@@ -116,7 +116,13 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice
 
   const href = noticeHref(notice);
   if (!href) {
-    return <div className={className}>{content}</div>;
+    // An unread notice with no link is a button, so opening it marks it read.
+    if (!unread) return <div className={className}>{content}</div>;
+    return (
+      <button type="button" onClick={() => onOpen(notice)} className={`${className} w-full text-start`}>
+        {content}
+      </button>
+    );
   }
   return (
     <Link

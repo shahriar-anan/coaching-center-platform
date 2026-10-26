@@ -144,7 +144,7 @@ function Nudges({ phoneRequired, emailVerified, live }: {
   );
 }
 
-function RoutineLine({ row }: { row: RoutineRow }) {
+function RoutineLine({ row }: { row: RoutineRow & { liveAt: string; endAt: string } }) {
   const { locale } = useLocale();
   return (
     <Card href={examPath(row.id)}>
@@ -171,8 +171,11 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
   const modules = useMyModules(true);
 
   const rows = routine.data ?? [];
+  // Only exams with a date count as upcoming here; undated ones wait on the routine.
   const upcoming = rows
-    .filter((row) => Date.parse(row.endAt) > now)
+    .filter((row): row is typeof row & { liveAt: string; endAt: string } =>
+      Boolean(row.liveAt && row.endAt && Date.parse(row.endAt) > now),
+    )
     .sort((a, b) => Date.parse(a.liveAt) - Date.parse(b.liveAt));
   const next = upcoming[0];
   const nowRows = upcoming.filter((row) => isLive(row, now));
@@ -190,7 +193,7 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
       <Doors />
 
       <section className="mt-6" aria-labelledby="next-exam">
-        <h2 id="next-exam" className="mb-2 text-card font-bold">{t("home.nextExam")}</h2>
+        <h2 id="next-exam" className="mb-2 text-card-title font-bold">{t("home.nextExam")}</h2>
         {routine.isPending ? (
           <Skeleton variant="card" />
         ) : routine.isError && !routine.data ? (
@@ -201,12 +204,12 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
           <Card href={examPath(next.id)}>
             <Pill tone="warn" pulse>{t("home.liveNow")}</Pill>
             <p className="mt-1 font-bold">{pickTitle(next, locale)}</p>
-            <p className="mt-1 text-body font-semibold text-accent">{t("home.sitNow")} ›</p>
+            <p className="mt-1 text-body font-semibold text-text-accent">{t("home.sitNow")} ›</p>
           </Card>
         ) : (
           <Card className="border-s-4 border-s-accent">
             <p className="text-body text-muted">{t("home.startsIn", { title: pickTitle(next, locale) })}</p>
-            <p className="text-card font-bold"><Countdown deadline={next.liveAt} /></p>
+            <p className="text-card-title font-bold"><Countdown deadline={next.liveAt} /></p>
             <p className="text-body text-muted">{formatDate(next.liveAt, locale, { year: "auto" })} · {formatTime(next.liveAt, locale)}</p>
           </Card>
         )}
@@ -214,14 +217,14 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
 
       {nowRows.length > 0 ? (
         <section className="mt-6" aria-labelledby="now-section">
-          <h2 id="now-section" className="mb-2 text-card font-bold">{t("home.nowSection")}</h2>
+          <h2 id="now-section" className="mb-2 text-card-title font-bold">{t("home.nowSection")}</h2>
           <div className="grid gap-2.5">{nowRows.map((row) => <RoutineLine key={row.id} row={row} />)}</div>
         </section>
       ) : null}
 
       <section className="mt-6" aria-labelledby="upcoming-section">
         <div className="mb-2 flex items-center justify-between">
-          <h2 id="upcoming-section" className="text-card font-bold">{t("home.upcomingSection")}</h2>
+          <h2 id="upcoming-section" className="text-card-title font-bold">{t("home.upcomingSection")}</h2>
           <Link href="/routine" className="text-label font-semibold text-accent">{t("home.seeAll")}</Link>
         </div>
         {soon.length === 0 ? (
@@ -233,7 +236,7 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
 
       <section className="mt-6" aria-labelledby="my-modules">
         <div className="mb-2 flex items-center justify-between">
-          <h2 id="my-modules" className="text-card font-bold">{t("home.myModules")}</h2>
+          <h2 id="my-modules" className="text-card-title font-bold">{t("home.myModules")}</h2>
           <Link href="/my-modules" className="text-label font-semibold text-accent">{t("home.seeAll")}</Link>
         </div>
         {modules.isPending ? (

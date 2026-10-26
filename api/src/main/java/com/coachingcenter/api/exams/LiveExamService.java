@@ -411,11 +411,13 @@ public class LiveExamService {
 		Instant now = clock.instant();
 		List<LiveExam> open = new ArrayList<>();
 		for (LiveExam exam : exams.findVisibleRoutineCandidates(studentId, hidden)) {
-			if (exam.getLiveAt() != null && end(exam).isAfter(now)) {
+			// An exam with no start time stays on the routine, last, with its status until a date is set.
+			if (exam.getLiveAt() == null || end(exam).isAfter(now)) {
 				open.add(exam);
 			}
 		}
-		open.sort(Comparator.comparing(LiveExam::getLiveAt).thenComparing(LiveExam::getId));
+		open.sort(Comparator.comparing(LiveExam::getLiveAt, Comparator.nullsLast(Comparator.naturalOrder()))
+			.thenComparing(LiveExam::getId));
 		Map<UUID, LiveExamCategory> byId = new HashMap<>();
 		for (LiveExamCategory category : categories.findAll()) {
 			byId.put(category.getId(), category);

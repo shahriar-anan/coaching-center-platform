@@ -45,7 +45,7 @@ export function SectionBlock({
   return (
     <section id={id} aria-labelledby={headingId} className="grid scroll-mt-24 gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 id={headingId} className="flex min-w-0 items-center gap-2 text-card font-semibold">
+        <h2 id={headingId} className="flex min-w-0 items-center gap-2 text-card-title font-semibold">
           <span className="tabular-nums text-muted">{number}</span>
           <span className="min-w-0">{title}</span>
           <StateIcon aria-hidden="true" className={cn("size-4 shrink-0", STATE_TONE[state])} />
