@@ -45,7 +45,6 @@ const staffCatalog = {
     paymentPending: "Payment pending",
     summaryError: "The counts cannot be shown right now.",
     examsError: "The exam list cannot be loaded right now.",
-    modulesError: "The module list cannot be loaded right now.",
     quick: {
       title: "Shortcuts",
       newModule: "New module",
@@ -54,27 +53,7 @@ const staffCatalog = {
       findStudent: "Find a student",
       systemAdminNote: "You can read payments, but you cannot change them.",
     },
-    todayTitle: "Today's exams",
-    todayEmpty: "No exam today.",
-    upcomingTitle: "Upcoming exams",
-    upcomingEmpty: "No exam coming up.",
-    noExamsTitle: "No exams yet",
-    noExamsBody: "Open a module and add an exam.",
     openModule: "Open module",
-    counts: {
-      sitting: "Sitting",
-      submitted: "Submitted",
-      failed: "Failed to submit",
-      awaiting: "Awaiting a mark",
-      drafts: "Drafts",
-      published: "Published",
-    },
-    instructor: {
-      submissions: "Marking",
-      participation: "Participation",
-    },
-    instructorEmptyTitle: "No module has been assigned to you yet.",
-    instructorEmptyBody: "Once a module is assigned, its scripts and counts appear here.",
   },
   categories: {
     title: "Categories",
@@ -87,7 +66,6 @@ const staffCatalog = {
     moduleCount: "{count} modules",
     expand: "Expand",
     collapse: "Collapse",
-    edit: "Edit",
     archive: "Archive",
     delete: "Delete",
     archiveTitle: "Archive “{name}”?",
@@ -215,7 +193,6 @@ const staffCatalog = {
     columns: {
       name: "Name",
       type: "Type",
-      language: "Language",
       date: "Date",
       status: "Status",
       links: "Actions",
@@ -309,7 +286,6 @@ const staffCatalog = {
     },
   },
   examMeta: {
-    heading: "Exam details",
     titleEn: "English title",
     titleBn: "Bangla title",
     titleEnRequired: "Enter the English title.",
@@ -367,10 +343,8 @@ const staffCatalog = {
     watermark: "Sample",
   },
   mcq: {
-    questionsHeading: "Question paper",
     summary: "{count} questions · {total} marks in total",
     missingCorrect: "{n} with no correct answer chosen",
-    total: "Total {total}",
     add: "Add question",
     emptyTitle: "No questions yet",
     emptyBody: "Add a question. Each one needs exactly one correct option.",
@@ -408,7 +382,6 @@ const staffCatalog = {
     saved: "Question saved.",
   },
   written: {
-    heading: "Question paper PDF",
     fileName: "Question paper (PDF)",
     uploadedNote: "Students cannot download it.",
     missing: "No question paper yet. Choose a PDF file.",

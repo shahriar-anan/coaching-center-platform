@@ -49,7 +49,6 @@ const staffCatalog = {
     paymentPending: "পেমেন্ট অপেক্ষমাণ",
     summaryError: "সংখ্যা এখন দেখানো যাচ্ছে না।",
     examsError: "পরীক্ষার তালিকা এখন আনা যাচ্ছে না।",
-    modulesError: "মডিউলের তালিকা এখন আনা যাচ্ছে না।",
     quick: {
       title: "শর্টকাট",
       newModule: "নতুন মডিউল",
@@ -58,27 +57,7 @@ const staffCatalog = {
       findStudent: "শিক্ষার্থী খুঁজুন",
       systemAdminNote: "পেমেন্ট দেখতে পারবেন, তবে কোনো তথ্য বদলাতে পারবেন না।",
     },
-    todayTitle: "আজকের পরীক্ষা",
-    todayEmpty: "আজ কোনো পরীক্ষা নেই।",
-    upcomingTitle: "আসন্ন পরীক্ষা",
-    upcomingEmpty: "সামনে কোনো পরীক্ষা নেই।",
-    noExamsTitle: "এখনো কোনো পরীক্ষা নেই",
-    noExamsBody: "মডিউল খুলে পরীক্ষা যোগ করুন।",
     openModule: "মডিউল খুলুন",
-    counts: {
-      sitting: "বসেছেন",
-      submitted: "জমা",
-      failed: "জমা হয়নি",
-      awaiting: "মূল্যায়ন বাকি",
-      drafts: "খসড়া নম্বর",
-      published: "প্রকাশিত",
-    },
-    instructor: {
-      submissions: "খাতা মূল্যায়ন",
-      participation: "অংশগ্রহণ",
-    },
-    instructorEmptyTitle: "আপনাকে এখনো কোনো মডিউল দেওয়া হয়নি।",
-    instructorEmptyBody: "মডিউল দেওয়া হলে এখানে তার খাতা ও অংশগ্রহণের সংখ্যা দেখা যাবে।",
   },
   categories: {
     title: "ক্যাটাগরি",
@@ -91,7 +70,6 @@ const staffCatalog = {
     moduleCount: "{count}টি মডিউল",
     expand: "খুলুন",
     collapse: "বন্ধ করুন",
-    edit: "সম্পাদনা করুন",
     archive: "আর্কাইভ করুন",
     delete: "মুছুন",
     archiveTitle: "“{name}” আর্কাইভ করবেন?",
@@ -219,7 +197,6 @@ const staffCatalog = {
     columns: {
       name: "নাম",
       type: "ধরন",
-      language: "ভাষা",
       date: "তারিখ",
       status: "অবস্থা",
       links: "কাজ",
@@ -313,7 +290,6 @@ const staffCatalog = {
     },
   },
   examMeta: {
-    heading: "পরীক্ষার তথ্য",
     titleEn: "ইংরেজি নাম",
     titleBn: "বাংলা নাম",
     titleEnRequired: "ইংরেজি নাম লিখুন।",
@@ -371,10 +347,8 @@ const staffCatalog = {
     watermark: "নমুনা",
   },
   mcq: {
-    questionsHeading: "প্রশ্নপত্র",
     summary: "{count}টি প্রশ্ন · মোট {total} নম্বর",
     missingCorrect: "{n}টিতে সঠিক উত্তর বাছাই হয়নি",
-    total: "মোট {total}",
     add: "প্রশ্ন যোগ করুন",
     emptyTitle: "এখনো কোনো প্রশ্ন নেই",
     emptyBody: "প্রশ্ন যোগ করুন। প্রতিটি প্রশ্নে একটি সঠিক উত্তর লাগবে।",
@@ -412,7 +386,6 @@ const staffCatalog = {
     saved: "প্রশ্ন সেভ হয়েছে।",
   },
   written: {
-    heading: "প্রশ্নপত্রের পিডিএফ",
     fileName: "প্রশ্নপত্র (পিডিএফ)",
     uploadedNote: "শিক্ষার্থী এটি ডাউনলোড করতে পারবে না।",
     missing: "এখনো কোনো প্রশ্নপত্র দেওয়া হয়নি। পিডিএফ ফাইল বেছে নিন।",
