@@ -182,6 +182,10 @@ class LiveExamOrderTx {
 	}
 
 	private void writeGrant(LiveExamOrder order) {
+		if (LiveExamOrderBundle.SCOPE.equals(order.getScope())) {
+			writeBundleGrants(order);
+			return;
+		}
 		boolean held = LiveExamOrder.MODULE.equals(order.getScope())
 				? grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.MODULE, order.getModuleId())
 				: grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.EXAM, order.getExamId());
@@ -200,6 +204,29 @@ class LiveExamOrderTx {
 		grants.saveAndFlush(grant);
 		notices.purchaseGranted(order.getStudentId(),
 				LiveExamOrder.MODULE.equals(order.getScope()) ? order.getModuleId() : order.getExamId(), order.getScope());
+	}
+
+	/**
+	 * One exam grant per bundle exam ({@code source = BUNDLE}). The held check is per exam, so a replay adds nothing and
+	 * an exam already granted another way is skipped while the rest are granted.
+	 */
+	private void writeBundleGrants(LiveExamOrder order) {
+		for (UUID examId : bundles.examIds(order.getId())) {
+			if (grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(order.getStudentId(), LiveExamOrder.EXAM, examId)) {
+				continue;
+			}
+			LiveExamGrant grant = new LiveExamGrant();
+			grant.setId(UUID.randomUUID());
+			grant.setStudentId(order.getStudentId());
+			grant.setScope(LiveExamOrder.EXAM);
+			grant.setModuleId(order.getModuleId());
+			grant.setExamId(examId);
+			grant.setOrderId(order.getId());
+			grant.setSource(LiveExamGrant.SOURCE_BUNDLE);
+			grant.setCreatedAt(clock.instant());
+			grants.saveAndFlush(grant);
+			notices.purchaseGranted(order.getStudentId(), examId, LiveExamOrder.EXAM);
+		}
 	}
 
 	private static boolean matches(LiveExamOrder order, LiveExamPaymentGateway.Verification verification) {
