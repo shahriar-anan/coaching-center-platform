@@ -33,9 +33,11 @@ class ExamMailQueue {
 
 	private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
+	private final LiveExamOrderBundle bundles;
+
 	ExamMailQueue(ExamOutboundMailRepository mail, LiveExamOrderRepository orders, LiveExamGrantRepository grants,
 			LiveExamRepository exams, LiveExamModuleRepository modules, UserRepository users, Clock clock,
-			org.springframework.jdbc.core.JdbcTemplate jdbc) {
+			org.springframework.jdbc.core.JdbcTemplate jdbc, LiveExamOrderBundle bundles) {
 		this.mail = mail;
 		this.orders = orders;
 		this.grants = grants;
@@ -44,6 +46,7 @@ class ExamMailQueue {
 		this.users = users;
 		this.clock = clock;
 		this.jdbc = jdbc;
+		this.bundles = bundles;
 	}
 
 	@Transactional
@@ -64,6 +67,13 @@ class ExamMailQueue {
 		if (LiveExamOrder.EXAM.equals(order.getScope())) {
 			exams.findByIdAndDeletedAtIsNull(order.getExamId())
 				.ifPresent(exam -> ids.addAll(consider(order.getStudentId(), exam, clock.instant())));
+		}
+		else if (LiveExamOrderBundle.SCOPE.equals(order.getScope())) {
+			// Only the bundle's exams: a row for another exam would take its key and block the mail if bought later.
+			for (UUID examId : bundles.examIds(order.getId())) {
+				exams.findByIdAndDeletedAtIsNull(examId)
+					.ifPresent(exam -> ids.addAll(consider(order.getStudentId(), exam, clock.instant())));
+			}
 		}
 		else {
 			for (LiveExam exam : exams.findDatedPublishedByModuleId(order.getModuleId())) {
