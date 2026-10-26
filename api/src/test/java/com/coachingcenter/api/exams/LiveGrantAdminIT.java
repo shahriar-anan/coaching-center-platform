@@ -594,6 +594,43 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.andExpect(status().isForbidden());
 	}
 
+	@Test
+	void theAccessListGivesARosterRowNoGrantIdAndLeavesARevokedGrantOut() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID student = seed("STUDENT", "Access Reader");
+		UUID module = module(system, "Access rows");
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + student + "\"}"))
+			.andExpect(status().isCreated());
+		MvcResult grant = mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body(student, "MODULE", module, null, "Second route in")))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID grantId = UUID.fromString(json.readTree(grant.getResponse().getContentAsString()).get("id").asText());
+		String path = "/api/v1/students/" + student + "/live-exam-access";
+
+		// Rows sort by module, then via: MANUAL before ROSTER.
+		mockMvc.perform(get(path).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(2))
+			.andExpect(jsonPath("$.content[0].via").value("MANUAL"))
+			.andExpect(jsonPath("$.content[0].grantId").value(grantId.toString()))
+			.andExpect(jsonPath("$.content[1].via").value("ROSTER"))
+			.andExpect(jsonPath("$.content[1].grantId").doesNotExist());
+
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grantId).param("reason", "Duplicate route")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(path).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].via").value("ROSTER"))
+			.andExpect(jsonPath("$.content[0].grantId").doesNotExist())
+			.andExpect(jsonPath("$.content[*].grantId").isEmpty());
+	}
+
 	private UUID sendAnnouncement(String master, String payload) throws Exception {
 		MvcResult sent = mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
