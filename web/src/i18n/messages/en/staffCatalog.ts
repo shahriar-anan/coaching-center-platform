@@ -498,6 +498,9 @@ const staffCatalog = {
       badMarks: "Marks must be 1 or more.",
     },
   },
+  clash: {
+    message: "Start at least five minutes after {title} ends ({when}).",
+  },
   errors: {
     GENERIC: "Something went wrong. Try again.",
     VALIDATION_FAILED: "Check the details. Some fields are not right.",

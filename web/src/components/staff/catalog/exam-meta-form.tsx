@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
@@ -17,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { parsePrice } from "@/components/staff/catalog/module-details";
-import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
+import { catalogErrorKey, clashExamFor, fieldErrorFor, type ClashExam } from "@/components/staff/catalog/errors";
 
 /** The three editable parts of an exam. Each saves on its own button and sends only its own fields. */
 export type ExamSection = "details" | "schedule" | "price";
@@ -85,6 +86,7 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
   const [baseline, setBaseline] = useState<FormState>(() => initialState(exam));
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [clash, setClash] = useState<ClashExam | null>(null);
   const dirty = JSON.stringify(pick(form, SECTION_FIELDS[section])) !== JSON.stringify(pick(baseline, SECTION_FIELDS[section]));
   useUnsavedChangesGuard(dirty);
   const isWritten = exam.examType === "WRITTEN";
@@ -168,6 +170,7 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
+    setClash(null);
     const body = validate();
     if (!body) {
       return;
@@ -185,7 +188,9 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
         tone: "ok",
       });
     } catch (error) {
-      setFormError(t(catalogErrorKey(error)));
+      const clashing = clashExamFor(error);
+      setClash(clashing);
+      setFormError(clashing ? null : t(catalogErrorKey(error)));
       setErrors({
         titleEn: fieldErrorFor(error, "titleEn") ?? undefined,
         titleBn: fieldErrorFor(error, "titleBn") ?? undefined,
@@ -309,6 +314,7 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
         ) : null}
       </fieldset>
 
+      {clash ? <ClashAlert clash={clash} /> : null}
       {formError ? (
         <p role="alert" className="text-meta text-danger">
           {formError}
@@ -316,5 +322,24 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
       ) : null}
       {saveRow}
     </form>
+  );
+}
+
+/** The five-minute clash names the other exam and its time, with a link to it (G3). */
+function ClashAlert({ clash }: { clash: ClashExam }) {
+  const { t, locale } = useLocale();
+  const { formatDate, formatTimeRange } = useFormat();
+  const title = locale === "bn" ? clash.titleBn : clash.titleEn;
+  const when = `${formatDate(clash.liveAt)}, ${formatTimeRange(clash.liveAt, clash.endAt)}`;
+  // The title appears once in the sentence, so it can be split out and wrapped in the link.
+  const [before, after] = t("staffCatalog.clash.message", { title, when }).split(title);
+  return (
+    <p role="alert" className="text-meta text-danger">
+      {before}
+      <Link href={`/staff/exams/${clash.id}`} className="underline hover:no-underline">
+        {title}
+      </Link>
+      {after}
+    </p>
   );
 }
