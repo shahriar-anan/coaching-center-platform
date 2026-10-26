@@ -49,7 +49,7 @@ function ReleaseSwitch({ examId }: { examId: string }) {
   const name = pickTitle(exam.data);
 
   return (
-    <section aria-labelledby="answer-release-title" className="flex flex-wrap items-center gap-4">
+    <section aria-labelledby="answer-release-title" className="mt-6 flex flex-wrap items-center gap-4">
       <h2 id="answer-release-title" className="text-card font-semibold text-text">
         {t("staffAdmin.release.label")}
       </h2>
