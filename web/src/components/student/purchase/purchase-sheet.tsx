@@ -87,6 +87,15 @@ const problemKey: Record<Problem["kind"], string> = {
   cancelled: "purchase.pendingCancelled",
 };
 
+/** The payment methods shown on the sheet. A method without a logo file shows its name instead. */
+const PAYMENT_METHODS: { name: string; src?: string }[] = [
+  { name: "bKash", src: "/brand/payment/bkash.svg" },
+  { name: "Nagad", src: "/brand/payment/nagad.svg" },
+  { name: "Rocket", src: "/brand/payment/rocket.png" },
+  { name: "Visa", src: "/brand/payment/visa.png" },
+  { name: "Mastercard" },
+];
+
 export function PurchaseSheet({
   open,
   onOpenChange,
@@ -199,9 +208,19 @@ export function PurchaseSheet({
           </p>
         ) : null}
         <div className="grid gap-3 rounded-card border border-border p-3">
-          {/* The payment logos are a static image from the brand folder, not run through the optimiser. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/payment-methods.png" alt={t("purchase.paymentsAlt")} className="h-10 w-full object-contain object-left" />
+          <ul aria-label={t("purchase.paymentsAlt")} className="flex flex-wrap items-center gap-2">
+            {PAYMENT_METHODS.map((method) => (
+              <li key={method.name} className="flex h-9 min-w-16 items-center justify-center rounded-control border border-border bg-card px-2.5">
+                {method.src ? (
+                  // The method logos are static files in the brand folder, not run through the optimiser.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={method.src} alt={method.name} className="h-5 w-auto max-w-[72px] object-contain" />
+                ) : (
+                  <span className="text-meta font-semibold">{method.name}</span>
+                )}
+              </li>
+            ))}
+          </ul>
           <p className="flex items-center gap-1.5 text-meta text-muted"><Lock aria-hidden="true" className="size-3.5 shrink-0" />{t("purchase.trust")}</p>
           <ol className="grid gap-1.5 text-body text-muted">
             <li className="flex gap-2"><span className="font-bold text-text-accent">1.</span>{t("purchase.next1")}</li>
