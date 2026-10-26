@@ -10,8 +10,9 @@ import { useSystemStatus, type SystemCheck } from "@/lib/api/exam/staff-admin";
 
 /**
  * One row per configuration check: its name in plain words, a Yes or No pill,
- * and the note. A failed check adds one sentence on what to change. The API
- * sends names and results only; no value is shown here.
+ * and a note. A failed check adds one sentence on what to change. The page writes
+ * every word itself, from the check's name. The API's `note` is never shown, so a
+ * value in it cannot reach the screen, and neither can an unknown field.
  */
 export function SystemStatusList() {
   const { t } = useLocale();
@@ -41,7 +42,7 @@ export function SystemStatusList() {
     {
       key: "note",
       header: t("staffAdmin.status.columns.note"),
-      cell: (row) => <span className="text-meta text-muted">{row.note}</span>,
+      cell: (row) => <span className="text-meta text-muted">{plainNote(row.name, t)}</span>,
     },
   ];
 
@@ -74,6 +75,12 @@ const CHECK_KEYS: Record<string, string> = {
 function plainName(name: string, t: Translate): string {
   const key = CHECK_KEYS[name];
   return key ? t(`staffAdmin.status.names.${key}`) : t("staffAdmin.status.unknownName");
+}
+
+/** What the check means, whichever way it came out. */
+function plainNote(name: string, t: Translate): string {
+  const key = CHECK_KEYS[name];
+  return key ? t(`staffAdmin.status.notes.${key}`) : t("staffAdmin.status.unknownNote");
 }
 
 function fixSentence(name: string, t: Translate): string {
