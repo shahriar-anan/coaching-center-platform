@@ -3,6 +3,7 @@ package com.coachingcenter.api.exams;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -37,8 +38,11 @@ class LiveExamOrderTx {
 
 	private final AuditRecorder audit;
 
+	private final LiveExamOrderBundle bundles;
+
 	LiveExamOrderTx(LiveExamOrderRepository orders, LiveExamGrantRepository grants, ExamMailService examMail,
-			AfterCommit afterCommit, StudentNoticeWriter notices, Clock clock, AuditRecorder audit) {
+			AfterCommit afterCommit, StudentNoticeWriter notices, Clock clock, AuditRecorder audit,
+			LiveExamOrderBundle bundles) {
 		this.orders = orders;
 		this.grants = grants;
 		this.examMail = examMail;
@@ -46,6 +50,7 @@ class LiveExamOrderTx {
 		this.notices = notices;
 		this.clock = clock;
 		this.audit = audit;
+		this.bundles = bundles;
 	}
 
 	@Transactional
@@ -65,6 +70,16 @@ class LiveExamOrderTx {
 		order.setCreatedAt(now);
 		order.setUpdatedAt(now);
 		return orders.saveAndFlush(order);
+	}
+
+	/** One bundle order and one {@code live_exam_order_exams} row per exam, in one transaction (plan D1). */
+	@Transactional
+	public LiveExamOrderBundle.Inserted insertBundle(UUID studentId, UUID moduleId, List<UUID> examIds,
+			BigDecimal amount) {
+		bundles.lockStudent(studentId);
+		LiveExamOrder order = insert(studentId, LiveExamOrderBundle.SCOPE, moduleId, null, amount);
+		bundles.insertExams(order.getId(), examIds);
+		return new LiveExamOrderBundle.Inserted(order, true);
 	}
 
 	@Transactional

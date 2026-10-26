@@ -85,6 +85,11 @@ public class LiveExamOrderService {
 		if (open.isPresent()) {
 			return checkout(open.get(), false, studentId, target.productName());
 		}
+		if (LiveExamOrderBundle.SCOPE.equals(target.scope())) {
+			LiveExamOrderBundle.Inserted inserted = tx.insertBundle(studentId, target.moduleId(), target.examIds(),
+					target.amount());
+			return checkout(inserted.order(), inserted.created(), studentId, target.productName());
+		}
 		LiveExamOrder order;
 		try {
 			order = tx.insert(studentId, target.scope(), target.moduleId(), target.examId(), target.amount());
