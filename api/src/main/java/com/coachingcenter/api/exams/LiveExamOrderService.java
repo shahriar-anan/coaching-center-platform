@@ -295,9 +295,10 @@ public class LiveExamOrderService {
 				|| grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(studentId, LiveExamOrder.MODULE, target.moduleId())) {
 			throw alreadyPurchased();
 		}
-		if (target.examId() != null
-				&& grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, target.examId())) {
-			throw alreadyPurchased();
+		for (UUID examId : target.examIds()) {
+			if (grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, examId)) {
+				throw alreadyPurchased();
+			}
 		}
 	}
 
