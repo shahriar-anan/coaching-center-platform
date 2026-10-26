@@ -240,6 +240,44 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
 	}
 
+	/** AG-02: the staff exam view carries the release time, and the student view never does. */
+	@Test
+	void answersReleasedAtFollowsTheReleaseAndIsNeverOnTheStudentView() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		String exam = "/api/v1/live-exams/" + holder.examId();
+
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+
+		mockMvc.perform(put(exam + "/answers-released").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").isNotEmpty());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+
+		mockMvc.perform(put(exam + "/answers-released").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.answersReleasedAt").doesNotExist());
+	}
+
 	@Test
 	void aBlankMcqPostsZeroAndIsNotFailedToSubmit() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
