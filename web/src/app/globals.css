@@ -106,6 +106,8 @@
   --color-warn: var(--warn);
   --color-warn-fill: var(--warn-fill);
   --color-danger: var(--danger);
+  --color-band: var(--band);
+  --color-on-band: var(--on-band);
 
   --radius-card: var(--radius-card-value);
   --radius-control: var(--radius-control-value);
@@ -204,6 +206,9 @@
   --radius-control-value: 12px;
   --action: #c8962e;
   --on-action: #14213d;
+  /* Navy band on the landing page: the logo's navy, with cream text. */
+  --band: #14213d;
+  --on-band: #f6f4ee;
   /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
   --on-warn: #ffffff;
 }
@@ -246,6 +251,8 @@
     --danger: #f97066;
     --action: #e0b254;
     --on-action: #14213d;
+    --band: #1b2b4d;
+    --on-band: #eef0f6;
   /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
   --on-warn: #ffffff;
   }
@@ -283,6 +290,8 @@
   --danger: #f97066;
   --action: #e0b254;
   --on-action: #14213d;
+  --band: #1b2b4d;
+  --on-band: #eef0f6;
   /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
   --on-warn: #ffffff;
 }

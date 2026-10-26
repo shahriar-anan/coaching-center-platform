@@ -1,0 +1,70 @@
+const landing = {
+  navMcq: "এমসিকিউ",
+  navWritten: "রিটেন",
+  navHelp: "সাহায্য",
+  navContact: "যোগাযোগ",
+  navLabel: "মূল মেনু",
+  signUpShort: "অ্যাকাউন্ট খুলুন",
+
+  heroLabel: "SYMAM LAW · সাইমাম ল'",
+  heroTitle: "বিজেএস ও বার কাউন্সিল পরীক্ষার পূর্ণ প্রস্তুতি",
+  heroLead: "নির্দিষ্ট সময়ে লাইভ পরীক্ষা, এমসিকিউ-এর নম্বর সঙ্গে সঙ্গে, আর লিখিত খাতা দেখেন শিক্ষকেরা।",
+  chipOnline: "অনলাইন ব্যাচ",
+  chipOffline: "অফলাইন ব্যাচ",
+  ctaSignUp: "অ্যাকাউন্ট খুলুন",
+  ctaBrowse: "এক্সাম দেখুন",
+  callNow: "এখনই কল করুন",
+  photoAlt: "পরীক্ষার হলে শিক্ষার্থীরা লিখছে",
+
+  batchesTitle: "চলমান ব্যাচ",
+  batchesSubtitle: "ভর্তি চলছে। অনলাইন ও অফলাইন দুই ধরনের ব্যাচেই।",
+  groupBjs: "বিজেএস",
+  groupBar: "বার কাউন্সিল",
+  kindFoundation: "ফাউন্ডেশন",
+  kindSpecial: "স্পেশাল",
+  batchOpen: "এক্সাম দেখুন",
+  batchCallOnly: "ভর্তির জন্য কল করুন",
+
+  numbersModules: "এক্সাম মডিউল",
+  numbersMcq: "এমসিকিউ এক্সাম",
+  numbersWritten: "রিটেন এক্সাম",
+
+  categoriesTitle: "এক্সাম ক্যাটাগরি",
+  categoriesSubtitle: "যে পরীক্ষার জন্য প্রস্তুতি নিচ্ছেন, সেটি বেছে নিন।",
+  categoryModules: "{count}টি মডিউল",
+  categoryFrom: "শুরু {price} থেকে",
+  categoryNoPrice: "মূল্য এখনো ঠিক হয়নি",
+  seeAll: "সব দেখুন",
+
+  upcomingTitle: "আসন্ন পরীক্ষা",
+  upcomingSubtitle: "সময়মতো বসুন। পরীক্ষা শুরু হওয়ার আগেই অ্যাকাউন্ট থাকা দরকার।",
+
+  packagesTitle: "জনপ্রিয় মডিউল",
+  packagesSubtitle: "এক মডিউলে একাধিক পরীক্ষা। সঙ্গে থাকছে সব প্রশ্ন ও ফলাফল।",
+  packageDetails: "বিস্তারিত",
+  packageMcq: "এমসিকিউ {count}টি",
+  packageWritten: "রিটেন {count}টি",
+
+  stepsTitle: "কীভাবে শুরু করবেন",
+  step1Title: "অ্যাকাউন্ট খুলুন",
+  step1Body: "নাম, ফোন ও ইমেইল দিয়ে কয়েক মিনিটে।",
+  step2Title: "পছন্দের এক্সাম কিনুন",
+  step2Body: "বিকাশ, নগদ বা কার্ডে নিরাপদ পেমেন্ট।",
+  step3Title: "নির্দিষ্ট সময়ে বসুন",
+  step3Body: "পরীক্ষা শেষে ফল ও মেধাতালিকা দেখুন।",
+  paymentsAlt: "গ্রহণযোগ্য পেমেন্ট পদ্ধতি",
+
+  contactTitle: "যোগাযোগ",
+  contactCall: "কল করুন",
+  contactWhatsapp: "হোয়াটসঅ্যাপ",
+  contactEmail: "ইমেইল",
+  contactHours: "অফিস সময়",
+  contactAddress: "ঠিকানা",
+  contactMap: "ম্যাপে দেখুন",
+  contactFollow: "আমাদের অনুসরণ করুন",
+
+  closingTitle: "আজই প্রস্তুতি শুরু করুন",
+  closingLogin: "আগে থেকেই অ্যাকাউন্ট আছে? প্রবেশ করুন",
+};
+
+export default landing;

@@ -14,6 +14,7 @@ import bnLegal from "./bn/legal";
 import bnCatalog from "./bn/catalog";
 import bnPurchase from "./bn/purchase";
 import bnHome from "./bn/home";
+import bnLanding from "./bn/landing";
 import bnSitting from "./bn/sitting";
 import bnResult from "./bn/result";
 import bnStaffCatalog from "./bn/staffCatalog";
@@ -32,6 +33,7 @@ import enLegal from "./en/legal";
 import enCatalog from "./en/catalog";
 import enPurchase from "./en/purchase";
 import enHome from "./en/home";
+import enLanding from "./en/landing";
 import enSitting from "./en/sitting";
 import enResult from "./en/result";
 import enStaffCatalog from "./en/staffCatalog";
@@ -64,6 +66,7 @@ export const bn: MessageTree = merge(bnLegacy as MessageTree, {
   catalog: bnCatalog,
   purchase: bnPurchase,
   home: bnHome,
+  landing: bnLanding,
   sitting: bnSitting,
   result: bnResult,
   staffCatalog: bnStaffCatalog,
@@ -83,6 +86,7 @@ export const en: MessageTree = merge(enLegacy as MessageTree, {
   catalog: enCatalog,
   purchase: enPurchase,
   home: enHome,
+  landing: enLanding,
   sitting: enSitting,
   result: enResult,
   staffCatalog: enStaffCatalog,
