@@ -134,7 +134,8 @@ function useOrderDecision(action: "confirm" | "reject") {
         method: "POST",
         body: { reason: reason.trim() },
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
+    // Also on failure: ORDER_NOT_PENDING means the list is stale, and the copy says it reloads.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
   });
 }
 
@@ -195,11 +196,42 @@ export type AnnouncementView = {
   createdAt: string;
 };
 
-/** Sent announcements cannot be edited or deleted, so nothing is cached to refresh. */
+/** One row of `GET /api/v1/announcements` (Master Admin only). Titles may be blank; the module fields are null for `ALL`. */
+export type AnnouncementHistoryRow = {
+  id: string;
+  titleEn: string;
+  titleBn: string;
+  audience: AnnouncementAudience;
+  moduleId: string | null;
+  moduleTitleEn: string | null;
+  moduleTitleBn: string | null;
+  createdAt: string;
+  recipients: number;
+};
+
+const HISTORY_PAGE_SIZE = 20;
+
+/** Sent announcements, newest first. Master Admin only. */
+export function useAnnouncementHistory(page: number) {
+  return useQuery({
+    queryKey: staffAdminKeys.announcements(page),
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<AnnouncementHistoryRow>>(
+        `/api/v1/announcements${queryString({ page, size: HISTORY_PAGE_SIZE })}`,
+        { signal },
+      ),
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+}
+
+/** A sent announcement cannot be edited or deleted, so the only thing to refresh is the history list. */
 export function useSendAnnouncement() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: AnnouncementRequest) =>
       apiRequest<AnnouncementView>("/api/v1/announcements", { method: "POST", body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "announcements"] }),
   });
 }
 
@@ -241,14 +273,25 @@ export function useSystemStatus() {
 
 /* ---------- errors and keys ---------- */
 
+/**
+ * Every code the admin routes can return: the grant, order, announcement, account
+ * and system status services, and the global handler that answers for all routes.
+ * Each has its own message; `tests/staff-admin/copy.test.ts` fails if one is missing.
+ */
 const ERROR_KEYS: Record<string, string> = {
   GRANT_ALREADY_ACTIVE: "errors.grantAlreadyActive",
   ORDER_NOT_PENDING: "errors.orderNotPending",
   ACCOUNT_HAS_PAID_ORDERS: "errors.accountHasPaidOrders",
   ACCOUNT_HAS_MARKED_WORK: "errors.accountHasMarkedWork",
+  MASTER_ADMIN_PROTECTED: "errors.masterAdminProtected",
   RESOURCE_NOT_FOUND: "errors.notFound",
   ACCESS_DENIED: "errors.accessDenied",
+  UNAUTHENTICATED: "errors.unauthenticated",
   VALIDATION_FAILED: "errors.validation",
+  MALFORMED_REQUEST: "errors.malformed",
+  METHOD_NOT_ALLOWED: "errors.methodNotAllowed",
+  UNSUPPORTED_MEDIA_TYPE: "errors.unsupportedMedia",
+  INTERNAL_ERROR: "errors.internal",
 };
 
 /**
@@ -261,6 +304,7 @@ export function staffAdminErrorKey(code: string): string {
 
 export const staffAdminKeys = {
   access: (studentId: string, page: number) => ["staffAdmin", "access", studentId, page] as const,
+  announcements: (page: number) => ["staffAdmin", "announcements", page] as const,
   orders: (filters: PendingOrderFilters) => ["staffAdmin", "orders", filters] as const,
   release: (examId: string) => ["staffAdmin", "release", examId] as const,
   systemStatus: ["staffAdmin", "systemStatus"] as const,

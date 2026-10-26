@@ -23,7 +23,9 @@ describe("system status page", () => {
     // Each row renders in the table and in the phone cards, so two cells per row.
     expect(screen.getAllByText("হ্যাঁ")).toHaveLength(4);
     expect(screen.getAllByText("না")).toHaveLength(2);
-    expect(screen.getAllByText("SSLCommerz store and callback values are set.").length).toBeGreaterThan(0);
+    // The note is the page's own words for the check, not the API's text.
+    expect(screen.getAllByText("পেমেন্ট স্টোরের তথ্য সার্ভারে সেট করা আছে কি না।").length).toBeGreaterThan(0);
+    expect(screen.queryByText("SSLCommerz store and callback values are set.")).not.toBeInTheDocument();
   });
 
   it("says what to change for a failed check, and shows no value", async () => {

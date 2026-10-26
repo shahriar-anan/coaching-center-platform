@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/components/ui/cn";
@@ -31,16 +31,28 @@ export function Dialog({
   initialFocus?: () => HTMLElement | null | undefined;
 }) {
   const { t } = useLocale();
+  // The control that had focus when the dialog opened. Radix only returns focus to a
+  // `Dialog.Trigger`, and the dialogs here are opened by state, so this does it.
+  const returnFocus = useRef<HTMLElement | null>(null);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-40 bg-black/40 motion-safe:animate-in motion-safe:fade-in" />
         <RadixDialog.Content
           onOpenAutoFocus={(event) => {
+            returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             const target = initialFocus?.();
             if (target) {
               event.preventDefault();
               target.focus();
+            }
+          }}
+          onCloseAutoFocus={(event) => {
+            const previous = returnFocus.current;
+            returnFocus.current = null;
+            if (previous) {
+              event.preventDefault();
+              previous.focus();
             }
           }}
           className={cn(

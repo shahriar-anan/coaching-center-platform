@@ -26,9 +26,18 @@ import { ReasonDialog } from "./reason-dialog";
 /**
  * The access list on a student page: every module and exam the student can
  * sit, and why. Master Admin can revoke a grant; System Admin can grant by hand
- * and sees who can revoke. `SLOT: access list` on the student page.
+ * and sees who can revoke. Any other role gets nothing, and no request is made.
+ * `SLOT: access list` on the student page.
  */
 export function StudentAccessSection({ studentId, studentName }: { studentId: string; studentName: string }) {
+  const { isMasterAdmin, isSystemAdmin } = useRole();
+  if (!isMasterAdmin && !isSystemAdmin) {
+    return null;
+  }
+  return <StudentAccessContent studentId={studentId} studentName={studentName} />;
+}
+
+function StudentAccessContent({ studentId, studentName }: { studentId: string; studentName: string }) {
   const { t } = useLocale();
   const { pickTitle } = useFormat();
   const { toast } = useToast();
