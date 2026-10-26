@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { staffHref } from "@/lib/config";
 import { examPath, isLive, modulePath } from "@/components/student/catalog/catalog-helpers";
 import { ExamStatusPill, TypePill } from "@/components/student/catalog/status-pill";
+import { LandingPage } from "@/components/student/landing/landing-page";
 
 const DISMISS_KEY = "exam-portal.home.dismissed";
 /** Set to "1" by WS2 on registration. Shown once, then cleared. */
@@ -98,39 +99,6 @@ function Doors() {
   );
 }
 
-function Hero() {
-  const { t } = useLocale();
-  return (
-    <div className="px-3 pb-[30px] pt-[42px] text-center">
-      <h1 className="bg-gradient-to-br from-accent to-text bg-clip-text text-display font-extrabold text-transparent">
-        {t("home.heroWord")}
-      </h1>
-      <p className="mt-1.5 text-muted">{t("home.tagline")}</p>
-    </div>
-  );
-}
-
-function SignedOutHome() {
-  const { t } = useLocale();
-  return (
-    <>
-      <Hero />
-      <Doors />
-      <ul className="mt-5 grid gap-2 text-body text-muted">
-        <li>• {t("home.valueLive")}</li>
-        <li>• {t("home.valueScore")}</li>
-        <li>• {t("home.valueMarked")}</li>
-      </ul>
-      <div className="mt-6 grid gap-2">
-        <Button fullWidth href="/register">{t("home.signUp")}</Button>
-        <p className="text-center text-body text-muted">
-          {t("home.haveAccount")} <Link className="font-semibold text-accent underline" href="/login">{t("home.login")}</Link>
-        </p>
-      </div>
-    </>
-  );
-}
-
 function Nudges({ phoneRequired, emailVerified, live }: {
   phoneRequired: boolean;
   emailVerified: boolean;
@@ -192,29 +160,15 @@ function RoutineLine({ row }: { row: RoutineRow }) {
   );
 }
 
-function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
-  isStaff: boolean;
+function SignedInHome({ phoneRequired, emailVerified, name }: {
   phoneRequired: boolean;
   emailVerified: boolean;
   name: string;
 }) {
-  // Nudges and the next-exam card only apply to students.
   const { t, locale } = useLocale();
   const now = useServerNow(1000);
   const routine = useRoutine(true);
   const modules = useMyModules(true);
-
-  if (isStaff) {
-    return (
-      <>
-        <SignedOutHome />
-        <p className="mt-4 text-center text-body text-muted">{t("home.staffNote")}</p>
-        <div className="mt-3 text-center">
-          <Button variant="secondary" href={staffHref("/staff")}>{t("home.staffPanel")}</Button>
-        </div>
-      </>
-    );
-  }
 
   const rows = routine.data ?? [];
   const upcoming = rows
@@ -301,18 +255,38 @@ function SignedInHome({ isStaff, phoneRequired, emailVerified, name }: {
   );
 }
 
+/** Staff see the public landing page too, with a strip that links to the admin panel. */
+function StaffStrip() {
+  const { t } = useLocale();
+  return (
+    <div className="mx-auto mb-6 flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-4">
+      <p className="text-body text-muted">{t("home.staffNote")}</p>
+      <Button variant="secondary" href={staffHref("/staff")}>{t("home.staffPanel")}</Button>
+    </div>
+  );
+}
+
 export function HomePage() {
   const { session } = useSession();
   if (session.status === "loading") {
     return <Skeleton variant="card" count={3} />;
   }
   if (session.status === "anonymous") {
-    return <SignedOutHome />;
+    return <LandingPage />;
   }
   const user = session.user;
+  if (user.role !== "STUDENT") {
+    return (
+      <>
+        <div className="px-4 pt-6">
+          <StaffStrip />
+        </div>
+        <LandingPage />
+      </>
+    );
+  }
   return (
     <SignedInHome
-      isStaff={user.role !== "STUDENT"}
       phoneRequired={Boolean(user.phoneRequired)}
       emailVerified={Boolean(user.emailVerifiedAt)}
       name={user.fullName}

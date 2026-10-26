@@ -172,9 +172,47 @@ function TabBar() {
   );
 }
 
+/** Landing-page links, from tablet width up. */
+function WideNav() {
+  const { t } = useLocale();
+  const links = [
+    { href: "/mcq", label: t("landing.navMcq") },
+    { href: "/written", label: t("landing.navWritten") },
+    { href: "/help", label: t("landing.navHelp") },
+    { href: "/contact", label: t("landing.navContact") },
+  ];
+  return (
+    <nav aria-label={t("landing.navLabel")} className="hidden flex-1 justify-center md:flex">
+      <ul className="flex items-center gap-6 text-label font-semibold text-muted">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link href={link.href} prefetch={false} className="hover:text-text">
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function SignUpLink() {
+  const { t } = useLocale();
+  return (
+    <Link
+      href="/register"
+      prefetch={false}
+      className="hidden h-11 items-center rounded-control bg-action px-4 text-label font-semibold text-on-action sm:inline-flex"
+    >
+      {t("landing.signUpShort")}
+    </Link>
+  );
+}
+
 /**
  * The student surface: a 760 px column with a header, a footer and, on phones,
  * a bottom tab bar for signed-in students. Pages render their content only.
+ * The home page for everyone who is not a signed-in student is drawn wide.
  */
 export function StudentShell({ children }: { children: ReactNode }) {
   const { t } = useLocale();
@@ -182,6 +220,8 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const signedIn = session.status === "authenticated";
   const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
+  const wide = pathname === "/" && !(signedIn && session.user.role === "STUDENT");
+  const column = wide ? "max-w-6xl" : "max-w-[760px]";
 
   return (
     <div
@@ -198,10 +238,12 @@ export function StudentShell({ children }: { children: ReactNode }) {
       </a>
       <OfflineBanner />
       <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-[760px] items-center justify-between gap-2 px-4">
+        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4", column)}>
           <Logo />
+          {wide ? <WideNav /> : null}
           <div className="flex items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
+            {wide && !signedIn ? <SignUpLink /> : null}
             <LocalePill />
             <ThemePill />
             <UserMenu />
@@ -211,14 +253,16 @@ export function StudentShell({ children }: { children: ReactNode }) {
       <main
         id="main"
         className={cn(
-          "mx-auto w-full max-w-[760px] flex-1 px-4 pt-6 pb-10",
+          "mx-auto w-full flex-1",
+          // The wide landing page sets its own gutters and column per section.
+          !wide && "max-w-[760px] px-4 pt-6 pb-10",
           showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-10",
         )}
       >
         {children}
       </main>
       <footer className="border-t border-border bg-card">
-        <nav aria-label={t("common.footer.label")} className="mx-auto grid w-full max-w-[760px] gap-3 px-4 py-6">
+        <nav aria-label={t("common.footer.label")} className={cn("mx-auto grid w-full gap-3 px-4 py-6", column)}>
           <ul className="flex flex-wrap gap-x-5 gap-y-2 text-meta text-muted">
             <li>
               <Link href="/help" prefetch={false} className="hover:text-text hover:underline">

@@ -1,12 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useLocale } from "@/i18n/locale-context";
 import { cn } from "@/components/ui/cn";
 
 /**
- * The brand: text and an emoji, from the client mockup. This is the one place
- * to swap in a logo file later. Links to the site home, relative, on either surface.
+ * The brand: the school's own mark, in a light and a dark version (from the old
+ * site's logo files), next to the portal name. Links to the site home, relative,
+ * on either surface.
  */
 export function Logo({ className, href = "/" }: { className?: string; href?: string }) {
   const { t } = useLocale();
@@ -14,9 +16,10 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
     <Link
       href={href}
       aria-label={t("common.brand.home")}
-      className={cn("inline-flex items-center gap-1.5 text-section text-text", className)}
+      className={cn("inline-flex items-center gap-2 text-section text-text", className)}
     >
-      <span aria-hidden="true">⚖️</span>
+      <Image src="/brand/logo-light.png" alt="" width={35} height={40} className="h-10 w-auto dark:hidden" />
+      <Image src="/brand/logo-dark.png" alt="" width={40} height={40} className="hidden h-10 w-auto dark:block" />
       <span>
         {t("common.brand.first")}
         <span className="text-text-accent">{t("common.brand.second")}</span>
