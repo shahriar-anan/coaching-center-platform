@@ -506,6 +506,10 @@ public class DemoContentSeed {
 		sitting(new Sitting(demo('7', 301), e10, OWNER_PACKAGE, "DEMO-STU-101", e10.liveAt(), e10.liveAt().plus(Duration.ofMinutes(20)),
 				30, passedMcq(30), LiveExamParticipant.SUBMITTED, null, null, null, null, false, false), now);
 
+		// The login student 5101 also sits e1, so the released answers can be seen by a student who can log in.
+		sitting(new Sitting(demo('7', 302), e1, OWNER_PACKAGE, "DEMO-STU-101", e1.liveAt(), e1.liveAt().plus(Duration.ofMinutes(25)),
+				42, passedMcq(42), LiveExamParticipant.SUBMITTED, null, null, null, null, false, false), now);
+
 		ExamSpec e7 = spec(exams, 7);
 		ExamSpec e13 = spec(exams, 13);
 		Instant e7Start = e7.liveAt();

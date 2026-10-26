@@ -256,8 +256,8 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(80);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_options WHERE question_id::text LIKE ?", Integer.class,
 				DEMO_QUESTION)).isEqualTo(320);
-		// e1: 8 demo students; e10: 5101; e7: 5003, 5004, 5005; e13: 5101, 5002.
-		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(14);
+		// e1: 8 demo students and 5101; e10: 5101; e7: 5003, 5004, 5005; e13: 5101, 5002.
+		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(15);
 		assertThat(count("users", DEMO_STUDENT)).isEqualTo(DemoContentSeed.STUDENTS + DemoContentSeed.LOGIN_STUDENTS.size());
 		assertThat(count("users", DEMO_INSTRUCTOR)).isEqualTo(2);
 		assertThat(count("users", DEMO_ADMIN)).isEqualTo(1);
