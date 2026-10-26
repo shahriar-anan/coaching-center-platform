@@ -289,7 +289,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
 
           <SectionBlock id={contentId} number={numberFor(2)} title={contentTitle} state={sectionState.content}>
             {exam.examType === "MCQ" ? (
-              <McqQuestions exam={exam} locked={!canEdit} canDelete={role.canDelete} />
+              <McqQuestions exam={exam} locked={!canEdit} canDelete={role.canAuthor} />
             ) : (
               <WrittenPaper exam={exam} locked={!canEdit} />
             )}
