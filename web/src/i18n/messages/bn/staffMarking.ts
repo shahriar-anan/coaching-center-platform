@@ -115,6 +115,7 @@ const staffMarking = {
     markedFile: "মূল্যায়ন করা খাতা (PDF)",
     markedFileRule: "প্রতিবার সেভ করার সময় মূল্যায়ন করা খাতার PDF আবার দিতে হবে। আগের ফাইল ব্যবহার হবে না।",
     storedFile: "আগে জমা দেওয়া ফাইল: {name}",
+    viewMarked: "দেখুন",
     fileLimit: "শুধু PDF ফাইল। সর্বোচ্চ {max} এমবি।",
     fileRequired: "মূল্যায়ন করা খাতার PDF দিন।",
     fileTooLarge: "ফাইলটি অনেক বড়। সর্বোচ্চ {max} এমবি।",

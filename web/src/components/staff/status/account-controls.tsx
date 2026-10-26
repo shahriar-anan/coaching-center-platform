@@ -61,24 +61,71 @@ export function AccountStatusToggle({
 
 /**
  * Deletes a student or an instructor after the name is typed. Master Admin only.
- * The API refuses when the account has paid orders (student) or marked work
- * (instructor). The refusal is shown with a way to suspend the account instead.
+ * The button opens `DeleteAccountDialog`; `onDeleted` runs after a successful delete.
  */
 export function DeleteAccountButton({
   kind,
   id,
   name,
+  onDeleted,
 }: {
   kind: AccountKind;
   id: string;
   name: string;
+  /** Called after the account is deleted, for a page that leaves the account's own page. */
+  onDeleted?: () => void;
+}) {
+  const { t } = useLocale();
+  const { isMasterAdmin } = useRole();
+  const [open, setOpen] = useState(false);
+
+  if (!isMasterAdmin) {
+    return null;
+  }
+
+  return (
+    <>
+      <Button variant="danger" size="sm" onClick={() => setOpen(true)}>
+        {t("staffAdmin.account.deleteAction")}
+      </Button>
+      <DeleteAccountDialog
+        kind={kind}
+        id={id}
+        name={name}
+        open={open}
+        onOpenChange={setOpen}
+        onDeleted={onDeleted}
+      />
+    </>
+  );
+}
+
+/**
+ * The delete dialog for one student or instructor. The API refuses when the account
+ * has paid orders (student) or marked work (instructor); the refusal is shown with a
+ * way to suspend the account instead. A list that opens it from a row menu uses this
+ * directly. Master Admin only: for anyone else it renders nothing.
+ */
+export function DeleteAccountDialog({
+  kind,
+  id,
+  name,
+  open,
+  onOpenChange,
+  onDeleted,
+}: {
+  kind: AccountKind;
+  id: string;
+  name: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDeleted?: () => void;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
   const { isMasterAdmin } = useRole();
   const remove = useDeleteAccount(kind);
   const setStatus = useSetAccountStatus(kind);
-  const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
@@ -92,7 +139,7 @@ export function DeleteAccountButton({
     if (remove.isPending || setStatus.isPending) {
       return;
     }
-    setOpen(next);
+    onOpenChange(next);
     setTyped("");
     setError(null);
     setBlocked(false);
@@ -104,6 +151,7 @@ export function DeleteAccountButton({
       await remove.mutateAsync(id);
       toast({ title: t("staffAdmin.account.deleted"), tone: "ok" });
       close(false);
+      onDeleted?.();
     } catch (e) {
       setError(adminErrorText(e, t));
       setBlocked(e instanceof ApiError && (e.code === "ACCOUNT_HAS_PAID_ORDERS" || e.code === "ACCOUNT_HAS_MARKED_WORK"));
@@ -121,50 +169,40 @@ export function DeleteAccountButton({
   }
 
   return (
-    <>
-      <Button variant="danger" size="sm" onClick={() => setOpen(true)}>
-        {t("staffAdmin.account.deleteAction")}
-      </Button>
-      <Dialog
-        open={open}
-        onOpenChange={close}
-        title={t("staffAdmin.account.deleteTitle", { name })}
-        description={t("staffAdmin.account.deleteBody")}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => close(false)} disabled={remove.isPending}>
-              {t("common.actions.cancel")}
+    <Dialog
+      open={open}
+      onOpenChange={close}
+      title={t("staffAdmin.account.deleteTitle", { name })}
+      description={t("staffAdmin.account.deleteBody")}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => close(false)} disabled={remove.isPending}>
+            {t("common.actions.cancel")}
+          </Button>
+          <Button variant="danger" loading={remove.isPending} disabled={!matches || blocked} onClick={confirmDelete}>
+            {t("staffAdmin.account.deleteConfirm")}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-3">
+        <Field label={t("staffAdmin.account.deleteTypeName")}>
+          <TextInput value={typed} autoComplete="off" onChange={(event) => setTyped(event.target.value)} />
+        </Field>
+        {error ? (
+          <p role="alert" className="text-meta text-danger">
+            {error}
+          </p>
+        ) : null}
+        {blocked ? (
+          <div className="grid gap-2">
+            <p className="text-meta text-muted">{t("staffAdmin.account.deleteBlockedHint")}</p>
+            <Button variant="secondary" size="sm" className="justify-self-start" loading={setStatus.isPending} onClick={suspend}>
+              {t("staffAdmin.account.suspend")}
             </Button>
-            <Button
-              variant="danger"
-              loading={remove.isPending}
-              disabled={!matches || blocked}
-              onClick={confirmDelete}
-            >
-              {t("staffAdmin.account.deleteConfirm")}
-            </Button>
-          </>
-        }
-      >
-        <div className="grid gap-3">
-          <Field label={t("staffAdmin.account.deleteTypeName")}>
-            <TextInput value={typed} autoComplete="off" onChange={(event) => setTyped(event.target.value)} />
-          </Field>
-          {error ? (
-            <p role="alert" className="text-meta text-danger">
-              {error}
-            </p>
-          ) : null}
-          {blocked ? (
-            <div className="grid gap-2">
-              <p className="text-meta text-muted">{t("staffAdmin.account.deleteBlockedHint")}</p>
-              <Button variant="secondary" size="sm" className="justify-self-start" loading={setStatus.isPending} onClick={suspend}>
-                {t("staffAdmin.account.suspend")}
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      </Dialog>
-    </>
+          </div>
+        ) : null}
+      </div>
+    </Dialog>
   );
 }

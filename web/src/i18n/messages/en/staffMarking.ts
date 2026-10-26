@@ -115,6 +115,7 @@ const staffMarking = {
     markedFile: "Marked script (PDF)",
     markedFileRule: "Each save needs the marked script PDF again. The stored file is not reused.",
     storedFile: "Stored file: {name}",
+    viewMarked: "View",
     fileLimit: "PDF only, up to {max} MB.",
     fileRequired: "Add the marked script as a PDF.",
     fileTooLarge: "The file is too large. The limit is {max} MB.",

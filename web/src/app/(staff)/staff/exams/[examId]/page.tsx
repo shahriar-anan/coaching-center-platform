@@ -5,13 +5,14 @@ import { useParams } from "next/navigation";
 import { RequireStaff } from "@/lib/auth/guards";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExamEditor } from "@/components/staff/catalog/exam-editor";
+import { AnswerReleaseSwitch } from "@/components/staff/access/answer-release-switch";
 
 function ExamPage() {
   const { examId } = useParams<{ examId: string }>();
   return (
     <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
       <ExamEditor examId={examId} />
-      {/* SLOT: answer release (phase 2, STAFF-ADMIN-UI) */}
+      <AnswerReleaseSwitch examId={examId} />
     </RequireStaff>
   );
 }

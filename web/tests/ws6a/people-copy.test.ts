@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  accessReasonKey,
   isDraft,
   matchesName,
   matchesSubmissionFilter,
@@ -27,14 +26,6 @@ function row(id: string, overrides: Partial<SubmissionRow> = {}): SubmissionRow 
     ...overrides,
   };
 }
-
-describe("access reasons", () => {
-  it("names each reason with its own key", () => {
-    expect(accessReasonKey("ROSTER")).toBe("staffPeople.student.reason.ROSTER");
-    expect(accessReasonKey("MODULE_PURCHASE")).toBe("staffPeople.student.reason.MODULE_PURCHASE");
-    expect(accessReasonKey("EXAM_PURCHASE")).toBe("staffPeople.student.reason.EXAM_PURCHASE");
-  });
-});
 
 describe("submission filters", () => {
   const draft = row("d", { evaluatedPdf: true });

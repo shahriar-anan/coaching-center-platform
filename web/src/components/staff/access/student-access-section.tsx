@@ -25,9 +25,9 @@ import { ReasonDialog } from "./reason-dialog";
 
 /**
  * The access list on a student page: every module and exam the student can
- * sit, and why. Master Admin can revoke a grant; System Admin can grant by hand
- * and sees who can revoke. Any other role gets nothing, and no request is made.
- * `SLOT: access list` on the student page.
+ * sit, and why. Master Admin can revoke a grant and add the student to a module's
+ * roster; System Admin can grant by hand and sees who can revoke. Any other role
+ * gets nothing, and no request is made.
  */
 export function StudentAccessSection({ studentId, studentName }: { studentId: string; studentName: string }) {
   const { isMasterAdmin, isSystemAdmin } = useRole();
@@ -86,12 +86,21 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
       key: "action",
       header: t("staffAdmin.access.columns.action"),
       align: "end",
-      cell: (row) =>
-        row.grantId ? (
-          <Button variant="danger" size="sm" onClick={() => setRevoking(row)}>
-            {t("staffAdmin.access.revoke")}
-          </Button>
-        ) : null,
+      cell: (row) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          {row.grantId ? (
+            <Button variant="danger" size="sm" onClick={() => setRevoking(row)}>
+              {t("staffAdmin.access.revoke")}
+            </Button>
+          ) : null}
+          <Link
+            href={staffHref(`/staff/modules/${row.moduleId}?tab=roster`)}
+            className="text-label text-action underline-offset-4 hover:underline"
+          >
+            {t("staffPeople.student.addToRoster")}
+          </Link>
+        </div>
+      ),
     });
   }
 

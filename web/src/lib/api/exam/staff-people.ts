@@ -49,17 +49,6 @@ export type CreatedAccount = {
 
 export type NewPerson = { fullName: string; phone: string; email: string };
 
-/** One row of `GET /api/v1/students/{id}/live-exam-access`. */
-export type AccessRow = {
-  moduleId: string;
-  moduleTitleEn: string;
-  moduleTitleBn: string;
-  via: "ROSTER" | "MODULE_PURCHASE" | "EXAM_PURCHASE";
-  exams: { id: string; titleEn: string; titleBn: string }[];
-  orderId: string | null;
-  tranId: string | null;
-};
-
 export type InstructorRow = {
   id: string;
   fullName: string;
@@ -94,18 +83,6 @@ export function useStudent(id: string) {
   return useQuery({
     queryKey: ["staffPeople", "student", id],
     queryFn: ({ signal }) => apiRequest<StudentRow>(`/api/v1/students/${id}`, { signal }),
-    staleTime: 0,
-  });
-}
-
-export function useStudentAccess(id: string, page: number) {
-  return useQuery({
-    queryKey: ["staffPeople", "studentAccess", id, page],
-    queryFn: ({ signal }) =>
-      apiRequest<PageResponse<AccessRow>>(
-        `/api/v1/students/${id}/live-exam-access${queryString({ page, size: 50 })}`,
-        { signal },
-      ),
     staleTime: 0,
   });
 }

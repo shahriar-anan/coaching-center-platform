@@ -1,9 +1,13 @@
 import type { ReactElement } from "react";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import StaffAnnouncementsPage from "@/app/(staff)/staff/announcements/page";
+import InstructorsPage from "@/app/(staff)/staff/instructors/page";
 import StaffOrdersPage from "@/app/(staff)/staff/orders/page";
 import StaffSystemStatusPage from "@/app/(staff)/staff/system-status/page";
+import StudentDetailPage from "@/app/(staff)/staff/students/[id]/page";
+import StudentsPage from "@/app/(staff)/staff/students/page";
 import { AnswerReleaseSwitch } from "@/components/staff/access/answer-release-switch";
 import { StudentAccessSection } from "@/components/staff/access/student-access-section";
 import { PendingOrders } from "@/components/staff/orders/pending-orders";
@@ -323,5 +327,112 @@ describe("access matrix: System Admin never sees a control the API refuses", () 
     }
     // Release is allowed to System Admin, so its switch stays.
     expect(await screen.findByRole("switch")).toBeInTheDocument();
+  });
+});
+
+/* The three account pages, rendered whole: the same matrix, checked on the page the role reaches. */
+
+/** A promise React reads at once, as Next does for route params, so `use()` does not suspend in a test. */
+function resolved<T>(value: T): Promise<T> {
+  const promise = Promise.resolve(value) as Promise<T> & { status?: string; value?: T };
+  promise.status = "fulfilled";
+  promise.value = value;
+  return promise;
+}
+
+/** The row menu labels of the students list, in Bangla. */
+const studentMenu = { deactivate: "বন্ধ করুন", delete: "মুছুন" };
+
+const studentRow = {
+  id: studentId,
+  fullName: "রহিম উদ্দিন",
+  phone: "01711000002",
+  email: "rahim@example.com",
+  role: "STUDENT",
+  status: "ACTIVE",
+  studentCode: "STU-0001",
+};
+
+const instructorRow = {
+  id: instructorId,
+  fullName: "নাসরিন সুলতানা",
+  phone: "01711000003",
+  email: "nasrin@example.com",
+  status: "ACTIVE",
+  createdAt: "2026-10-01T00:00:00Z",
+  modules: [],
+};
+
+const pageRoutes = {
+  ...routes,
+  "GET /api/v1/students": { content: [studentRow], page: 0, size: 20, totalElements: 1, totalPages: 1 },
+  "GET /api/v1/instructors": { content: [instructorRow], page: 0, size: 20, totalElements: 1, totalPages: 1 },
+  [`GET /api/v1/students/${studentId}`]: studentRow,
+  [`GET /api/v1/students/${studentId}/live-exam-results`]: emptyPage,
+};
+
+const NOT_FOUND = "পাতাটি পাওয়া যায়নি";
+
+describe("access matrix: students list page", () => {
+  it("Master Admin gets suspend and delete in the row menu", async () => {
+    mockApi(pageRoutes);
+    renderAs(<StudentsPage />, fixtures.masterAdmin);
+    const user = userEvent.setup();
+
+    await user.click((await screen.findAllByRole("button", { name: "রহিম উদ্দিন-এর কাজ" }))[0]!);
+    expect(await screen.findByRole("menuitem", { name: studentMenu.deactivate })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: studentMenu.delete })).toBeInTheDocument();
+  });
+
+  it("System Admin gets no suspend and no delete, and makes only reads", async () => {
+    const { calls } = mockApi(pageRoutes);
+    renderAs(<StudentsPage />, fixtures.systemAdmin);
+    const user = userEvent.setup();
+
+    await user.click((await screen.findAllByRole("button", { name: "রহিম উদ্দিন-এর কাজ" }))[0]!);
+    expect(await screen.findByRole("menuitem", { name: "শিক্ষার্থীর পাতা খুলুন" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: studentMenu.deactivate })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: studentMenu.delete })).not.toBeInTheDocument();
+    expect(calls.every((call) => call.method === "GET")).toBe(true);
+  });
+
+  it("Instructor is sent to not found, and no request is made", async () => {
+    const { calls } = mockApi(pageRoutes);
+    renderAs(<StudentsPage />, fixtures.instructor);
+    await settle();
+
+    expect(screen.getByText(NOT_FOUND)).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("access matrix: student page, whole", () => {
+  it("Instructor is sent to not found, and no request is made", async () => {
+    const { calls } = mockApi(pageRoutes);
+    renderAs(<StudentDetailPage params={resolved({ id: studentId })} />, fixtures.instructor);
+    await settle();
+
+    expect(screen.getByText(NOT_FOUND)).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("access matrix: instructors page, whole", () => {
+  it("Master Admin gets suspend and delete for an active instructor", async () => {
+    mockApi(pageRoutes);
+    renderAs(<InstructorsPage />, fixtures.masterAdmin);
+
+    expect((await screen.findAllByRole("button", { name: bnStaffAdmin.account.suspend })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: bnStaffAdmin.account.deleteAction })).length).toBeGreaterThan(0);
+  });
+
+  it("System Admin is sent to not found, and no request is made", async () => {
+    const { calls } = mockApi(pageRoutes);
+    renderAs(<InstructorsPage />, fixtures.systemAdmin);
+    await settle();
+
+    expect(screen.getByText(NOT_FOUND)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: bnStaffAdmin.account.deleteAction })).not.toBeInTheDocument();
+    expect(calls).toHaveLength(0);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, use, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,20 +10,14 @@ import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, type Column } from "@/components/ui/table";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
-import { accessReasonKey, accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
+import { StudentAccessSection } from "@/components/staff/access/student-access-section";
+import { accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
 import { StudentExamHistory } from "@/components/staff/results/student-exam-history";
-import { RequireStaff, useRole } from "@/lib/auth/guards";
-import {
-  useStudent,
-  useStudentAccess,
-  useSetStatus,
-  useUpdateStudentName,
-  type AccessRow,
-} from "@/lib/api/exam/staff-people";
-import { useFormat } from "@/lib/format/use-format";
+import { AccountStatusToggle, DeleteAccountButton } from "@/components/staff/status/account-controls";
+import { RequireStaff } from "@/lib/auth/guards";
+import { useStudent, useUpdateStudentName } from "@/lib/api/exam/staff-people";
 import { useLocale } from "@/i18n/locale-context";
 
 export default function StaffStudentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,9 +39,8 @@ function StudentRoute({ params }: { params: Promise<{ id: string }> }) {
 
 function StudentDetail({ id }: { id: string }) {
   const { t } = useLocale();
-  const { isMasterAdmin } = useRole();
+  const router = useRouter();
   const student = useStudent(id);
-  const access = useStudentAccess(id, 0);
 
   if (student.isError) {
     return <ErrorState onRetry={() => student.refetch()} />;
@@ -84,20 +78,20 @@ function StudentDetail({ id }: { id: string }) {
               </dd>
             </div>
           </dl>
-          {row.status !== "PENDING_ACTIVATION" ? <StatusToggle id={id} status={row.status} /> : null}
+          <div className="mt-4 flex flex-wrap gap-2 empty:hidden">
+            <AccountStatusToggle kind="students" id={id} status={row.status} />
+            <DeleteAccountButton
+              kind="students"
+              id={id}
+              name={row.fullName}
+              onDeleted={() => router.push("/staff/students")}
+            />
+          </div>
         </Card>
       </div>
 
-      <section className="grid gap-3">
-        <h2 className="text-section text-text">{t("staffPeople.student.accessTitle")}</h2>
-        {access.isError ? (
-          <ErrorState onRetry={() => access.refetch()} />
-        ) : (
-          <AccessTable rows={access.data?.content ?? []} loading={access.isPending} canRoster={isMasterAdmin} />
-        )}
-      </section>
+      <StudentAccessSection studentId={id} studentName={row.fullName} />
 
-      {/* SLOT: access list (phase 2, STAFF-ADMIN-UI) */}
       <section className="grid gap-3">
         <h2 className="text-section text-text">{t("staffResults.history.title")}</h2>
         <StudentExamHistory studentId={id} />
@@ -154,81 +148,3 @@ function NameCard({ id, name }: { id: string; name: string }) {
   );
 }
 
-function StatusToggle({ id, status }: { id: string; status: "ACTIVE" | "INACTIVE" }) {
-  const { t } = useLocale();
-  const setStatus = useSetStatus("students");
-  const next = status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-  return (
-    <div className="mt-4">
-      <Button variant="secondary" loading={setStatus.isPending} onClick={() => setStatus.mutate({ id, status: next })}>
-        {next === "INACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate")}
-      </Button>
-    </div>
-  );
-}
-
-/** Each module or exam the student can sit, and why. Only Master Admin gets the roster link. */
-function AccessTable({ rows, loading, canRoster }: { rows: AccessRow[]; loading: boolean; canRoster: boolean }) {
-  const { t } = useLocale();
-  const format = useFormat();
-
-  const columns: Column<AccessRow>[] = [
-    {
-      key: "module",
-      header: t("staffPeople.student.columns.module"),
-      cell: (row) => (
-        <a href={`/staff/modules/${row.moduleId}`} className="font-medium text-text underline-offset-4 hover:underline">
-          {format.pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn })}
-        </a>
-      ),
-    },
-    {
-      key: "reason",
-      header: t("staffPeople.student.columns.reason"),
-      cell: (row) => <Pill tone={row.via === "ROSTER" ? "accent" : "ok"}>{t(accessReasonKey(row.via))}</Pill>,
-    },
-    {
-      key: "scope",
-      header: t("staffPeople.student.columns.scope"),
-      cell: (row) =>
-        row.via === "EXAM_PURCHASE"
-          ? row.exams.map((exam) => format.pickTitle({ titleEn: exam.titleEn, titleBn: exam.titleBn })).join("، ")
-          : t("staffPeople.student.wholeModule"),
-    },
-    {
-      key: "links",
-      header: "",
-      align: "end",
-      cell: (row) => (
-        <div className="flex flex-wrap justify-end gap-2">
-          {row.tranId ? (
-            <a
-              href={`/staff/payments/${encodeURIComponent(row.tranId)}`}
-              className="text-label text-action underline-offset-4 hover:underline"
-            >
-              {t("staffPeople.student.openPayment")}
-            </a>
-          ) : null}
-          {canRoster ? (
-            <a
-              href={`/staff/modules/${row.moduleId}?tab=roster`}
-              className="text-label text-action underline-offset-4 hover:underline"
-            >
-              {t("staffPeople.student.addToRoster")}
-            </a>
-          ) : null}
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <Table
-      columns={columns}
-      rows={rows}
-      rowKey={(row) => `${row.moduleId}-${row.via}-${row.orderId ?? "roster"}`}
-      loading={loading}
-      empty={<EmptyState title={t("staffPeople.student.accessEmpty")} />}
-    />
-  );
-}

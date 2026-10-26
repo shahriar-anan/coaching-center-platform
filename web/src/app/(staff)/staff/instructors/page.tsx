@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { NewPersonDialog } from "@/components/staff/people/new-person-dialog";
 import { accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
+import { AccountStatusToggle, DeleteAccountButton } from "@/components/staff/status/account-controls";
 import { RequireStaff } from "@/lib/auth/guards";
 import {
   useCreateInstructor,
@@ -84,7 +85,10 @@ function InstructorList() {
             ]}
           />
         ) : (
-          <span className="text-muted">{t("staffResults.result.none")}</span>
+          <div className="flex flex-wrap justify-end gap-2">
+            <AccountStatusToggle kind="instructors" id={row.id} status={row.status} />
+            <DeleteAccountButton kind="instructors" id={row.id} name={row.fullName} />
+          </div>
         ),
     },
   ];

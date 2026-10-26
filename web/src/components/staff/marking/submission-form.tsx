@@ -14,6 +14,7 @@ import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { CommentSnippets } from "@/components/staff/marking/comment-snippets";
 import { isTodayInDhaka, paperStatus, statusTone } from "@/components/staff/marking/marking-queue";
+import { MarkedPdfView } from "@/components/staff/marking/marked-pdf-view";
 import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
 import { usePublishPaper, useSaveMarking, type MarkingPaper } from "@/lib/api/exam/staff-marking";
@@ -127,6 +128,13 @@ export function SubmissionForm({
   return (
     <div className="grid content-start gap-5">
       <Facts paper={paper} />
+
+      {paper.evaluatedPdf ? (
+        <MarkedPdfView
+          participantId={paper.id}
+          fileName={`${paper.studentName}-${format.pickTitle({ titleEn: paper.examTitleEn, titleBn: paper.examTitleBn })}-marked.pdf`}
+        />
+      ) : null}
 
       {draft.hasDraft ? (
         <Card>

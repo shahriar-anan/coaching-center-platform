@@ -3,23 +3,22 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { OneTimeCodeDialog } from "@/components/ui/one-time-code-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
-import { RowMenu } from "@/components/ui/row-menu";
+import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { NewPersonDialog } from "@/components/staff/people/new-person-dialog";
 import { accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
+import { DeleteAccountDialog } from "@/components/staff/status/account-controls";
 import { RequireStaff, useRole } from "@/lib/auth/guards";
 import {
   useCreateStudent,
-  useDeletePerson,
   useReissueCode,
   useSetStatus,
   useStudents,
@@ -47,11 +46,36 @@ function StudentList() {
   const create = useCreateStudent();
   const setStatus = useSetStatus("students");
   const reissue = useReissueCode("students");
-  const remove = useDeletePerson("students");
 
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState<{ code: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState<StudentRow | null>(null);
+
+  /**
+   * The row menu. A pending student gets a new code. Suspend or restore is Master Admin
+   * only, as the API refuses it for anyone else. Delete is Master Admin only too.
+   */
+  function rowItems(row: StudentRow): RowMenuItem[] {
+    const items: RowMenuItem[] = [{ label: t("staffPeople.students.rowMenu.open"), href: `/staff/students/${row.id}` }];
+    if (row.status === "PENDING_ACTIVATION") {
+      items.push({
+        label: t("staffPeople.students.reissue"),
+        onClick: () =>
+          reissue.mutate(row.id, {
+            onSuccess: (result) => setCode({ code: result.activationCode, name: row.fullName }),
+          }),
+      });
+    } else if (isMasterAdmin) {
+      items.push({
+        label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
+        onClick: () => setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }),
+      });
+    }
+    if (isMasterAdmin) {
+      items.push({ label: t("staffPeople.students.delete"), tone: "danger", onClick: () => setDeleting(row) });
+    }
+    return items;
+  }
 
   const columns: Column<StudentRow>[] = [
     {
@@ -76,28 +100,7 @@ function StudentList() {
       header: "",
       align: "end",
       cell: (row) => (
-        <RowMenu
-          label={t("staffPeople.students.rowMenu.label", { name: row.fullName })}
-          items={[
-            { label: t("staffPeople.students.rowMenu.open"), href: `/staff/students/${row.id}` },
-            row.status === "PENDING_ACTIVATION"
-              ? {
-                  label: t("staffPeople.students.reissue"),
-                  onClick: () =>
-                    reissue.mutate(row.id, {
-                      onSuccess: (result) => setCode({ code: result.activationCode, name: row.fullName }),
-                    }),
-                }
-              : {
-                  label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
-                  onClick: () =>
-                    setStatus.mutate({ id: row.id, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }),
-                },
-            ...(isMasterAdmin
-              ? [{ label: t("staffPeople.students.delete"), tone: "danger" as const, onClick: () => setDeleting(row) }]
-              : []),
-          ]}
-        />
+        <RowMenu label={t("staffPeople.students.rowMenu.label", { name: row.fullName })} items={rowItems(row)} />
       ),
     },
   ];
@@ -148,19 +151,15 @@ function StudentList() {
         onClose={() => setCode(null)}
       />
 
-      <ConfirmDialog
+      <DeleteAccountDialog
+        kind="students"
+        id={deleting?.id ?? ""}
+        name={deleting?.fullName ?? ""}
         open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={t("staffPeople.students.deleteTitle", { name: deleting?.fullName ?? "" })}
-        body={t("staffPeople.students.deleteBody")}
-        confirmLabel={t("staffPeople.students.deleteConfirm")}
-        tone="danger"
-        typeToConfirm={deleting?.fullName ?? ""}
-        onConfirm={async () => {
-          if (deleting) {
-            await remove.mutateAsync(deleting.id);
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleting(null);
           }
-          setDeleting(null);
         }}
       />
     </div>
