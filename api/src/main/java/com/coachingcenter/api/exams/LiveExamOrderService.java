@@ -355,8 +355,9 @@ public class LiveExamOrderService {
 		return price.setScale(2, RoundingMode.UNNECESSARY);
 	}
 
+	/** The exam's title, or the module's title for a module order and for a bundle (which has no exam id). */
 	private String productName(LiveExamOrder order) {
-		if (order.getExamId() != null) {
+		if (LiveExamOrder.EXAM.equals(order.getScope())) {
 			return exams.findByIdAndDeletedAtIsNull(order.getExamId()).orElseThrow(this::notFound).getTitleEn();
 		}
 		return modules.findByIdAndDeletedAtIsNull(order.getModuleId()).orElseThrow(this::notFound).getTitleEn();

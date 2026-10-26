@@ -23,7 +23,9 @@ import com.coachingcenter.api.common.error.ErrorCode;
 
 /**
  * Read-only staff list of exam orders, so a payment can be found without the database or the SSLCommerz panel.
- * {@code accessGranted} counts only the grant this order wrote. Roster access is separate.
+ * {@code accessGranted} counts only the grant this order wrote. Roster access is separate. A bundle row
+ * ({@code scope = BUNDLE}) has no exam id: it carries the module's titles, and {@code accessGranted} is true when any
+ * of its exam grants is active.
  */
 @Service
 public class LiveExamOrderAdminService {
