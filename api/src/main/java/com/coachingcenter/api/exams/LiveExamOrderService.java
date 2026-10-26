@@ -308,6 +308,9 @@ public class LiveExamOrderService {
 	}
 
 	private Optional<LiveExamOrder> findOpen(UUID studentId, Target target) {
+		if (LiveExamOrderBundle.SCOPE.equals(target.scope())) {
+			return bundles.findOpen(studentId, target.moduleId(), target.examIds()).flatMap(orders::findById);
+		}
 		if (target.examId() == null) {
 			return orders.findByStudentIdAndScopeAndModuleIdAndExamIdIsNullAndStatus(studentId, LiveExamOrder.MODULE,
 					target.moduleId(), LiveExamOrder.INITIATED);

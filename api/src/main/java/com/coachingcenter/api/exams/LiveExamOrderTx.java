@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -72,11 +73,19 @@ class LiveExamOrderTx {
 		return orders.saveAndFlush(order);
 	}
 
-	/** One bundle order and one {@code live_exam_order_exams} row per exam, in one transaction (plan D1). */
+	/**
+	 * One bundle order and one {@code live_exam_order_exams} row per exam, in one transaction (plan D1). Under the
+	 * student's lock, an open bundle with the same exam set is returned instead, so a double click gets one order.
+	 */
 	@Transactional
 	public LiveExamOrderBundle.Inserted insertBundle(UUID studentId, UUID moduleId, List<UUID> examIds,
 			BigDecimal amount) {
 		bundles.lockStudent(studentId);
+		Optional<UUID> open = bundles.findOpen(studentId, moduleId, examIds);
+		if (open.isPresent()) {
+			return new LiveExamOrderBundle.Inserted(orders.findById(open.get()).orElseThrow(LiveExamOrderTx::notFound),
+					false);
+		}
 		LiveExamOrder order = insert(studentId, LiveExamOrderBundle.SCOPE, moduleId, null, amount);
 		bundles.insertExams(order.getId(), examIds);
 		return new LiveExamOrderBundle.Inserted(order, true);
