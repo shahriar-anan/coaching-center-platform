@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.coachingcenter.api.common.persistence.BaseEntity;
@@ -50,6 +51,18 @@ public class LiveExamModule extends BaseEntity {
 
 	@Column(precision = 12, scale = 2)
 	private BigDecimal price;
+
+	@Column(name = "cover_stored_name", length = 80)
+	private String coverStoredName;
+
+	@Column(name = "cover_content_type", length = 40)
+	private String coverContentType;
+
+	@Column(name = "cover_byte_size")
+	private Long coverByteSize;
+
+	@Column(name = "cover_updated_at")
+	private Instant coverUpdatedAt;
 
 	public UUID getCategoryId() {
 		return categoryId;
@@ -131,4 +144,36 @@ public class LiveExamModule extends BaseEntity {
 		this.price = price;
 	}
 
+
+	public String getCoverStoredName() {
+		return coverStoredName;
+	}
+
+	public void setCoverStoredName(String coverStoredName) {
+		this.coverStoredName = coverStoredName;
+	}
+
+	public String getCoverContentType() {
+		return coverContentType;
+	}
+
+	public void setCoverContentType(String coverContentType) {
+		this.coverContentType = coverContentType;
+	}
+
+	public Long getCoverByteSize() {
+		return coverByteSize;
+	}
+
+	public void setCoverByteSize(Long coverByteSize) {
+		this.coverByteSize = coverByteSize;
+	}
+
+	public Instant getCoverUpdatedAt() {
+		return coverUpdatedAt;
+	}
+
+	public void setCoverUpdatedAt(Instant coverUpdatedAt) {
+		this.coverUpdatedAt = coverUpdatedAt;
+	}
 }

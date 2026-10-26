@@ -59,6 +59,9 @@ public final class Permissions {
 
 	public static final String EXAM_MANAGE = "EXAM_MANAGE";
 
+	/** Upload and remove a module's cover image. The Master Admin only. */
+	public static final String MODULE_COVER_MANAGE = "MODULE_COVER_MANAGE";
+
 	public static final String EXAM_PRICE = "EXAM_PRICE";
 
 	public static final String EXAM_DELETE = "EXAM_DELETE";

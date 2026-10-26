@@ -284,7 +284,7 @@ public class LiveExamModuleService {
 	private ModuleView view(LiveExamModule module) {
 		return new ModuleView(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
 				module.getDescriptionEn(), module.getDescriptionBn(), module.getAccessMode(), module.getStatus(),
-				module.isFinallySaved(), module.getPosition(), module.getPrice(), null, null, null, null);
+				module.isFinallySaved(), module.getPosition(), module.getPrice(), null, null, null, null, ModuleCoverService.coverPath(module));
 	}
 
 	/** Staff reads only: the category path, the teacher and the exam counts. Student and public reads never get these. */
@@ -293,7 +293,7 @@ public class LiveExamModuleService {
 		return new ModuleView(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
 				module.getDescriptionEn(), module.getDescriptionBn(), module.getAccessMode(), module.getStatus(),
 				module.isFinallySaved(), module.getPosition(), module.getPrice(), categoryPath, instructor, mcqCount,
-				writtenCount);
+				writtenCount, ModuleCoverService.coverPath(module));
 	}
 
 	private static ApiException validationFailed() {
@@ -308,7 +308,7 @@ public class LiveExamModuleService {
 	public record ModuleView(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
 			String descriptionBn, String accessMode, String status, boolean finallySaved, int position,
 			BigDecimal price, List<CategoryRef> categoryPath, TeacherRef instructor, Integer mcqCount,
-			Integer writtenCount) {
+			Integer writtenCount, String coverUrl) {
 	}
 
 	/** One step of a module's category path, root first. */

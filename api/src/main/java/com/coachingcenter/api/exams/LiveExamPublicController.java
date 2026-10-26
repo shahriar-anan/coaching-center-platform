@@ -5,7 +5,11 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,9 +30,13 @@ public class LiveExamPublicController {
 
 	private final StudentOwnAccessService access;
 
-	public LiveExamPublicController(LiveExamPublicService catalog, StudentOwnAccessService access) {
+	private final ModuleCoverService covers;
+
+	public LiveExamPublicController(LiveExamPublicService catalog, StudentOwnAccessService access,
+			ModuleCoverService covers) {
 		this.catalog = catalog;
 		this.access = access;
+		this.covers = covers;
 	}
 
 	@GetMapping("/api/v1/public/live-exam-categories")
@@ -53,6 +61,17 @@ public class LiveExamPublicController {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 		}
 		return PageResponse.from(catalog.upcoming(LiveExamTypeFilter.parse(examType), pageable));
+	}
+
+	@GetMapping("/api/v1/public/live-exam-modules/{id}/cover")
+	public ResponseEntity<InputStreamResource> cover(@PathVariable UUID id) {
+		catalog.module(id, null);
+		ModuleCoverService.CoverFile file = covers.open(id);
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
+			.contentType(MediaType.parseMediaType(file.contentType()))
+			.contentLength(file.byteSize())
+			.body(new InputStreamResource(file.body()));
 	}
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}")

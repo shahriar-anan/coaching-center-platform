@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PackageCard } from "@/components/ui/package/package-card";
+import { coverSrc } from "@/components/ui/package/package-cover";
 import { featuredModuleIds } from "@/content/site-info";
 import { useCategoryTree } from "@/lib/api/exam/catalog";
-import { formatMoney, pickTitle } from "@/lib/format";
+import { pickText, pickTitle } from "@/lib/format";
+import { firstLine } from "@/components/student/catalog/catalog-helpers";
 import { useLocale } from "@/i18n/locale-context";
 import { featuredModules } from "@/components/student/landing/landing-data";
 import { Section } from "@/components/student/landing/section";
 
-/** Modules with their price and exam counts, as the old site's package cards did. */
+/** The featured packages (modules) as the old site's package cards, each with its cover, summary and price. */
 export function Featured() {
   const { t, locale } = useLocale();
   const { data, isPending } = useCategoryTree(null);
@@ -34,26 +36,20 @@ export function Featured() {
     <Section id="landing-packages" title={title} subtitle={subtitle} action={action} center>
       <ul className="grid gap-5 md:grid-cols-3">
         {cards.map((card) => {
-          const price = formatMoney(card.module.price, locale);
-          const description = locale === "bn" ? card.module.descriptionBn : card.module.descriptionEn;
+          const type = card.mcq && card.mcq > 0 ? "MCQ" : "WRITTEN";
+          const examCount = (card.mcq ?? 0) + (card.written ?? 0);
+          const summary = firstLine(pickText({ ...card.module }, "description", locale));
           return (
-            <li key={card.module.id} className="flex flex-col overflow-hidden rounded-card border border-border bg-card">
-              <div className="flex flex-wrap gap-2 bg-band p-5 text-on-band">
-                {card.mcq ? <span className="rounded-full bg-accent px-3 py-1 text-meta font-bold text-on-accent">{t("landing.packageMcq", { count: card.mcq })}</span> : null}
-                {card.written ? <span className="rounded-full border border-on-band/40 px-3 py-1 text-meta font-semibold">{t("landing.packageWritten", { count: card.written })}</span> : null}
-              </div>
-              <div className="flex flex-1 flex-col gap-3 p-5">
-                <h3 className="text-lg font-bold">{pickTitle(card.module, locale)}</h3>
-                {description ? <p className="line-clamp-3 text-body text-muted">{description}</p> : null}
-                <p className="mt-auto pt-2 text-title font-bold text-text-accent">
-                  {price ?? t("landing.categoryNoPrice")}
-                </p>
-              </div>
-              <div className="border-t border-border p-4">
-                <Button href={card.href} variant="secondary" fullWidth>
-                  {t("landing.packageDetails")}
-                </Button>
-              </div>
+            <li key={card.module.id} className="min-w-0">
+              <PackageCard
+                href={card.href}
+                cover={coverSrc(card.module.coverUrl)}
+                type={type}
+                title={pickTitle(card.module, locale)}
+                summary={summary || null}
+                examCount={examCount}
+                price={card.module.price ?? null}
+              />
             </li>
           );
         })}

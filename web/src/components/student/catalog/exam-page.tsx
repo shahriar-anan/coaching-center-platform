@@ -256,22 +256,18 @@ export function ExamPage({ examId }: { examId: string }) {
             <p className="text-card-title font-bold">{t("catalog.exam.passMarkValue", { p: formatNum(owned.passPercent, locale) })}</p>
           </SectionCard>
         ) : null}
+        {ownsExam ? (
         <SectionCard icon="💳" title={t("catalog.exam.price")}>
-          {ownsExam ? (
-            <p className="font-semibold text-ok">✓ {t("catalog.exam.unlockedNote")}</p>
-          ) : price !== null && price !== undefined ? (
-            <p className="text-card-title font-bold text-text-accent">{formatMoney(price, locale)}</p>
-          ) : (
-            <p className="text-muted">{t("catalog.priceNotSet")}</p>
-          )}
+          <p className="font-semibold text-ok">✓ {t("catalog.exam.unlockedNote")}</p>
         </SectionCard>
+        ) : null}
       </div>
 
       {isStudent && price !== null && price !== undefined && !ownsExam ? (
         <PurchaseSheet
           open={buying}
           onOpenChange={setBuying}
-          item={{ kind: "exam", id: examId, title, price, door }}
+          item={{ kind: "exam", id: examId, title, price, door, coverUrl: moduleQuery.data?.coverUrl ?? null }}
           moduleOffer={!moduleOwned && modulePrice !== null && modulePrice !== undefined ? { price: modulePrice } : null}
           onSwitchToModule={() => {
             setBuying(false);
@@ -284,7 +280,7 @@ export function ExamPage({ examId }: { examId: string }) {
         <PurchaseSheet
           open={moduleBuying}
           onOpenChange={setModuleBuying}
-          item={{ kind: "module", id: moduleId, title: moduleTitle, price: modulePrice, door }}
+          item={{ kind: "module", id: moduleId, title: moduleTitle, price: modulePrice, door, coverUrl: moduleQuery.data?.coverUrl ?? null }}
         />
       ) : null}
       {owned && starting ? (

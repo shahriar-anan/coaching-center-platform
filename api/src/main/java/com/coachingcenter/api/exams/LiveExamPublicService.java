@@ -283,7 +283,7 @@ public class LiveExamPublicService {
 		return new PublicModule(module.getId(), module.getCategoryId(),
 				LiveExamStaffModuleService.pathOf(module.getCategoryId(), categoriesById), module.getTitleEn(),
 				module.getTitleBn(), module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
-				counts.mcq(), counts.written(), viewer == null ? null : viewer.module(module));
+				counts.mcq(), counts.written(), viewer == null ? null : viewer.module(module), ModuleCoverService.coverPath(module));
 	}
 
 	private PublicExam examView(LiveExam exam, StudentOwnAccessService.Viewer viewer) {
@@ -341,7 +341,7 @@ public class LiveExamPublicService {
 	/** {@code categoryPath} runs from the root category down to the module's own, the same shape as the staff read. */
 	public record PublicModule(UUID id, UUID categoryId, List<LiveExamModuleService.CategoryRef> categoryPath,
 			String titleEn, String titleBn, String descriptionEn, String descriptionBn, int position, BigDecimal price,
-			int mcqCount, int writtenCount, StudentOwnAccessService.Access access) {
+			int mcqCount, int writtenCount, StudentOwnAccessService.Access access, String coverUrl) {
 	}
 
 	/**

@@ -11,7 +11,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DoorDiscovery } from "./door-discovery";
-import { ProductCard } from "@/components/ui/purchase/product-card";
+import { PackageCard } from "@/components/ui/package/package-card";
+import { coverSrc } from "@/components/ui/package/package-cover";
 import {
   categoryPath,
   countModules,
@@ -43,18 +44,19 @@ function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
 }
 
 function ModuleCard({ door, module }: { door: Door; module: PublicModule }) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const type = doorType(door);
   const count = moduleTypeCount(module, type);
   const description = firstLine(pickText({ ...module }, "description", locale));
   return (
-    <ProductCard
+    <PackageCard
       href={modulePath(door, module.id)}
-      title={`📚 ${pickTitle(module, locale)}`}
-      subtitle={description || undefined}
-      price={module.price ?? null}
+      cover={coverSrc(module.coverUrl)}
+      type={type}
+      title={pickTitle(module, locale)}
+      summary={description || null}
       examCount={count ?? 0}
-      footer={<span className="text-accent">{t("catalog.viewExams")}</span>}
+      price={module.price ?? null}
     />
   );
 }
@@ -149,7 +151,7 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
       {children.length === 0 && modules.length === 0 ? (
         <ComingSoonCard />
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {children.map((child) => (
             <CategoryCard key={child.id} door={door} node={child} />
           ))}

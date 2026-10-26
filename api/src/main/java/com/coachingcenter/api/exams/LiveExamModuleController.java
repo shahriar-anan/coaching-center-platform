@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.coachingcenter.api.auth.permission.PermissionChecker;
 import com.coachingcenter.api.auth.permission.Permissions;
@@ -32,11 +34,14 @@ public class LiveExamModuleController {
 
 	private final PermissionChecker permissions;
 
+	private final ModuleCoverService covers;
+
 	public LiveExamModuleController(LiveExamModuleService modules, LiveExamStaffModuleService staff,
-			PermissionChecker permissions) {
+			PermissionChecker permissions, ModuleCoverService covers) {
 		this.modules = modules;
 		this.staff = staff;
 		this.permissions = permissions;
+		this.covers = covers;
 	}
 
 	@PostMapping("/api/v1/live-exam-modules")
@@ -95,6 +100,20 @@ public class LiveExamModuleController {
 			return modules.getPublished(id, actorId());
 		}
 		throw denied();
+	}
+
+	@PostMapping(value = "/api/v1/live-exam-modules/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public LiveExamModuleService.ModuleView uploadCover(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+		require(Permissions.MODULE_COVER_MANAGE);
+		covers.upload(id, file);
+		return staff.get(id);
+	}
+
+	@DeleteMapping("/api/v1/live-exam-modules/{id}/cover")
+	public LiveExamModuleService.ModuleView removeCover(@PathVariable UUID id) {
+		require(Permissions.MODULE_COVER_MANAGE);
+		covers.remove(id);
+		return staff.get(id);
 	}
 
 	@DeleteMapping("/api/v1/live-exam-modules/{id}")

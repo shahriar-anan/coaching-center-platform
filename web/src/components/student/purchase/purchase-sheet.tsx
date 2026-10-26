@@ -9,10 +9,12 @@ import {
   useInvalidateCatalog,
   useStartOrder,
 } from "@/lib/api/exam/purchase";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
+import { IncludedList } from "@/components/student/catalog/included-list";
 
 export interface PurchaseItem {
   kind: "exam" | "module";
@@ -21,6 +23,10 @@ export interface PurchaseItem {
   price: number;
   /** Door to return to after paying (module purchase). */
   door?: "mcq" | "written";
+  /** The package cover path, for the summary card. */
+  coverUrl?: string | null;
+  /** How many exams the package holds now, for the included list. */
+  examCount?: number;
 }
 
 export const ORDER_MEMO_PREFIX = "exam-portal.order.";
@@ -156,13 +162,30 @@ export function PurchaseSheet({
       title={t(item.kind === "exam" ? "purchase.sheetTitleExam" : "purchase.sheetTitleModule")}
     >
       <div className="grid gap-3">
-        <div className="flex items-start justify-between gap-3 rounded-control bg-bg p-3">
-          <p className="font-semibold">{item.title}</p>
-          <p className="whitespace-nowrap text-card-title font-bold text-accent">
-            {formatMoney(item.price, locale)}
-          </p>
+        <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3 rounded-card border border-border bg-bg p-3">
+          <PackageCover
+            src={coverSrc(item.coverUrl)}
+            alt={item.title}
+            type={item.door === "written" ? "WRITTEN" : "MCQ"}
+            title={item.title}
+            className="rounded-control"
+          />
+          <div className="grid min-w-0 gap-1">
+            <p className="line-clamp-2 font-bold leading-snug">{item.title}</p>
+            <p className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(item.price, locale)}</p>
+          </div>
         </div>
-        <p>{t(item.kind === "exam" ? "purchase.unlockExam" : "purchase.unlockModule")}</p>
+        <p className="font-semibold">{t(item.kind === "exam" ? "purchase.unlockExam" : "purchase.unlockModule")}</p>
+        {item.kind === "module" ? (
+          <IncludedList
+            items={[
+              ...(item.examCount !== undefined
+                ? [t("catalog.package.currentExams", { n: formatNumber(item.examCount, locale) })]
+                : []),
+              t("catalog.package.futureExams"),
+            ]}
+          />
+        ) : null}
         {item.kind === "exam" && moduleOffer && onSwitchToModule ? (
           <p className="text-body text-muted">
             {t("purchase.compare", { price: formatMoney(moduleOffer.price, locale) ?? "" })}{" "}

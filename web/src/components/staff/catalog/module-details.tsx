@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
+import { CoverUploader } from "@/components/staff/catalog/cover-uploader";
 import {
   useCategoryTree,
   useDeleteModule,
@@ -264,6 +265,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
           </p>
         ) : null}
       </form>
+
+      {module && role.canManageCover ? <CoverUploader module={module} /> : null}
 
       {module && !readOnly && role.canAuthor ? (
         <section aria-labelledby="module-publish-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card p-5">

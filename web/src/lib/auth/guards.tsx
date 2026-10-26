@@ -18,6 +18,8 @@ export type RoleInfo = {
   isSystemAdmin: boolean;
   isInstructor: boolean;
   canEditPrice: boolean;
+  /** The module cover image: uploaded and removed by the Master Admin only. */
+  canManageCover: boolean;
   canDelete: boolean;
   canManageRoster: boolean;
   canAssignInstructor: boolean;
@@ -37,6 +39,7 @@ type Capability = Exclude<keyof RoleInfo, "role" | `is${string}`>;
 const CAPABILITIES: Record<Role, Capability[]> = {
   MASTER_ADMIN: [
     "canEditPrice",
+    "canManageCover",
     "canDelete",
     "canManageRoster",
     "canAssignInstructor",
@@ -64,6 +67,7 @@ export function roleInfo(role: Role | null | undefined): RoleInfo {
     isSystemAdmin: role === "SYSTEM_ADMIN",
     isInstructor: role === "INSTRUCTOR",
     canEditPrice: has("canEditPrice"),
+    canManageCover: has("canManageCover"),
     canDelete: has("canDelete"),
     canManageRoster: has("canManageRoster"),
     canAssignInstructor: has("canAssignInstructor"),

@@ -78,6 +78,8 @@ export interface PublicModule extends Titled {
   /** Exam counts per type, when the API sends them (WS1). */
   mcqCount?: number;
   writtenCount?: number;
+  /** The package cover: an API path, or null when no image has been uploaded. */
+  coverUrl?: string | null;
 }
 
 /** `GET /api/v1/public/live-exam-categories`: the one category tree. */

@@ -50,6 +50,8 @@ export type StaffModule = {
   /** Exam counts per type, on list rows and the single read (G5). */
   mcqCount?: number;
   writtenCount?: number;
+  /** The package cover path, or null. Only the Master Admin changes it (see the cover uploader). */
+  coverUrl?: string | null;
 };
 
 export type ModuleInstructor = { id: string; name: string; phone: string | null };
@@ -249,6 +251,34 @@ export function useSaveModule(id?: string) {
       id
         ? apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}`, { method: "PATCH", body })
         : apiRequest<StaffModule>("/api/v1/live-exam-modules", { method: "POST", body }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
+    },
+  });
+}
+
+/** Uploads the package cover (Master Admin only). The server replaces any previous cover. */
+export function useUploadModuleCover(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}/cover`, { method: "POST", body: form });
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
+    },
+  });
+}
+
+/** Removes the package cover (Master Admin only). */
+export function useRemoveModuleCover(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}/cover`, { method: "DELETE" }),
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });

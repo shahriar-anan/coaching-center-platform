@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useCategoryTree,
   useCheckoutEnabled,
@@ -22,12 +21,16 @@ import { bundleOrders } from "@/lib/config";
 import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
+import { cn } from "@/components/ui/cn";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
+import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs } from "@/components/ui/tabs";
 import {
   bySchedule,
   categoryPath,
@@ -41,50 +44,18 @@ import {
   modulePath,
   type Door,
 } from "./catalog-helpers";
-import { SectionCard } from "./lms-blocks";
+import { ExamRow } from "./exam-row";
+import { IncludedList } from "./included-list";
 import { ExamStatusPill, TypePill } from "./status-pill";
 
-function scrollTo(id: string) {
-  const reduce =
-    typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  document.getElementById(id)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
-}
-
-function StripChip({
-  icon,
-  label,
-  target,
-  accent,
-  children,
-}: {
-  icon: string;
-  label: string;
-  target: string;
-  accent: "accent" | "warn" | "ok";
-  children: React.ReactNode;
-}) {
-  const border = { accent: "border-t-accent", warn: "border-t-warn", ok: "border-t-ok" }[accent];
-  return (
-    <button
-      type="button"
-      onClick={() => scrollTo(target)}
-      className={`grid min-h-11 content-start justify-items-center gap-1 rounded-card border border-t-4 border-border bg-card px-2 py-3 text-center text-text transition-colors hover:border-accent ${border}`}
-    >
-      <span aria-hidden className="text-title">
-        {icon}
-      </span>
-      <span className="text-label font-bold">{label}</span>
-      <span className="text-meta text-muted">{children}</span>
-    </button>
-  );
-}
+type ModuleTab = "exams" | "routine" | "about";
 
 export function ProgressBar({ done, total }: { done: number; total: number }) {
   const { t, locale } = useLocale();
   if (total === 0) return null;
   const percent = Math.round((done / total) * 100);
   return (
-    <div className="mt-3">
+    <div className="grid gap-2">
       <div className="flex items-center justify-between gap-3 text-body">
         <span className="text-muted">
           {t("catalog.progress", { done: formatNumber(done, locale), total: formatNumber(total, locale) })}
@@ -96,7 +67,7 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}
-        className="mt-2 h-2.5 overflow-hidden rounded-full bg-border"
+        className="h-2.5 overflow-hidden rounded-full bg-border"
       >
         <div className="h-full rounded-full bg-ok transition-[width] duration-500" style={{ width: `${percent}%` }} />
       </div>
@@ -122,7 +93,20 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const anyExamOwned = (exams.data ?? []).some((exam) => resolveAccess(exam.access).owned);
   const myExams = useMyModuleExams(moduleId, type, isStudent && (moduleAccess.owned || anyExamOwned));
   const [buying, setBuying] = useState(false);
+  const [tab, setTab] = useState<ModuleTab>("exams");
+  const [buyOffscreen, setBuyOffscreen] = useState(false);
+  const buyRef = useRef<HTMLElement | null>(null);
   const checkoutOff = useCheckoutEnabled().data === false;
+
+  // The sticky bar appears once the buy block has scrolled out of view. Only a phone needs it.
+  const ready = Boolean(moduleQuery.data && exams.data);
+  useEffect(() => {
+    const element = buyRef.current;
+    if (!ready || !element || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setBuyOffscreen(!entry.isIntersecting));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ready]);
 
   const doorLabel = t(doorLabelKey(door));
   const baseCrumbs = [
@@ -183,169 +167,136 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const list: (PublicExam & { mine?: StudentExam })[] = (exams.data ?? [])
     .map((exam) => ({ ...exam, mine: owned.get(exam.id) }))
     .sort(bySchedule);
-
   const nextDated = list.find((e) => e.endAt && Date.parse(e.endAt) > now && e.liveAt);
-  const mine = [...owned.values()];
-  const scriptPill = mine.some((e) => e.myStatus === "AWAITING_RESULT")
-    ? { tone: "warn" as const, key: "catalog.pending" }
-    : mine.some((e) => e.myStatus === "SUBMITTED")
-      ? { tone: "ok" as const, key: "catalog.submittedChip" }
-      : { tone: "muted" as const, key: "catalog.remaining" };
-  const resultReady = mine.some((e) => e.myStatus === "RESULT_READY");
-  const showOwnStrip = isStudent && mine.length > 0;
-
   const price = data.price;
   const loginHref = `/login?next=${encodeURIComponent(modulePath(door, moduleId))}`;
   const countLine = type === "MCQ" ? t("catalog.countMcq", { n: formatNumber(list.length, locale) }) : t("catalog.countWritten", { n: formatNumber(list.length, locale) });
   const summaryLine = nextDated?.liveAt
     ? `${countLine} · ${t("catalog.summaryNext", { date: formatDate(nextDated.liveAt, locale, { year: "auto" }) })}`
     : countLine;
+  const included = [t("catalog.package.currentExams", { n: formatNumber(list.length, locale) }), t("catalog.package.futureExams")];
+  const mine = [...owned.values()];
+
+  // The one buy action, shared by the buy block and the sticky bar.
+  function buyAction(fullWidth: boolean) {
+    if (!signedIn) {
+      return <Button fullWidth={fullWidth} href={loginHref}>{t("catalog.buyModule")}</Button>;
+    }
+    if (phoneRequired || moduleAccess.blockedReason === "PHONE_REQUIRED") {
+      return (
+        <Button fullWidth={fullWidth} href={`/set-phone?next=${encodeURIComponent(modulePath(door, moduleId))}`}>
+          {t("catalog.exam.addPhone")}
+        </Button>
+      );
+    }
+    if (isStudent) {
+      return (
+        <Button
+          fullWidth={fullWidth}
+          disabled={checkoutOff || moduleAccess.buyable === false}
+          onClick={() => setBuying(true)}
+        >
+          {t("catalog.buyModule")}
+        </Button>
+      );
+    }
+    return null;
+  }
+  const barAction = price !== null && price !== undefined && !moduleOwned ? buyAction(false) : null;
+  const showBar = buyOffscreen && barAction !== null;
+
+  const tabItems: { value: ModuleTab; label: string; badge?: number }[] = [
+    { value: "exams", label: t("catalog.examListTitle"), badge: list.length },
+    { value: "routine", label: t("catalog.routineTitle") },
+    ...(description ? [{ value: "about" as const, label: t("catalog.package.about") }] : []),
+  ];
+  const activeTab = tabItems.some((item) => item.value === tab) ? tab : "exams";
 
   return (
-    <>
-      <PageHeader title={title} breadcrumbs={breadcrumbs} />
+    <div className={cn(barAction !== null && "pb-24 md:pb-0")}>
+      <Breadcrumbs items={breadcrumbs} />
       <ConfigNotice show={checkoutOff} />
 
-      <section className="mb-4 grid gap-3 rounded-card border border-border bg-card p-5 md:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <TypePill type={type} />
-          {moduleOwned ? <Pill tone="ok">✓ {t("catalog.unlocked")}</Pill> : null}
-        </div>
-        {description ? <p className="whitespace-pre-line leading-relaxed text-muted">{description}</p> : null}
-        {list.length > 0 ? (
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-3 text-body font-semibold">
-            <span aria-hidden="true">🗓️</span>
-            <span>{summaryLine}</span>
-          </p>
-        ) : null}
-      </section>
+      <div className="mt-4 grid gap-5">
+        <PackageCover
+          src={coverSrc(data.coverUrl)}
+          alt={t("catalog.package.coverAlt", { title })}
+          type={type}
+          title={title}
+          className="rounded-card"
+        />
 
-      <div className={`mb-4 grid gap-2.5 ${showOwnStrip ? (door === "written" ? "grid-cols-3" : "grid-cols-2") : "grid-cols-1"}`}>
-        <StripChip icon="📅" label={t("catalog.stripRoutine")} target="module-routine" accent="accent">
-          {nextDated?.liveAt ? formatDate(nextDated.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
-        </StripChip>
-        {showOwnStrip && door === "written" ? (
-          <StripChip icon="📝" label={t("catalog.stripScript")} target="module-exams" accent="warn">
-            <Pill tone={scriptPill.tone}>{t(scriptPill.key)}</Pill>
-          </StripChip>
-        ) : null}
-        {showOwnStrip ? (
-          <StripChip icon="📊" label={t("catalog.stripResult")} target="module-exams" accent="ok">
-            <Pill tone="ok">{t(resultReady ? "catalog.published" : "catalog.soon")}</Pill>
-          </StripChip>
-        ) : null}
+        <header className="grid gap-2">
+          <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
+          <p className="text-body text-muted">{summaryLine}</p>
+        </header>
+
+        <section
+          ref={buyRef}
+          aria-label={t("catalog.buyModule")}
+          className="grid gap-4 rounded-card border border-border bg-card p-5"
+        >
+          {moduleOwned ? (
+            <>
+              <Pill tone="ok">✓ {t("catalog.unlocked")}</Pill>
+              <ProgressBar done={mine.filter((e) => isDone(e.myStatus)).length} total={mine.length} />
+            </>
+          ) : price === null || price === undefined ? (
+            <p className="text-muted">{t("catalog.priceNotSet")}</p>
+          ) : (
+            <>
+              <div className="grid gap-1">
+                <span className="text-meta font-semibold uppercase tracking-wide text-muted">{t("catalog.buyModule")}</span>
+                <span className="text-3xl font-extrabold tabular-nums text-text-accent">{formatMoney(price, locale) ?? ""}</span>
+              </div>
+              <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
+              <IncludedList items={included} />
+              {buyAction(true)}
+            </>
+          )}
+        </section>
       </div>
 
-      <section className="mb-4 grid gap-3 rounded-card border border-border bg-card p-5" aria-label={t("catalog.buyModule")}>
-        {moduleOwned ? (
-          <ProgressBar done={mine.filter((e) => isDone(e.myStatus)).length} total={mine.length} />
-        ) : price === null || price === undefined ? (
-          <p className="text-muted">{t("catalog.priceNotSet")}</p>
-        ) : (
-          <>
-            <p className="text-card-title font-bold">{t("catalog.modulePrice", { price: formatMoney(price, locale) ?? "" })}</p>
-            <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
-            {!signedIn ? (
-              <Button fullWidth href={loginHref}>
-                {t("catalog.buyModule")}
-              </Button>
-            ) : phoneRequired || moduleAccess.blockedReason === "PHONE_REQUIRED" ? (
-              <Button
-                fullWidth
-                href={`/set-phone?next=${encodeURIComponent(modulePath(door, moduleId))}`}
-              >
-                {t("catalog.exam.addPhone")}
-              </Button>
-            ) : isStudent ? (
-              <Button
-                fullWidth
-                disabled={checkoutOff || moduleAccess.buyable === false}
-                onClick={() => setBuying(true)}
-              >
-                {t("catalog.buyModule")}
-              </Button>
-            ) : null}
-          </>
-        )}
-      </section>
+      <div className="mt-6">
+        <Tabs
+          tabs={tabItems}
+          value={activeTab}
+          onChange={(value) => setTab(value as ModuleTab)}
+          ariaLabel={t("catalog.tabs.label")}
+        />
+      </div>
 
-      <div className="grid gap-4">
-        <SectionCard id="module-routine" icon="📅" title={t("catalog.routineTitle")}>
-          {list.length === 0 ? (
-            <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
-          ) : (
-            <div className="-mx-4 overflow-x-auto px-4 max-md:[mask-image:linear-gradient(to_right,#000_88%,transparent)] max-md:[-webkit-mask-image:linear-gradient(to_right,#000_88%,transparent)]">
-              <table className="w-full min-w-[420px] border-collapse text-body">
-                <thead>
-                  <tr className="text-start text-meta uppercase tracking-wide text-muted">
-                    <th scope="col" className="rounded-s-control bg-bg px-3 py-2.5 font-semibold">{t("catalog.colExam")}</th>
-                    <th scope="col" className="bg-bg px-3 py-2.5 font-semibold">{t("catalog.colDate")}</th>
-                    <th scope="col" className="rounded-e-control bg-bg px-3 py-2.5 font-semibold">{t("catalog.colTime")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((exam) => (
-                    <tr key={exam.id} className="even:bg-bg/60">
-                      <td className="border-b border-border px-3 py-3 font-semibold">{pickTitle(exam, locale)}</td>
-                      <td className="border-b border-border px-3 py-3">
-                        {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
-                      </td>
-                      <td className="whitespace-nowrap border-b border-border px-3 py-3 tabular-nums">
-                        {exam.liveAt && exam.endAt
-                          ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}`
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          id="module-exams"
-          icon="📚"
-          title={t("catalog.examListTitle")}
-          count={list.length > 0 ? formatNumber(list.length, locale) : undefined}
-        >
-          {list.length === 0 ? (
+      <div className="mt-5">
+        {activeTab === "exams" ? (
+          list.length === 0 ? (
             <EmptyState
               title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
               body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
             />
+          ) : bundleOrders && isStudent ? (
+            <BundleSelection
+              disabled={checkoutOff}
+              items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: exam.price ?? null, owned: resolveAccess(exam.access).owned }))}
+            />
           ) : (
-            bundleOrders && isStudent ? (
-              <BundleSelection
-                disabled={checkoutOff}
-                items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: exam.price ?? null, owned: resolveAccess(exam.access).owned }))}
-              />
-            ) : (
-            <ul className="grid gap-2.5">
+            <ul className="grid gap-3">
               {list.map((exam) => {
-                const subtitle = firstLine(pickText({ ...exam }, "description", locale));
+                const summary = firstLine(pickText({ ...exam }, "description", locale));
                 const examAccess = resolveAccess(exam.access);
                 return (
-                  <li key={exam.id}>
-                    <Link
+                  <li key={exam.id} className="min-w-0">
+                    <ExamRow
                       href={examPath(exam.id)}
-                      prefetch
-                      className="group flex items-center gap-3 rounded-card border border-border bg-card p-3.5 transition-colors hover:border-accent"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="flex size-11 shrink-0 items-center justify-center rounded-control bg-accent/15 text-title"
-                      >
-                        {type === "MCQ" ? "📝" : "📖"}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-card-title font-bold group-hover:text-text-accent">
-                          {pickTitle(exam, locale)}
-                        </span>
-                        {subtitle ? <span className="block truncate text-meta text-muted">{subtitle}</span> : null}
-                      </span>
-                      <span className="shrink-0 text-end">
-                        {exam.mine?.myStatus ? (
+                      title={pickTitle(exam, locale)}
+                      meta={
+                        <>
+                          <TypePill type={exam.examType} />
+                          <span className="tabular-nums">{exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}</span>
+                        </>
+                      }
+                      summary={summary || null}
+                      right={
+                        exam.mine?.myStatus ? (
                           <ExamStatusPill
                             status={exam.mine.myStatus}
                             examType={exam.examType}
@@ -354,31 +305,96 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                         ) : examAccess.via ? (
                           <AccessBadge via={examAccess.via} />
                         ) : exam.price !== null && exam.price !== undefined ? (
-                          <span className="block text-meta">
-                            <span className="block text-label font-bold">{formatMoney(exam.price, locale)}</span>
+                          <span className="grid justify-items-end gap-0.5 text-meta">
+                            <span className="text-label font-bold tabular-nums">{formatMoney(exam.price, locale)}</span>
                             <span className="font-semibold text-text-accent">{t("catalog.buy")} ›</span>
                           </span>
                         ) : (
-                          <span className="block max-w-28 text-meta text-muted">{t("catalog.priceNotSet")}</span>
-                        )}
-                      </span>
-                    </Link>
+                          <span className="block max-w-28 text-end text-meta text-muted">{t("catalog.priceNotSet")}</span>
+                        )
+                      }
+                    />
                   </li>
                 );
               })}
             </ul>
-            )
-          )}
-        </SectionCard>
+          )
+        ) : null}
+
+        {activeTab === "routine" ? (
+          list.length === 0 ? (
+            <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
+          ) : (
+            <>
+              <ul className="grid gap-3 md:hidden">
+                {list.map((exam) => (
+                  <li key={exam.id} className="grid gap-1 rounded-card border border-border bg-card p-4">
+                    <span className="text-label font-bold tabular-nums">
+                      {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
+                    </span>
+                    <span className="text-body text-muted tabular-nums">
+                      {exam.liveAt && exam.endAt ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}` : "—"}
+                    </span>
+                    <span className="font-semibold">{pickTitle(exam, locale)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-hidden rounded-card border border-border bg-card md:block">
+                <table className="w-full border-collapse text-body">
+                  <thead>
+                    <tr className="text-start text-meta uppercase tracking-wide text-muted">
+                      <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colExam")}</th>
+                      <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colDate")}</th>
+                      <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colTime")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((exam) => (
+                      <tr key={exam.id} className="border-t border-border">
+                        <td className="px-4 py-3 font-semibold">{pickTitle(exam, locale)}</td>
+                        <td className="px-4 py-3 tabular-nums">
+                          {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                          {exam.liveAt && exam.endAt ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )
+        ) : null}
+
+        {activeTab === "about" && description ? (
+          <p className="whitespace-pre-line text-body leading-relaxed text-muted">{description}</p>
+        ) : null}
       </div>
+
+      {showBar ? (
+        <div
+          className="fixed inset-x-0 bottom-[var(--tabbar-h,0px)] z-30 border-t border-border bg-card/95 px-4 pb-3 pt-3 backdrop-blur md:hidden"
+          role="region"
+          aria-label={t("catalog.buyModule")}
+        >
+          <div className="mx-auto flex max-w-[760px] items-center gap-3">
+            <div className="grid min-w-0 flex-1">
+              <span className="text-meta text-muted">{t("catalog.buyModule")}</span>
+              <span className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(price, locale) ?? ""}</span>
+            </div>
+            <div className="shrink-0">{barAction}</div>
+          </div>
+        </div>
+      ) : null}
 
       {isStudent && price !== null && price !== undefined && !moduleOwned ? (
         <PurchaseSheet
           open={buying}
           onOpenChange={setBuying}
-          item={{ kind: "module", id: moduleId, title, price, door }}
+          item={{ kind: "module", id: moduleId, title, price, door, coverUrl: data.coverUrl ?? null, examCount: list.length }}
         />
       ) : null}
-    </>
+    </div>
   );
 }
