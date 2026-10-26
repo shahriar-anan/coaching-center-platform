@@ -80,9 +80,9 @@ function Leaderboard({ examId }: { examId: string }) {
           { label: title || t("staffOps.leaderboard.title") },
         ]}
       />
-      <p className="text-sm text-muted">{t("staffOps.leaderboard.readOnly")}</p>
+      <p className="text-meta text-muted">{t("staffOps.leaderboard.readOnly")}</p>
       {exam.data?.examType === "WRITTEN" ? (
-        <p className="text-sm text-muted">{t("staffOps.leaderboard.writtenNote")}</p>
+        <p className="text-meta text-muted">{t("staffOps.leaderboard.writtenNote")}</p>
       ) : null}
 
       {board.isError ? (

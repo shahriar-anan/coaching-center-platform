@@ -40,15 +40,15 @@ function Account() {
       <Card>
         <dl className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1">
-            <dt className="text-sm text-muted">{t("staffOps.account.name")}</dt>
+            <dt className="text-meta text-muted">{t("staffOps.account.name")}</dt>
             <dd className="text-text">{user.fullName}</dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-sm text-muted">{t("staffOps.account.role")}</dt>
+            <dt className="text-meta text-muted">{t("staffOps.account.role")}</dt>
             <dd className="text-text">{roleLabel}</dd>
           </div>
         </dl>
-        <p className="mt-3 text-sm text-muted">{t("staffOps.account.readOnlyHint")}</p>
+        <p className="mt-3 text-meta text-muted">{t("staffOps.account.readOnlyHint")}</p>
       </Card>
 
       {user.email ? (

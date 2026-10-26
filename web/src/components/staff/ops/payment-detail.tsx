@@ -28,11 +28,11 @@ export function PaymentDetail({ row, canOpenRoster }: { row: StaffOrderRow; canO
       <Card>
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone={paymentStatusTone(statusKey)}>{t(`staffOps.payments.status.${statusKey}`)}</Pill>
-          <span className="text-sm text-muted">
+          <span className="text-meta text-muted">
             {t("staffOps.paymentDetail.updated")}: {format.formatDateTime(row.updatedAt)}
           </span>
         </div>
-        <p className="mt-3 text-base text-text">
+        <p className="mt-3 text-body text-text">
           {row.accessGranted
             ? t("staffOps.paymentDetail.accessGranted", { product, scope })
             : t("staffOps.paymentDetail.accessNone")}
@@ -50,20 +50,20 @@ export function PaymentDetail({ row, canOpenRoster }: { row: StaffOrderRow; canO
             value={row.studentName ?? t("staffOps.payments.unnamed")}
           />
           <div className="grid gap-1">
-            <dt className="text-sm text-muted">{t("staffOps.payments.columns.phone")}</dt>
+            <dt className="text-meta text-muted">{t("staffOps.payments.columns.phone")}</dt>
             <dd>
               <CopyField value={row.studentPhone} label={t("staffOps.paymentDetail.copyPhone")} />
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-sm text-muted">{t("staffOps.payments.columns.tranId")}</dt>
+            <dt className="text-meta text-muted">{t("staffOps.payments.columns.tranId")}</dt>
             <dd>
               <CopyField value={row.tranId} label={t("staffOps.payments.copyTranId")} />
             </dd>
           </div>
           {row.valId ? (
             <div className="grid gap-1">
-              <dt className="text-sm text-muted">{t("staffOps.paymentDetail.valId")}</dt>
+              <dt className="text-meta text-muted">{t("staffOps.paymentDetail.valId")}</dt>
               <dd>
                 <CopyField value={row.valId} label={t("staffOps.paymentDetail.copyValId")} />
               </dd>
@@ -91,7 +91,7 @@ export function PaymentDetail({ row, canOpenRoster }: { row: StaffOrderRow; canO
           <Button variant="ghost" href={`/staff/modules/${row.moduleId}?tab=roster`}>
             {t("staffOps.paymentDetail.rosterLink")}
           </Button>
-          <p className="text-sm text-muted">{t("staffOps.paymentDetail.rosterHint")}</p>
+          <p className="text-meta text-muted">{t("staffOps.paymentDetail.rosterHint")}</p>
         </div>
       ) : null}
     </div>
@@ -101,7 +101,7 @@ export function PaymentDetail({ row, canOpenRoster }: { row: StaffOrderRow; canO
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1">
-      <dt className="text-sm text-muted">{label}</dt>
+      <dt className="text-meta text-muted">{label}</dt>
       <dd className="text-text">{value}</dd>
     </div>
   );

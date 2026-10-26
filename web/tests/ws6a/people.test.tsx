@@ -36,12 +36,16 @@ describe("students", () => {
     mockApi({ "GET /api/v1/students": page([studentRow]) });
     const { unmount } = renderWithProviders(<StudentsPage />, { user: fixtures.masterAdmin, route: "/staff/students" });
     expect(await screen.findAllByText("Rahim Uddin")).not.toHaveLength(0);
-    expect(screen.getAllByRole("button", { name: "মুছুন" }).length).toBeGreaterThan(0);
+    // Delete sits in the row menu, so open it first.
+    await userEvent.click((await screen.findAllByRole("button", { name: "Rahim Uddin-এর কাজ" }))[0]);
+    expect(await screen.findByRole("menuitem", { name: "মুছুন" })).toBeInTheDocument();
     unmount();
 
     renderWithProviders(<StudentsPage />, { user: fixtures.systemAdmin, route: "/staff/students" });
     expect((await screen.findAllByText("Rahim Uddin")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "মুছুন" })).toBeNull();
+    await userEvent.click((await screen.findAllByRole("button", { name: "Rahim Uddin-এর কাজ" }))[0]);
+    expect(await screen.findByRole("menuitem", { name: "শিক্ষার্থীর পাতা খুলুন" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "মুছুন" })).toBeNull();
   });
 
   it("creates a student with name, phone and email, and shows the one-time code once", async () => {
@@ -138,7 +142,7 @@ describe("student access", () => {
       </Suspense>,
       { user: fixtures.systemAdmin, route: `/staff/students/${STUDENT_ID}` },
     );
-    expect(await screen.findByText("কোনো পরীক্ষায় অ্যাক্সেস নেই")).toBeInTheDocument();
+    expect(await screen.findByText("কোনো পরীক্ষা চালু নেই")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "সরাসরি ভর্তিতে যোগ করুন" })).toBeNull();
   });
 });

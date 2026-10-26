@@ -57,7 +57,7 @@ export function PasswordForm() {
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-text">{t("staffOps.account.passwordTitle")}</h2>
+      <h2 className="text-section text-text">{t("staffOps.account.passwordTitle")}</h2>
       <form className="mt-4 grid gap-4" onSubmit={submit} noValidate>
         <Field label={t("staffOps.account.currentPassword")} error={currentError} required>
           <PasswordInput
@@ -133,7 +133,7 @@ export function EmailCard({
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm text-muted">{t("staffOps.account.email")}</p>
+          <p className="text-meta text-muted">{t("staffOps.account.email")}</p>
           <p className="font-latin text-text">{email}</p>
         </div>
         <Pill tone={verified ? "ok" : "warn"}>
@@ -142,7 +142,7 @@ export function EmailCard({
       </div>
       {!verified ? (
         <div className="mt-4 grid gap-4">
-          <p className="text-sm text-muted">{t("staffOps.account.verifyBody")}</p>
+          <p className="text-meta text-muted">{t("staffOps.account.verifyBody")}</p>
           <form className="grid gap-4" onSubmit={submit} noValidate>
             <Field label={t("staffOps.account.verifyCode")} error={error} required>
               <TextInput
@@ -186,9 +186,9 @@ export function PhoneCard({
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-muted">{t("staffOps.account.phone")}</p>
+          <p className="text-meta text-muted">{t("staffOps.account.phone")}</p>
           <p className="font-latin text-text">{phone ?? "—"}</p>
-          {!phone ? <p className="mt-1 text-sm text-muted">{t("staffOps.account.phoneAddOnce")}</p> : null}
+          {!phone ? <p className="mt-1 text-meta text-muted">{t("staffOps.account.phoneAddOnce")}</p> : null}
         </div>
         <Button variant="secondary" onClick={() => setOpen(true)}>
           {phone ? t("staffOps.account.phoneChange") : t("staffOps.account.phoneTitle")}

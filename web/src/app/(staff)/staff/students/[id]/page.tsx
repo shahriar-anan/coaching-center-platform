@@ -13,6 +13,7 @@ import { Table, type Column } from "@/components/ui/table";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { accessReasonKey, accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
+import { StudentExamHistory } from "@/components/staff/results/student-exam-history";
 import { RequireStaff, useRole } from "@/lib/auth/guards";
 import {
   useStudent,
@@ -77,7 +78,7 @@ function StudentDetail({ id }: { id: string }) {
             <Fact label={t("staffPeople.students.columns.email")} value={row.email} latin />
             <Fact label={t("staffPeople.students.columns.code")} value={row.studentCode ?? "—"} latin />
             <div className="grid gap-1">
-              <dt className="text-sm text-muted">{t("staffPeople.students.columns.status")}</dt>
+              <dt className="text-meta text-muted">{t("staffPeople.students.columns.status")}</dt>
               <dd>
                 <Pill tone={accountStatusTone(row.status)}>{t(accountStatusKey(row.status))}</Pill>
               </dd>
@@ -88,12 +89,18 @@ function StudentDetail({ id }: { id: string }) {
       </div>
 
       <section className="grid gap-3">
-        <h2 className="text-lg font-semibold text-text">{t("staffPeople.student.accessTitle")}</h2>
+        <h2 className="text-section text-text">{t("staffPeople.student.accessTitle")}</h2>
         {access.isError ? (
           <ErrorState onRetry={() => access.refetch()} />
         ) : (
           <AccessTable rows={access.data?.content ?? []} loading={access.isPending} canRoster={isMasterAdmin} />
         )}
+      </section>
+
+      {/* SLOT: access list (phase 2, STAFF-ADMIN-UI) */}
+      <section className="grid gap-3">
+        <h2 className="text-section text-text">{t("staffResults.history.title")}</h2>
+        <StudentExamHistory studentId={id} />
       </section>
     </div>
   );
@@ -102,7 +109,7 @@ function StudentDetail({ id }: { id: string }) {
 function Fact({ label, value, latin }: { label: string; value: string; latin?: boolean }) {
   return (
     <div className="grid gap-1">
-      <dt className="text-sm text-muted">{label}</dt>
+      <dt className="text-meta text-muted">{label}</dt>
       <dd className={latin ? "font-latin break-all text-text" : "text-text"}>{value}</dd>
     </div>
   );
@@ -197,7 +204,7 @@ function AccessTable({ rows, loading, canRoster }: { rows: AccessRow[]; loading:
           {row.tranId ? (
             <a
               href={`/staff/payments/${encodeURIComponent(row.tranId)}`}
-              className="text-sm text-action underline-offset-4 hover:underline"
+              className="text-label text-action underline-offset-4 hover:underline"
             >
               {t("staffPeople.student.openPayment")}
             </a>
@@ -205,7 +212,7 @@ function AccessTable({ rows, loading, canRoster }: { rows: AccessRow[]; loading:
           {canRoster ? (
             <a
               href={`/staff/modules/${row.moduleId}?tab=roster`}
-              className="text-sm text-action underline-offset-4 hover:underline"
+              className="text-label text-action underline-offset-4 hover:underline"
             >
               {t("staffPeople.student.addToRoster")}
             </a>

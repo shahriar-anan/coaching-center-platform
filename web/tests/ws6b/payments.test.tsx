@@ -74,8 +74,8 @@ describe("staff payments list", () => {
 
     expect((await screen.findAllByText("Rahim Uddin")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("অপেক্ষমাণ").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("পরিশোধিত").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("নিশ্চিত হলে অ্যাক্সেস খুলবে").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("সফল").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("পেমেন্ট নিশ্চিত হলে পরীক্ষাটি চালু হবে").length).toBeGreaterThan(0);
     expect(screen.getAllByText("শুধু এই পরীক্ষা").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BKASH-BKash").length).toBeGreaterThan(0);
 
@@ -115,7 +115,7 @@ describe("payment detail", () => {
 
   it("names the grant on a paid exam and says so when there is none", () => {
     renderWithProviders(<PaymentDetail row={paidExam} canOpenRoster={false} />);
-    expect(screen.getByText(/অ্যাক্সেস খোলা আছে: সিআরপিসি/)).toBeInTheDocument();
+    expect(screen.getByText(/চালু আছে: সিআরপিসি/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "শিক্ষার্থীর পাতা খুলুন" })).toHaveAttribute(
       "href",
       "/staff/students/cccccccc-0000-4000-8000-000000000001",
@@ -133,7 +133,7 @@ describe("payment detail", () => {
       { user: fixtures.masterAdmin, route: "/staff/payments/NOPE" },
     );
     await waitFor(() =>
-      expect(screen.getByText("এই ট্রানজেকশন আইডি দিয়ে কোনো পেমেন্ট পাওয়া যায়নি।")).toBeInTheDocument(),
+      expect(screen.getByText("এই লেনদেন নম্বর দিয়ে কোনো পেমেন্ট পাওয়া যায়নি।")).toBeInTheDocument(),
     );
   });
 });
