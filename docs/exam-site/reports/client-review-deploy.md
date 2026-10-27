@@ -90,6 +90,18 @@ Tests before the release: web 116 files and 700 tests pass, lint 0 errors; API 4
 
 Rollback: stop `coaching-api`, copy `api.jar.before-mail` over `api.jar`, start it; stop `coaching-web`, put `/opt/coaching-web.before-mail` back as `/opt/coaching-web`, start it.
 
+## Payment receipt release, 27 October 2026 (fifth release)
+
+API only. Commit `cc707af`; jar SHA-256 `f580991114275533de949dc4977677f4d000e3b1d0b8562d9053102d3fe2c242`. No schema, env or website change. Backups first: `/var/backups/coaching-pre-receipt-20261027-*.dump` (also on the PC) and the previous jar as `api.jar.before-receipt`. The API started in about 21 seconds.
+
+The receipt a buyer gets for a paid package or exam is now minimal: the SYMAM LAW header, a thank-you by first name, a "Paid" mark with the amount in large type, and four details (the package or exam name in Bangla and English, how it was paid, the transaction number, the Dhaka time), plus a button that opens the exam, or the buyer's list for a package. The text version carries the same facts.
+
+Checked live by sending two real receipts to the owner's inbox through the app's own mail job: one for a package (BJS Preliminary MCQ Package, 1500.00, bKash) and one for a single exam (Evidence MCQ, 250.00, Nagad). Both rows went from PENDING to SENT, with no send failures in the log. The two purchases were written directly as a paid order, its access grant and a queued receipt row (confirming a payment through the panel needs the Master Admin's login), with the transaction ids `DEMO-MAIL-PKG-1` and `DEMO-MAIL-EXM-1`, so `demo-cleanup.sql` removes them. No purchase note was queued, so nothing went to the Master Admin. The test student (`01711000099`) was made active through the admin API; it still has no password.
+
+Tests before the release: web 116 files and 700 tests pass; API 409 tests, 407 pass (`BookOrderIT` and `CoursePurchaseIT` fail with 409 as before, accepted).
+
+Rollback: stop `coaching-api`, copy `api.jar.before-receipt` over `api.jar`, start it.
+
 ## Not checked
 
 - A real browser session on either host (layout, redirects after sign-in, the basic-auth prompt in each browser).
