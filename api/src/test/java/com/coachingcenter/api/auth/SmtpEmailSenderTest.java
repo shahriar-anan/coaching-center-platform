@@ -25,6 +25,9 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.BodyPart;
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
 import jakarta.mail.internet.MimeMessage;
 
 class SmtpEmailSenderTest {
@@ -53,10 +56,14 @@ class SmtpEmailSenderTest {
 		assertThat(from.getAddress()).isEqualTo("desk@symamlaw.com");
 		assertThat(from.getPersonal()).isEqualTo("SYMAM Desk");
 		assertThat(((InternetAddress) message.getReplyTo()[0]).getAddress()).isEqualTo("admissions@symamlaw.com");
-		assertThat(message.getSubject()).isEqualTo("Reset your password");
-		assertThat(message.getContent().toString())
-			.isEqualTo("Your password reset code is K7M2Q9RX. Open /reset-password and enter this code.");
-		assertThat(message.getContent().toString()).doesNotContain("/reset-password?");
+		assertThat(message.getSubject()).isEqualTo("পাসওয়ার্ড রিসেটের কোড · Reset your password");
+		String text = part(message, "text/plain");
+		String html = part(message, "text/html");
+		assertThat(text).contains("K7M2Q9RX").contains("/reset-password#code=K7M2Q9RX");
+		// The code travels in the address fragment, which a browser never sends to a server; never as a query.
+		assertThat(text).doesNotContain("/reset-password?");
+		assertThat(html).contains("K7M2Q9RX").contains("/brand/logo-light.png").contains("/code#c=K7M2Q9RX&amp;for=reset");
+		assertThat(html).doesNotContain("<script");
 	}
 
 	@Test
@@ -142,20 +149,19 @@ class SmtpEmailSenderTest {
 		SmtpEmailSender sender = sender(mail, "no-reply@symamlaw.com", "SYMAM LAW", null);
 
 		sender.sendActivation("student@example.com", "K7M2Q9RX");
-		assertThat(mail.last.getSubject()).isEqualTo("Activate your account");
-		assertThat(mail.last.getContent().toString()).isEqualTo(
-				"Your activation code is K7M2Q9RX. Open /activate and enter this code. Your phone is required there too.");
+		assertThat(mail.last.getSubject()).isEqualTo("স্বাগতম! আপনার অ্যাকাউন্ট চালু করুন · Welcome on board");
+		assertThat(part(mail.last, "text/plain")).contains("K7M2Q9RX").contains("/activate#code=K7M2Q9RX");
+		assertThat(part(mail.last, "text/html")).contains("Welcome on board").contains("K7M2Q9RX");
 
 		sender.sendPasswordChanged("student@example.com");
-		assertThat(mail.last.getSubject()).isEqualTo("Your password was changed");
-		String changed = mail.last.getContent().toString();
-		assertThat(changed).isEqualTo("Your password was changed. If you did not change it, contact the center.");
+		assertThat(mail.last.getSubject()).isEqualTo("আপনার পাসওয়ার্ড বদলানো হয়েছে · Your password was changed");
+		String changed = part(mail.last, "text/plain");
+		assertThat(changed).contains("Your password was changed").contains("contact us");
 		assertThat(changed).doesNotContain("K7M2Q9RX");
 
 		sender.sendPhoneChanged("student@example.com");
-		assertThat(mail.last.getSubject()).isEqualTo("Your phone number was changed");
-		assertThat(mail.last.getContent().toString()).isEqualTo(
-				"The phone number on your account was changed. If you did not change it, contact the center.");
+		assertThat(mail.last.getSubject()).isEqualTo("আপনার ফোন নম্বর বদলানো হয়েছে · Your phone number was changed");
+		assertThat(part(mail.last, "text/plain")).contains("phone number on your account was just changed");
 	}
 
 	@Test
@@ -175,10 +181,31 @@ class SmtpEmailSenderTest {
 		}
 
 		assertThat(mail.sent).isEqualTo(1);
-		assertThat(mail.last.getContent().toString())
-			.isEqualTo("Your password reset code is K7M2Q9RX. Open /reset-password and enter this code.");
+		assertThat(part(mail.last, "text/plain")).contains("K7M2Q9RX");
 		String written = logs.list.stream().map(ILoggingEvent::getFormattedMessage).reduce("", (left, right) -> left + "\n" + right);
 		assertThat(written).doesNotContain("K7M2Q9RX");
+	}
+
+	/** The text of the first part of the given type, looking through nested multiparts. */
+	private static String part(Part root, String type) throws Exception {
+		if (root instanceof MimeMessage message) {
+			// Sending finalizes the headers; a message that was only composed has to be finalized to be read the same way.
+			message.saveChanges();
+		}
+		if (root.isMimeType(type)) {
+			return root.getContent().toString();
+		}
+		if (root.isMimeType("multipart/*")) {
+			Multipart multipart = (Multipart) root.getContent();
+			for (int index = 0; index < multipart.getCount(); index++) {
+				BodyPart body = multipart.getBodyPart(index);
+				String found = part(body, type);
+				if (found != null) {
+					return found;
+				}
+			}
+		}
+		return null;
 	}
 
 	private void attachLogs() {

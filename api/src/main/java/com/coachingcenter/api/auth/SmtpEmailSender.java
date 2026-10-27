@@ -21,6 +21,10 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.coachingcenter.api.common.config.AppProperties;
+import com.coachingcenter.api.common.mail.EmailTemplates;
+import com.coachingcenter.api.common.mail.MailContext;
+import com.coachingcenter.api.common.mail.MailRecipient;
+import com.coachingcenter.api.common.mail.RenderedEmail;
 
 import jakarta.mail.Address;
 import jakarta.mail.MessagingException;
@@ -35,19 +39,11 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	private static final Logger log = LoggerFactory.getLogger(SmtpEmailSender.class);
 
-	private static final String VERIFY_SUBJECT = "Verify your email";
-
-	private static final String RESET_SUBJECT = "Reset your password";
-
-	private static final String CHANGED_SUBJECT = "Your password was changed";
-
-	private static final String PHONE_CHANGED_SUBJECT = "Your phone number was changed";
-
-	private static final String ACTIVATION_SUBJECT = "Activate your account";
-
 	private static final int TIMEOUT_MS = 10_000;
 
 	private final MailSettings settings;
+
+	private final MailContext context;
 
 	private final OutboundMail mail;
 
@@ -58,6 +54,7 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 	@Autowired
 	public SmtpEmailSender(AppProperties properties) {
 		this.settings = normalize(require(properties.email()));
+		this.context = MailContext.from(properties);
 		this.mail = new JavaMailOutbound(javaMail(this.settings));
 		this.owned = newPool();
 		this.executor = this.owned;
@@ -65,6 +62,7 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	SmtpEmailSender(AppProperties.Email email, OutboundMail mail, Executor executor) {
 		this.settings = normalize(require(email));
+		this.context = MailContext.defaults();
 		this.mail = mail;
 		this.executor = executor;
 		this.owned = null;
@@ -72,31 +70,66 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	@Override
 	public void sendEmailVerification(String to, String code) {
-		dispatch(to, VERIFY_SUBJECT, "Your verification code is " + code, code);
+		sendEmailVerification(MailRecipient.of(to), code);
+	}
+
+	@Override
+	public void sendEmailVerification(MailRecipient to, String code) {
+		dispatch(to.email(), EmailTemplates.emailVerification(context, to, code), code);
 	}
 
 	@Override
 	public void sendPasswordReset(String to, String code) {
-		dispatch(to, RESET_SUBJECT, passwordResetBody(code), code);
+		sendPasswordReset(MailRecipient.of(to), code);
+	}
+
+	@Override
+	public void sendPasswordReset(MailRecipient to, String code) {
+		dispatch(to.email(), EmailTemplates.passwordReset(context, to, code), code);
 	}
 
 	@Override
 	public void sendPasswordChanged(String to) {
-		dispatch(to, CHANGED_SUBJECT, passwordChangedBody(), "");
+		sendPasswordChanged(MailRecipient.of(to));
+	}
+
+	@Override
+	public void sendPasswordChanged(MailRecipient to) {
+		dispatch(to.email(), EmailTemplates.passwordChanged(context, to), "");
 	}
 
 	@Override
 	public void sendPhoneChanged(String to) {
-		dispatch(to, PHONE_CHANGED_SUBJECT, phoneChangedBody(), "");
+		sendPhoneChanged(MailRecipient.of(to));
+	}
+
+	@Override
+	public void sendPhoneChanged(MailRecipient to) {
+		dispatch(to.email(), EmailTemplates.phoneChanged(context, to), "");
 	}
 
 	@Override
 	public void sendActivation(String to, String code) {
-		dispatch(to, ACTIVATION_SUBJECT, activationBody(code), code);
+		sendActivation(MailRecipient.of(to), code);
+	}
+
+	@Override
+	public void sendActivation(MailRecipient to, String code) {
+		dispatch(to.email(), EmailTemplates.activation(context, to, code), code);
 	}
 
 	public DeliveryResult sendPlainNow(String to, String subject, String text) {
-		return deliverNow(to, subject, text, "");
+		return deliverNow(to, new RenderedEmail(subject, null, text), "");
+	}
+
+	/** Sends a finished mail, HTML and its plain-text twin, and reports whether the provider accepted it. */
+	public DeliveryResult sendRichNow(String to, RenderedEmail mail) {
+		return deliverNow(to, mail, "");
+	}
+
+	/** The site the mail links to, for the exam mail texts that build their own pages. */
+	public MailContext context() {
+		return context;
 	}
 
 	@Override
@@ -106,8 +139,8 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 		}
 	}
 
-	private void dispatch(String to, String subject, String text, String secret) {
-		Runnable job = () -> deliverNow(to, subject, text, secret);
+	private void dispatch(String to, RenderedEmail rendered, String secret) {
+		Runnable job = () -> deliverNow(to, rendered, secret);
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 				@Override
@@ -129,9 +162,9 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 		}
 	}
 
-	private DeliveryResult deliverNow(String to, String subject, String text, String secret) {
+	private DeliveryResult deliverNow(String to, RenderedEmail rendered, String secret) {
 		try {
-			MimeMessage message = compose(to, subject, text);
+			MimeMessage message = compose(to, rendered);
 			String response = sanitize(mail.send(message), secret);
 			return new DeliveryResult(true, response.isBlank() ? "accepted" : response);
 		}
@@ -141,9 +174,11 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 		}
 	}
 
-	private MimeMessage compose(String to, String subject, String text) throws MessagingException {
+	/** HTML mail carries a plain-text twin (multipart/alternative); a mail with no HTML stays a single plain part. */
+	private MimeMessage compose(String to, RenderedEmail rendered) throws MessagingException {
 		MimeMessage message = mail.createMimeMessage();
-		MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+		boolean html = rendered.html() != null;
+		MimeMessageHelper helper = new MimeMessageHelper(message, html, "UTF-8");
 		try {
 			helper.setFrom(settings.fromAddress(), settings.fromName());
 		}
@@ -151,8 +186,13 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 			throw new MessagingException("From address could not be encoded.", exception);
 		}
 		helper.setTo(to);
-		helper.setSubject(subject);
-		helper.setText(text, false);
+		helper.setSubject(rendered.subject());
+		if (html) {
+			helper.setText(rendered.text(), rendered.html());
+		}
+		else {
+			helper.setText(rendered.text(), false);
+		}
 		if (settings.replyTo() != null) {
 			helper.setReplyTo(settings.replyTo());
 		}
@@ -187,22 +227,6 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 			value = value.substring(0, 300);
 		}
 		return value;
-	}
-
-	private static String passwordResetBody(String code) {
-		return "Your password reset code is " + code + ". Open /reset-password and enter this code.";
-	}
-
-	private static String activationBody(String code) {
-		return "Your activation code is " + code + ". Open /activate and enter this code. Your phone is required there too.";
-	}
-
-	private static String passwordChangedBody() {
-		return "Your password was changed. If you did not change it, contact the center.";
-	}
-
-	private static String phoneChangedBody() {
-		return "The phone number on your account was changed. If you did not change it, contact the center.";
 	}
 
 	private static String redact(String value, String secret) {

@@ -16,6 +16,7 @@ import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.mail.MailRecipient;
 import com.coachingcenter.api.common.error.MasterAdminProtectedException;
 import com.coachingcenter.api.users.AdminProfile;
 import com.coachingcenter.api.users.AdminProfileRepository;
@@ -126,7 +127,7 @@ public class AuthService {
 		String code = issueCode(user, ACTIVATION, createdBy,
 				Instant.now().plusSeconds(properties.auth().activationCodeDays() * 24L * 60L * 60L));
 		audit.record(AuditRecorder.ACTIVATION_CODE_ISSUED, user.getId());
-		sendQuietly(() -> email.sendActivation(user.getEmail(), code));
+		sendQuietly(() -> email.sendActivation(recipient(user), code));
 		return code;
 	}
 
@@ -253,7 +254,7 @@ public class AuthService {
 					"Current password is incorrect.");
 		}
 		user.setPasswordHash(passwords.encode(newPassword));
-		sendQuietly(() -> email.sendPasswordChanged(user.getEmail()));
+		sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
 	}
 
 	@Transactional
@@ -278,7 +279,7 @@ public class AuthService {
 			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
 		}
 		audit.record(AuditRecorder.PHONE_CHANGED, user.getId());
-		sendQuietly(() -> email.sendPhoneChanged(user.getEmail()));
+		sendQuietly(() -> email.sendPhoneChanged(recipient(user)));
 	}
 
 	@Transactional
@@ -291,7 +292,7 @@ public class AuthService {
 			}
 			String raw = issueCode(user, PASSWORD_RESET, null,
 					Instant.now().plusSeconds(properties.auth().resetCodeMinutes() * 60L));
-			sendQuietly(() -> email.sendPasswordReset(user.getEmail(), raw));
+			sendQuietly(() -> email.sendPasswordReset(recipient(user), raw));
 		}, () -> hasher.sha256(normalized));
 	}
 
@@ -324,7 +325,7 @@ public class AuthService {
 		user.setPasswordHash(passwords.encode(newPassword));
 		refreshTokens.revokeAllForUser(user.getId(), Instant.now());
 		audit.record(AuditRecorder.PASSWORD_RESET, user.getId());
-		sendQuietly(() -> email.sendPasswordChanged(user.getEmail()));
+		sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
 	}
 
 	@Transactional
@@ -391,9 +392,24 @@ public class AuthService {
 		code.setCreatedAt(Instant.now());
 		codes.save(code);
 		if (EMAIL_VERIFY.equals(purpose)) {
-			sendQuietly(() -> email.sendEmailVerification(user.getEmail(), raw));
+			sendQuietly(() -> email.sendEmailVerification(recipient(user), raw));
 		}
 		return raw;
+	}
+
+	/** The address, name and role a mail needs to greet the person and link to the right site. */
+	private MailRecipient recipient(User user) {
+		StudentProfile student = profiles.findById(user.getId()).orElse(null);
+		String name = student != null ? student.getFullName()
+				: adminProfiles.findById(user.getId()).map(AdminProfile::getFullName).orElse(null);
+		Role role;
+		try {
+			role = Role.valueOf(user.getRole());
+		}
+		catch (IllegalArgumentException | NullPointerException exception) {
+			role = null;
+		}
+		return new MailRecipient(user.getEmail(), name, role);
 	}
 
 	private void sendQuietly(Runnable send) {

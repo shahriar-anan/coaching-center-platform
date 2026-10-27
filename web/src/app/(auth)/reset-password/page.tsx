@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
 import { CODE_DEAD, FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+import { readCodeFromHash, scrubHash } from "@/app/(auth)/_components/code-hash";
 import { isPasswordLength } from "@/app/(auth)/_components/validate";
 
 function ResetPasswordPageForm() {
@@ -25,6 +26,16 @@ function ResetPasswordPageForm() {
   const [errors, setErrors] = useState<{ code?: string; password?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // A link from the reset mail carries the code in the address fragment; fill it in, then remove it from the address bar.
+  useEffect(() => {
+    const fromLink = readCodeFromHash();
+    if (fromLink) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the address fragment is only readable in the browser, after load
+      setCode(fromLink);
+      scrubHash();
+    }
+  }, []);
 
   const mutation = useMutation({
     mutationFn: (body: { code: string; password: string }) => api.resetPassword(body.code.trim(), body.password),

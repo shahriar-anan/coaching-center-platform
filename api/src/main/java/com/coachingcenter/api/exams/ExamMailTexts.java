@@ -9,6 +9,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 import com.coachingcenter.api.auth.Role;
+import com.coachingcenter.api.common.config.AppProperties;
+import com.coachingcenter.api.common.mail.EmailTemplates;
+import com.coachingcenter.api.common.mail.MailContext;
+import com.coachingcenter.api.common.mail.RenderedEmail;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
 import com.coachingcenter.api.users.User;
@@ -39,9 +43,11 @@ class ExamMailTexts {
 
 	private final StudentProfileRepository profiles;
 
+	private final MailContext context;
+
 	ExamMailTexts(LiveExamOrderRepository orders, LiveExamGrantRepository grants, LiveExamRepository exams,
 			LiveExamModuleRepository modules, UserRepository users, LiveExamAccess access,
-			StudentProfileRepository profiles) {
+			StudentProfileRepository profiles, AppProperties properties) {
 		this.orders = orders;
 		this.grants = grants;
 		this.exams = exams;
@@ -49,6 +55,7 @@ class ExamMailTexts {
 		this.users = users;
 		this.access = access;
 		this.profiles = profiles;
+		this.context = MailContext.from(properties);
 	}
 
 	Prepared prepare(ExamOutboundMail row, Instant now) {
@@ -92,11 +99,9 @@ class ExamMailTexts {
 		if (titles == null) {
 			return null;
 		}
-		String amount = order.getAmount().toPlainString();
-		String text = "পেমেন্ট রসিদ\n" + titles.bn() + "\nপরিমাণ: " + amount + " BDT\nলেনদেন: " + order.getTranId()
-				+ "\n\nPayment receipt\n" + titles.en() + "\nAmount: " + amount + " BDT\nTransaction: " + order.getTranId()
-				+ "\n";
-		return new Prepared(student.getEmail(), "পেমেন্ট রসিদ / Payment receipt", text);
+		RenderedEmail mail = EmailTemplates.paymentReceipt(context, titles.bn(), titles.en(), order.getAmount().toPlainString(),
+				order.getTranId(), TIME.format(order.getUpdatedAt()));
+		return new Prepared(student.getEmail(), mail.subject(), mail.text(), mail.html());
 	}
 
 	private Prepared purchaseNotice(ExamOutboundMail row) {
@@ -121,14 +126,9 @@ class ExamMailTexts {
 		String name = profiles.findById(student.getId()).map(StudentProfile::getFullName).orElse("-");
 		String email = student.getEmail() == null ? "-" : student.getEmail();
 		String channel = order.getPaymentChannel() == null ? "-" : order.getPaymentChannel();
-		String amount = order.getAmount().toPlainString();
-		String time = TIME.format(order.getUpdatedAt());
-		String text = "নতুন পেমেন্ট\nশিক্ষার্থী: " + name + "\nফোন: " + student.getPhone() + "\nইমেইল: " + email + "\n"
-				+ titles.bn() + "\nপরিমাণ: " + amount + " BDT\nমাধ্যম: " + channel + "\nলেনদেন: " + order.getTranId()
-				+ "\nসময়: " + time + "\n\nNew purchase\nStudent: " + name + "\nPhone: " + student.getPhone() + "\nEmail: "
-				+ email + "\n" + titles.en() + "\nAmount: " + amount + " BDT\nPaid with: " + channel + "\nTransaction: "
-				+ order.getTranId() + "\nTime: " + time + "\n";
-		return new Prepared(admin.getEmail(), "নতুন পেমেন্ট / New purchase: " + titles.en(), text);
+		RenderedEmail mail = EmailTemplates.purchaseNotice(context, name, student.getPhone(), email, titles.bn(), titles.en(),
+				order.getAmount().toPlainString(), channel, order.getTranId(), TIME.format(order.getUpdatedAt()));
+		return new Prepared(admin.getEmail(), mail.subject(), mail.text(), mail.html());
 	}
 
 	private Titles titles(LiveExamOrder order) {
@@ -162,13 +162,9 @@ class ExamMailTexts {
 		if (hour && !inHourWindow(exam.getLiveAt(), now)) {
 			return null;
 		}
-		String time = TIME.format(exam.getLiveAt());
-		String bnLead = hour ? "আপনার পরীক্ষা প্রায় এক ঘণ্টার মধ্যে শুরু হবে" : "পরীক্ষার সময় জানানো হয়েছে";
-		String enLead = hour ? "Your exam starts in about one hour" : "An exam time has been announced";
-		String text = bnLead + "\n" + exam.getTitleBn() + "\nশুরু: " + time + "\n\n" + enLead + "\n" + exam.getTitleEn()
-				+ "\nStarts: " + time + "\n";
-		String subject = hour ? "পরীক্ষা শুরুর আগে / Exam starting soon" : "পরীক্ষার সময় / Exam time";
-		return new Prepared(student.getEmail(), subject, text);
+		RenderedEmail mail = EmailTemplates.examNotice(context, hour, exam.getTitleBn(), exam.getTitleEn(),
+				TIME.format(exam.getLiveAt()), "/exam/" + exam.getId());
+		return new Prepared(student.getEmail(), mail.subject(), mail.text(), mail.html());
 	}
 
 	private boolean modulePublished(UUID moduleId) {
@@ -212,7 +208,7 @@ class ExamMailTexts {
 		}
 	}
 
-	record Prepared(String to, String subject, String text) {
+	record Prepared(String to, String subject, String text, String html) {
 	}
 
 	private record Titles(String bn, String en) {

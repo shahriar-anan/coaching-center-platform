@@ -29,6 +29,22 @@ const auth = {
     footer: "Exam Portal · Admin panel",
     studentSite: "Go to the student site",
   },
+  code: {
+    title: "Your code",
+    lead: "Copy the code and paste it in the next step.",
+    copy: "Copy code",
+    copied: "Copied",
+    copiedNote: "The code is copied. Paste it in the next step.",
+    failed: "Could not copy. Press and hold the code to copy it.",
+    noneTitle: "No code found",
+    noneBody: "Click the button in your email again. For safety, the code is removed from the address after it is shown.",
+    toLogin: "Go to sign in",
+    next: {
+      activate: "Activate account",
+      reset: "Choose a new password",
+      verify: "Open my account",
+    },
+  },
   register: {
     title: "Create account",
     breadcrumb: "Create account",

@@ -1,7 +1,7 @@
 package com.coachingcenter.api.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -20,6 +20,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.common.mail.MailRecipient;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -79,7 +80,7 @@ class DevExposeEmailCodesIT extends PostgresIntegrationTest {
 			.getContentAsString();
 
 		ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
-		verify(mail).sendEmailVerification(anyString(), code.capture());
+		verify(mail).sendEmailVerification(any(MailRecipient.class), code.capture());
 		assertThat(code.getValue()).isNotBlank();
 		assertThat(body).doesNotContain(code.getValue());
 		String written = logs.list.stream().map(ILoggingEvent::getFormattedMessage).reduce("", (left, right) -> left + "\n" + right);

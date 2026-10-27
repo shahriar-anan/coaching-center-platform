@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
 import { CODE_DEAD, FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+import { readCodeFromHash, scrubHash } from "@/app/(auth)/_components/code-hash";
 import { isPasswordLength, isPhone, normalizePhone } from "@/app/(auth)/_components/validate";
 
 /** For a student an admin created. Success does not sign them in; they go to the login page. */
@@ -21,6 +22,16 @@ export default function ActivatePage() {
   const [errors, setErrors] = useState<Partial<Record<keyof typeof values, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // A link from the activation mail carries the code in the address fragment; fill it in, then remove it from the address bar.
+  useEffect(() => {
+    const fromLink = readCodeFromHash();
+    if (fromLink) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the address fragment is only readable in the browser, after load
+      setValues((current) => ({ ...current, code: fromLink }));
+      scrubHash();
+    }
+  }, []);
 
   const mutation = useMutation({
     mutationFn: (body: typeof values) => api.activate(normalizePhone(body.phone), body.code.trim(), body.password),

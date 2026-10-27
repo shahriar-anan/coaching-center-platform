@@ -46,7 +46,7 @@ class ExamMailDelivery {
 			return;
 		}
 		try {
-			sender.send(prepared.to(), prepared.subject(), prepared.text());
+			sender.send(prepared.to(), prepared.subject(), prepared.text(), prepared.html());
 			row.setStatus(ExamOutboundMail.SENT);
 			row.setUpdatedAt(now);
 		}
