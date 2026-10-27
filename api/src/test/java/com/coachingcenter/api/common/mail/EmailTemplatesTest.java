@@ -28,8 +28,10 @@ class EmailTemplatesTest {
 		mails.put("password-reset", EmailTemplates.passwordReset(ctx, STUDENT, "P4R8W2YN"));
 		mails.put("password-changed", EmailTemplates.passwordChanged(ctx, STUDENT));
 		mails.put("phone-changed", EmailTemplates.phoneChanged(ctx, STUDENT));
-		mails.put("payment-receipt", EmailTemplates.paymentReceipt(ctx, "বিজেএস ফুল মক প্যাকেজ", "BJS Full Mock Package", "2500.00",
-				"DEMO-PKG-B3-A", "2026-10-27 15:30"));
+		mails.put("payment-receipt", EmailTemplates.paymentReceipt(ctx, STUDENT, true, "বিজেএস ফুল মক প্যাকেজ", "BJS Full Mock Package",
+				"2500.00", "BKASH-BKash", "DEMO-PKG-B3-A", "2026-10-27 15:30", "/my-modules"));
+		mails.put("payment-receipt-exam", EmailTemplates.paymentReceipt(ctx, STUDENT, false, "সাক্ষ্য আইন এমসিকিউ", "Evidence MCQ", "250.00",
+				"Nagad", "DEMO-EXM-E30-A", "2026-10-27 15:40", "/exam/abc"));
 		mails.put("purchase-notice", EmailTemplates.purchaseNotice(ctx, "সুমন আহমেদ", "+8801711000011", "sumon@example.com",
 				"বিজেএস ফুল মক প্যাকেজ", "BJS Full Mock Package", "2500.00", "bKash", "DEMO-PKG-B3-A", "2026-10-27 15:30"));
 		mails.put("exam-hour", EmailTemplates.examNotice(ctx, true, "সাক্ষ্য আইন এমসিকিউ (রাত ১১টা)", "Evidence MCQ (11 PM)",
@@ -106,7 +108,8 @@ class EmailTemplatesTest {
 		MailRecipient hostile = new MailRecipient("x@example.com", "Tom <script>alert(1)</script>", Role.STUDENT);
 		RenderedEmail mail = EmailTemplates.activation(CTX, hostile, "K7M2Q9RX");
 		assertThat(mail.html()).doesNotContain("<script>alert").contains("Tom");
-		RenderedEmail receipt = EmailTemplates.paymentReceipt(CTX, "A & B <i>", "C \"D\"", "10.00", "T-1", "now");
+		RenderedEmail receipt = EmailTemplates.paymentReceipt(CTX, MailRecipient.of("x@example.com"), true, "A & B <i>", "C \"D\"", "10.00", null, "T-1", "now",
+				"/my-modules");
 		assertThat(receipt.html()).contains("A &amp; B &lt;i&gt;").contains("C &quot;D&quot;").doesNotContain("<i>");
 	}
 
@@ -118,11 +121,34 @@ class EmailTemplatesTest {
 	}
 
 	@Test
-	void theReceiptAndTheMasterAdminNoteShowTheOrderDetails() {
-		RenderedEmail receipt = EmailTemplates.paymentReceipt(CTX, "বিজেএস ফুল মক প্যাকেজ", "BJS Full Mock Package", "2500.00", "DEMO-PKG-B3-A",
-				"2026-10-27 15:30");
-		assertThat(receipt.html()).contains("৳2500.00").contains("DEMO-PKG-B3-A").contains("BJS Full Mock Package")
-			.contains("https://exam.example/my-modules");
+	void thePackageReceiptShowsWhatWasBoughtTheAmountHowItWasPaidAndWhen() {
+		RenderedEmail receipt = EmailTemplates.paymentReceipt(CTX, STUDENT, true, "বিজেএস ফুল মক প্যাকেজ", "BJS Full Mock Package", "2500.00",
+				"BKASH-BKash", "DEMO-PKG-B3-A", "2026-10-27 15:30", "/my-modules");
+		assertThat(receipt.subject()).isEqualTo("পেমেন্ট রসিদ · Payment receipt");
+		assertThat(receipt.html()).contains("ধন্যবাদ, সুমন!").contains("Thank you for your purchase").contains("পরিশোধিত · Paid")
+			.contains("৳2,500.00").contains("প্যাকেজ").contains("BJS Full Mock Package").contains("বিজেএস ফুল মক প্যাকেজ")
+			.contains(">bKash<").contains("DEMO-PKG-B3-A").contains("2026-10-27 15:30")
+			.contains("href=\"https://exam.example/my-modules\"").contains("আমার পরীক্ষা দেখুন");
+		assertThat(receipt.text()).contains("2,500.00 BDT").contains("DEMO-PKG-B3-A").contains("BJS Full Mock Package").contains("bKash");
+	}
+
+	@Test
+	void theExamReceiptSaysExamAndOpensThatExam() {
+		RenderedEmail receipt = EmailTemplates.paymentReceipt(CTX, STUDENT, false, "সাক্ষ্য আইন এমসিকিউ", "Evidence MCQ", "250.00", null,
+				"DEMO-EXM-E30-A", "2026-10-27 15:40", "/exam/abc");
+		assertThat(receipt.html()).contains("পরীক্ষা").contains("Exam").contains("৳250.00").contains(">SSLCommerz<")
+			.contains("href=\"https://exam.example/exam/abc\"").contains("পরীক্ষাটি খুলুন").doesNotContain("আমার পরীক্ষা দেখুন");
+		assertThat(receipt.html()).contains("ধন্যবাদ, সুমন!");
+	}
+
+	@Test
+	void aReceiptWithoutAKnownNameStillThanksWithoutABrokenGreeting() {
+		RenderedEmail receipt = EmailTemplates.paymentReceipt(CTX, MailRecipient.of("x@example.com"), true, "A", "B", "10", "-", "T-1", "now", "/my-modules");
+		assertThat(receipt.html()).contains(">ধন্যবাদ!<").contains("৳10.00").contains(">SSLCommerz<");
+	}
+
+	@Test
+	void theMasterAdminNoteShowsTheOrderDetails() {
 		RenderedEmail notice = EmailTemplates.purchaseNotice(CTX, "সুমন আহমেদ", "+8801711000011", "sumon@example.com", "বিজেএস ফুল মক প্যাকেজ",
 				"BJS Full Mock Package", "2500.00", "bKash", "DEMO-PKG-B3-A", "2026-10-27 15:30");
 		assertThat(notice.html()).contains("bKash").contains("+8801711000011").contains("https://admin.exam.example/staff/payments");

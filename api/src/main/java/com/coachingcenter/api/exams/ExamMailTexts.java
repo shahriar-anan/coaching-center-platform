@@ -12,6 +12,7 @@ import com.coachingcenter.api.auth.Role;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.mail.EmailTemplates;
 import com.coachingcenter.api.common.mail.MailContext;
+import com.coachingcenter.api.common.mail.MailRecipient;
 import com.coachingcenter.api.common.mail.RenderedEmail;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
@@ -99,8 +100,11 @@ class ExamMailTexts {
 		if (titles == null) {
 			return null;
 		}
-		RenderedEmail mail = EmailTemplates.paymentReceipt(context, titles.bn(), titles.en(), order.getAmount().toPlainString(),
-				order.getTranId(), TIME.format(order.getUpdatedAt()));
+		String buyerName = profiles.findById(student.getId()).map(StudentProfile::getFullName).orElse(null);
+		boolean module = !LiveExamOrder.EXAM.equals(order.getScope());
+		RenderedEmail mail = EmailTemplates.paymentReceipt(context, new MailRecipient(student.getEmail(), buyerName, Role.STUDENT), module,
+				titles.bn(), titles.en(), order.getAmount().toPlainString(), order.getPaymentChannel(), order.getTranId(),
+				TIME.format(order.getUpdatedAt()), module ? "/my-modules" : "/exam/" + order.getExamId());
 		return new Prepared(student.getEmail(), mail.subject(), mail.text(), mail.html());
 	}
 

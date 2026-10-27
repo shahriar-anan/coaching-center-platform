@@ -126,23 +126,40 @@ public final class EmailTemplates {
 
 	// ----- exam mail -----
 
-	/** The receipt a student gets after a paid order. */
-	public static RenderedEmail paymentReceipt(MailContext ctx, String itemBn, String itemEn, String amount, String tranId, String when) {
+	/**
+	 * The receipt a buyer gets after a paid order: what they bought (a package or one exam), the amount, how they paid, the
+	 * transaction number and the time, and a button to open what they bought. {@code openPath} is a path on the student site.
+	 */
+	public static RenderedEmail paymentReceipt(MailContext ctx, MailRecipient who, boolean module, String itemBn, String itemEn,
+			String amount, String channel, String tranId, String when, String openPath) {
+		String first = who == null ? null : who.firstName();
+		String kindBn = module ? "প্যাকেজ" : "পরীক্ষা";
+		String kindEn = module ? "Package" : "Exam";
+		String money = money(amount);
+		String how = channelLabel(channel);
 		StringBuilder html = new StringBuilder();
-		html.append(hero("ধন্যবাদ!", "Thank you"));
-		html.append(para("আপনার পেমেন্ট সফল হয়েছে এবং অ্যাক্সেস চালু হয়ে গেছে। নিচে আপনার রসিদ।",
-				"Your payment went through and your access is open. Here is your receipt."));
+		html.append(hero(first == null ? "ধন্যবাদ!" : "ধন্যবাদ, " + esc(first) + "!", "Thank you for your purchase"));
+		// the paid mark and the amount, large and centred
+		html.append("<table role=\"presentation\" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:22px auto 4px;\"><tr><td align=\"center\">"
+				+ "<div style=\"display:inline-block;background:#e9f5ec;color:#1f6b3a;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:700;\">"
+				+ "&#10003;&nbsp; পরিশোধিত · Paid</div>"
+				+ "<div style=\"font-size:40px;line-height:1.2;font-weight:700;color:" + NAVY + ";padding:12px 0 0;\">" + money + "</div>"
+				+ "<div style=\"font-size:12px;letter-spacing:2px;color:" + MUTED + ";padding-top:2px;\">BDT</div>"
+				+ "</td></tr></table>");
 		html.append(facts(List.of(
-				new String[] { "কী কিনেছেন", "Item", esc(itemBn) + "<br><span style=\"color:" + MUTED + ";font-size:13px\">" + esc(itemEn) + "</span>" },
-				new String[] { "পরিমাণ", "Amount", "<strong>৳" + esc(amount) + "</strong> BDT" },
-				new String[] { "লেনদেন নম্বর", "Transaction", esc(tranId) },
-				new String[] { "সময়", "Date", esc(when) + " (ঢাকা)" })));
-		html.append(button("আমার পরীক্ষা দেখুন", "See my exams", ctx.site("/my-modules")));
-		html.append(note("রসিদটি সংরক্ষণ করুন। কোনো সমস্যা হলে লেনদেন নম্বরসহ আমাদের জানান।",
-				"Keep this receipt. If anything is wrong, tell us and quote the transaction number."));
-		String text = text("পেমেন্ট রসিদ / Payment receipt", itemBn + " / " + itemEn, "পরিমাণ / Amount: " + amount + " BDT",
-				"লেনদেন / Transaction: " + tranId, "সময় / Date: " + when);
-		return new RenderedEmail("পেমেন্ট রসিদ · Payment receipt", frame(ctx, "আপনার পেমেন্ট সফল হয়েছে।", html.toString()), text);
+				new String[] { kindBn, kindEn, esc(itemBn) + "<br><span style=\"color:" + MUTED + ";font-size:13px\">" + esc(itemEn) + "</span>" },
+				new String[] { "পেমেন্টের মাধ্যম", "Paid with", esc(how) },
+				new String[] { "লেনদেন নম্বর", "Transaction",
+						"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(tranId) + "</span>" },
+				new String[] { "তারিখ", "Date", esc(when) + " <span style=\"color:" + MUTED + ";font-size:13px\">(ঢাকা)</span>" })));
+		html.append(button(module ? "আমার পরীক্ষা দেখুন" : "পরীক্ষাটি খুলুন", module ? "See my exams" : "Open the exam", ctx.site(openPath)));
+		html.append(note("আপনার অ্যাক্সেস এখন চালু। রসিদটি সংরক্ষণ করুন; কোনো সমস্যা হলে লেনদেন নম্বরসহ আমাদের জানান।",
+				"Your access is open now. Keep this receipt, and quote the transaction number if you need help."));
+		String text = text("পেমেন্ট রসিদ / Payment receipt", (first == null ? "" : first + ", ") + "ধন্যবাদ! / Thank you for your purchase.",
+				kindBn + " / " + kindEn + ": " + itemBn + " / " + itemEn, "পরিমাণ / Amount: " + plainMoney(amount) + " BDT",
+				"পেমেন্টের মাধ্যম / Paid with: " + how, "লেনদেন / Transaction: " + tranId, "তারিখ / Date: " + when + " (ঢাকা / Dhaka)",
+				"খুলুন / Open: " + ctx.site(openPath));
+		return new RenderedEmail("পেমেন্ট রসিদ · Payment receipt", frame(ctx, "৳" + plainMoney(amount) + " · " + itemBn, html.toString()), text);
 	}
 
 	/** The note the Master Admin gets for each paid order. */
@@ -287,6 +304,37 @@ public final class EmailTemplates {
 				.append(row[2]).append("</td></tr>");
 		}
 		return out.append("</table>").toString();
+	}
+
+	/** "2500.00" becomes "৳2,500.00". */
+	private static String money(String amount) {
+		return "৳" + plainMoney(amount);
+	}
+
+	private static String plainMoney(String amount) {
+		try {
+			return new java.text.DecimalFormat("#,##0.00", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ROOT))
+				.format(new java.math.BigDecimal(amount));
+		}
+		catch (NumberFormatException exception) {
+			return amount;
+		}
+	}
+
+	/** The gateway reports a channel such as "BKASH-BKash"; show the readable part. A missing channel is the gateway itself. */
+	private static String channelLabel(String channel) {
+		if (channel == null || channel.isBlank() || "-".equals(channel.trim())) {
+			return "SSLCommerz";
+		}
+		String value = channel.trim();
+		int dash = value.lastIndexOf('-');
+		String name = dash > 0 && dash < value.length() - 1 ? value.substring(dash + 1) : value;
+		return switch (name.toLowerCase(java.util.Locale.ROOT)) {
+			case "bkash" -> "bKash";
+			case "nagad" -> "Nagad";
+			case "rocket" -> "Rocket";
+			default -> name;
+		};
 	}
 
 	private static String copyLink(MailContext ctx, String code, String purpose) {
