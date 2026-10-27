@@ -15,7 +15,7 @@ Written 27 October 2026 on branch `demo/client-review` at `1d6ddb1`. Status: pla
 | R3 | **No scheduled refresh job.** The seed runs once at deploy and inserts only. It creates one 11 PM exam per day for the 7 days after the run, so "the next two days" always have an 11 PM exam during the review. A re-run changes nothing. A reset is cleanup plus a run. |
 | R4 | Every seeded account has the password `root1234`, read from one env value `SEED_DEMO_PASSWORD`. The password is never written in code, tests or docs other than this decision line. Account identities (names, phones, emails) are fixed in code. |
 | R5 | Two hosts. Student site: `https://srv2089893.hstgr.cloud` (certificate exists). Admin site: `https://admin.<ip-with-dashes>.nip.io`. Fallback if Let's Encrypt refuses nip.io: `admin.<ip-with-dashes>.sslip.io`. |
-| R6 | Nginx basic auth on **both** hosts, every path, except the two SSLCommerz callbacks (section 4). Basic auth on the website alone would leave the API, and so the `root1234` admin, open. |
+| R6 | Nginx basic auth on the **pages** of both hosts, plus a **gate cookie** on `/api/`, except the two SSLCommerz callbacks (section 4). The website sends `Authorization: Bearer …` on every API call, which replaces the browser's saved basic-auth credentials, so basic auth directly on `/api` would reject every signed-in request. Instead, a response that passed basic auth sets `review_gate=<secret>` (Secure, HttpOnly, 30 days) and `/api/` answers 401 without it. Basic auth on the website alone would leave the API, and so the `root1234` admin, open. |
 | R7 | `WEB_ORIGIN` lists the student host first. The payment return (`LiveExamOrderController.websiteOrigin`) sends the browser to the first origin. |
 | R8 | Every exam is 20 minutes, MCQ and written. All dated exams are at 23:00 Asia/Dhaka. |
 
@@ -154,14 +154,7 @@ Web unit `coaching-web.service` gains `Environment=SITE_URL=https://srv2089893.h
 2. `sudo cp /etc/nginx/sites-available/coaching /etc/nginx/sites-available/coaching.prev`.
 3. Add the admin host as its own `server` block with the same `location /` (to `127.0.0.1:3000`) and `location /api/` (to `127.0.0.1:8080`), the same `client_max_body_size`, and `proxy_set_header Host $host` plus `X-Forwarded-Host $host` and `X-Forwarded-Proto $scheme` in both blocks, so `host-routing.ts` sees the real host.
 4. `sudo certbot --nginx -d admin.<a-b-c-d>.nip.io`. If refused for rate limits, use `sslip.io` (R5) and redo step 3 for that name.
-5. Basic auth: `sudo apt install apache2-utils`; Shahriar runs `sudo htpasswd -c /etc/nginx/coaching-review.htpasswd <user>` and gives the client the user and password himself. File mode `640 root:www-data`. In both server blocks, at server level: `auth_basic "Review"; auth_basic_user_file /etc/nginx/coaching-review.htpasswd;`. Exempt the callbacks, which the gateway or a cross-site POST reaches without the password:
-   ```
-   location ~ ^/api/v1/live-exam-orders/[^/]+/(ipn|return)$ {
-       auth_basic off;
-       proxy_pass http://127.0.0.1:8080;
-       # same proxy headers as /api/
-   }
-   ```
+5. Basic auth and the gate (done 27 October 2026, files in the scratchpad `nginx/`): `apache2-utils`; user `review` with a random password (written to `/etc/nginx/coaching-review.htpasswd`, `640 root:www-data`; the password is handed to Shahriar once and kept in his password manager); `/etc/nginx/conf.d/coaching-review-gate.conf` holds the gate secret and `map_hash_bucket_size 128` (the 48-character secret overflows the default); `snippets/coaching-review.conf` holds `auth_basic` and the open callback location, included at server level of both 443 blocks. In both sites `location /api/` gets `auth_basic off;` and `if ($review_gate_ok = 0) { return 401; }`, and `location /` gets `add_header Set-Cookie "review_gate=…"` **without** `always`, so a 401 never sets the cookie. Backups: `coaching.prev`, `*.pre-auth`. Rotate the gate and password by rerunning the script.
 6. `sudo nginx -t`, then reload. Check: no password gives 401 on both hosts for `/` and `/api/v1/me`; with it, 200 and 401 `UNAUTHENTICATED` respectively; `POST …/ipn` without a password reaches the API (an API error, not Nginx 401).
 
 ## 5. Build and deploy
