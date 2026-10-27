@@ -12,7 +12,7 @@ A student can start an SSLCommerz checkout for one exam or for one module. A ver
 - Verify the callback or IPN on the server before granting access. A browser redirect alone does not grant access.
 - The same callback twice grants access once.
 - Failed and cancelled checkouts do not grant access. The Master Admin can still mark the student on the roster.
-- System Admin cannot set live exam prices and cannot verify or alter live exam orders. `EXAM_PRICE` is Master Admin only. There is no staff call that marks a live exam order paid.
+- System Admin cannot set live exam prices and cannot verify or alter live exam orders. `EXAM_PRICE` is Master Admin only. Only the Master Admin can mark a pending live exam order paid (`confirm`), or reject it. The System Admin sees the pending list read-only.
 - Do not reuse `exam_module_purchases` or the `EXAM_MODULE` payable rows. Those belong to the superseded model.
 - Course and book checkout is out of this delivery. Do not change `payments`, `PAYMENT_VERIFY`, or the bKash/Nagad verification screens. Exam orders use SSLCommerz on their own tables.
 - Prices live on the live exam module and the live exam. The migration is the next Flyway version after step 2b (`V31`). An exam with a null `liveAt` can be purchased and stays on the module list. Take exam stays closed until `liveAt` is set and the window is open.

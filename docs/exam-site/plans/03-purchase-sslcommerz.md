@@ -121,7 +121,7 @@ The grant insert and the status change are one transaction. A module order write
 
 `POST /api/v1/live-exam-orders/{id}/cancel` is the student, and only while the order is `INITIATED`. It sets `CANCELLED` and grants nothing. A later initiate then uses the current price. A `SUCCEEDED` order cannot be cancelled here. A module grant blocks a new exam checkout in that module, because access already exists. An exam grant does not block a later module checkout.
 
-There is no staff call that marks an order paid. A Master Admin who must enrol someone uses the roster. A System Admin has no order write. Course and book payments are out of this delivery: do not use `PAYMENT_VERIFY` on live exam orders, and do not alter `payments` or `exam_module_purchases`. `access_mode` stays `MANUAL`.
+Only the Master Admin can mark a pending order paid, through `POST /api/v1/live-exam-orders/{id}/confirm` (the R-8 path), or reject it. A Master Admin who must enrol someone without payment uses a manual grant. A System Admin has no order write and sees the list read-only. Course and book payments are out of this delivery: do not use `PAYMENT_VERIFY` on live exam orders, and do not alter `payments` or `exam_module_purchases`. `access_mode` stays `MANUAL`.
 
 ## Slice 3 — The grant beside the roster
 

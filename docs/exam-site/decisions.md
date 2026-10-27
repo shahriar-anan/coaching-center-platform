@@ -16,6 +16,9 @@ Shahriar agreed these on 2026-10-23. They override the client brief and the Phas
 ## Exam rules that stay
 
 - Server clock controls the live window. Take exam during the window uses the shared end.
+- An exam lasts at least 2 minutes (`durationMinutes` is 2 or more on create and update).
+- Publishing an exam needs the English and Bangla descriptions and rules. An exam can be saved without them, but it cannot be published until they are filled in (decided by the client, 2026-10-26).
+- Only the Master Admin publishes an exam. A System Admin edits the exam but cannot publish it (decided 2026-10-26).
 - Inside one module, the later live window starts at least five minutes after the earlier end. Another module may use the same clock time. A null `liveAt` is not a window and is left out of that check. Publishing an exam that has a start runs the check against every other published exam in the module that has a start. Setting or clearing `liveAt` returns the exam to draft, so the new time is live only after the next publish accepts it.
 - An MCQ has one later attempt, and only when the student never tapped Take exam during the window. It uses a personal timer and stays off the live leaderboard. A student who sat the live MCQ cannot start it. A written exam has no later attempt. `POST /api/v1/live-exams/{id}/retake` rejects a written exam.
 - A published exam may have a null `liveAt`. That row stays on the module exam list with a blank date and time. Take exam, the later MCQ attempt, the personal routine, and the leaderboard stay closed until `liveAt` is set and the server clock is inside the window. `durationMinutes` stays required.
@@ -28,17 +31,26 @@ Shahriar agreed these on 2026-10-23. They override the client brief and the Phas
 
 ## Written results
 
-- An instructor save stores marks, an optional comment, and the evaluated PDF as a draft.
+- An instructor save stores marks, an optional comment, and the evaluated PDF as a draft. Shahriar, 2026-10-27: the marked PDF is optional on a save when the paper already has one. A save without a file keeps the stored PDF. The first save needs a PDF.
+- Reads never post a sitting. The deadline job posts due sittings every minute. Shahriar, 2026-10-27.
+- An assigned instructor reads the question paper only after the exam's window has ended, and only for a published exam. Shahriar, 2026-10-27.
+- The marked PDF the student sees carries no watermark (Shahriar, 2026-10-27). This is a web change, not an API one.
 - A save by the Master Admin is also a draft. Publish is a separate action.
 - Only the Master Admin publishes. The instructor cannot publish. A System Admin cannot publish.
 - Until publish, the student does not see the marks, the comment, or the evaluated PDF, and that row stays off the leaderboard.
-- A later save returns the result to draft until the Master Admin publishes again.
+- A later save to a released result does not hide it. The student keeps the released mark and PDF. The new mark and PDF wait as a correction until the Master Admin releases them. Replaces the earlier rule that a save returned the result to draft. Shahriar, 2026-10-27.
+- An instructor can mark a paper "Ready for release". The flag is a signal and not a gate: Master Admin can release a paper without it. Releasing only the ready papers skips the completeness gate, because the marker has said they are finished. A later save clears the flag. The instructor never releases. Shahriar, 2026-10-27 (recommended approach, Moodle marking workflow).
+- On a phone (below 768 px) the marking page opens on the script, with the mark in a second tab and the current mark shown as a chip. Desktop stays side by side. Shahriar, 2026-10-27.
+- A notice goes to the student on each release that changes the mark they see, including a correction. A save sends nothing. Shahriar, 2026-10-27.
+- MCQ results have no release state. They show "Auto-scored", as the decisions of 2026-10-23 say the score is returned when the paper posts. Shahriar, 2026-10-27. Conflict noted: the client brief (4.6) says MCQ results appear after the admin publishes.
+- Master Admin releases an exam's results together with one action. The release is refused while a paper is still awaiting a mark or a sitting is still open (`409 EXAM_MARKING_INCOMPLETE`, with the counts). A failed-to-submit zero needs no mark and does not block the release. Per-paper release stays for single cases. Shahriar, 2026-10-27.
 - The student still does not see who evaluated the paper.
 
 ## Accounts and notices
 
 - Email and phone registration stay, with no SMS OTP.
 - Google sign-in is for students. It links to an existing student account when Google reports that email as verified. It does not link or sign in an admin or instructor. A new Google user sets a phone once, with no OTP. A password is optional for a Google-only account.
+- A suspended account loses access on its next request, including a token it already holds. Suspending also ends its refresh sessions. Shahriar, 2026-10-27: a suspended instructor is blocked at once, not after the 15-minute token lifetime.
 - Notices are rows the website loads. No email, SMS, or push for these notices.
 - A reminder goes to students who already have access, 1–2 days before the live window.
 - An MCQ notice is sent when that student's score posts. A written notice is sent when the Master Admin publishes.
@@ -111,3 +123,24 @@ Shahriar confirms this split with the client in the next meeting. If the client 
 - Whether any data from the client's current exam must be migrated. Do not invent a migration.
 
 Status pills were confirmed on 25 October 2026 and built as A4 (`myStatus`). The sandbox store was chosen for the client test.
+
+## Exam final save (decided 2026-10-27)
+
+- The exam editor has no separate Final save. Publish records the final save itself, then publishes, so the API rule (a final save before publish) still holds. The header keeps Save all changes for drafts.
+- Modules keep their Final save button, as before.
+- The API is unchanged: `POST /live-exams/{id}/final-save` still exists and is called by the Publish action.
+
+## Exam archive (decided 2026-10-27)
+
+- An archived exam stays off the student website. Master Admin only (`EXAM_DELETE`). Staff still see it with the Archived status, and its posted results stay readable, the same rule the category archive uses.
+- An archived exam cannot be changed or published (`409 EXAM_ARCHIVED`).
+
+## Staff roles (decided 2026-10-26)
+
+These came from the admin panel audit (`reports/ui-audit/fix-plan-C.md`, section 6). They override the earlier rows in `ui/feature-scope.md` where those differ.
+
+- Only the Master Admin confirms an exam order paid by hand. The System Admin sees the pending list read-only.
+- Only the Master Admin publishes an exam, and only the Master Admin publishes written marks.
+- The System Admin does not grant access by hand, does not release MCQ answers, and does not send announcements. Roster grants stay with the Master Admin.
+- The System Admin suspends and restores students. Instructor status stays with the Master Admin.
+- An instructor does not open a module or exam page. The question paper is read-only inside the evaluation screen, with no download. The Master Admin publishes the result.

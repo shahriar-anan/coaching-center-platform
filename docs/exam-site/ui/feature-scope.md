@@ -51,7 +51,7 @@ Anyone can read a published category, module, and exam. Drafts stay off this rea
 
 ## Purchase
 
-Checkout is SSLCommerz. A staff user cannot mark an exam order paid. Course and book bKash/Nagad screens are a different system.
+Checkout is SSLCommerz. Only the Master Admin can mark an exam order paid by hand, from the pending orders list. The System Admin sees the list read-only (decided 2026-10-26, see `decisions.md`, "Staff roles"). Course and book bKash/Nagad screens are a different system.
 
 | Feature | Expected pages | User type | Details |
 |---|---|---|---|
@@ -70,7 +70,7 @@ A signed-in student also has a grant-filtered read. `GET /api/v1/live-exam-modul
 | Feature | Expected pages | User type | Details |
 |---|---|---|---|
 | My modules | Dashboard | Student | Granted modules only. A module grant and a single-exam grant both qualify. An exam grant does not open the other exams in that module. |
-| Personal routine | Dashboard, Routine | Student | `GET /api/v1/me/exam-routine`. Published granted exams whose window has not ended, soonest first. An exam with no `liveAt` is left off. Reading it does not start a sitting. |
+| Personal routine | Dashboard, Routine | Student | `GET /api/v1/me/exam-routine`. Published granted exams whose window has not ended, soonest first. An exam with no `liveAt` stays on the routine, last, with a blank date and no sitting (decisions.md, "Product", line 10). Reading it does not start a sitting. |
 | Live list | Dashboard | Student | The same routine, limited to exams whose server window is open now. The client brief's separate "live" block has no extra endpoint. |
 | Take exam | Exam, then Question paper | Student | `POST /api/v1/live-exams/{id}/take` creates the live sitting only inside the shared window. The server clock decides. Before `liveAt`, after the end, or with no date, the call stays closed. |
 | MCQ paper | Question paper | Student | After Take exam, `GET /api/v1/live-exams/{id}` adds stems and options while the sitting is open, and again for review after it ends. `PUT /api/v1/live-exams/{id}/answers` replaces the full selection and can be called until the deadline. |
@@ -85,7 +85,7 @@ A signed-in student also has a grant-filtered read. `GET /api/v1/live-exam-modul
 
 ## Catalog authoring
 
-Create, edit, final save, and publish are shared by Master Admin and System Admin. Delete and archive are Master Admin only. Each edit of a published record returns it to draft. Publishing an exam with a start time enforces a five-minute gap against the other dated exams in that module. An exam with no `liveAt` is skipped by that check. Setting or clearing `liveAt` returns the exam to draft.
+Create, edit, and final save are shared by Master Admin and System Admin. Publish is the Master Admin's only (decided 2026-10-26). Delete and archive are Master Admin only. Each edit of a published record returns it to draft. Publishing an exam with a start time enforces a five-minute gap against the other dated exams in that module. An exam with no `liveAt` is skipped by that check. Setting or clearing `liveAt` returns the exam to draft.
 
 | Feature | Expected pages | User type | Details |
 |---|---|---|---|

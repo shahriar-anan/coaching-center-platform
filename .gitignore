@@ -41,3 +41,8 @@ coverage/
 
 
 .cursor.code-workspace
+# Local agent state and tooling
+/node_modules/
+/assets/
+/.claude/
+/.heavy.lock
