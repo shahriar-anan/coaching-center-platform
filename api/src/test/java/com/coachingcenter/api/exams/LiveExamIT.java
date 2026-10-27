@@ -94,20 +94,20 @@ class LiveExamIT extends PostgresIntegrationTest {
 				null);
 		addQuestion(staff, noPercent, "Stem", 1, "Because", "Yes", "No");
 		finalSave(staff, noPercent);
-		mockMvc.perform(post("/api/v1/live-exams/" + noPercent + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + noPercent + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("PASS_PERCENT_REQUIRED"));
 
 		UUID emptyMcq = createExam(staff, module, "MCQ", "Empty", "খালি", "2026-10-20T15:00:00+06:00", 30, 50, null);
 		finalSave(staff, emptyMcq);
-		mockMvc.perform(post("/api/v1/live-exams/" + emptyMcq + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + emptyMcq + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("QUESTIONS_REQUIRED"));
 
 		UUID bareWritten = createExam(staff, module, "WRITTEN", "Bare", "খালি খাতা", "2026-10-20T16:00:00+06:00", 30, 50,
 				null);
 		finalSave(staff, bareWritten);
-		mockMvc.perform(post("/api/v1/live-exams/" + bareWritten + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + bareWritten + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("WRITTEN_PAPER_REQUIRED"));
 	}
@@ -120,7 +120,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 		addQuestion(staff, exam, "Stem", 1, "Because", "Yes", "No");
 		finalSave(staff, exam);
 		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_ENDED"));
 		assertThat(exam(staff, exam).get("status").asText()).isEqualTo("DRAFT");
@@ -263,7 +263,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 		mockMvc.perform(delete("/api/v1/live-exams/" + mcq + "/questions/" + only).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isNoContent());
 		finalSave(staff, mcq);
-		mockMvc.perform(post("/api/v1/live-exams/" + mcq + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + mcq + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("QUESTIONS_REQUIRED"));
 
@@ -337,7 +337,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.liveAt").value("2026-10-20T12:44:00+06:00"));
 		addQuestion(staff, crowded, "Stem", 2, null, "A", "B");
 		finalSave(staff, crowded);
-		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
 			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Morning paper")))
@@ -448,7 +448,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 		UUID crowded = createExam(staff, module, "MCQ", "Too soon", "কাছাকাছি", "2026-10-20T12:44:00+06:00", 20, 50, null);
 		addQuestion(staff, crowded, "Stem", 2, null, "A", "B");
 		finalSave(staff, crowded);
-		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
 			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Morning")));
@@ -616,7 +616,9 @@ class LiveExamIT extends PostgresIntegrationTest {
 	}
 
 	private void publish(String token, UUID examId) throws Exception {
-		mockMvc.perform(post("/api/v1/live-exams/" + examId + "/publish").header("Authorization", "Bearer " + token))
+		// Only the Master Admin publishes an exam (decision of 2026-10-26); the caller's token is for the setup only.
+		String master = token(seed("MASTER_ADMIN"));
+		mockMvc.perform(post("/api/v1/live-exams/" + examId + "/publish").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 	}
@@ -661,6 +663,10 @@ class LiveExamIT extends PostgresIntegrationTest {
 				trailer<</Root 1 0 R>>
 				%%EOF
 				""".getBytes(StandardCharsets.US_ASCII);
+	}
+
+	private String masterToken() throws Exception {
+		return token(seed("MASTER_ADMIN"));
 	}
 
 	private UUID seed(String role) {

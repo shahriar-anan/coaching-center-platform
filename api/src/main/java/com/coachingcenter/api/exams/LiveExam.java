@@ -22,6 +22,8 @@ public class LiveExam extends BaseEntity {
 
 	public static final String PUBLISHED = "PUBLISHED";
 
+	public static final String ARCHIVED = "ARCHIVED";
+
 	public static final String BN = "BN";
 
 	public static final String EN = "EN";

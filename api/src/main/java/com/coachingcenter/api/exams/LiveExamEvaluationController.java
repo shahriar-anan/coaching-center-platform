@@ -80,7 +80,8 @@ public class LiveExamEvaluationController {
 
 	@PostMapping(value = "/api/v1/live-exam-participants/{id}/evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public LiveExamEvaluationService.SubmissionView evaluate(@PathVariable UUID id, @RequestParam("marks") int marks,
-			@RequestParam(value = "comment", required = false) String comment, @RequestParam("file") MultipartFile file) {
+			@RequestParam(value = "comment", required = false) String comment,
+			@RequestParam(value = "file", required = false) MultipartFile file) {
 		require(Permissions.LIVE_EXAM_EVALUATE);
 		return evaluations.evaluate(id, actor(), marks, comment, file);
 	}
@@ -91,10 +92,31 @@ public class LiveExamEvaluationController {
 		return evaluations.publish(id, actor());
 	}
 
+	/** Releases the exam's results. `ready=true` releases only the papers the markers flagged ready. */
 	@PostMapping("/api/v1/live-exams/{id}/publish-results")
-	public LiveExamEvaluationService.PublishedCount publishResults(@PathVariable UUID id) {
+	public LiveExamEvaluationService.PublishedCount publishResults(@PathVariable UUID id,
+			@RequestParam(value = "ready", defaultValue = "false") boolean ready) {
 		require(Permissions.LIVE_EXAM_PUBLISH);
-		return evaluations.publishAll(id, actor());
+		return evaluations.publishAll(id, actor(), ready);
+	}
+
+	@GetMapping("/api/v1/live-exams/{id}/release-status")
+	public LiveExamEvaluationService.ReleaseStatus releaseStatus(@PathVariable UUID id) {
+		require(Permissions.EXAM_READ);
+		return evaluations.releaseStatus(id, actor());
+	}
+
+	/** The marker flags the paper ready for release. `DELETE` clears the flag. */
+	@PostMapping("/api/v1/live-exam-participants/{id}/ready")
+	public LiveExamEvaluationService.SubmissionView markReady(@PathVariable UUID id) {
+		require(Permissions.LIVE_EXAM_EVALUATE);
+		return evaluations.markReady(id, actor(), true);
+	}
+
+	@DeleteMapping("/api/v1/live-exam-participants/{id}/ready")
+	public LiveExamEvaluationService.SubmissionView clearReady(@PathVariable UUID id) {
+		require(Permissions.LIVE_EXAM_EVALUATE);
+		return evaluations.markReady(id, actor(), false);
 	}
 
 	@GetMapping("/api/v1/live-exams/{id}/leaderboard")

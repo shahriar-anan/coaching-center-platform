@@ -315,7 +315,7 @@ class LiveRosterIT extends PostgresIntegrationTest {
 	}
 
 	private void publish(String token, UUID examId) throws Exception {
-		mockMvc.perform(post("/api/v1/live-exams/" + examId + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exams/" + examId + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 	}
 
@@ -368,6 +368,10 @@ class LiveRosterIT extends PostgresIntegrationTest {
 				"select count(*) from live_exam_roster where module_id = ? and student_id = ?", Integer.class, moduleId,
 				studentId);
 		return count != null && count == 1;
+	}
+
+	private String masterToken() throws Exception {
+		return token(seed("MASTER_ADMIN", "Master"));
 	}
 
 	private UUID seed(String role, String name) {

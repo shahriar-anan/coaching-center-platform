@@ -15,6 +15,7 @@ public class ExamPermissionContributor implements PermissionContributor {
 	public void contribute(PermissionRegistry registry) {
 		registry.grant(Role.MASTER_ADMIN, Permissions.EXAM_READ, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.EXAM_MANAGE, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.EXAM_PUBLISH, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.EXAM_PRICE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.EXAM_DELETE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.EXAM_EVALUATE, PermissionScope.ANY);

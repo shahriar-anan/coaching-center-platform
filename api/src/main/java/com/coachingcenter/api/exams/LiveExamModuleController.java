@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -100,6 +102,18 @@ public class LiveExamModuleController {
 			return modules.getPublished(id, actorId());
 		}
 		throw denied();
+	}
+
+	/** The cover for staff screens. The public cover route serves published modules only, so a draft shows its cover here. */
+	@GetMapping("/api/v1/live-exam-modules/{id}/cover")
+	public ResponseEntity<InputStreamResource> staffCover(@PathVariable UUID id) {
+		require(Permissions.EXAM_READ);
+		ModuleCoverService.CoverFile file = covers.open(id);
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CACHE_CONTROL, "private, no-cache")
+			.contentType(MediaType.parseMediaType(file.contentType()))
+			.contentLength(file.byteSize())
+			.body(new InputStreamResource(file.body()));
 	}
 
 	@PostMapping(value = "/api/v1/live-exam-modules/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

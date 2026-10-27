@@ -52,6 +52,12 @@ public class LiveExamSubmissionFeedService {
 	@Transactional(readOnly = true)
 	public Page<FeedRow> list(CurrentActor actor, UUID moduleId, UUID examId, String status, String q, String sort,
 			Pageable pageable) {
+		return list(actor, moduleId, examId, status, q, sort, false, pageable);
+	}
+
+	/** With {@code readyOnly}, only the papers the marker flagged ready for release. */
+	public Page<FeedRow> list(CurrentActor actor, UUID moduleId, UUID examId, String status, String q, String sort,
+			boolean readyOnly, Pageable pageable) {
 		String state = status == null ? "" : status.trim().toUpperCase();
 		if (!state.isEmpty() && !STATUSES.contains(state)) {
 			throw validationFailed();
@@ -98,6 +104,9 @@ public class LiveExamSubmissionFeedService {
 			params.put("name", "%" + q.trim().toLowerCase() + "%");
 		}
 		where.append(statusClause(state));
+		if (readyOnly) {
+			where.append(" AND p.readyForReleaseAt IS NOT NULL");
+		}
 
 		Query count = entityManager.createQuery("SELECT count(p) " + where);
 		params.forEach(count::setParameter);
@@ -121,8 +130,10 @@ public class LiveExamSubmissionFeedService {
 					module.getTitleEn(), module.getTitleBn(),
 					LiveExamStaffModuleService.pathOf(module.getCategoryId(), byId), student.getFullName(),
 					statusOf(participant), participant.getKind(), participant.getAnswerStoredFileName() != null,
-					participant.getSubmittedAt(), participant.getEvaluatedAt(), participant.getPublishedAt(),
-					participant.getEvaluatedBy() == null ? null : evaluators.get(participant.getEvaluatedBy())));
+					participant.getSubmittedAt(), markedAtOf(participant), participant.getPublishedAt(),
+					evaluatorOf(participant) == null ? null : evaluators.get(evaluatorOf(participant)),
+					participant.hasPendingRevision() ? Boolean.TRUE : null,
+					participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE));
 		}
 		return new PageImpl<>(content, pageable, total);
 	}
@@ -138,7 +149,7 @@ public class LiveExamSubmissionFeedService {
 
 	private Map<UUID, String> evaluatorNames(List<Object[]> rows) {
 		List<UUID> evaluatorIds = rows.stream()
-			.map(row -> ((LiveExamParticipant) row[0]).getEvaluatedBy())
+			.map(row -> evaluatorOf((LiveExamParticipant) row[0]))
 			.filter(id -> id != null)
 			.distinct()
 			.toList();
@@ -153,8 +164,9 @@ public class LiveExamSubmissionFeedService {
 	private static String statusClause(String state) {
 		return switch (state) {
 			case "AWAITING" -> " AND p.status = :submitted AND p.evaluatedAt IS NULL";
-			case "DRAFT" -> " AND p.status = :submitted AND p.evaluatedAt IS NOT NULL AND p.publishedAt IS NULL";
-			case "PUBLISHED" -> " AND p.status = :submitted AND p.publishedAt IS NOT NULL";
+			// A released paper with a correction waiting is a draft again: it needs a release.
+			case "DRAFT" -> " AND p.status = :submitted AND p.evaluatedAt IS NOT NULL AND (p.publishedAt IS NULL OR p.pendingEvaluatedAt IS NOT NULL)";
+			case "PUBLISHED" -> " AND p.status = :submitted AND p.publishedAt IS NOT NULL AND p.pendingEvaluatedAt IS NULL";
 			case "FAILED_TO_SUBMIT" -> " AND p.status = :failed";
 			default -> "";
 		};
@@ -172,10 +184,22 @@ public class LiveExamSubmissionFeedService {
 		if (LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())) {
 			return "FAILED_TO_SUBMIT";
 		}
+		if (participant.hasPendingRevision()) {
+			return "DRAFT";
+		}
 		if (participant.getPublishedAt() != null) {
 			return "PUBLISHED";
 		}
 		return participant.getEvaluatedAt() != null ? "DRAFT" : "AWAITING";
+	}
+
+	/** The evaluator the row shows: the one who wrote the correction waiting for release, else the marker of record. */
+	private static UUID evaluatorOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingEvaluatedBy() : participant.getEvaluatedBy();
+	}
+
+	private static Instant markedAtOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingEvaluatedAt() : participant.getEvaluatedAt();
 	}
 
 	private static ApiException validationFailed() {
@@ -186,7 +210,7 @@ public class LiveExamSubmissionFeedService {
 	public record FeedRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, List<LiveExamModuleService.CategoryRef> categoryPath,
 			String studentName, String status, String kind, boolean answerPdf, Instant submittedAt, Instant evaluatedAt,
-			Instant publishedAt, String evaluatorName) {
+			Instant publishedAt, String evaluatorName, Boolean releasePending, Boolean readyForRelease) {
 	}
 
 }

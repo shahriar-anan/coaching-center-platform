@@ -86,6 +86,38 @@ public class LiveExamParticipant extends BaseEntity {
 	@Column(name = "evaluated_content_type", length = 255)
 	private String evaluatedContentType;
 
+	/** A correction to a released result, kept until Master Admin releases it. Null when none is waiting. */
+	@Column(name = "pending_score")
+	private Integer pendingScore;
+
+	@Column(name = "pending_passed")
+	private Boolean pendingPassed;
+
+	@Column(name = "pending_comment", columnDefinition = "TEXT")
+	private String pendingComment;
+
+	@Column(name = "pending_evaluated_by")
+	private UUID pendingEvaluatedBy;
+
+	@Column(name = "pending_evaluated_at")
+	private Instant pendingEvaluatedAt;
+
+	@Column(name = "pending_stored_file_name", length = 255)
+	private String pendingStoredFileName;
+
+	@Column(name = "pending_original_file_name", length = 500)
+	private String pendingOriginalFileName;
+
+	@Column(name = "pending_byte_size")
+	private Long pendingByteSize;
+
+	@Column(name = "pending_content_type", length = 255)
+	private String pendingContentType;
+
+	/** Set by the marker when the paper is finished; cleared by any save and by a release. */
+	@Column(name = "ready_for_release_at")
+	private Instant readyForReleaseAt;
+
 	public UUID getExamId() {
 		return examId;
 	}
@@ -252,6 +284,104 @@ public class LiveExamParticipant extends BaseEntity {
 
 	public void setEvaluatedContentType(String evaluatedContentType) {
 		this.evaluatedContentType = evaluatedContentType;
+	}
+
+	public Instant getReadyForReleaseAt() {
+		return readyForReleaseAt;
+	}
+
+	public void setReadyForReleaseAt(Instant readyForReleaseAt) {
+		this.readyForReleaseAt = readyForReleaseAt;
+	}
+
+	/** True when a correction to the released result waits for release. */
+	public boolean hasPendingRevision() {
+		return pendingEvaluatedAt != null;
+	}
+
+	public Integer getPendingScore() {
+		return pendingScore;
+	}
+
+	public void setPendingScore(Integer pendingScore) {
+		this.pendingScore = pendingScore;
+	}
+
+	public Boolean getPendingPassed() {
+		return pendingPassed;
+	}
+
+	public void setPendingPassed(Boolean pendingPassed) {
+		this.pendingPassed = pendingPassed;
+	}
+
+	public String getPendingComment() {
+		return pendingComment;
+	}
+
+	public void setPendingComment(String pendingComment) {
+		this.pendingComment = pendingComment;
+	}
+
+	public UUID getPendingEvaluatedBy() {
+		return pendingEvaluatedBy;
+	}
+
+	public void setPendingEvaluatedBy(UUID pendingEvaluatedBy) {
+		this.pendingEvaluatedBy = pendingEvaluatedBy;
+	}
+
+	public Instant getPendingEvaluatedAt() {
+		return pendingEvaluatedAt;
+	}
+
+	public void setPendingEvaluatedAt(Instant pendingEvaluatedAt) {
+		this.pendingEvaluatedAt = pendingEvaluatedAt;
+	}
+
+	public String getPendingStoredFileName() {
+		return pendingStoredFileName;
+	}
+
+	public void setPendingStoredFileName(String pendingStoredFileName) {
+		this.pendingStoredFileName = pendingStoredFileName;
+	}
+
+	public String getPendingOriginalFileName() {
+		return pendingOriginalFileName;
+	}
+
+	public void setPendingOriginalFileName(String pendingOriginalFileName) {
+		this.pendingOriginalFileName = pendingOriginalFileName;
+	}
+
+	public Long getPendingByteSize() {
+		return pendingByteSize;
+	}
+
+	public void setPendingByteSize(Long pendingByteSize) {
+		this.pendingByteSize = pendingByteSize;
+	}
+
+	public String getPendingContentType() {
+		return pendingContentType;
+	}
+
+	public void setPendingContentType(String pendingContentType) {
+		this.pendingContentType = pendingContentType;
+	}
+
+	/** Clears every pending field after a release has copied them into the released columns. */
+	public void clearPendingRevision() {
+		pendingScore = null;
+		pendingPassed = null;
+		pendingComment = null;
+		pendingEvaluatedBy = null;
+		pendingEvaluatedAt = null;
+		pendingStoredFileName = null;
+		pendingOriginalFileName = null;
+		pendingByteSize = null;
+		pendingContentType = null;
 	}
 
 }

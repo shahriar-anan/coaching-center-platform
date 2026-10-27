@@ -373,10 +373,11 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		MockMultipartFile second = new MockMultipartFile("file", "two.pdf", "application/pdf", pdf);
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(second)
 			.header("Authorization", "Bearer " + uploader))
-			.andExpect(status().isNoContent());
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
 		String secondName = storedAnswer(exam, uploaderId);
-		assertThat(secondName).isNotEqualTo(firstName);
-		assertThat(java.nio.file.Path.of(files.storageDir(), firstName)).doesNotExist();
+		assertThat(secondName).isEqualTo(firstName);
+		assertThat(java.nio.file.Path.of(files.storageDir(), firstName)).exists();
 
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(hugePdf())
 			.header("Authorization", "Bearer " + uploader))
@@ -646,7 +647,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "last.pdf",
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + uploader))
-			.andExpect(status().isNoContent());
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
 		String last = storedAnswer(exam, uploaderId);
 
 		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
@@ -663,7 +665,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(last);
 		assertThat(new JdbcTemplate(dataSource).queryForObject(
 				"select answer_original_file_name from live_exam_participants where exam_id = ? and student_id = ?",
-				String.class, exam, uploaderId)).isEqualTo("last.pdf");
+				String.class, exam, uploaderId)).isEqualTo("first.pdf");
 		assertThat(sittingStatus(exam, missingId)).isEqualTo("FAILED_TO_SUBMIT");
 		assertThat(sittingScore(exam, missingId)).isZero();
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + missing))
@@ -884,7 +886,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		addQuestion(staff, undated, "Two plus two", 2);
 		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		mark(master, undatedModule, studentId);
 		assertThat(myStatus(student, undatedModule, undated)).isEqualTo("NOT_ANNOUNCED");
@@ -953,7 +955,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "two.pdf",
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + stored))
-			.andExpect(status().isNoContent());
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + empty))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("IN_PROGRESS"))
@@ -1151,7 +1154,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		}
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		UUID blankId = seed("STUDENT");
 		UUID wrongId = seed("STUDENT");
@@ -1642,7 +1645,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void anUndatedExamStaysOffTheRoutineUntilItHasAWindow() throws Exception {
+	void anUndatedExamSitsLastOnTheRoutineAndCannotBeTakenUntilItHasAWindow() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		UUID module = publishModule(staff, "Undated");
@@ -1662,7 +1665,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		addQuestion(staff, undated, "Two plus two", 2);
 		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		UUID dated = publishMcqIn(staff, module, "2026-10-20T12:00:00+06:00");
 		UUID studentId = seed("STUDENT");
@@ -1671,8 +1674,9 @@ class LiveSittingIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.content.length()").value(1))
-			.andExpect(jsonPath("$.content[0].id").value(dated.toString()));
+			.andExpect(jsonPath("$.content.length()").value(2))
+			.andExpect(jsonPath("$.content[0].id").value(dated.toString()))
+			.andExpect(jsonPath("$.content[1].id").value(undated.toString()));
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + student)
 			.param("size", "20"))
 			.andExpect(status().isOk())
@@ -1697,7 +1701,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.content[0].id").value(dated.toString()));
 		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/take").header("Authorization", "Bearer " + student)
@@ -1792,7 +1796,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		return exam;
 	}
@@ -1814,7 +1818,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		addQuestion(staff, exam, "Two plus two", 2);
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		return exam;
 	}
@@ -1840,7 +1844,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		Question five = addQuestion(staff, exam, "Five plus five", 5);
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		return new Holder(module, exam, student, java.util.List.of(two, three, five));
 	}
@@ -1865,7 +1869,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		return exam;
 	}
@@ -1989,6 +1993,10 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		return new JdbcTemplate(dataSource).queryForObject(
 				"select answer_stored_file_name from live_exam_participants where exam_id = ? and student_id = ?",
 				String.class, examId, studentId);
+	}
+
+	private String masterToken() throws Exception {
+		return token(seed("MASTER_ADMIN"));
 	}
 
 	private UUID seed(String role) {

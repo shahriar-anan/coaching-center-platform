@@ -17,6 +17,8 @@ import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.error.MasterAdminProtectedException;
+import com.coachingcenter.api.users.AdminProfile;
+import com.coachingcenter.api.users.AdminProfileRepository;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
 import com.coachingcenter.api.users.User;
@@ -43,6 +45,8 @@ public class AuthService {
 
 	private final StudentProfileRepository profiles;
 
+	private final AdminProfileRepository adminProfiles;
+
 	private final RefreshTokenRepository refreshTokens;
 
 	private final OneTimeCodeRepository codes;
@@ -65,12 +69,13 @@ public class AuthService {
 
 	private final SecureRandom random = new SecureRandom();
 
-	public AuthService(UserRepository users, StudentProfileRepository profiles, RefreshTokenRepository refreshTokens,
-			OneTimeCodeRepository codes, PasswordEncoder passwords, SecretHasher hasher, JwtService jwt,
-			EmailSender email, LoginLockout lockout, AppProperties properties, RefreshTokenRevocation revocations,
-			AuditRecorder audit) {
+	public AuthService(UserRepository users, StudentProfileRepository profiles, AdminProfileRepository adminProfiles,
+			RefreshTokenRepository refreshTokens, OneTimeCodeRepository codes, PasswordEncoder passwords,
+			SecretHasher hasher, JwtService jwt, EmailSender email, LoginLockout lockout, AppProperties properties,
+			RefreshTokenRevocation revocations, AuditRecorder audit) {
 		this.users = users;
 		this.profiles = profiles;
+		this.adminProfiles = adminProfiles;
 		this.refreshTokens = refreshTokens;
 		this.codes = codes;
 		this.passwords = passwords;
@@ -301,6 +306,12 @@ public class AuthService {
 		}
 	}
 
+	/** Ends every refresh session of the account, so a suspended account cannot get a new access token. */
+	@Transactional
+	public void endSessions(UUID userId) {
+		refreshTokens.revokeAllForUser(userId, Instant.now());
+	}
+
 	@Transactional
 	public void resetPassword(String code, String newPassword) {
 		OneTimeCode match = codes.findFirstByPurposeAndCodeHashOrderByCreatedAtDesc(PASSWORD_RESET, hasher.sha256(code))
@@ -340,8 +351,11 @@ public class AuthService {
 	public MeView me(UUID userId) {
 		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
 		StudentProfile profile = profiles.findById(userId).orElse(null);
+		// Admins, instructors and the Master Admin keep their name in the admin profile, not the student one.
+		String fullName = profile != null ? profile.getFullName()
+				: adminProfiles.findById(userId).map(AdminProfile::getFullName).orElse(null);
 		return new MeView(user.getId(), user.getPhone(), user.getEmail(), user.getEmailVerifiedAt(), user.getRole(),
-				user.getStatus(), profile == null ? null : profile.getFullName(),
+				user.getStatus(), fullName,
 				profile == null ? null : profile.getStudentCode(),
 				user.getPhone() == null || user.getPhone().isBlank());
 	}

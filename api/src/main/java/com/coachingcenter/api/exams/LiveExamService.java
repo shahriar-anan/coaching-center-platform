@@ -51,6 +51,9 @@ public class LiveExamService {
 	/** Column width of {@code title_en} and {@code title_bn} (V25). */
 	private static final int MAX_TITLE_LENGTH = 500;
 
+	/** The shortest exam, in minutes. Set by the client rule that an exam is at least two minutes. */
+	private static final int MIN_DURATION_MINUTES = 2;
+
 	private final LiveExamRepository exams;
 
 	private final LiveExamQuestionRepository questions;
@@ -135,7 +138,7 @@ public class LiveExamService {
 
 	@Transactional
 	public ExamView update(UUID id, JsonNode body) {
-		LiveExam exam = require(id);
+		LiveExam exam = requireEditable(id);
 		boolean schedule = body.has("liveAt") || body.has("durationMinutes");
 		boolean scoring = body.has("passPercent")
 				|| (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum"));
@@ -336,22 +339,38 @@ public class LiveExamService {
 		return view(exam, true);
 	}
 
+	/** Takes a draft or published exam off the student website. Its posted results stay readable. */
+	@Transactional
+	public ExamView archive(UUID id) {
+		LiveExam exam = require(id);
+		if (!LiveExam.ARCHIVED.equals(exam.getStatus())) {
+			exam.setStatus(LiveExam.ARCHIVED);
+			audit.record(AuditRecorder.LIVE_EXAM_ARCHIVE, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());
+		}
+		return view(exam, true);
+	}
+
 	@Transactional
 	public ExamView finalSave(UUID id) {
-		LiveExam exam = require(id);
+		LiveExam exam = requireEditable(id);
 		exam.setFinallySaved(true);
 		return view(exam, true);
 	}
 
 	@Transactional
 	public ExamView publish(UUID id) {
-		LiveExam exam = require(id);
+		LiveExam exam = requireEditable(id);
 		if (!exam.isFinallySaved()) {
 			throw new ApiException(ErrorCode.FINAL_SAVE_REQUIRED, HttpStatus.CONFLICT, "Publish requires a final save.");
 		}
 		if (exam.getPassPercent() == null) {
 			throw new ApiException(ErrorCode.PASS_PERCENT_REQUIRED, HttpStatus.CONFLICT,
 					"Publish requires a pass percent from 0 through 100.");
+		}
+		if (!hasText(exam.getDescriptionEn()) || !hasText(exam.getDescriptionBn())
+				|| !hasText(exam.getRulesEn()) || !hasText(exam.getRulesBn())) {
+			throw new ApiException(ErrorCode.EXAM_TEXT_REQUIRED, HttpStatus.CONFLICT,
+					"Publish requires the English and Bangla descriptions and rules.");
 		}
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
 			if (questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId()).isEmpty()) {
@@ -665,6 +684,15 @@ public class LiveExamService {
 		return exams.findByIdAndDeletedAtIsNull(id).orElseThrow(this::notFound);
 	}
 
+	/** An archived exam cannot be changed. Staff reads still use {@link #require(UUID)}. */
+	private LiveExam requireEditable(UUID id) {
+		LiveExam exam = require(id);
+		if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
+			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT, "An archived exam cannot be changed.");
+		}
+		return exam;
+	}
+
 	private LiveExamModule requireModule(UUID id) {
 		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(id).orElseThrow(this::notFound);
 		if (LiveExamModule.ARCHIVED.equals(module.getStatus())) {
@@ -714,10 +742,14 @@ public class LiveExamService {
 
 	private static int readDuration(JsonNode body) {
 		JsonNode node = body.get("durationMinutes");
-		if (node == null || !node.isIntegralNumber() || node.intValue() <= 0) {
+		if (node == null || !node.isIntegralNumber() || node.intValue() < MIN_DURATION_MINUTES) {
 			throw validationFailed();
 		}
 		return node.intValue();
+	}
+
+	private static boolean hasText(String value) {
+		return value != null && !value.isBlank();
 	}
 
 	private static Integer readPassPercent(JsonNode body, boolean allowNull) {

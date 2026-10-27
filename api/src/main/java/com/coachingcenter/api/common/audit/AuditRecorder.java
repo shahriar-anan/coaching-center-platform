@@ -85,6 +85,8 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_DELETE = "LIVE_EXAM_DELETE";
 
+	public static final String LIVE_EXAM_ARCHIVE = "LIVE_EXAM_ARCHIVE";
+
 	public static final String LIVE_EXAM_QUESTION_DELETE = "LIVE_EXAM_QUESTION_DELETE";
 
 	public static final String LIVE_EXAM_ENTITY = "LIVE_EXAM";

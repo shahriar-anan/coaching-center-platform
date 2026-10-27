@@ -50,6 +50,8 @@ public class StudentInboxService {
 	private static final String SELECT = """
 			select n.id, n.kind, n.created_at, n.read_at, e.id as exam_id, e.module_id, e.exam_type, e.title_en, e.title_bn,
 			  e.live_at, e.duration_minutes, p.score, p.passed, p.published_at,
+			  exists (select 1 from student_notices x where x.participant_id = n.participant_id
+			    and x.kind = 'WRITTEN_RESULT' and x.created_at < n.created_at) as updated,
 			  n.module_id as notice_module_id, a.id as announcement_id, a.title_en as announcement_title_en,
 			  a.title_bn as announcement_title_bn, a.body_en as announcement_body_en, a.body_bn as announcement_body_bn,
 			  a.audience as announcement_audience,
@@ -134,7 +136,8 @@ public class StudentInboxService {
 						rs.getString("announcement_body_bn"), rs.getString("announcement_audience"),
 						rs.getObject("notice_module_id", UUID.class));
 		return new NoticeView(rs.getObject("id", UUID.class), kind, format(rs.getTimestamp("created_at").toInstant()),
-				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement);
+				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement,
+				rs.getBoolean("updated") ? Boolean.TRUE : null);
 	}
 
 	private static String format(Instant instant) {
@@ -143,7 +146,7 @@ public class StudentInboxService {
 
 	/** {@code exam} is null for an announcement, and {@code announcement} is null for every other kind. */
 	public record NoticeView(UUID id, String kind, String createdAt, String readAt, NoticeExam exam, Integer score,
-			Integer maximum, Boolean passed, NoticeAnnouncement announcement) {
+			Integer maximum, Boolean passed, NoticeAnnouncement announcement, Boolean updated) {
 	}
 
 	public record NoticeExam(UUID id, UUID moduleId, String examType, String titleEn, String titleBn, String liveAt,

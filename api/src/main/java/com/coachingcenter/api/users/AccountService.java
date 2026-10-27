@@ -162,6 +162,9 @@ public class AccountService {
 		User user = requireRole(id, expectedRole);
 		masterAdminGuard.rejectIfMasterAdmin(Role.valueOf(user.getRole()));
 		user.setStatus(status);
+		if ("INACTIVE".equals(status)) {
+			auth.endSessions(user.getId());
+		}
 		audit.record("INACTIVE".equals(status) ? AuditRecorder.USER_SUSPENDED : AuditRecorder.USER_RESTORED, user.getId());
 	}
 

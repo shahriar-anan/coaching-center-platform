@@ -57,7 +57,7 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 	private MutableClock clock;
 
 	@Test
-	void masterAndSystemAdminGrantAModuleOrAnExamByHandAndTheRowIsAudited() throws Exception {
+	void masterAdminGrantsAModuleOrAnExamByHandAndSystemAdminCannot() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String system = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID student = seed("STUDENT", "Granted Student");
@@ -83,6 +83,12 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 				Integer.class, grant)).isEqualTo(1);
 
 		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body(student, "EXAM", null, exam, "Retake for a sick day")))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(body(student, "EXAM", null, exam, "Retake for a sick day")))
 			.andExpect(status().isCreated())
@@ -293,7 +299,7 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void masterAdminAndSystemAdminReleaseOrWithholdTheMcqAnswers() throws Exception {
+	void masterAdminReleasesOrWithholdsTheMcqAnswersAndSystemAdminCannot() throws Exception {
 		UUID masterId = seed("MASTER_ADMIN", "Master");
 		String master = token(masterId);
 		String system = token(seed("SYSTEM_ADMIN", "Staff"));
@@ -321,13 +327,19 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(put(path).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		assertThat(jdbc.queryForObject("select count(*) from live_exams where id = ? and answers_released_at is not null", Integer.class, exam)).isOne();
+
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":false}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.released").value(false))
 			.andExpect(jsonPath("$.releasedAt").doesNotExist());
 		assertThat(jdbc.queryForObject("select count(*) from live_exams where id = ? and answers_released_at is null", Integer.class, exam)).isOne();
 		assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'ANSWERS_WITHHELD' and entity_id = ?",
 				Integer.class, exam)).isEqualTo(1);
-		mockMvc.perform(put(path).header("Authorization", "Bearer " + system)
+		mockMvc.perform(put(path).header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.released").value(true));

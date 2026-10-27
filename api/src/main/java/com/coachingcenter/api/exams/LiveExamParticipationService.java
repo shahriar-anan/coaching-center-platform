@@ -49,9 +49,10 @@ public class LiveExamParticipationService {
 
 	private static final String AWAITING = "p.evaluated_at is null and (" + SUBMITTED + ")";
 
-	private static final String DRAFT = "p.evaluated_at is not null and p.published_at is null";
+	// A correction waiting for release counts as a draft, and its paper is not counted as published until released.
+	private static final String DRAFT = "((p.evaluated_at is not null and p.published_at is null) or p.pending_evaluated_at is not null)";
 
-	private static final String PUBLISHED = "p.published_at is not null";
+	private static final String PUBLISHED = "(p.published_at is not null and p.pending_evaluated_at is null)";
 
 	private static final String FROM = """
 			from live_exams e
@@ -86,6 +87,8 @@ public class LiveExamParticipationService {
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and (%s)) as awaiting,
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and %s) as drafts,
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and %s) as published,
+				  count(p.id) filter (where e.exam_type = 'WRITTEN' and p.ready_for_release_at is not null) as ready,
+				  count(p.id) filter (where e.exam_type = 'WRITTEN' and p.pending_evaluated_at is not null) as corrections,
 				  count(p.id) filter (where p.kind = 'RETAKE') as retakes
 				%s
 				where %s
@@ -103,7 +106,8 @@ public class LiveExamParticipationService {
 					rs.getString("module_title_en"), rs.getString("module_title_bn"), rs.getString("exam_type"),
 					rs.getString("title_en"), rs.getString("title_bn"), start, end, rs.getInt("sitting"),
 					rs.getInt("submitted"), rs.getInt("failed"), written ? rs.getInt("awaiting") : null,
-					written ? rs.getInt("drafts") : null, written ? rs.getInt("published") : null, rs.getInt("retakes"));
+					written ? rs.getInt("drafts") : null, written ? rs.getInt("published") : null, rs.getInt("retakes"),
+					written ? rs.getInt("ready") : null, written ? rs.getInt("corrections") : null);
 		});
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
@@ -189,7 +193,8 @@ public class LiveExamParticipationService {
 
 	public record ParticipationRow(UUID examId, UUID moduleId, String moduleTitleEn, String moduleTitleBn, String examType,
 			String titleEn, String titleBn, String liveAt, String endAt, int sitting, int submitted, int failedToSubmit,
-			Integer awaitingMarking, Integer draftsAwaitingPublish, Integer published, int retakes) {
+			Integer awaitingMarking, Integer draftsAwaitingPublish, Integer published, int retakes, Integer readyForRelease,
+			Integer correctionsWaiting) {
 	}
 
 	public record Summary(int awaitingMarking, int draftsAwaitingPublish) {

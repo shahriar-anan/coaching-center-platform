@@ -138,6 +138,31 @@ class ModuleCoverIT extends PostgresIntegrationTest {
 		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
 	}
 
+	@Test
+	void staffSeeTheCoverOfADraftModuleWhilePublicReadsRefuseIt() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		String system = token(seed("SYSTEM_ADMIN"));
+		String student = token(seed("STUDENT"));
+		UUID categoryId = createCategory(master);
+		UUID moduleId = createModule(master, categoryId);
+		byte[] png = png(640, 360);
+		mockMvc.perform(multipart("/api/v1/live-exam-modules/" + moduleId + "/cover")
+			.file(new MockMultipartFile("file", "cover.png", "image/png", png))
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + moduleId + "/cover").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(header().string("Cache-Control", "private, no-cache"))
+			.andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("image/")));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + moduleId + "/cover").header("Authorization", "Bearer " + system))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + moduleId + "/cover").header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + moduleId + "/cover"))
+			.andExpect(status().isNotFound());
+	}
+
 	private void publishModule(UUID moduleId) {
 		new JdbcTemplate(dataSource).update("update live_exam_modules set status = ? where id = ?", LiveExamModule.PUBLISHED, moduleId);
 	}

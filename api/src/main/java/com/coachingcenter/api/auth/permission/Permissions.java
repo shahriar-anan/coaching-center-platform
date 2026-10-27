@@ -59,6 +59,9 @@ public final class Permissions {
 
 	public static final String EXAM_MANAGE = "EXAM_MANAGE";
 
+	/** Publish an exam into the catalog. The Master Admin only; the System Admin keeps EXAM_MANAGE without it. */
+	public static final String EXAM_PUBLISH = "EXAM_PUBLISH";
+
 	/** Upload and remove a module's cover image. The Master Admin only. */
 	public static final String MODULE_COVER_MANAGE = "MODULE_COVER_MANAGE";
 

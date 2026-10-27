@@ -300,14 +300,18 @@ public class LiveExamSittingService {
 		if (!clock.instant().isBefore(participant.getDeadlineAt())) {
 			throw new ApiException(ErrorCode.DEADLINE_PASSED, HttpStatus.CONFLICT, "The sitting deadline has passed.");
 		}
-		String previous = participant.getAnswerStoredFileName();
+		// A written script is submitted once. A second upload would replace what the student already confirmed.
+		if (participant.getAnswerStoredFileName() != null) {
+			throw new ApiException(ErrorCode.ANSWER_ALREADY_SUBMITTED, HttpStatus.CONFLICT,
+					"The answer script was already submitted.");
+		}
 		LocalFileStorage.StoredFile stored = files.save(file.getOriginalFilename(), "application/pdf",
 				new ByteArrayInputStream(compressed), compressed.length, MAX_PDF_BYTES);
 		participant.setAnswerStoredFileName(stored.storedFileName());
 		participant.setAnswerOriginalFileName(stored.originalFileName());
 		participant.setAnswerByteSize(stored.byteSize());
 		participant.setAnswerContentType("application/pdf");
-		files.commitReplacement(stored.storedFileName(), previous);
+		files.commitReplacement(stored.storedFileName(), null);
 	}
 
 	private void postIfDue(LiveExamParticipant participant, LiveExam exam) {

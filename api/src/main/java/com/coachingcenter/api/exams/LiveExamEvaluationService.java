@@ -123,7 +123,6 @@ public class LiveExamEvaluationService {
 			if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 				continue;
 			}
-			sittings.finalizeDue(exam.getId());
 			LiveExamModule module = moduleOf(exam);
 			for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(exam.getId())) {
 				views.add(view(participant, exam, module));
@@ -166,34 +165,59 @@ public class LiveExamEvaluationService {
 			throw new ApiException(ErrorCode.MARKS_OUT_OF_RANGE, HttpStatus.BAD_REQUEST,
 					"Marks must be from 0 through the maximum.");
 		}
-		if (file == null || file.getSize() > LiveExamSittingService.MAX_PDF_BYTES) {
-			throw new ApiException(ErrorCode.FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, "File is too large.");
+		// A new marked PDF is optional when a PDF is already stored; the first save must send one.
+		boolean released = participant.getPublishedAt() != null;
+		boolean hadPending = participant.hasPendingRevision();
+		String current = released && hadPending ? participant.getPendingStoredFileName() : participant.getEvaluatedStoredFileName();
+		boolean sendsFile = file != null && !file.isEmpty();
+		if (!sendsFile && current == null) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "A marked PDF is required the first time.");
 		}
-		byte[] original;
-		try {
-			original = file.getBytes();
+		LocalFileStorage.StoredFile stored = sendsFile ? storeMarkedPdf(file) : null;
+		String discard;
+		if (released) {
+			// A released result keeps its mark and PDF for the student. A save now is a correction, held until release.
+			discard = hadPending ? participant.getPendingStoredFileName() : null;
+			participant.setPendingScore(marks);
+			participant.setPendingPassed(passed(marks, exam, maximum));
+			participant.setPendingComment(comment == null || comment.isBlank() ? null : comment.trim());
+			participant.setPendingEvaluatedBy(actor.userId());
+			participant.setPendingEvaluatedAt(clock.instant());
+			if (stored != null) {
+				participant.setPendingStoredFileName(stored.storedFileName());
+				participant.setPendingOriginalFileName(stored.originalFileName());
+				participant.setPendingByteSize(stored.byteSize());
+				participant.setPendingContentType("application/pdf");
+			}
+			else if (!hadPending) {
+				participant.setPendingStoredFileName(participant.getEvaluatedStoredFileName());
+				participant.setPendingOriginalFileName(participant.getEvaluatedOriginalFileName());
+				participant.setPendingByteSize(participant.getEvaluatedByteSize());
+				participant.setPendingContentType(participant.getEvaluatedContentType());
+			}
+			if (discard != null && discard.equals(participant.getEvaluatedStoredFileName())) {
+				discard = null;
+			}
 		}
-		catch (IOException exception) {
-			throw validationFailed();
+		else {
+			discard = participant.getEvaluatedStoredFileName();
+			participant.setScore(marks);
+			participant.setPassed(passed(marks, exam, maximum));
+			participant.setComment(comment == null || comment.isBlank() ? null : comment.trim());
+			participant.setEvaluatedBy(actor.userId());
+			participant.setEvaluatedAt(clock.instant());
+			if (stored != null) {
+				participant.setEvaluatedStoredFileName(stored.storedFileName());
+				participant.setEvaluatedOriginalFileName(stored.originalFileName());
+				participant.setEvaluatedByteSize(stored.byteSize());
+				participant.setEvaluatedContentType("application/pdf");
+			}
 		}
-		if (original.length < 5 || original[0] != '%' || original[1] != 'P' || original[2] != 'D' || original[3] != 'F') {
-			throw validationFailed();
+		// Any save changes the mark, so the paper is no longer ready until the marker flags it again.
+		participant.setReadyForReleaseAt(null);
+		if (stored != null) {
+			files.commitReplacement(stored.storedFileName(), discard);
 		}
-		byte[] compressed = pdfs.compress(original);
-		String previous = participant.getEvaluatedStoredFileName();
-		LocalFileStorage.StoredFile stored = files.save(file.getOriginalFilename(), "application/pdf",
-				new ByteArrayInputStream(compressed), compressed.length, LiveExamSittingService.MAX_PDF_BYTES);
-		participant.setScore(marks);
-		participant.setPassed(passed(marks, exam, maximum));
-		participant.setComment(comment == null || comment.isBlank() ? null : comment.trim());
-		participant.setEvaluatedBy(actor.userId());
-		participant.setEvaluatedAt(clock.instant());
-		participant.setEvaluatedStoredFileName(stored.storedFileName());
-		participant.setEvaluatedOriginalFileName(stored.originalFileName());
-		participant.setEvaluatedByteSize(stored.byteSize());
-		participant.setEvaluatedContentType("application/pdf");
-		participant.setPublishedAt(null);
-		files.commitReplacement(stored.storedFileName(), previous);
 		return view(participant, exam, moduleOf(exam));
 	}
 
@@ -212,13 +236,15 @@ public class LiveExamEvaluationService {
 		}
 		sittings.settleParticipant(participantId);
 		if (!LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || participant.getAnswerStoredFileName() == null
-				|| participant.getEvaluatedAt() == null || participant.getScore() == null) {
+				|| markedAt(participant) == null || scoreOf(participant) == null) {
 			throw new ApiException(ErrorCode.EVALUATION_NOT_ALLOWED, HttpStatus.CONFLICT,
 					"A draft mark is required before publish.");
 		}
-		if (participant.getPublishedAt() == null) {
-			participant.setPublishedAt(clock.instant());
-			notices.writtenResult(participant.getStudentId(), exam.getId(), participant.getId(), participant.getPublishedAt());
+		// A released paper with no correction waiting is already published; anything else is released now.
+		if (participant.hasPendingRevision() || participant.getPublishedAt() == null) {
+			Instant now = clock.instant();
+			release(participant, now);
+			notices.writtenResult(participant.getStudentId(), exam.getId(), participant.getId(), now);
 			audit.record(AuditRecorder.LIVE_EXAM_RESULT_PUBLISH, AuditRecorder.LIVE_EXAM_PARTICIPANT_ENTITY, participant.getId());
 		}
 		return view(participant, exam, moduleOf(exam));
@@ -227,6 +253,15 @@ public class LiveExamEvaluationService {
 	/** Publishes every draft of one written exam in one transaction. Only the Master Admin reaches this. */
 	@Transactional
 	public PublishedCount publishAll(UUID examId, CurrentActor actor) {
+		return publishAll(examId, actor, false);
+	}
+
+	/**
+	 * Releases a written exam's results. With {@code readyOnly}, only the papers the marker flagged ready go out, and the
+	 * completeness gate does not apply: the marker has said those papers are finished.
+	 */
+	@Transactional
+	public PublishedCount publishAll(UUID examId, CurrentActor actor, boolean readyOnly) {
 		if (actor.role() != Role.MASTER_ADMIN) {
 			throw denied();
 		}
@@ -234,16 +269,35 @@ public class LiveExamEvaluationService {
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is published.");
 		}
-		int published = 0;
+		// Sittings whose deadline has passed are posted first, so the counts below are final.
+		sittings.finalizeDue(examId);
+		List<LiveExamParticipant> all = participants.findByExamIdAndDeletedAtIsNull(examId);
+		int awaiting = 0;
+		int open = 0;
+		for (LiveExamParticipant participant : all) {
+			if (LiveExamParticipant.IN_PROGRESS.equals(participant.getStatus())) {
+				open++;
+			}
+			else if (LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) && markedAt(participant) == null) {
+				awaiting++;
+			}
+		}
+		if (!readyOnly && (awaiting > 0 || open > 0)) {
+			throw new ApiException(ErrorCode.EXAM_MARKING_INCOMPLETE, HttpStatus.CONFLICT,
+					"Every paper must be marked and every sitting closed before the results are released.",
+					new MarkingIncomplete(awaiting, open));
+		}
 		Instant now = clock.instant();
-		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(examId)) {
-			boolean draft = LiveExamParticipant.SUBMITTED.equals(participant.getStatus())
-					&& participant.getAnswerStoredFileName() != null && participant.getEvaluatedAt() != null
-					&& participant.getScore() != null && participant.getPublishedAt() == null;
-			if (!draft) {
+		int published = 0;
+		for (LiveExamParticipant participant : all) {
+			boolean ready = LiveExamParticipant.SUBMITTED.equals(participant.getStatus())
+					&& participant.getAnswerStoredFileName() != null && markedAt(participant) != null
+					&& scoreOf(participant) != null;
+			boolean released = participant.getPublishedAt() != null && !participant.hasPendingRevision();
+			if (!ready || released || (readyOnly && participant.getReadyForReleaseAt() == null)) {
 				continue;
 			}
-			participant.setPublishedAt(now);
+			release(participant, now);
 			notices.writtenResult(participant.getStudentId(), exam.getId(), participant.getId(), now);
 			audit.record(AuditRecorder.LIVE_EXAM_RESULT_PUBLISH, AuditRecorder.LIVE_EXAM_PARTICIPANT_ENTITY, participant.getId());
 			published++;
@@ -267,7 +321,6 @@ public class LiveExamEvaluationService {
 		if (clock.instant().isBefore(openAt)) {
 			return new Leaderboard(List.of());
 		}
-		sittings.finalizeDue(examId);
 		int maximum = maximum(exam);
 		List<BoardRow> scored = new ArrayList<>();
 		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(examId)) {
@@ -348,11 +401,12 @@ public class LiveExamEvaluationService {
 			throw notFound();
 		}
 		LiveExam exam = requireExam(participant.getExamId());
-		if (!readerOf(exam.getModuleId(), actor) || participant.getEvaluatedStoredFileName() == null) {
+		String stored = storedFileOf(participant);
+		if (!readerOf(exam.getModuleId(), actor) || stored == null) {
 			throw notFound();
 		}
 		try {
-			return Files.readAllBytes(files.resolve(participant.getEvaluatedStoredFileName()));
+			return Files.readAllBytes(files.resolve(stored));
 		}
 		catch (IOException exception) {
 			throw notFound();
@@ -366,6 +420,9 @@ public class LiveExamEvaluationService {
 		if (!readerOf(exam.getModuleId(), actor) || exam.getQuestionStoredFileName() == null) {
 			throw notFound();
 		}
+		if (actor.role() == Role.INSTRUCTOR && !windowEnded(exam)) {
+			throw notFound();
+		}
 		try {
 			return Files.readAllBytes(files.resolve(exam.getQuestionStoredFileName()));
 		}
@@ -376,20 +433,174 @@ public class LiveExamEvaluationService {
 
 	private SubmissionView view(LiveExamParticipant participant, LiveExam exam, LiveExamModule module) {
 		String evaluatorName = null;
-		if (participant.getEvaluatedBy() != null) {
-			evaluatorName = admins.findById(participant.getEvaluatedBy()).map(profile -> profile.getFullName()).orElse(null);
+		UUID evaluator = evaluatorOf(participant);
+		if (evaluator != null) {
+			evaluatorName = admins.findById(evaluator).map(profile -> profile.getFullName()).orElse(null);
 		}
+		boolean pending = participant.hasPendingRevision();
 		return new SubmissionView(participant.getId(), exam.getId(), participant.getStudentId(),
-				studentName(participant.getStudentId()), participant.getStatus(), participant.getScore(), maximum(exam),
-				participant.getPassed(), participant.getKind(), participant.getAnswerStoredFileName() != null,
-				participant.getEvaluatedStoredFileName() == null ? null : Boolean.TRUE, evaluatorName,
-				participant.getPublishedAt() != null, participant.getComment(), participant.getEvaluatedOriginalFileName(),
+				studentName(participant.getStudentId()), participant.getStatus(), scoreOf(participant), maximum(exam),
+				passedOf(participant), participant.getKind(), participant.getAnswerStoredFileName() != null,
+				storedFileOf(participant) == null ? null : Boolean.TRUE, evaluatorName,
+				participant.getPublishedAt() != null && !pending, commentOf(participant), originalFileOf(participant),
 				module.getId(), module.getTitleEn(), module.getTitleBn(), exam.getTitleEn(), exam.getTitleBn(),
-				participant.getSubmittedAt(), participant.getEvaluatedAt(), participant.getPublishedAt());
+				participant.getSubmittedAt(), markedAt(participant), participant.getPublishedAt(), pending ? Boolean.TRUE : null,
+				participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE);
 	}
 
 	private LiveExamModule moduleOf(LiveExam exam) {
 		return modules.findById(exam.getModuleId()).orElseThrow(this::notFound);
+	}
+
+	/**
+	 * The marker flags a paper ready for release, or clears the flag. Only a paper with a mark can be flagged. The Master
+	 * Admin still decides when it goes out.
+	 */
+	@Transactional
+	public SubmissionView markReady(UUID participantId, CurrentActor actor, boolean ready) {
+		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
+		if (participant.getDeletedAt() != null) {
+			throw notFound();
+		}
+		LiveExam exam = requireExam(participant.getExamId());
+		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
+			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is marked.");
+		}
+		requireMarker(exam.getModuleId(), actor);
+		sittings.settleParticipant(participantId);
+		if (!ready) {
+			participant.setReadyForReleaseAt(null);
+			return view(participant, exam, moduleOf(exam));
+		}
+		if (!LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || markedAt(participant) == null
+				|| scoreOf(participant) == null) {
+			throw new ApiException(ErrorCode.EVALUATION_NOT_ALLOWED, HttpStatus.CONFLICT,
+					"A draft mark is required before the paper is ready for release.");
+		}
+		participant.setReadyForReleaseAt(clock.instant());
+		return view(participant, exam, moduleOf(exam));
+	}
+
+	/**
+	 * What blocks a release and what is waiting for one. Read only: sittings are posted by the deadline job, so an open
+	 * sitting can show for about a minute after its deadline.
+	 */
+	@Transactional(readOnly = true)
+	public ReleaseStatus releaseStatus(UUID examId, CurrentActor actor) {
+		if (actor.role() != Role.MASTER_ADMIN && actor.role() != Role.SYSTEM_ADMIN) {
+			throw denied();
+		}
+		LiveExam exam = requireExam(examId);
+		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
+			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is published.");
+		}
+		int awaiting = 0;
+		int open = 0;
+		int drafts = 0;
+		int ready = 0;
+		int failed = 0;
+		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(examId)) {
+			if (LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())) {
+				failed++;
+			}
+			else if (LiveExamParticipant.IN_PROGRESS.equals(participant.getStatus())) {
+				open++;
+			}
+			else if (LiveExamParticipant.SUBMITTED.equals(participant.getStatus())) {
+				if (markedAt(participant) == null) {
+					awaiting++;
+					continue;
+				}
+				if (participant.getPublishedAt() == null || participant.hasPendingRevision()) {
+					drafts++;
+					if (participant.getReadyForReleaseAt() != null) {
+						ready++;
+					}
+				}
+			}
+		}
+		return new ReleaseStatus(awaiting, open, drafts, ready, failed, awaiting == 0 && open == 0);
+	}
+
+	/** The mark a staff reader works on: the correction waiting for release if there is one, else the released or draft mark. */
+	private static Instant markedAt(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingEvaluatedAt() : participant.getEvaluatedAt();
+	}
+
+	private static Integer scoreOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingScore() : participant.getScore();
+	}
+
+	private static Boolean passedOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingPassed() : participant.getPassed();
+	}
+
+	private static String commentOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingComment() : participant.getComment();
+	}
+
+	private static UUID evaluatorOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingEvaluatedBy() : participant.getEvaluatedBy();
+	}
+
+	private static String storedFileOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingStoredFileName() : participant.getEvaluatedStoredFileName();
+	}
+
+	private static String originalFileOf(LiveExamParticipant participant) {
+		return participant.hasPendingRevision() ? participant.getPendingOriginalFileName() : participant.getEvaluatedOriginalFileName();
+	}
+
+	/**
+	 * Moves a correction waiting for release into the released columns. The PDF it replaced is deleted, unless the
+	 * new PDF is the same file.
+	 */
+	private void release(LiveExamParticipant participant, Instant at) {
+		if (participant.hasPendingRevision()) {
+			String previous = participant.getEvaluatedStoredFileName();
+			participant.setScore(participant.getPendingScore());
+			participant.setPassed(participant.getPendingPassed());
+			participant.setComment(participant.getPendingComment());
+			participant.setEvaluatedBy(participant.getPendingEvaluatedBy());
+			participant.setEvaluatedAt(participant.getPendingEvaluatedAt());
+			participant.setEvaluatedStoredFileName(participant.getPendingStoredFileName());
+			participant.setEvaluatedOriginalFileName(participant.getPendingOriginalFileName());
+			participant.setEvaluatedByteSize(participant.getPendingByteSize());
+			participant.setEvaluatedContentType(participant.getPendingContentType());
+			participant.clearPendingRevision();
+			String released = participant.getEvaluatedStoredFileName();
+			if (previous != null && released != null && !previous.equals(released)) {
+				files.commitReplacement(released, previous);
+			}
+		}
+		participant.setReadyForReleaseAt(null);
+		participant.setPublishedAt(at);
+	}
+
+	/** Checks the marked PDF, compresses it and stores it. The caller commits the replacement after the row is set. */
+	private LocalFileStorage.StoredFile storeMarkedPdf(MultipartFile file) {
+		if (file.getSize() > LiveExamSittingService.MAX_PDF_BYTES) {
+			throw new ApiException(ErrorCode.FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, "File is too large.");
+		}
+		byte[] original;
+		try {
+			original = file.getBytes();
+		}
+		catch (IOException exception) {
+			throw validationFailed();
+		}
+		if (original.length < 5 || original[0] != '%' || original[1] != 'P' || original[2] != 'D' || original[3] != 'F') {
+			throw validationFailed();
+		}
+		byte[] compressed = pdfs.compress(original);
+		return files.save(file.getOriginalFilename(), "application/pdf", new ByteArrayInputStream(compressed),
+				compressed.length, LiveExamSittingService.MAX_PDF_BYTES);
+	}
+
+	/** An instructor reads a paper only after its shared window has ended (liveAt plus the duration). */
+	private boolean windowEnded(LiveExam exam) {
+		return LiveExam.PUBLISHED.equals(exam.getStatus()) && exam.getLiveAt() != null
+				&& !clock.instant().isBefore(exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes())));
 	}
 
 	private void requireMarker(UUID moduleId, CurrentActor actor) {
@@ -459,6 +670,14 @@ public class LiveExamEvaluationService {
 	public record Assignment(UUID moduleId, UUID instructorId) {
 	}
 
+	/** The release panel's numbers. `canRelease` is true when nothing awaits a mark and no sitting is open. */
+	public record ReleaseStatus(int awaiting, int open, int drafts, int ready, int failedToSubmit, boolean canRelease) {
+	}
+
+	/** Why a release was refused: papers still waiting for a mark, and sittings still open. */
+	public record MarkingIncomplete(int awaiting, int open) {
+	}
+
 	public record PublishedCount(int published) {
 	}
 
@@ -466,7 +685,7 @@ public class LiveExamEvaluationService {
 			int maximum, Boolean passed, String kind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
 			boolean published, String comment, String evaluatedFileName, UUID moduleId, String moduleTitleEn,
 			String moduleTitleBn, String examTitleEn, String examTitleBn, Instant submittedAt, Instant evaluatedAt,
-			Instant publishedAt) {
+			Instant publishedAt, Boolean releasePending, Boolean readyForRelease) {
 	}
 
 	public record Leaderboard(List<LeaderboardRow> rows) {

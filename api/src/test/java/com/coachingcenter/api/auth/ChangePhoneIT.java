@@ -2,6 +2,7 @@ package com.coachingcenter.api.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,6 +47,20 @@ class ChangePhoneIT extends PostgresIntegrationTest {
 	@BeforeEach
 	void setUp() {
 		jdbc = new JdbcTemplate(dataSource);
+	}
+
+	@Test
+	void masterAdminSeesTheNameFromTheAdminProfile() throws Exception {
+		String phone = uniquePhone();
+		UUID userId = UUID.randomUUID();
+		jdbc.update("""
+				INSERT INTO users (id, phone, email, password_hash, role, status, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'MASTER_ADMIN', 'ACTIVE', now(), now())
+				""", userId, phone, uniqueEmail(), passwords.encode("password1"));
+		jdbc.update("INSERT INTO admin_profiles (user_id, full_name) VALUES (?, ?)", userId, "Master Name");
+		mockMvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + access(phone, "password1")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.fullName").value("Master Name"));
 	}
 
 	@Test

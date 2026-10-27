@@ -33,11 +33,12 @@ public class LiveExamSubmissionController {
 	public PageResponse<LiveExamSubmissionFeedService.FeedRow> list(@RequestParam(required = false) UUID moduleId,
 			@RequestParam(required = false) UUID examId, @RequestParam(required = false) String status,
 			@RequestParam(required = false) String q, @RequestParam(required = false) String sort,
+			@RequestParam(value = "ready", defaultValue = "false") boolean ready,
 			@PageableDefault(size = 20) Pageable pageable) {
 		if (!permissions.has(Permissions.LIVE_EXAM_EVALUATE) && !permissions.has(Permissions.EXAM_READ)) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
-		return PageResponse.from(feed.list(actor(), moduleId, examId, status, q, sort, pageable));
+		return PageResponse.from(feed.list(actor(), moduleId, examId, status, q, sort, ready, pageable));
 	}
 
 	private static CurrentActor actor() {

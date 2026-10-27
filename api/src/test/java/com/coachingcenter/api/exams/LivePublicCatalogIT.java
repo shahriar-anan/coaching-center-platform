@@ -263,7 +263,7 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 
 		JsonNode body = json.readTree(publicExam(null, exam));
@@ -493,7 +493,7 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		if (publish) {
 			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk());
-			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + token))
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 				.andExpect(status().isOk());
 		}
 		return exam;
@@ -530,6 +530,10 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		new JdbcTemplate(dataSource).update(
 				"insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())", moduleId,
 				studentId);
+	}
+
+	private String masterToken() throws Exception {
+		return token(seed("MASTER_ADMIN"));
 	}
 
 	private UUID seed(String role) {

@@ -97,8 +97,14 @@ public class LiveExamController {
 
 	@PostMapping("/api/v1/live-exams/{id}/publish")
 	public LiveExamService.ExamView publish(@PathVariable UUID id) {
-		require(Permissions.EXAM_MANAGE);
+		require(Permissions.EXAM_PUBLISH);
 		return exams.publish(id);
+	}
+
+	@PostMapping("/api/v1/live-exams/{id}/archive")
+	public LiveExamService.ExamView archive(@PathVariable UUID id) {
+		require(Permissions.EXAM_DELETE);
+		return exams.archive(id);
 	}
 
 	@DeleteMapping("/api/v1/live-exams/{id}")

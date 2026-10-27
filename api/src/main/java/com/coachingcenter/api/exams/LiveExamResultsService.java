@@ -49,18 +49,15 @@ public class LiveExamResultsService {
 
 	private final StudentProfileRepository students;
 
-	private final LiveExamSittingService sittings;
-
 	public LiveExamResultsService(LiveExamRepository exams, LiveExamModuleRepository modules,
 			LiveExamParticipantRepository participants, LiveExamQuestionRepository questions,
-			LiveExamInstructorRepository instructors, StudentProfileRepository students, LiveExamSittingService sittings) {
+			LiveExamInstructorRepository instructors, StudentProfileRepository students) {
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
 		this.questions = questions;
 		this.instructors = instructors;
 		this.students = students;
-		this.sittings = sittings;
 	}
 
 	/**
@@ -85,7 +82,6 @@ public class LiveExamResultsService {
 		else if (actor.role() != Role.MASTER_ADMIN && actor.role() != Role.SYSTEM_ADMIN) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
-		sittings.finalizeDue(examId);
 		int maximum = maximum(exam);
 		List<LiveExamParticipant> all = participants.findByExamIdAndDeletedAtIsNull(examId);
 		Map<UUID, StudentProfile> profiles = profiles(all);
@@ -153,7 +149,7 @@ public class LiveExamResultsService {
 		return new Row(participant.getId(), participant.getStudentId(), profile == null ? "" : profile.getFullName(),
 				profile == null || profile.getStudentCode() == null ? "" : profile.getStudentCode(), participant.getStatus(),
 				participant.getKind(), participant.getScore(), maximum, participant.getPassed(), participant.getStartedAt(),
-				participant.getSubmittedAt(), participant.getPublishedAt());
+				participant.getSubmittedAt(), participant.getPublishedAt(), participant.hasPendingRevision() ? Boolean.TRUE : null);
 	}
 
 	private int maximum(LiveExam exam) {
@@ -247,7 +243,7 @@ public class LiveExamResultsService {
 
 	public record Row(UUID participantId, UUID studentId, String studentName, String studentCode, String status,
 			String kind, Integer score, int maximum, Boolean passed, Instant startedAt, Instant submittedAt,
-			Instant publishedAt) {
+			Instant publishedAt, Boolean releasePending) {
 	}
 
 	public record ResultsReport(Summary summary, PageResponse<Row> rows) {

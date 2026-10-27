@@ -74,17 +74,17 @@ class AuthorizationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void systemAdminCannotSuspendAStudentButMasterAdminCan() throws Exception {
+	void systemAdminAndMasterAdminCanSuspendAStudent() throws Exception {
 		String system = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		UUID student = seed("STUDENT");
 		mockMvc.perform(patch("/api/v1/students/" + student + "/status").header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"status\":\"INACTIVE\"}"))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isNoContent());
 		mockMvc.perform(patch("/api/v1/students/" + student + "/status").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"status\":\"INACTIVE\"}"))
+			.content("{\"status\":\"ACTIVE\"}"))
 			.andExpect(status().isNoContent());
 	}
 
@@ -131,6 +131,40 @@ class AuthorizationIT extends PostgresIntegrationTest {
 		org.assertj.core.api.Assertions.assertThat(stillActive).isEqualTo(1);
 	}
 
+	@Test
+	void suspensionBlocksAnIssuedAccessTokenAndRefreshOnTheNextRequest() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID instructor = seed("INSTRUCTOR");
+		UUID student = seed("STUDENT");
+		String instructorPhone = new JdbcTemplate(dataSource).queryForObject("select phone from users where id = ?",
+				String.class, instructor);
+		String instructorAccess = token(instructor);
+		String instructorRefresh = refreshTokenFromLogin(instructorPhone);
+		String studentAccess = token(student);
+
+		mockMvc.perform(get("/api/v1/live-exam-modules").header("Authorization", "Bearer " + instructorAccess))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + studentAccess)).andExpect(status().isOk());
+
+		mockMvc.perform(patch("/api/v1/instructors/" + instructor + "/status").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"status\":\"INACTIVE\"}"))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(patch("/api/v1/students/" + student + "/status").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"status\":\"INACTIVE\"}"))
+			.andExpect(status().isNoContent());
+
+		mockMvc.perform(get("/api/v1/live-exam-modules").header("Authorization", "Bearer " + instructorAccess))
+			.andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + studentAccess))
+			.andExpect(status().isUnauthorized());
+		mockMvc.perform(post("/api/v1/auth/refresh").header("X-Client-Type", "mobile")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"refreshToken\":\"" + instructorRefresh + "\"}"))
+			.andExpect(status().isUnauthorized());
+	}
+
 	private UUID seed(String role) {
 		UUID id = UUID.randomUUID();
 		String phone = uniquePhone();
@@ -162,6 +196,20 @@ class AuthorizationIT extends PostgresIntegrationTest {
 			.andReturn();
 		String body = result.getResponse().getContentAsString();
 		String marker = "\"accessToken\":\"";
+		int start = body.indexOf(marker) + marker.length();
+		return body.substring(start, body.indexOf('"', start));
+	}
+
+	private String refreshTokenFromLogin(String phone) throws Exception {
+		MvcResult result = mockMvc.perform(post("/api/v1/auth/login").header("X-Client-Type", "mobile")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"identifier":"%s","password":"password1"}
+					""".formatted(phone)))
+			.andExpect(status().isOk())
+			.andReturn();
+		String body = result.getResponse().getContentAsString();
+		String marker = "\"refreshToken\":\"";
 		int start = body.indexOf(marker) + marker.length();
 		return body.substring(start, body.indexOf('"', start));
 	}
