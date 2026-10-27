@@ -60,6 +60,20 @@ Pre-release checks: typecheck clean, lint 0 errors, 114 test files and 686 tests
 
 Rollback for this release: stop `coaching-web`, put `/opt/coaching-web.old` back as `/opt/coaching-web`, start it.
 
+## API update, 27 October 2026 (third release): the admin's cases
+
+API only; no schema change, no env change. Commit `fb18540`, jar SHA-256 `f9882d8a6364d3f4f133710a808262bb48f779699cf66cbab1ff0a017bccd8f0`. Backups first: `/var/backups/coaching-pre-topup-20261027-0936.dump` (also on the PC), and the running jar kept as `api.jar.before-topup`. The API started in about 21 seconds, and the seed's top-up ran on that start (`SEED_DEMO` was still `true`). It adds data only; nothing the client had done was touched.
+
+| Added | Live check |
+|---|---|
+| Two draft packages and four draft exams waiting for the Master Admin to publish | database lists them; the Participation page has a drafts tab with 4 rows (two ready, two needing work) |
+| Two written papers marked but not released, one flagged ready | dashboard "awaiting publish" 2; the four papers awaiting a mark unchanged |
+| Eleven orders: 5 paid, 2 failed, 1 cancelled, 3 pending (older than a day, so the recheck job leaves them) | dashboard "pending payments" 3; the pending payments page lists the three; the orders API returns all eleven by state |
+
+Tests before the release: the seed suite (17) passes, including a test that applies the top-up to a database seeded before it and keeps a mark changed in between. Full API suite: 396 tests, 394 pass; `BookOrderIT` and `CoursePurchaseIT` fail with 409 as before (accepted, V1 of the VPS deploy plan).
+
+Rollback: stop `coaching-api`, copy `/opt/coaching-api/api.jar.before-topup` over `/opt/coaching-api/api.jar`, start it. The top-up rows stay in the database; they harm nothing, and `demo-cleanup.sql` removes them.
+
 ## Not checked
 
 - A real browser session on either host (layout, redirects after sign-in, the basic-auth prompt in each browser).
