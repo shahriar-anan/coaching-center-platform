@@ -5,9 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -24,15 +25,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.auth.AuthService;
+import com.coachingcenter.api.auth.ClientType;
 
 @SpringBootTest
 class DemoContentSeedIT extends PostgresIntegrationTest {
 
-	private static final Instant NOW = Instant.parse("2026-10-26T06:00:00Z");
+	/** 27 October 2026, 16:00 in Dhaka. */
+	private static final Instant NOW = Instant.parse("2026-10-27T10:00:00Z");
 
 	private static final String CLEANUP = ".cursor/progress/ui-delivery/demo-cleanup.sql";
 
-	private static final String TEST_PASSWORD = "demo-student-pass-1";
+	private static final String TEST_PASSWORD = "demo-pass-1234";
 
 	private static final String DEMO_CATEGORY = "a0000000-0000-4000-8000-%";
 
@@ -65,6 +69,9 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	@Autowired
 	private PasswordEncoder passwords;
 
+	@Autowired
+	private AuthService auth;
+
 	private JdbcTemplate jdbc;
 
 	private UUID realStudent;
@@ -83,133 +90,182 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThatThrownBy(() -> seed.seed(new String[] { "test" }, env(), NOW))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("staging or dev");
+		assertThatThrownBy(() -> seed.seed(new String[] { "dev" }, key -> null, NOW))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessage("SEED_DEMO_PASSWORD is required.");
 		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isZero();
+		assertThat(count("users", DEMO_STUDENT)).isZero();
 	}
 
 	@Test
-	void theSeedRunsTwiceWithoutDuplicatesAndWritesNoMail() {
-		// The test database is shared and not reset between runs, so count the mail rows before and after the seed.
-		int hourBeforeBefore = jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE kind = 'HOUR_BEFORE'", Integer.class);
+	void aSecondRunWritesNothingAndTheSeedWritesNoMail() {
+		int hourBefore = jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE kind = 'HOUR_BEFORE'", Integer.class);
 		seed.seed(new String[] { "dev" }, env(), NOW);
 		assertCatalog();
-		seed.seed(new String[] { "dev" }, env(), NOW.plus(Duration.ofHours(3)));
+		int notices = noticeCount();
+		int participants = count("live_exam_participants", DEMO_PARTICIPANT);
+
+		// A later run, even on another day, adds no row and moves no date: the client's marking is safe.
+		Timestamp before = jdbc.queryForObject("SELECT live_at FROM live_exams WHERE id = ?", Timestamp.class, DemoContentSeed.demo('e', 20));
+		seed.seed(new String[] { "dev" }, env(), NOW.plusSeconds(3 * 86_400));
 		assertCatalog();
+		assertThat(noticeCount()).isEqualTo(notices);
+		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(participants);
+		assertThat(jdbc.queryForObject("SELECT live_at FROM live_exams WHERE id = ?", Timestamp.class, DemoContentSeed.demo('e', 20)))
+			.isEqualTo(before);
 
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE user_id::text LIKE ?", Integer.class,
 				DEMO_STUDENT)).isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM exam_outbound_mail WHERE kind = 'HOUR_BEFORE'", Integer.class))
-			.isEqualTo(hourBeforeBefore);
+			.isEqualTo(hourBefore);
 	}
 
 	@Test
-	void thePackagesHaveTheirShape() {
+	void theCategoriesAndPackagesHaveTheirShape() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(examCount(DemoContentSeed.MODULE_MCQ, "MCQ")).isEqualTo(5);
-		assertThat(examCount(DemoContentSeed.MODULE_WRITTEN, "WRITTEN")).isEqualTo(4);
-		assertThat(examCount(DemoContentSeed.MODULE_FULL, "MCQ")).isEqualTo(3);
-		assertThat(examCount(DemoContentSeed.MODULE_FULL, "WRITTEN")).isEqualTo(2);
-		for (UUID module : new UUID[] { DemoContentSeed.MODULE_MCQ, DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL }) {
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_categories WHERE id::text LIKE ? AND parent_id IS NULL",
+				Integer.class, DEMO_CATEGORY)).isEqualTo(2);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_categories WHERE id::text LIKE ? AND parent_id IS NOT NULL",
+				Integer.class, DEMO_CATEGORY)).isEqualTo(4);
+		for (UUID module : List.of(DemoContentSeed.MODULE_MCQ, DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL,
+				DemoContentSeed.MODULE_BAR)) {
 			assertThat(jdbc.queryForObject("""
 					SELECT count(*) FROM live_exam_modules m JOIN live_exam_categories c ON c.id = m.category_id
-					WHERE m.id = ? AND c.parent_id = ? AND length(m.description_en) > 0 AND length(m.description_bn) > 0
-					""", Integer.class, module, DemoContentSeed.CATEGORY_ROOT)).isEqualTo(1);
+					WHERE m.id = ? AND c.parent_id IS NOT NULL AND length(m.description_en) > 0 AND length(m.description_bn) > 0
+					  AND m.price IS NOT NULL AND m.status = 'PUBLISHED'
+					""", Integer.class, module)).isEqualTo(1);
 		}
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_instructors WHERE module_id = ? AND instructor_id = ?",
-				Integer.class, DemoContentSeed.MODULE_FULL, DemoContentSeed.INSTRUCTOR)).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_instructors WHERE module_id = ? AND instructor_id = ?",
-				Integer.class, DemoContentSeed.MODULE_MCQ, DemoContentSeed.INSTRUCTOR_B)).isEqualTo(1);
+		assertThat(examCount(DemoContentSeed.MODULE_MCQ, "MCQ")).isEqualTo(3);
+		assertThat(examCount(DemoContentSeed.MODULE_MCQ, "WRITTEN")).isZero();
+		assertThat(examCount(DemoContentSeed.MODULE_WRITTEN, "WRITTEN")).isEqualTo(4);
+		assertThat(examCount(DemoContentSeed.MODULE_WRITTEN, "MCQ")).isZero();
+		assertThat(examCount(DemoContentSeed.MODULE_FULL, "MCQ")).isEqualTo(5);
+		assertThat(examCount(DemoContentSeed.MODULE_FULL, "WRITTEN")).isEqualTo(5);
+		assertThat(examCount(DemoContentSeed.MODULE_BAR, "MCQ")).isEqualTo(2);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND duration_minutes <> 20",
+				Integer.class, DEMO_EXAM)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND live_at IS NULL", Integer.class,
+				DEMO_EXAM)).isEqualTo(2);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND price IS NULL", Integer.class,
+				DEMO_EXAM)).isEqualTo(1);
 	}
 
 	@Test
-	void e2IsLiveAtEveryRun() {
+	void theNextSevenDaysEachHaveAnElevenPmExamInTheMixedPackage() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertLiveNow(NOW);
-		Instant later = NOW.plus(Duration.ofDays(1));
-		seed.seed(new String[] { "dev" }, env(), later);
-		assertLiveNow(later);
+		for (int day = 1; day <= 7; day++) {
+			Map<String, Object> row = jdbc.queryForMap("""
+					SELECT exam_type, module_id, (live_at AT TIME ZONE 'Asia/Dhaka')::date AS day,
+					       (live_at AT TIME ZONE 'Asia/Dhaka')::time AS at
+					FROM live_exams WHERE id = ?
+					""", DemoContentSeed.demo('e', 19 + day));
+			assertThat(row.get("day").toString()).isEqualTo(java.time.LocalDate.of(2026, 10, 27).plusDays(day).toString());
+			assertThat(row.get("at").toString()).isEqualTo("23:00:00");
+			assertThat(row.get("exam_type")).isEqualTo(day % 2 == 1 ? "MCQ" : "WRITTEN");
+			assertThat(row.get("module_id")).isEqualTo(DemoContentSeed.MODULE_FULL);
+		}
 	}
 
 	@Test
-	void theOwnersHaveTheirGrantsAndOrders() {
+	void studentAHasTwoPublishedResultsOneWaitingPaperAndTheMixedPackage() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_grants WHERE student_id = ? AND scope = 'MODULE' AND module_id = ?
 				  AND source = 'ORDER' AND revoked_at IS NULL
-				""", Integer.class, DemoContentSeed.OWNER_PACKAGE, DemoContentSeed.MODULE_FULL)).isEqualTo(1);
+				""", Integer.class, DemoContentSeed.STUDENT_A, DemoContentSeed.MODULE_FULL)).isEqualTo(1);
+		// MCQ e10: scored, ten picks behind it, answers released.
 		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exam_orders WHERE tran_id = 'DEMO-PKG-B3-5101' AND status = 'SUCCEEDED'
-				""", Integer.class)).isEqualTo(1);
-		assertThat(grantCount(DemoContentSeed.OWNER_EXAM, DemoContentSeed.demo('e', 4))).isEqualTo(1);
-		assertThat(grantCount(DemoContentSeed.LIVE_STUDENT, DemoContentSeed.demo('e', 2))).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE tran_id = 'DEMO-STUCK-E9-5001' AND status = 'INITIATED'"
-				+ " AND created_at = ?", Integer.class, java.sql.Timestamp.from(NOW.minus(Duration.ofDays(2))))).isEqualTo(1);
+				SELECT score = 35 AND passed AND status = 'SUBMITTED' FROM live_exam_participants WHERE id = ?
+				""", Boolean.class, DemoContentSeed.demo('7', 1))).isTrue();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_answers WHERE participant_id = ?", Integer.class,
+				DemoContentSeed.demo('7', 1))).isEqualTo(10);
 		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exam_grants g JOIN live_exam_orders o ON o.id = g.order_id
-				WHERE o.tran_id = 'DEMO-STUCK-E9-5001'
-				""", Integer.class)).isZero();
-	}
-
-	@Test
-	void theLoginStudentsSignInWithTheEnvPasswordAndTheNoPhoneStudentHasNoPhone() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE id = ?", String.class, DemoContentSeed.OWNER_PACKAGE);
-		assertThat(passwords.matches(TEST_PASSWORD, hash)).isTrue();
-		assertThat(jdbc.queryForObject("SELECT phone FROM users WHERE id = ?", String.class, DemoContentSeed.NO_PHONE)).isNull();
-		assertThat(jdbc.queryForObject("SELECT email_verified_at IS NOT NULL FROM users WHERE id = ?", Boolean.class,
-				DemoContentSeed.OWNER_PACKAGE)).isTrue();
-	}
-
-	@Test
-	void theRemindersAndNoticesAreWrittenOnceEach() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		int first = noticeCount();
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(noticeCount()).isEqualTo(first);
-
-		assertThat(noticeOf(DemoContentSeed.OWNER_EXAM, "EXAM_REMINDER", DemoContentSeed.demo('e', 4))).isEqualTo(1);
-		assertThat(noticeOf(DemoContentSeed.LIVE_STUDENT, "EXAM_REMINDER", DemoContentSeed.demo('e', 2))).isZero();
-		assertThat(noticeOf(DemoContentSeed.LIVE_STUDENT, "EXAM_OPEN", DemoContentSeed.demo('e', 2))).isEqualTo(1);
-		assertThat(noticeOf(DemoContentSeed.REMINDER_STUDENT, "EXAM_STARTING_SOON", DemoContentSeed.demo('e', 3))).isEqualTo(1);
-		assertThat(noticeOf(DemoContentSeed.REMINDER_STUDENT, "EXAM_REMINDER", DemoContentSeed.demo('e', 3))).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE user_id = ? AND kind = 'MCQ_SCORE'", Integer.class,
-				DemoContentSeed.OWNER_PACKAGE)).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE user_id = ? AND kind = 'WRITTEN_RESULT'", Integer.class,
-				DemoContentSeed.OWNER_PACKAGE)).isEqualTo(1);
-	}
-
-	@Test
-	void theAnnouncementReachesEveryLoginStudentOnce() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM announcements WHERE id = ?", Integer.class,
-				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE announcement_id = ?", Integer.class,
-				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(DemoContentSeed.LOGIN_STUDENTS.size());
-	}
-
-	@Test
-	void theWrittenSittingsCoverTheQueueAndTheReleasedAnswers() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exam_participants WHERE id = ? AND status = 'SUBMITTED' AND score IS NULL
-				  AND answer_stored_file_name IS NOT NULL AND published_at IS NULL
-				""", Integer.class, DemoContentSeed.demo('7', 601))).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT published_at IS NULL AND score = 28 FROM live_exam_participants WHERE id = ?",
-				Boolean.class, DemoContentSeed.demo('7', 602))).isTrue();
-		assertThat(jdbc.queryForObject("SELECT published_at IS NOT NULL AND score = 38 AND evaluated_stored_file_name IS NOT NULL"
-				+ " FROM live_exam_participants WHERE id = ?", Boolean.class, DemoContentSeed.demo('7', 501))).isTrue();
-		assertThat(jdbc.queryForObject("""
-				SELECT status = 'FAILED_TO_SUBMIT' AND score = 0 AND answer_stored_file_name IS NULL
-				FROM live_exam_participants WHERE id = ?
-				""", Boolean.class, DemoContentSeed.demo('7', 603))).isTrue();
+				SELECT count(*) FROM live_exam_answers a JOIN live_exam_options o ON o.id = a.option_id
+				WHERE a.participant_id = ? AND o.correct
+				""", Integer.class, DemoContentSeed.demo('7', 1))).isEqualTo(7);
 		assertThat(jdbc.queryForObject("SELECT answers_released_at IS NOT NULL FROM live_exams WHERE id = ?", Boolean.class,
-				DemoContentSeed.demo('e', 1))).isTrue();
-		assertThat(jdbc.queryForObject("SELECT answers_released_at IS NULL FROM live_exams WHERE id = ?", Boolean.class,
 				DemoContentSeed.demo('e', 10))).isTrue();
+		// Written e11: marked, released, with a marked file, and no correction waiting.
+		assertThat(jdbc.queryForObject("""
+				SELECT published_at IS NOT NULL AND score = 32 AND passed AND comment IS NOT NULL
+				  AND evaluated_stored_file_name IS NOT NULL AND answer_stored_file_name IS NOT NULL
+				  AND pending_evaluated_at IS NULL AND ready_for_release_at IS NULL
+				FROM live_exam_participants WHERE id = ?
+				""", Boolean.class, DemoContentSeed.demo('7', 2))).isTrue();
+		// Written e12: handed in, not marked.
+		assertThat(jdbc.queryForObject("""
+				SELECT status = 'SUBMITTED' AND score IS NULL AND published_at IS NULL AND evaluated_at IS NULL
+				  AND answer_stored_file_name IS NOT NULL
+				FROM live_exam_participants WHERE id = ?
+				""", Boolean.class, DemoContentSeed.demo('7', 3))).isTrue();
 	}
 
 	@Test
-	void theCleanupRemovesEveryDemoRowAndKeepsARealOne() throws Exception {
+	void theInstructorHasTwoPackagesAndFourPapersToMark() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
+		assertThat(jdbc.queryForList("SELECT module_id FROM live_exam_instructors WHERE instructor_id = ?", UUID.class,
+				DemoContentSeed.INSTRUCTOR)).containsExactlyInAnyOrder(DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL);
+		assertThat(jdbc.queryForObject("""
+				SELECT count(*) FROM live_exam_participants p JOIN live_exams e ON e.id = p.exam_id
+				WHERE e.exam_type = 'WRITTEN' AND p.status = 'SUBMITTED' AND p.evaluated_at IS NULL AND p.published_at IS NULL
+				  AND p.id::text LIKE ? AND e.module_id IN (?, ?)
+				""", Integer.class, DEMO_PARTICIPANT, DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL)).isEqualTo(4);
+	}
+
+	@Test
+	void everyAccountSignsInWithThePasswordByPhoneAndByEmail() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		assertThat(count("users", DEMO_STUDENT)).isEqualTo(3);
+		assertThat(count("users", DEMO_INSTRUCTOR)).isEqualTo(1);
+		assertThat(count("users", DEMO_ADMIN)).isEqualTo(1);
+		for (DemoContentSeed.Account account : DemoContentSeed.ACCOUNTS) {
+			String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE id = ?", String.class, account.id());
+			assertThat(passwords.matches(TEST_PASSWORD, hash)).isTrue();
+			assertThat(jdbc.queryForObject("SELECT email_verified_at IS NOT NULL AND status = 'ACTIVE' FROM users WHERE id = ?",
+					Boolean.class, account.id())).isTrue();
+			assertThat(auth.login(account.phone(), TEST_PASSWORD, ClientType.WEB, "127.0.0.1", "test").accessToken()).isNotBlank();
+			assertThat(auth.login(account.email(), TEST_PASSWORD, ClientType.WEB, "127.0.0.1", "test").accessToken()).isNotBlank();
+		}
+		assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, DemoContentSeed.STAFF))
+			.isEqualTo("SYSTEM_ADMIN");
+	}
+
+	@Test
+	void theOrdersAndGrantsAreSettledAndNoneIsPending() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(4);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(3);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = 'INITIATED'",
+				Integer.class, DEMO_ORDER)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE tran_id = 'DEMO-PKG-B1-C' AND status = 'FAILED'",
+				Integer.class)).isEqualTo(1);
+		assertThat(grantCount(DemoContentSeed.STUDENT_B, null, DemoContentSeed.MODULE_WRITTEN)).isEqualTo(1);
+		assertThat(grantCount(DemoContentSeed.STUDENT_C, DemoContentSeed.demo('e', 6), null)).isEqualTo(1);
+		assertThat(grantCount(DemoContentSeed.STUDENT_C, null, DemoContentSeed.MODULE_MCQ)).isZero();
+	}
+
+	@Test
+	void theNoticesAndTheAnnouncementAreWrittenOncePerStudent() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "PURCHASE_GRANTED")).isEqualTo(1);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "MCQ_SCORE")).isEqualTo(1);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "WRITTEN_RESULT")).isEqualTo(1);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_B, "PURCHASE_GRANTED")).isEqualTo(1);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_C, "PURCHASE_GRANTED")).isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM announcements WHERE id = ?", Integer.class, DemoContentSeed.ANNOUNCEMENT))
+			.isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE announcement_id = ?", Integer.class,
+				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(3);
+	}
+
+	@Test
+	void theCleanupRemovesDemoRowsAndWhatTheReviewAddedAndKeepsARealOne() throws Exception {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		// What the review adds on demo rows: C sits a seeded exam, and gets a manual grant on another package.
+		jdbc.update("""
+				INSERT INTO live_exam_participants (id, exam_id, student_id, kind, started_at, deadline_at, status, created_at, updated_at)
+				VALUES (?, ?, ?, 'LIVE', now(), now(), 'IN_PROGRESS', now(), now())
+				""", UUID.randomUUID(), DemoContentSeed.demo('e', 31), DemoContentSeed.STUDENT_C);
 		UUID keep = UUID.randomUUID();
 		jdbc.update("""
 				INSERT INTO live_exam_categories (id, title_en, title_bn, position, created_at, updated_at)
@@ -228,6 +284,8 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(count("live_exam_modules", DEMO_MODULE)).isZero();
 		assertThat(count("live_exams", DEMO_EXAM)).isZero();
 		assertThat(count("live_exam_questions", DEMO_QUESTION)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_participants WHERE student_id::text LIKE ?", Integer.class,
+				DEMO_STUDENT)).isZero();
 		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isZero();
 		assertThat(count("users", DEMO_STUDENT)).isZero();
 		assertThat(count("users", DEMO_INSTRUCTOR)).isZero();
@@ -236,14 +294,13 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(count("live_exam_grants", DEMO_GRANT)).isZero();
 		assertThat(count("announcements", DEMO_ANNOUNCEMENT)).isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE tran_id LIKE 'DEMO-%'", Integer.class)).isZero();
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_order_exams WHERE exam_id::text LIKE ?", Integer.class, DEMO_EXAM))
-			.isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE user_id::text LIKE ?", Integer.class, DEMO_STUDENT))
 			.isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_instructors WHERE module_id::text LIKE ?", Integer.class, DEMO_MODULE))
 			.isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_categories WHERE id = ?", Integer.class, keep)).isEqualTo(1);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Integer.class, realStudent)).isEqualTo(1);
+		jdbc.update("DELETE FROM live_exam_categories WHERE id = ?", keep);
 	}
 
 	@Test
@@ -252,40 +309,33 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	}
 
 	private void assertCatalog() {
-		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(5);
-		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(3);
-		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(14);
-		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(80);
+		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(6);
+		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(4);
+		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(19);
+		// Ten MCQ exams of ten questions, four options each.
+		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(100);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_options WHERE question_id::text LIKE ?", Integer.class,
-				DEMO_QUESTION)).isEqualTo(320);
-		// e1: 8 demo students and 5101; e10: 5101; e7: 5003, 5004, 5005; e13: 5101, 5002.
-		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(15);
-		assertThat(count("users", DEMO_STUDENT)).isEqualTo(DemoContentSeed.STUDENTS + DemoContentSeed.LOGIN_STUDENTS.size());
-		assertThat(count("users", DEMO_INSTRUCTOR)).isEqualTo(2);
-		assertThat(count("users", DEMO_ADMIN)).isEqualTo(1);
-		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(7);
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(4);
-	}
-
-	private void assertLiveNow(Instant when) {
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exams WHERE id = ? AND live_at <= ? AND ? < live_at + make_interval(mins => duration_minutes)
-				""", Integer.class, DemoContentSeed.demo('e', 2), java.sql.Timestamp.from(when), java.sql.Timestamp.from(when)))
-			.isEqualTo(1);
+				DEMO_QUESTION)).isEqualTo(400);
+		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(6);
+		assertThat(count("users", DEMO_STUDENT)).isEqualTo(3);
+		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(4);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(3);
 	}
 
 	private int examCount(UUID module, String type) {
 		return jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE module_id = ? AND exam_type = ?", Integer.class, module, type);
 	}
 
-	private int grantCount(UUID student, UUID exam) {
-		return jdbc.queryForObject("SELECT count(*) FROM live_exam_grants WHERE student_id = ? AND exam_id = ? AND revoked_at IS NULL",
-				Integer.class, student, exam);
+	private int grantCount(UUID student, UUID exam, UUID module) {
+		return jdbc.queryForObject("""
+				SELECT count(*) FROM live_exam_grants WHERE student_id = ? AND revoked_at IS NULL
+				  AND (CAST(? AS uuid) IS NULL OR exam_id = CAST(? AS uuid))
+				  AND (CAST(? AS uuid) IS NULL OR module_id = CAST(? AS uuid))
+				""", Integer.class, student, exam, exam, module, module);
 	}
 
-	private int noticeOf(UUID student, String kind, UUID exam) {
-		return jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE user_id = ? AND kind = ? AND exam_id = ?",
-				Integer.class, student, kind, exam);
+	private int noticeOf(UUID student, String kind) {
+		return jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE user_id = ? AND kind = ?", Integer.class, student, kind);
 	}
 
 	private int noticeCount() {
@@ -297,20 +347,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	}
 
 	private Function<String, String> env() {
-		Map<String, String> values = Map.ofEntries(
-				Map.entry("SEED_SYSTEM_ADMIN_PHONE", "01766666666"),
-				Map.entry("SEED_SYSTEM_ADMIN_EMAIL", "demo-system-admin@example.com"),
-				Map.entry("SEED_SYSTEM_ADMIN_NAME", "ডেমো সিস্টেম অ্যাডমিন"),
-				Map.entry("SEED_SYSTEM_ADMIN_PASSWORD", "demo-system-admin-1"),
-				Map.entry("SEED_INSTRUCTOR_PHONE", "01755555555"),
-				Map.entry("SEED_INSTRUCTOR_EMAIL", "demo-instructor@example.com"),
-				Map.entry("SEED_INSTRUCTOR_NAME", "ডেমো শিক্ষক"),
-				Map.entry("SEED_INSTRUCTOR_PASSWORD", "demo-instructor-1"),
-				Map.entry("SEED_INSTRUCTOR2_PHONE", "01777777777"),
-				Map.entry("SEED_INSTRUCTOR2_EMAIL", "demo-instructor-b@example.com"),
-				Map.entry("SEED_INSTRUCTOR2_NAME", "ডেমো শিক্ষক বি"),
-				Map.entry("SEED_INSTRUCTOR2_PASSWORD", "demo-instructor-2"),
-				Map.entry("SEED_TEST_STUDENT_PASSWORD", TEST_PASSWORD));
+		Map<String, String> values = Map.of("SEED_DEMO_PASSWORD", TEST_PASSWORD);
 		return values::get;
 	}
 

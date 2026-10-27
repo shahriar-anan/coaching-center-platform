@@ -1,5 +1,7 @@
 # Seed data plan: student flow, admin and test accounts
 
+> **Superseded on 27 October 2026** for the client review by [../client-review-staging.md](../client-review-staging.md): a smaller seed (one staff, one instructor, three students, 20-minute exams, nightly 11 PM exams, insert once). Kept as history of the first design.
+
 Status: analysis and plan only. No code changed. Written for the integrator and the SEED-DATA agent.
 Checked against: `catalog-acquisition` at `d6506c9` (26 Oct), in code. The seed was not run.
 
