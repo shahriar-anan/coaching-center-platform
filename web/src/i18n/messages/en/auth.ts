@@ -19,6 +19,16 @@ const auth = {
     audienceStudent: "This is the admin panel. Students log in on the student site.",
     failedUnknown: "Could not log you in. Try again.",
   },
+  staffLogin: {
+    eyebrow: "Admin panel",
+    title: "Sign in to the admin panel",
+    lead: "For administrators, staff and instructors. Enter your email or phone and your password.",
+    submit: "Log in",
+    notStudent: "Students cannot sign in here.",
+    masterNote: "The Master Admin password cannot be reset here. Contact the person who manages the server.",
+    footer: "Exam Portal · Admin panel",
+    studentSite: "Go to the student site",
+  },
   register: {
     title: "Create account",
     breadcrumb: "Create account",

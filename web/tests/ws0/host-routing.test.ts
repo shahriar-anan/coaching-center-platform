@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hostConfig } from "@/lib/config";
-import { requestHost, routeForHost } from "@/lib/url/host-routing";
+import { isStaffHost, requestHost, routeForHost } from "@/lib/url/host-routing";
 
 const split = hostConfig({
   siteUrl: "https://exam.example.com",
@@ -73,5 +73,17 @@ describe("requestHost", () => {
       ["host", "127.0.0.1:3000"],
     ]);
     expect(requestHost({ get: (k) => headers.get(k) ?? null })).toBe("admin.exam.example.com");
+  });
+});
+
+describe("isStaffHost", () => {
+  it("is true only for the admin host of a split setup", () => {
+    expect(isStaffHost("admin.exam.example.com", split)).toBe(true);
+    expect(isStaffHost("exam.example.com", split)).toBe(false);
+    expect(isStaffHost("other.example.com", split)).toBe(false);
+  });
+
+  it("is false with one host, so the student login stays the only login", () => {
+    expect(isStaffHost("srv2089893.hstgr.cloud", one)).toBe(false);
   });
 });

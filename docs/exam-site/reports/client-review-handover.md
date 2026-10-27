@@ -50,6 +50,7 @@ Your own Master Admin account also works on the admin address.
 **Master Admin** (your own account)
 - After the instructor marks a paper, release the result. Then sign in as that student and see it appear.
 - Publishing, corrections and archiving an exam are Master Admin actions.
+- "Forgot password" does **not** work for the Master Admin account, by design. Keep that password safe; a lost one can only be fixed on the server.
 
 ## Things to know
 

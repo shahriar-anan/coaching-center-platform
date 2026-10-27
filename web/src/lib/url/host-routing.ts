@@ -25,6 +25,11 @@ function hostOf(url: string): string {
   }
 }
 
+/** True when the request arrived on the admin host of a split setup. */
+export function isStaffHost(host: string, config: HostConfig): boolean {
+  return config.splitHosts && host === hostOf(config.staffUrl);
+}
+
 /**
  * Decides what to do with a request when the two surfaces have separate hosts.
  * With one host (or no configuration) every request is served where it is.

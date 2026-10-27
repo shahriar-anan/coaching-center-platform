@@ -14,15 +14,21 @@ import { Pill } from "@/components/ui/pill";
 import { TextInput } from "@/components/ui/text-input";
 import { destinationFor, useSession, WrongAudienceError } from "@/lib/auth/session-context";
 import { apiUrl, googleEnabled, staffLogin, studentLogin } from "@/lib/config";
+import { useSurface } from "@/lib/url/surface-context";
 import { ApiError } from "@/lib/api/errors";
 import { FormError, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+
+const STAFF_ROLES = ["MASTER_ADMIN", "SYSTEM_ADMIN", "INSTRUCTOR"] as const;
 
 /**
  * Signed-out entry for students and staff. The message never says which field
  * was wrong: a bad password, an unknown account and a deactivated one look the same.
+ * On the admin host it is the admin panel's sign-in: for administrators, staff and
+ * instructors, with no sign-up and no Google button.
  */
 function LoginForm() {
   const { t } = useLocale();
+  const staff = useSurface() === "staff";
   const { login, session } = useSession();
   const router = useRouter();
   const params = useSearchParams();
@@ -100,10 +106,25 @@ function LoginForm() {
 
   return (
     <>
-      <PageHeader
-        title={t("auth.login.title")}
-        breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.login.title") }]}
-      />
+      {staff ? (
+        <header className="grid justify-items-center gap-3 pb-6 text-center">
+          <p className="text-meta font-semibold uppercase tracking-wide text-text-accent">{t("auth.staffLogin.eyebrow")}</p>
+          <h1 className="text-title tracking-tight text-text">{t("auth.staffLogin.title")}</h1>
+          <p className="text-body text-muted">{t("auth.staffLogin.lead")}</p>
+          <ul className="flex flex-wrap justify-center gap-2">
+            {STAFF_ROLES.map((role) => (
+              <li key={role}>
+                <Pill tone="muted">{t(`common.roles.${role}`)}</Pill>
+              </li>
+            ))}
+          </ul>
+        </header>
+      ) : (
+        <PageHeader
+          title={t("auth.login.title")}
+          breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.login.title") }]}
+        />
+      )}
       <Card padding="lg" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
         {expired ? <p className="text-body text-muted">{t("auth.login.expired")}</p> : null}
         <form onSubmit={onSubmit} noValidate className="grid min-w-0 gap-4">
@@ -134,10 +155,11 @@ function LoginForm() {
           </Field>
           {error ? <FormError>{error}</FormError> : null}
           <Button type="submit" fullWidth loading={busy}>
-            {t("auth.login.submit")}
+            {staff ? t("auth.staffLogin.submit") : t("auth.login.submit")}
           </Button>
         </form>
 
+        {staff ? null : (
         <div className="grid gap-3">
           <p className="min-w-0 text-center text-body text-muted">{t("auth.login.divider")}</p>
           {googleEnabled ? (
@@ -158,14 +180,18 @@ function LoginForm() {
             </div>
           )}
         </div>
+        )}
 
         <nav aria-label={t("common.nav.main")} className="grid gap-2 text-center text-body">
           <Link href={`/forgot-password${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.forgot")}
           </Link>
-          <Link href={`/register${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">
-            {t("auth.login.register")}
-          </Link>
+          {staff ? <p className="text-meta text-muted">{t("auth.staffLogin.masterNote")}</p> : null}
+          {staff ? null : (
+            <Link href={`/register${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">
+              {t("auth.login.register")}
+            </Link>
+          )}
           <Link href="/activate" className="font-semibold text-text-accent underline underline-offset-4">
             {t("auth.login.activate")}
           </Link>
