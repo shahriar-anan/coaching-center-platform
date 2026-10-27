@@ -49,7 +49,13 @@ These test accounts exist only on this test copy and will be removed before the 
 | **Instructor** | Assigned to the Written package and the Full Mock package. Four written papers are waiting to be marked. |
 | **System Admin** | Sees students, payments, packages and exams. |
 
-Four packages exist: **BJS Preliminary MCQ** (3 MCQ exams) and **Bar Council MCQ** (2 MCQ exams), which nobody owns so you can try buying them; **BJS Written** (4 written exams); and **BJS Full Mock** (MCQ and written, with the nightly exams). Two main categories, "BJS Exam" and "Bar Council Exam", hold four sub-categories between them.
+Four packages are published: **BJS Preliminary MCQ** (3 MCQ exams) and **Bar Council MCQ** (2 MCQ exams), which nobody owns so you can try buying them; **BJS Written** (4 written exams); and **BJS Full Mock** (MCQ and written, with the nightly exams). Two main categories, "BJS Exam" and "Bar Council Exam", hold four sub-categories between them.
+
+**For the admin screens there is more:**
+
+- **Draft packages and exams waiting to be published** (students cannot see them): a package "BJS Mains Package (draft)" that is saved and ready, with a written and an MCQ exam in it; a package "Judicial Service Mock (draft)" that has only just been started; a ready MCQ draft "Penal MCQ (new)" inside the published MCQ package; and a written draft "Evidence written (new)" that still lacks its question paper and date. They are listed on the Participation page, in the drafts panel.
+- **Two written papers marked but not yet released** (Student A's and Student B's), one of them flagged "ready for release" by the instructor. They show as "awaiting publish" on the dashboard.
+- **Payments in every state:** five paid, two failed, one cancelled and **three pending**. Open "পেমেন্ট" for all of them and "অপেক্ষমাণ পেমেন্ট" for the pending ones.
 
 ---
 
@@ -412,9 +418,11 @@ The order is always **category, then package (module), then exam**. The dashboar
 | Student A | student site | Look at the routine. There is an 11 PM exam each night for the next seven days. |
 | Student B | student site | See two written papers waiting for a result. |
 | Student C | student site | Try to buy the **BJS Preliminary MCQ Package** with the sandbox test card. |
-| Instructor | admin site | Open Marking. Mark one of the four papers, upload a marked PDF, mark it ready for release. |
+| Instructor | admin site | Open Marking. Mark one of the four papers waiting, upload a marked PDF, mark it ready for release. Two other papers are already marked and show as waiting for release. |
 | Master Admin | admin site | Open the exam's results page, then release the paper the instructor marked. Sign in again as that student and see it appear. |
-| System Admin | admin site | Look at students, payments (three paid, one failed), packages and exams. Try to publish: it is not offered. |
+| System Admin | admin site | Look at students, payments (five paid, two failed, one cancelled, three pending), packages and exams, and the draft list on the Participation page. Try to publish a draft: it is not offered. |
+| Master Admin | admin site | Open "অপেক্ষমাণ পেমেন্ট" and confirm one pending payment, and mark another as failed (a reason is required). The student's access follows. |
+| Master Admin | admin site | Publish the ready draft "Penal MCQ (new)", then publish the draft package "BJS Mains Package (draft)" once its exams are ready. |
 | Master Admin | admin site | Create a new category, package and exam, publish it, then buy it as a student. |
 
 **Good to know while you look around**

@@ -42,8 +42,10 @@ import com.coachingcenter.api.files.LocalFileStorage;
  * the staff account, {@code c} orders, {@code d} grants, {@code 8} the announcement. The cleanup script deletes by those prefixes.
  *
  * <p>The seed only inserts, and only once: when the demo catalog is already there a run does nothing, so the client's marking and
- * purchases are never undone. Dates are set from the run date; a reset is the cleanup script and a new run. Copy in this file
- * is a draft for the client's content review (decision D-d10).
+ * purchases are never undone. A second step, the top-up, adds the admin's own cases (draft packages and exams awaiting
+ * publish, papers marked but not released, and pending, paid, failed and cancelled payments); it has its own sentinel, so a
+ * database seeded by an earlier version gets it without a reset. Dates are set from the run date; a reset is the cleanup
+ * script and a new run. Copy in this file is a draft for the client's content review (decision D-d10).
  */
 @Component
 public class DemoContentSeed {
@@ -101,6 +103,12 @@ public class DemoContentSeed {
 	/** b4: two Bar Council MCQ exams, owned by nobody. */
 	static final UUID MODULE_BAR = demo('b', 4);
 
+	/** b5: a draft package that is final saved and ready to publish, with a ready and an unfinished draft exam. */
+	static final UUID MODULE_DRAFT_READY = demo('b', 5);
+
+	/** b6: a draft package with nothing in it yet. */
+	static final UUID MODULE_DRAFT_EMPTY = demo('b', 6);
+
 	static final UUID ANNOUNCEMENT = demo('8', 1);
 
 	/** Phones and emails are fixed so the client can sign in with either. */
@@ -123,7 +131,7 @@ public class DemoContentSeed {
 			  rules_bn, paper_language, live_at, duration_minutes, pass_percent, written_maximum, question_stored_file_name,
 			  question_original_file_name, question_byte_size, question_content_type, status, finally_saved, price,
 			  answers_released_at, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED', true, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			""";
 
 	private static final String INSERT_SITTING = """
@@ -281,20 +289,58 @@ public class DemoContentSeed {
 		UUID masterAdmin = masterAdmin();
 		refuseOlderCatalog();
 		List<ExamSpec> exams = exams(Schedule.at(now));
-		if (exists("live_exams", spec(exams, 1).id())) {
+		boolean base = exists("live_exams", spec(exams, 1).id());
+		boolean topUp = exists("live_exam_modules", MODULE_DRAFT_READY);
+		if (base && topUp) {
 			return;
 		}
-
-		String hash = passwords.encode(password);
-		for (Account account : ACCOUNTS) {
-			ensureAccount(account, hash, now);
+		if (!base) {
+			String hash = passwords.encode(password);
+			for (Account account : ACCOUNTS) {
+				ensureAccount(account, hash, now);
+			}
+			ensureCatalog(exams, now);
+			sittings(exams, now);
+			insertOrders(baseOrders(now));
+			assign(MODULE_WRITTEN, now);
+			assign(MODULE_FULL, now);
+			notices(exams, masterAdmin, now);
 		}
-		ensureCatalog(exams, now);
-		sittings(exams, now);
-		orders(now);
-		assign(MODULE_WRITTEN, now);
-		assign(MODULE_FULL, now);
-		notices(exams, masterAdmin, now);
+		if (!topUp) {
+			topUp(now);
+		}
+	}
+
+	/**
+	 * The admin's own cases, added on top of the base data: draft packages and exams that wait for the Master Admin to publish,
+	 * two written papers marked but not released (one flagged ready), and payments in every state, including three pending ones.
+	 */
+	private void topUp(Instant now) {
+		List<ExamSpec> more = topUpExams(Schedule.at(now));
+		module(MODULE_DRAFT_READY, CATEGORY_WRITTEN, "BJS Mains Package (draft)", "বিজেএস মেইনস প্যাকেজ (খসড়া)",
+				"A written and an MCQ paper for the mains round. It is saved and waits for the Master Admin to publish it.",
+				"মেইনস পর্যায়ের একটি রিটেন ও একটি এমসিকিউ পরীক্ষা। এটি সংরক্ষিত আছে এবং মাস্টার অ্যাডমিনের প্রকাশের অপেক্ষায়।",
+				2000, 3, "DRAFT", true, now);
+		module(MODULE_DRAFT_EMPTY, CATEGORY_MCQ, "Judicial Service Mock (draft)", "জুডিশিয়াল সার্ভিস মক (খসড়া)",
+				"A package that has just been started. It has no exams and no price yet.",
+				"সদ্য শুরু করা একটি প্যাকেজ। এখনো কোনো পরীক্ষা বা মূল্য নেই।", null, 4, "DRAFT", false, now);
+		for (ExamSpec spec : more) {
+			exam(spec, now);
+		}
+		ExamSpec e40 = spec(more, 40);
+		ExamSpec e41 = spec(more, 41);
+		Instant e40Start = e40.liveAt();
+		Instant e41Start = e41.liveAt();
+		sitting(new Sitting(demo('7', 7), e40, STUDENT_B, e40Start, 36, true, "ভালো উত্তর, তবে রেফারেন্স আরও লিখুন।", INSTRUCTOR,
+				e40Start.plus(Duration.ofHours(2)), null, true, true), now);
+		// The instructor flagged this one ready; the other draft below is marked but not flagged.
+		jdbc.update("UPDATE live_exam_participants SET ready_for_release_at = ? WHERE id = ?", ts(e40Start.plus(Duration.ofHours(3))),
+				demo('7', 7));
+		sitting(new Sitting(demo('7', 8), e41, STUDENT_A, e41Start, 28, true, "আংশিক উত্তর, বিস্তারিত লিখুন।", INSTRUCTOR,
+				e41Start.plus(Duration.ofHours(2)), null, true, true), now);
+		insertOrders(topUpOrders(now));
+		notices.purchaseGranted(STUDENT_B, demo('e', 30), "EXAM");
+		notices.purchaseGranted(STUDENT_A, demo('e', 2), "EXAM");
 	}
 
 	static void refuseProduction(String[] profiles) {
@@ -400,11 +446,17 @@ public class DemoContentSeed {
 
 	private void module(UUID id, UUID category, String titleEn, String titleBn, String descEn, String descBn, int price,
 			int position, Instant now) {
+		module(id, category, titleEn, titleBn, descEn, descBn, price, position, "PUBLISHED", true, now);
+	}
+
+	private void module(UUID id, UUID category, String titleEn, String titleBn, String descEn, String descBn, Integer price,
+			int position, String status, boolean finalSaved, Instant now) {
 		jdbc.update("""
 				INSERT INTO live_exam_modules (id, category_id, title_en, title_bn, description_en, description_bn, access_mode,
 				  status, finally_saved, position, price, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', 'PUBLISHED', true, ?, ?, ?, ?) ON CONFLICT DO NOTHING
-				""", id, category, titleEn, titleBn, descEn, descBn, position, new BigDecimal(price).setScale(2), ts(now), ts(now));
+				VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING
+				""", id, category, titleEn, titleBn, descEn, descBn, status, finalSaved, position,
+				price == null ? null : new BigDecimal(price).setScale(2), ts(now), ts(now));
 	}
 
 	private void exam(ExamSpec spec, Instant now) {
@@ -425,7 +477,8 @@ public class DemoContentSeed {
 		}
 		jdbc.update(INSERT_EXAM, spec.id(), spec.module(), spec.type(), spec.titleEn(), spec.titleBn(), spec.descEn(), spec.descBn(),
 				spec.rulesEn(), spec.rulesBn(), "BN", ts(spec.liveAt()), EXAM_MINUTES, PASS_PERCENT,
-				written ? WRITTEN_FULL_MARKS : null, storedName, originalName, byteSize, contentType, spec.price(),
+				written ? WRITTEN_FULL_MARKS : null, storedName, originalName, byteSize, contentType, spec.draft() ? "DRAFT" : "PUBLISHED",
+				spec.finalSaved(), spec.price(),
 				spec.released() ? ts(now.minus(Duration.ofDays(1))) : null, ts(now), ts(now));
 		int marks = written ? 1 : MCQ_MARKS;
 		List<Question> questions = spec.questions();
@@ -507,14 +560,39 @@ public class DemoContentSeed {
 		}
 	}
 
-	/** Paid orders carry a grant; the failed one has none. No order is left pending, so the recheck job has nothing to query. */
-	private void orders(Instant now) {
+	/** Paid orders carry a grant; the failed one has none. */
+	private static List<Order> baseOrders(Instant now) {
 		Instant paid = now.minus(Duration.ofHours(1));
-		List<Order> orders = List.of(
+		return List.of(
 				new Order(1, "DEMO-PKG-B3-A", STUDENT_A, "MODULE", MODULE_FULL, null, "2500.00", "SUCCEEDED", paid, true),
 				new Order(2, "DEMO-PKG-B2-B", STUDENT_B, "MODULE", MODULE_WRITTEN, null, "1800.00", "SUCCEEDED", paid, true),
 				new Order(3, "DEMO-EXM-E6-C", STUDENT_C, "EXAM", MODULE_WRITTEN, demo('e', 6), "500.00", "SUCCEEDED", paid, true),
 				new Order(4, "DEMO-PKG-B1-C", STUDENT_C, "MODULE", MODULE_MCQ, null, "1500.00", "FAILED", paid, false));
+	}
+
+	/**
+	 * Payments in every other state. The three pending orders are older than a day on purpose: the payment recheck job only
+	 * looks at orders from the last 24 hours, so it leaves these for the Master Admin to confirm or fail by hand.
+	 */
+	private static List<Order> topUpOrders(Instant now) {
+		return List.of(
+				new Order(5, "DEMO-EXM-E30-B", STUDENT_B, "EXAM", MODULE_BAR, demo('e', 30), "250.00", "SUCCEEDED",
+						now.minus(Duration.ofHours(5)), true),
+				new Order(6, "DEMO-EXM-E2-A", STUDENT_A, "EXAM", MODULE_MCQ, demo('e', 2), "300.00", "SUCCEEDED",
+						now.minus(Duration.ofHours(3)), true),
+				new Order(7, "DEMO-EXM-E31-A", STUDENT_A, "EXAM", MODULE_BAR, demo('e', 31), "250.00", "CANCELLED",
+						now.minus(Duration.ofHours(8)), false),
+				new Order(8, "DEMO-PKG-B4-B", STUDENT_B, "MODULE", MODULE_BAR, null, "1200.00", "FAILED",
+						now.minus(Duration.ofHours(6)), false),
+				new Order(9, "DEMO-PKG-B1-C2", STUDENT_C, "MODULE", MODULE_MCQ, null, "1500.00", "INITIATED",
+						now.minus(Duration.ofDays(3)), false),
+				new Order(10, "DEMO-EXM-E1-B", STUDENT_B, "EXAM", MODULE_MCQ, demo('e', 1), "300.00", "INITIATED",
+						now.minus(Duration.ofHours(26)), false),
+				new Order(11, "DEMO-PKG-B4-A", STUDENT_A, "MODULE", MODULE_BAR, null, "1200.00", "INITIATED",
+						now.minus(Duration.ofDays(2)), false));
+	}
+
+	private void insertOrders(List<Order> orders) {
 		for (Order order : orders) {
 			boolean succeeded = "SUCCEEDED".equals(order.status());
 			jdbc.update(INSERT_ORDER, demo('c', order.number()), order.student(), order.scope(), order.module(), order.exam(),
@@ -637,6 +715,31 @@ public class DemoContentSeed {
 		return exams;
 	}
 
+	/** The top-up exams: two earlier written papers (published), and four drafts that wait for the Master Admin. */
+	List<ExamSpec> topUpExams(Schedule s) {
+		List<Question> evidence = concat(EVIDENCE, DemoContentSeedQuestions.EVIDENCE_EXTRA);
+		return List.of(
+				written(40, MODULE_WRITTEN, "Penal written (earlier paper)", "পেনাল কোড রিটেন (আগের পরীক্ষা)",
+						"An earlier written paper on the Penal Code, 1860.", "দণ্ডবিধি, ১৮৬০-এর ওপর আগের একটি রিটেন পরীক্ষা।", s.at23(-3), "500.00"),
+				written(41, MODULE_FULL, "Evidence written (full)", "সাক্ষ্য আইন রিটেন (পূর্ণ)",
+						"An earlier written paper on the Evidence Act, 1872, from the full mock package.",
+						"সাক্ষ্য আইন, ১৮৭২-এর ওপর আগের একটি রিটেন পরীক্ষা, ফুল মক প্যাকেজের অংশ।", s.at23(-4), "500.00"),
+				written(50, MODULE_DRAFT_READY, "Constitution written (mains)", "সংবিধান রিটেন (মেইনস)",
+						"A written paper on the Constitution for the mains round.", "মেইনস পর্যায়ের জন্য সংবিধানের ওপর রিটেন পরীক্ষা।",
+						s.at23(12), "500.00").asDraft(true),
+				mcq(51, MODULE_DRAFT_READY, "Evidence MCQ (mains)", "সাক্ষ্য আইন এমসিকিউ (মেইনস)",
+						"Ten questions on the Evidence Act, 1872, for the mains round.",
+						"মেইনস পর্যায়ের জন্য সাক্ষ্য আইন, ১৮৭২-এর ওপর দশটি প্রশ্ন।", s.at23(13), "300.00", evidence, false).asDraft(false),
+				mcq(52, MODULE_MCQ, "Penal MCQ (new)", "পেনাল কোড এমসিকিউ (নতুন)",
+						"Ten new questions on the Penal Code, 1860. Saved and ready for the Master Admin to publish.",
+						"দণ্ডবিধি, ১৮৬০-এর ওপর দশটি নতুন প্রশ্ন। সংরক্ষিত এবং মাস্টার অ্যাডমিনের প্রকাশের অপেক্ষায়।", s.at23(8), "300.00", PENAL,
+						false).asDraft(true),
+				written(53, MODULE_WRITTEN, "Evidence written (new)", "সাক্ষ্য আইন রিটেন (নতুন)",
+						"A new written paper on the Evidence Act. The question paper and the date are still missing.",
+						"সাক্ষ্য আইনের ওপর একটি নতুন রিটেন পরীক্ষা। প্রশ্নপত্র ও তারিখ এখনো বাকি।", null, "500.00").asDraft(false)
+						.withoutPaper());
+	}
+
 	private static boolean passedMcq(int score) {
 		return score * 100 >= PASS_PERCENT * MCQ_FULL_MARKS;
 	}
@@ -645,14 +748,14 @@ public class DemoContentSeed {
 			String price, List<Question> questions, boolean released) {
 		return new ExamSpec(number, module, LiveExam.MCQ, titleEn, titleBn, descEn, descBn,
 				String.format(Locale.ROOT, EN_MCQ_RULES, EXAM_MINUTES), String.format(Locale.ROOT, BN_MCQ_RULES, bn(EXAM_MINUTES)),
-				price == null ? null : new BigDecimal(price), false, released, liveAt, questions);
+				price == null ? null : new BigDecimal(price), false, released, liveAt, questions, false, true);
 	}
 
 	private static ExamSpec written(int number, UUID module, String titleEn, String titleBn, String descEn, String descBn, Instant liveAt,
 			String price) {
 		return new ExamSpec(number, module, LiveExam.WRITTEN, titleEn, titleBn, descEn, descBn,
 				String.format(Locale.ROOT, EN_WRITTEN_RULES, EXAM_MINUTES), String.format(Locale.ROOT, BN_WRITTEN_RULES, bn(EXAM_MINUTES)),
-				new BigDecimal(price), true, false, liveAt, List.of());
+				new BigDecimal(price), true, false, liveAt, List.of(), false, true);
 	}
 
 	private static ExamSpec spec(List<ExamSpec> exams, int number) {
@@ -714,10 +817,21 @@ public class DemoContentSeed {
 
 	record ExamSpec(int number, UUID module, String type, String titleEn, String titleBn, String descEn, String descBn,
 			String rulesEn, String rulesBn, BigDecimal price, boolean questionPdf, boolean released, Instant liveAt,
-			List<Question> questions) {
+			List<Question> questions, boolean draft, boolean finalSaved) {
 
 		UUID id() {
 			return DemoContentSeed.demo('e', number);
+		}
+
+		ExamSpec withoutPaper() {
+			return new ExamSpec(number, module, type, titleEn, titleBn, descEn, descBn, rulesEn, rulesBn, price, false, released,
+					liveAt, questions, draft, finalSaved);
+		}
+
+		/** The same exam as a draft that students cannot see yet; {@code saved} marks it ready for the Master Admin to publish. */
+		ExamSpec asDraft(boolean saved) {
+			return new ExamSpec(number, module, type, titleEn, titleBn, descEn, descBn, rulesEn, rulesBn, price, questionPdf, released,
+					liveAt, questions, true, saved);
 		}
 
 	}

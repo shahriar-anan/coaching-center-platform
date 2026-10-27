@@ -46,3 +46,6 @@ coverage/
 /assets/
 /.claude/
 /.heavy.lock
+
+# Personal notes, not for the client
+docs/exam-site/reports/private/
