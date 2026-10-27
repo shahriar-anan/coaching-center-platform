@@ -198,7 +198,7 @@ const staffPeople = {
     examiner: "মূল্যায়নকারী",
     published: "প্রকাশিত",
     noAnswer: "জমা হয়নি · নম্বর দেওয়া যাবে না",
-    watermark: "এক্সাম পোর্টাল · শুধু মূল্যায়নের জন্য",
+    watermark: "SYMAMLW",
     marks: "প্রাপ্ত নম্বর",
     marksHint: "০ থেকে {max} পর্যন্ত",
     marksRange: "নম্বর ০ থেকে {max} পর্যন্ত হতে হবে।",
