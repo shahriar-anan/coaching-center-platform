@@ -74,6 +74,22 @@ Tests before the release: the seed suite (17) passes, including a test that appl
 
 Rollback: stop `coaching-api`, copy `/opt/coaching-api/api.jar.before-topup` over `/opt/coaching-api/api.jar`, start it. The top-up rows stay in the database; they harm nothing, and `demo-cleanup.sql` removes them.
 
+## Mail and watermark release, 27 October 2026 (fourth release)
+
+API and website. Commit `9255412`; jar SHA-256 `f059425c5936b85558a9cd9c9225ca69d4d88825b4bcbf2866d1c549ed3af17a`. No schema change, no env change. Backups first: `/var/backups/coaching-pre-mail-20261027-*.dump` (also on the PC), the previous jar as `api.jar.before-mail`, and the previous website as `/opt/coaching-web.before-mail`. The API started in about 21 seconds.
+
+| Change | Live check |
+|---|---|
+| Every mail uses one branded template: the SYMAM LAW mark as a linked header image (nothing attached), Bangla text with an English twin, a plain-text part, a footer. A new account's mail says "Welcome on board" and greets by first name. Staff are linked to the admin site. | brand images answer 200 (`/brand/logo-light.png`, `/brand/copy-icon.png`); no send failures in the log; a welcome email was sent to the owner's inbox as a real test |
+| A code is shown in a box that selects with one tap, with a copy button and icon that opens a new `/code` page whose button really copies. The code rides in the address fragment, never a query; the activate and reset pages fill it in from there. | `/code` answers 200 on the student site and redirects from the admin site |
+| Fixed watermark words (Sample, Staff view, "for marking only") now read SYMAMLAW in both languages. A student's own sitting still draws name and student code. | pinned by a test |
+
+A test student `Shahriar Anan` (phone `01711000099`, the owner's email) was created through the admin API to send the real email. It is a demo-style account with a random password nobody knows; it is set by using the activation or reset email. Remove it from the Students page (Master Admin) when the test is finished.
+
+Tests before the release: web 116 files and 700 tests pass, lint 0 errors; API 406 tests, 404 pass (`BookOrderIT` and `CoursePurchaseIT` fail with 409 as before, accepted).
+
+Rollback: stop `coaching-api`, copy `api.jar.before-mail` over `api.jar`, start it; stop `coaching-web`, put `/opt/coaching-web.before-mail` back as `/opt/coaching-web`, start it.
+
 ## Not checked
 
 - A real browser session on either host (layout, redirects after sign-in, the basic-auth prompt in each browser).
