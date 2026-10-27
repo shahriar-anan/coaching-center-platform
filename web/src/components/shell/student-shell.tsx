@@ -209,16 +209,16 @@ function TabBar() {
 function WideNav() {
   const { t } = useLocale();
   // The old site's main menu. "Features" is now "Exams". Items without an exam-site page
-  // point to the nearest existing page until the client decides what they become.
+  // show a "coming soon" page until the client decides what they become.
   const links = [
     { href: "/register", label: t("landing.navAdmission") },
     { href: "/mcq", label: t("landing.navExam") },
     { href: "/mcq", label: t("landing.navPackages") },
     { href: "/notices", label: t("landing.navNotices") },
-    { href: "/help", label: t("landing.navPublications") },
-    { href: "/help", label: t("landing.navBlog") },
-    { href: "/help", label: t("landing.navMedia") },
-    { href: "/help", label: t("landing.navResources") },
+    { href: "/publications", label: t("landing.navPublications") },
+    { href: "/blog", label: t("landing.navBlog") },
+    { href: "/media", label: t("landing.navMedia") },
+    { href: "/resources", label: t("landing.navResources") },
   ];
   return (
     <nav aria-label={t("landing.navLabel")} className="hidden flex-1 justify-center md:flex">
