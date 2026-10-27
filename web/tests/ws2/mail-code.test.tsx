@@ -7,6 +7,15 @@ import ActivatePage from "@/app/(auth)/activate/page";
 import ResetPasswordPage from "@/app/(auth)/reset-password/page";
 import { copyText, readCodeFromHash } from "@/app/(auth)/_components/code-hash";
 
+function setClipboard(writeText: (text: string) => Promise<void>) {
+  // Another test file in the same process may already have defined `clipboard` as a read-only property, so define it again.
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+}
+
+function setExecCommand(result: boolean) {
+  Object.defineProperty(document, "execCommand", { value: vi.fn().mockReturnValue(result), configurable: true, writable: true });
+}
+
 function setHash(hash: string) {
   window.history.replaceState(null, "", `/${hash}`);
 }
@@ -30,11 +39,11 @@ describe("reading a code from a mail link", () => {
 
   it("copies with the clipboard when the browser has one, and says false when it refuses", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    setClipboard(writeText);
     await expect(copyText("K7M2Q9RX")).resolves.toBe(true);
     expect(writeText).toHaveBeenCalledWith("K7M2Q9RX");
-    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } });
-    Object.assign(document, { execCommand: vi.fn().mockReturnValue(false) });
+    setClipboard(vi.fn().mockRejectedValue(new Error("denied")));
+    setExecCommand(false);
     await expect(copyText("K7M2Q9RX")).resolves.toBe(false);
   });
 });
@@ -42,7 +51,7 @@ describe("reading a code from a mail link", () => {
 describe("the page behind a mail's Copy code button", () => {
   it("shows the code large, copies it on the button, and links on to the right step", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    setClipboard(writeText);
     setHash("#c=K7M2Q9RX&for=activate");
     renderWithProviders(<CodePage />);
 
@@ -70,8 +79,8 @@ describe("the page behind a mail's Copy code button", () => {
   });
 
   it("tells the person when the browser would not copy", async () => {
-    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } });
-    Object.assign(document, { execCommand: vi.fn().mockReturnValue(false) });
+    setClipboard(vi.fn().mockRejectedValue(new Error("denied")));
+    setExecCommand(false);
     setHash("#c=K7M2Q9RX&for=verify");
     renderWithProviders(<CodePage />);
     await userEvent.click(await screen.findByRole("button", { name: "কোড কপি করুন" }));
