@@ -114,7 +114,7 @@ const staffMarking = {
   questionPaper: {
     title: "প্রশ্নপত্র",
     notAllowed: "এই প্রশ্নপত্র পাওয়া যাচ্ছে না। হয়তো এই পরীক্ষার জন্য কোনো ফাইল আপলোড করা হয়নি, অথবা আপনার অ্যাকাউন্টে এটি দেখার অনুমতি নেই।",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
   },
   snippets: {
     listLabel: "সংরক্ষিত মন্তব্য",
@@ -162,7 +162,7 @@ const staffMarking = {
     next: "পরের",
     progress: "{total}টির মধ্যে {marked}টি মূল্যায়িত",
     allDone: "এই তালিকার সব খাতা দেখা হয়েছে। তালিকায় ফিরুন",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
   },
   publish: {
     published: "প্রকাশিত",

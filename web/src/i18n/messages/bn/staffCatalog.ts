@@ -383,7 +383,7 @@ const staffCatalog = {
     open: "শিক্ষার্থী যেভাবে দেখবে",
     title: "শিক্ষার্থী যেভাবে দেখবে",
     body: "এটি শুধু দেখার জন্য। উত্তর ও সঠিক অপশন এখানে দেখানো হয় না।",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
   },
   mcq: {
     summary: "{count}টি প্রশ্ন · মোট {total} নম্বর",
@@ -430,7 +430,7 @@ const staffCatalog = {
     missing: "এখনো কোনো প্রশ্নপত্র দেওয়া হয়নি। পিডিএফ ফাইল বেছে নিন।",
     view: "দেখুন",
     viewTitle: "প্রশ্নপত্র দেখুন",
-    staffWatermark: "SYMAMLW",
+    staffWatermark: "SYMAMLAW",
     uploaded: "প্রশ্নপত্র বদলানো হয়েছে।",
     lockedNotice: "শুরুর সময় পেরিয়ে গেছে, তাই ফাইল এখন বদলানো যাবে না।",
     limitHint: "শুধু পিডিএফ। সর্বোচ্চ {limit} এমবি।",

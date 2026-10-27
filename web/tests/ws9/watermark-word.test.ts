@@ -7,7 +7,7 @@ import enPeople from "@/i18n/messages/en/staffPeople";
 import bnPeople from "@/i18n/messages/bn/staffPeople";
 
 /** The brand word drawn across every question paper and script that staff open. A student's own sitting uses their name and code. */
-const WORD = "SYMAMLW";
+const WORD = "SYMAMLAW";
 
 describe("watermark word on papers staff open", () => {
   it.each([

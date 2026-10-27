@@ -198,7 +198,7 @@ const staffPeople = {
     examiner: "মূল্যায়নকারী",
     published: "প্রকাশিত",
     noAnswer: "জমা হয়নি · নম্বর দেওয়া যাবে না",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
     marks: "প্রাপ্ত নম্বর",
     marksHint: "০ থেকে {max} পর্যন্ত",
     marksRange: "নম্বর ০ থেকে {max} পর্যন্ত হতে হবে।",

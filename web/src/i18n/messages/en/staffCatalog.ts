@@ -379,7 +379,7 @@ const staffCatalog = {
     open: "Student view",
     title: "How a student sees it",
     body: "For viewing only. Answers and correct options are not shown.",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
   },
   mcq: {
     summary: "{count} questions · {total} marks in total",
@@ -426,7 +426,7 @@ const staffCatalog = {
     missing: "No question paper yet. Choose a PDF file.",
     view: "View",
     viewTitle: "View question paper",
-    staffWatermark: "SYMAMLW",
+    staffWatermark: "SYMAMLAW",
     uploaded: "Question paper replaced.",
     lockedNotice: "The start time has passed, so the file cannot be replaced now.",
     limitHint: "PDF only. Up to {limit} MB.",

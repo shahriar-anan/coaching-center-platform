@@ -114,7 +114,7 @@ const staffMarking = {
   questionPaper: {
     title: "Question paper",
     notAllowed: "This question paper is not available. No file may have been uploaded for this exam yet, or your account may not have access to it.",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
   },
   snippets: {
     listLabel: "Saved comments",
@@ -162,7 +162,7 @@ const staffMarking = {
     next: "Next",
     progress: "{marked} of {total} marked",
     allDone: "All scripts in this list are marked. Back to the list",
-    watermark: "SYMAMLW",
+    watermark: "SYMAMLAW",
   },
   publish: {
     published: "Published",
