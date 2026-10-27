@@ -30,24 +30,21 @@ Record of putting branch `demo/client-review` on the staging VPS for the client.
 
 ## Access control
 
-Basic auth guards the pages of both hosts. The website sends `Authorization: Bearer …` on every API call, which replaces the browser's saved basic-auth login, so `/api/` is guarded by a gate cookie instead: a response that passed basic auth sets `review_gate`, and `/api/` answers 401 without it. The cookie is added only to successful responses (no `always`). The two SSLCommerz callbacks (`…/live-exam-orders/{tranId}/ipn` and `/return`) are open, because the gateway's server can send neither. Without the cookie, signing in as a demo account through the API directly is not possible.
+Removed on 27 October 2026 at Shahriar's request. Both hosts are open to anyone who has the address, and the demo accounts (including the System Admin and the Instructor, password from `SEED_DEMO_PASSWORD`) can be signed in to by anyone who guesses their phone or email. For a short review that is Shahriar's call; before the 29 October cutover the demo accounts go with `demo-cleanup.sql`.
+
+For the record, until then the hosts had Nginx basic auth on the pages plus a gate cookie on `/api/`, with the SSLCommerz callbacks open. The files are kept in `/root/review-auth-removed/` on the box (`*.with-auth` sites, the snippet, the gate file and the htpasswd file), and `sites-available/*.pre-auth` hold the sites as they were before. To turn it back on: copy the `.with-auth` sites back, the snippet to `/etc/nginx/snippets/`, the gate file to `/etc/nginx/conf.d/`, the htpasswd file to `/etc/nginx/`, then `nginx -t` and reload.
 
 ## Checked on the live hosts
 
 | Check | Result |
 |---|---|
-| Pages and `/api/` without a password | 401 on both hosts |
-| Wrong password | 401 |
-| Gate cookie set only after basic auth, never on a 401 | yes |
-| `/api/` with the cookie, with a wrong cookie | 200, 401 |
-| `ipn` and `return` callbacks without a password | reach the API (404 for an unknown order) |
+| Pages and `/api/` after basic auth was removed | 200 on both hosts; `/api/v1/me` 401 without a sign-in |
 | Student host `/staff`; admin host `/`, `/register`, `/mcq` | redirected to the other host / to `/staff` as designed |
 | Sign-in, all five accounts, by phone and email | roles SYSTEM_ADMIN, INSTRUCTOR, STUDENT x3 |
 | Instructor | sees the written and mixed packages; refused on the MCQ package |
 | System Admin payments | 3 paid, 1 failed |
 | Student A | 4 unread notices |
 | Public catalogue (signed out) | new categories and packages |
-| Gate secret rotated after it appeared in test output | done, re-verified |
 
 ## Not checked
 

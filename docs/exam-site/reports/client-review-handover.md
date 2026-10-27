@@ -9,7 +9,7 @@ Written for the client. This is a test copy of the exam site with made-up data. 
 | Student site | https://srv2089893.hstgr.cloud | students |
 | Admin site | https://admin.187-52-115-111.nip.io | staff, instructors and you as Master Admin |
 
-Each address first asks for a **review user name and password**. Shahriar will give you these. It only keeps strangers out of the test copy. Then you sign in to the site itself with one of the accounts below.
+Open them in a browser and sign in with one of the accounts below.
 
 Use the admin address for staff, instructor and Master Admin. A staff account that signs in on the student address is sent to the admin address.
 
