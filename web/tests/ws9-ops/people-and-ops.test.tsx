@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import StudentPage from "@/app/(staff)/staff/students/[id]/page";
@@ -162,33 +162,149 @@ describe("payments summary strip", () => {
   });
 });
 
-describe("participation summary", () => {
-  it("keeps the table when the summary fails", async () => {
-    mockApi({
-      "GET /api/v1/live-exam-participation": pageOf([
-        {
-          examId: EXAM,
-          titleEn: "Evidence Act",
-          titleBn: "সাক্ষ্য আইন",
-          moduleId: MODULE,
-          moduleTitleEn: "Law",
-          moduleTitleBn: "আইন",
-          examType: "WRITTEN",
-          liveAt: "2026-10-24T06:00:00Z",
-          endAt: "2026-10-24T07:00:00Z",
-          sitting: 3,
-          submitted: 2,
-          failedToSubmit: 1,
-          awaitingMarking: 2,
-          draftsAwaitingPublish: 0,
-          published: 0,
-          retakes: 0,
-        },
-      ]),
-    });
+describe("participation page", () => {
+  const written = (extra: Record<string, unknown> = {}) => ({
+    examId: EXAM,
+    titleEn: "Evidence Act",
+    titleBn: "সাক্ষ্য আইন",
+    moduleId: MODULE,
+    moduleTitleEn: "Law",
+    moduleTitleBn: "আইন",
+    examType: "WRITTEN",
+    liveAt: "2026-10-24T06:00:00Z",
+    endAt: "2026-10-24T07:00:00Z",
+    sitting: 0,
+    submitted: 4,
+    failedToSubmit: 0,
+    awaitingMarking: 0,
+    draftsAwaitingPublish: 2,
+    published: 2,
+    retakes: 0,
+    ...extra,
+  });
+  const idle = written({ examId: "e-idle", titleEn: "Old paper", titleBn: "পুরনো", draftsAwaitingPublish: 0, published: 4 });
+
+  it("gives the Master Admin a Release results button that opens the release panel", async () => {
+    mockApi({ "GET /api/v1/live-exam-participation": pageOf([written(), idle]) });
     renderWithProviders(<ParticipationPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/participation" });
 
-    expect(await screen.findByText("The summary could not load. The table below still works.")).toBeInTheDocument();
+    expect((await screen.findAllByText("2 to release")).length).toBeGreaterThan(0);
+    const buttons = screen.getAllByRole("link", { name: "Release results" });
+    expect(buttons[0]).toHaveAttribute("href", `/staff/exams/${EXAM}/results#release`);
+    // Only the exam with something to release has the button.
+    expect(screen.getAllByRole("link", { name: "View results" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("All released").length).toBeGreaterThan(0);
+    expect(screen.getByRole("tab", { name: /To release/ })).toHaveTextContent("2");
+  });
+
+  it("shows the System Admin the same step with no release button", async () => {
+    mockApi({ "GET /api/v1/live-exam-participation": pageOf([written()]) });
+    renderWithProviders(<ParticipationPage />, { user: fixtures.systemAdmin, locale: "en", route: "/staff/participation" });
+
+    expect((await screen.findAllByText("2 waiting for the Master Admin to release")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: "Release results" })).toBeNull();
+  });
+
+  it("the To release tab keeps only the exams that have papers to release", async () => {
+    mockApi({ "GET /api/v1/live-exam-participation": pageOf([written(), idle]) });
+    renderWithProviders(<ParticipationPage />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: "/staff/participation?focus=release",
+    });
+
+    expect((await screen.findAllByText("Evidence Act")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Old paper")).toBeNull();
+  });
+
+  describe("the Drafts tab", () => {
+    const draftModule = (extra: Record<string, unknown>) => ({
+      id: "m-draft",
+      categoryId: "c1",
+      titleEn: "New module",
+      titleBn: "নতুন মডিউল",
+      status: "DRAFT",
+      finallySaved: true,
+      position: 0,
+      mcqCount: 1,
+      writtenCount: 2,
+      ...extra,
+    });
+    const exam = (extra: Record<string, unknown>) => ({
+      id: "x-draft",
+      moduleId: "m-pub",
+      examType: "WRITTEN",
+      titleEn: "Draft paper",
+      titleBn: "খসড়া পত্র",
+      liveAt: "2026-12-01T06:00:00Z",
+      endAt: "2026-12-01T07:00:00Z",
+      status: "DRAFT",
+      finallySaved: false,
+      ...extra,
+    });
+    const mocks = () =>
+      mockApi({
+        "GET /api/v1/live-exam-participation": pageOf([]),
+        "GET /api/v1/live-exam-modules": pageOf([
+          draftModule({}),
+          draftModule({ id: "m-pub", titleEn: "Live module", titleBn: "চালু মডিউল", status: "PUBLISHED" }),
+          draftModule({ id: "m-old", titleEn: "Old module", status: "ARCHIVED" }),
+        ]),
+        "GET /api/v1/live-exam-modules/m-pub/exams": pageOf([exam({}), exam({ id: "x-live", titleEn: "Live paper", status: "PUBLISHED" })]),
+      });
+
+    it("lists a draft module and a draft exam of a published module, and counts both on the tab", async () => {
+      mocks();
+      renderWithProviders(<ParticipationPage />, {
+        user: fixtures.masterAdmin,
+        locale: "en",
+        route: "/staff/participation?focus=drafts",
+      });
+
+      expect((await screen.findAllByText("New module")).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Draft paper").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Live paper")).toBeNull();
+      expect(screen.queryByText("Old module")).toBeNull();
+      expect(screen.getAllByRole("link", { name: "Open module" })[0]).toHaveAttribute("href", "/staff/modules/m-draft");
+      expect(screen.getAllByRole("link", { name: "Open exam" })[0]).toHaveAttribute("href", "/staff/exams/x-draft");
+      expect(screen.getAllByText("Ready to publish").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Needs finishing").length).toBeGreaterThan(0);
+      await waitFor(() => expect(screen.getByRole("tab", { name: /Drafts/ })).toHaveTextContent("2"));
+    });
+
+    it("says so when everything is published", async () => {
+      mockApi({
+        "GET /api/v1/live-exam-participation": pageOf([]),
+        "GET /api/v1/live-exam-modules": pageOf([draftModule({ status: "PUBLISHED" })]),
+        "GET /api/v1/live-exam-modules/m-draft/exams": pageOf([exam({ moduleId: "m-draft", status: "PUBLISHED" })]),
+      });
+      renderWithProviders(<ParticipationPage />, {
+        user: fixtures.masterAdmin,
+        locale: "en",
+        route: "/staff/participation?focus=drafts",
+      });
+      expect(await screen.findByText("No drafts")).toBeInTheDocument();
+    });
+  });
+
+  it("names the corrections tab and explains it, with the same words in the row", async () => {
+    mockApi({
+      "GET /api/v1/live-exam-participation": pageOf([written({ draftsAwaitingPublish: 2, correctionsWaiting: 1 })]),
+    });
+    renderWithProviders(<ParticipationPage />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: "/staff/participation?focus=changes",
+    });
+
+    expect(await screen.findByRole("tab", { name: /Corrected marks/ })).toBeInTheDocument();
+    expect(screen.getByText(/changed these marks after the result was released/)).toBeInTheDocument();
+    expect((await screen.findAllByText("2 to release, 1 of them corrected marks")).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the table when the tab counts cannot load", async () => {
+    mockApi({ "GET /api/v1/live-exam-participation": pageOf([written()]) });
+    renderWithProviders(<ParticipationPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/participation" });
     expect((await screen.findAllByText("Evidence Act")).length).toBeGreaterThan(0);
   });
 });

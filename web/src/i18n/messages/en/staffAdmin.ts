@@ -39,6 +39,7 @@ const staffAdmin = {
       MANUAL: "Granted by hand",
     },
     allExams: "All exams in the module",
+    manageRoster: "Manage on the module roster",
     noTranId: "No payment",
     revoke: "Revoke access",
     revokeOnlyMaster: "Only the Master Admin can revoke access.",

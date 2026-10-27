@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Countdown } from "@/components/ui/countdown";
 import { FileDrop, type FileDropValue } from "@/components/ui/file-drop";
 import { useLocale } from "@/i18n/locale-context";
@@ -11,7 +12,6 @@ import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { questionPdfPath, useUploadAnswer, type StudentExam } from "@/lib/api/exam/sitting";
 import { formatNumber } from "@/lib/format";
-import { useToast } from "@/components/ui/toast";
 
 export const MAX_ANSWER_BYTES = 80 * 1024 * 1024;
 
@@ -28,15 +28,16 @@ type Props = {
   watermark: string;
   /** Called at the deadline. `hasScript` says whether a script was stored by then. */
   onClosed: (hasScript: boolean) => void;
+  /** Called once the student has confirmed and the script is stored. */
+  onSubmitted: () => void;
 };
 
 /**
  * The written paper: the question PDF inline (no download), and the answer upload. The student
  * stages a file, then submits it; a later file replaces the earlier one until the deadline.
  */
-export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props) {
+export function WrittenSitting({ exam, deadlineAt, watermark, onClosed, onSubmitted }: Props) {
   const { t, locale } = useLocale();
-  const { toast } = useToast();
   const n = (value: number) => formatNumber(value, locale);
   const [progress, setProgress] = useState(0);
   const upload = useUploadAnswer(exam.id, setProgress);
@@ -44,6 +45,7 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
   const [stored, setStored] = useState<FileDropValue | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const choose = async (file: File) => {
     setError(null);
@@ -67,9 +69,13 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
     try {
       await upload.mutateAsync(pending);
       setStored({ name: pending.name, size: pending.size, uploadedAt: new Date().toISOString() });
-      toast({ title: t("catalog.notice.uploaded", { name: pending.name }), tone: "ok" });
       setPending(null);
+      onSubmitted();
     } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "ANSWER_ALREADY_SUBMITTED") {
+        onSubmitted();
+        return;
+      }
       if (caught instanceof ApiError && caught.code === "DEADLINE_PASSED") {
         setClosed(true);
         setError(t("sitting.written.deadlinePassed"));
@@ -138,12 +144,21 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed }: Props)
             variant="primary"
             loading={upload.isPending}
             disabled={!pending || closed || upload.isPending}
-            onClick={submit}
+            onClick={() => setConfirming(true)}
           >
             {upload.isPending ? `${t("sitting.written.uploading")} ${n(progress)}%` : t("sitting.written.script")}
           </Button>
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("sitting.written.confirmTitle")}
+        body={t("sitting.written.confirmBody", { name: pending?.name ?? "" })}
+        confirmLabel={t("sitting.written.confirmAction")}
+        onConfirm={submit}
+      />
     </div>
   );
 }

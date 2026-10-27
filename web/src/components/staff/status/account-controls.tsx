@@ -32,10 +32,12 @@ export function AccountStatusToggle({
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
-  const { isMasterAdmin } = useRole();
+  const { isMasterAdmin, isSystemAdmin } = useRole();
   const setStatus = useSetAccountStatus(kind);
 
-  if (!isMasterAdmin || status === "PENDING_ACTIVATION") {
+  // System Admin suspends and restores students. Instructor status is the Master Admin's.
+  const canSetStatus = isMasterAdmin || (isSystemAdmin && kind === "students");
+  if (!canSetStatus || status === "PENDING_ACTIVATION") {
     return null;
   }
   const suspended = status === "INACTIVE";

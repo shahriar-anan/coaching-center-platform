@@ -12,6 +12,7 @@ import { formatDateTime, formatMoney, pickTitle } from "@/lib/format";
 import { useListParams } from "@/lib/url/list-params";
 import { useServerNow } from "@/lib/time/clock";
 import { doorType, examPath, modulePath, moduleTypeCount, type Door } from "./catalog-helpers";
+import { isMissing } from "@/lib/api/missing";
 
 /**
  * Modules whose title matches `term` and that have exams of this door's type.
@@ -125,7 +126,7 @@ export function upcomingPriceNote(
   exam: { price: number | null; moduleOnly?: boolean; liveAt: string | null; endAt: string | null },
   now: number,
 ): { kind: "live" } | { kind: "price"; price: number } | { kind: "moduleOnly" } | null {
-  const live = exam.liveAt !== null && exam.endAt !== null && Date.parse(exam.liveAt) <= now && now < Date.parse(exam.endAt);
+  const live = !isMissing(exam.liveAt) && !isMissing(exam.endAt) && Date.parse(exam.liveAt) <= now && now < Date.parse(exam.endAt);
   if (live) return { kind: "live" };
   if (exam.price !== null && exam.price !== undefined) return { kind: "price", price: exam.price };
   if (exam.moduleOnly) return { kind: "moduleOnly" };

@@ -23,7 +23,7 @@ export function LocalePill() {
       type="button"
       onClick={() => setLocale(next)}
       aria-label={t("common.locale.switchLabel")}
-      className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 text-label font-semibold text-text hover:bg-bg max-[379px]:px-2.5"
+      className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 text-label font-semibold text-text hover:bg-bg max-[379px]:px-2.5"
     >
       <Languages aria-hidden="true" className="size-4 max-[379px]:hidden" />
       <span>{locale === "bn" ? "EN" : "বাং"}</span>
@@ -56,7 +56,7 @@ export function ThemePill() {
       onClick={toggle}
       aria-label={label}
       title={label}
-      className="inline-flex size-11 items-center justify-center rounded-full border border-border bg-card text-text hover:bg-bg"
+      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-border bg-card text-text hover:bg-bg"
     >
       {dark ? <Sun aria-hidden="true" className="size-4" /> : <Moon aria-hidden="true" className="size-4" />}
     </button>

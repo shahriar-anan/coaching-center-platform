@@ -25,6 +25,8 @@ export type RoleInfo = {
   canAssignInstructor: boolean;
   canEvaluate: boolean;
   canPublishResult: boolean;
+  /** Publish an exam into the catalog. The Master Admin only. */
+  canPublishExam: boolean;
   canSeePayments: boolean;
   canSeeAudit: boolean;
   canManageStaff: boolean;
@@ -45,6 +47,7 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "canAssignInstructor",
     "canEvaluate",
     "canPublishResult",
+    "canPublishExam",
     "canSeePayments",
     "canSeeAudit",
     "canManageStaff",
@@ -73,6 +76,7 @@ export function roleInfo(role: Role | null | undefined): RoleInfo {
     canAssignInstructor: has("canAssignInstructor"),
     canEvaluate: has("canEvaluate"),
     canPublishResult: has("canPublishResult"),
+    canPublishExam: has("canPublishExam"),
     canSeePayments: has("canSeePayments"),
     canSeeAudit: has("canSeeAudit"),
     canManageStaff: has("canManageStaff"),

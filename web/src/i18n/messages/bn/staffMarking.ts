@@ -2,7 +2,26 @@ import type { MessageTree } from "../types";
 
 /** Staff marking: the submissions browser, the instructor dashboard, the marking screen and the bulk publish (WS9 MRK). */
 const staffMarking = {
+  submission: {
+    unavailable: "এই খাতাটি এই অ্যাকাউন্টে দেখা যাবে না।",
+  },
+  panel: {
+    label: "মূল্যায়ন প্যানেল",
+    mark: "নম্বর দিন",
+    details: "বিবরণ",
+    release: "প্রকাশ",
+  },
+  phone: {
+    label: "খাতা বা নম্বর",
+    script: "খাতা",
+    mark: "নম্বর",
+    current: "বর্তমান নম্বর: {mark} / {max}",
+  },
   browser: {
+    treeNote: "মূল্যায়ন বাকি। প্রতিটি সংখ্যা মূল্যায়ন বাকি থাকা খাতা গোনে।",
+    countsFor: "উপরের গণনা এর জন্য: {scope}",
+    showGroup: "{name} দেখান",
+    hideGroup: "{name} লুকান",
     title: "খাতা মূল্যায়ন",
     allPapers: "সব খাতা",
     student: "শিক্ষার্থী",
@@ -22,7 +41,8 @@ const staffMarking = {
     filterLabel: "দেখুন",
     filter: {
       AWAITING: "মূল্যায়ন বাকি",
-      DRAFT: "খসড়া নম্বর আছে",
+      DRAFT: "প্রকাশের অপেক্ষায়",
+      READY: "প্রকাশের জন্য প্রস্তুত",
       PUBLISHED: "প্রকাশিত",
       FAILED_TO_SUBMIT: "খাতা জমা হয়নি",
       ALL: "সব",
@@ -39,6 +59,8 @@ const staffMarking = {
     openNote: "পরীক্ষার সময়সীমা পেরিয়ে গেলে খাতা এখানে আসবে। যে পরীক্ষা এখনো চলছে, তার খাতা এখানে দেখা যাবে না।",
   },
   statusWord: {
+    READY: "প্রকাশের জন্য প্রস্তুত",
+    CHANGE_WAITING: "পরিবর্তন প্রকাশের অপেক্ষায়",
     AWAITING: "মূল্যায়ন বাকি",
     DRAFT: "খসড়া নম্বর আছে",
     PUBLISHED: "প্রকাশিত",
@@ -52,6 +74,7 @@ const staffMarking = {
     ago: "{duration} আগে",
   },
   home: {
+    corrections: "প্রকাশের অপেক্ষায় পরিবর্তন",
     awaiting: "খাতা বাকি",
     drafts: "খসড়া",
     published: "প্রকাশিত",
@@ -75,6 +98,7 @@ const staffMarking = {
     confirmTitle: "সব খসড়া প্রকাশ করবেন?",
     confirmBody: "“{exam}”-এর {count}টি খসড়া ফলাফল প্রকাশ হবে। প্রকাশ হলে শিক্ষার্থীরা এই নম্বর দেখতে পাবেন।",
     confirmAction: "প্রকাশ করুন",
+    instructorNote: "এই ফলাফল প্রকাশ করেন মাস্টার অ্যাডমিন।",
     publishedAll: "{count}টি ফলাফল প্রকাশ হয়েছে।",
     publishSelected: "নির্বাচিতগুলো প্রকাশ করুন ({count})",
     confirmSelectedTitle: "নির্বাচিত খাতাগুলোর ফলাফল প্রকাশ করবেন?",
@@ -89,7 +113,7 @@ const staffMarking = {
   },
   questionPaper: {
     title: "প্রশ্নপত্র",
-    notAllowed: "এই প্রশ্নপত্র দেখার অনুমতি নেই।",
+    notAllowed: "এই প্রশ্নপত্র পাওয়া যাচ্ছে না। হয়তো এই পরীক্ষার জন্য কোনো ফাইল আপলোড করা হয়নি, অথবা আপনার অ্যাকাউন্টে এটি দেখার অনুমতি নেই।",
     watermark: "এক্সাম পোর্টাল · শুধু মূল্যায়নের জন্য",
   },
   snippets: {
@@ -113,7 +137,7 @@ const staffMarking = {
     comment: "শিক্ষকের মন্তব্য",
     commentHint: "ঐচ্ছিক",
     markedFile: "মূল্যায়ন করা খাতা (PDF)",
-    markedFileRule: "প্রতিবার সেভ করার সময় মূল্যায়ন করা খাতার PDF আবার দিতে হবে। আগের ফাইল ব্যবহার হবে না।",
+    markedFileRule: "ফাইল না দিলে আগে জমা দেওয়া মূল্যায়ন করা খাতাই থাকবে। বদলাতে চাইলে নতুন PDF দিন। প্রথমবার সেভ করার সময় PDF দিতে হবে।",
     storedFile: "আগে জমা দেওয়া ফাইল: {name}",
     viewMarked: "দেখুন",
     fileLimit: "শুধু PDF ফাইল। সর্বোচ্চ {max} এমবি।",
@@ -122,7 +146,13 @@ const staffMarking = {
     saveDraft: "খসড়া নম্বর সেভ করুন",
     saveAndNext: "সেভ করে পরেরটি",
     saved: "খসড়া নম্বর সেভ হয়েছে।",
-    saveNote: "শিক্ষার্থী এখনো এটি দেখতে পারবেন না। প্রকাশিত ফল আবার সেভ করলে লুকিয়ে যাবে, আবার প্রকাশ করতে হবে।",
+    saveNote: "ফল প্রকাশ না হওয়া পর্যন্ত শিক্ষার্থী কিছু দেখবেন না। ফল আগে প্রকাশ হয়ে থাকলে এই পরিবর্তন প্রকাশ করা পর্যন্ত শিক্ষার্থী আগের ফলই দেখবেন।",
+    markedFileRequired: "আবশ্যক",
+    readyNote: "প্রস্তুত চিহ্নিত খাতা আগে প্রকাশ হবে। যেকোনো সেভে এই চিহ্ন মুছে যাবে।",
+    markReady: "প্রকাশের জন্য প্রস্তুত চিহ্নিত করুন",
+    clearReady: "প্রস্তুত চিহ্ন মুছুন",
+    markedReady: "প্রকাশের জন্য প্রস্তুত চিহ্নিত হয়েছে।",
+    clearedReady: "প্রস্তুত চিহ্ন মুছে গেছে।",
     noAnswer: "খাতা জমা হয়নি, তাই নম্বর দেওয়া যাবে না।",
     unsaved: "সেভ না করে চলে যাবেন?",
     draftFound: "আগের বার সেভ না করা কিছু পরিবর্তন পাওয়া গেছে।",
@@ -136,7 +166,9 @@ const staffMarking = {
   },
   publish: {
     published: "প্রকাশিত",
-    republishNote: "প্রকাশিত অবস্থায় সেভ করলে এটি আবার খসড়া হয়ে যাবে।",
+    republishNote: "শিক্ষার্থী আগের প্রকাশিত নম্বর দেখতে থাকবেন। এই পরিবর্তন প্রকাশ করতে হবে।",
+    releaseChange: "পরিবর্তন প্রকাশ করুন",
+    instructorNote: "এই ফলাফল প্রকাশ করেন মাস্টার অ্যাডমিন।",
     note: "খসড়া নম্বর সেভ করলে এখান থেকে ফলাফল প্রকাশ করা যাবে।",
     action: "ফলাফল প্রকাশ করুন",
     confirmTitle: "ফলাফল প্রকাশ করবেন?",
@@ -144,6 +176,7 @@ const staffMarking = {
     done: "ফলাফল প্রকাশ হয়েছে।",
   },
   facts: {
+    changeWaiting: "পরিবর্তন প্রকাশের অপেক্ষায়",
     student: "শিক্ষার্থী",
     exam: "পরীক্ষা",
     module: "মডিউল",

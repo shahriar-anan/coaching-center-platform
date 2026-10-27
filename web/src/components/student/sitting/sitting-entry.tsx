@@ -129,12 +129,18 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
       }
       return null;
     }
+    if (data.answerStored) {
+      // A script is submitted once and cannot be changed, so there is nothing left to do on this page.
+      router.replace(`/exam/${examId}/submitted`);
+      return null;
+    }
     const watermark = user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName;
     return (
       <WrittenSitting
         exam={data}
         deadlineAt={sitting.deadlineAt}
         watermark={watermark}
+        onSubmitted={() => router.replace(`/exam/${examId}/submitted`)}
         onClosed={(hasScript) => router.replace(`/exam/${examId}/result?notice=${hasScript ? "timeUpScript" : "timeUpNoScript"}`)}
       />
     );

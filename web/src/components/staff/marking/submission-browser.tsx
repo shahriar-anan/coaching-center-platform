@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,11 +13,9 @@ import { Pill } from "@/components/ui/pill";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { SplitBrowser, type TreeNode } from "@/components/ui/split-browser";
+import { Tabs } from "@/components/ui/tabs";
 import { Table, type Column } from "@/components/ui/table";
-import {
-  BulkPublishExam,
-  BulkPublishSelected,
-} from "@/components/staff/marking/bulk-publish";
+import { BulkPublishSelected } from "@/components/staff/marking/bulk-publish";
 import {
   buildBrowserTree,
   FEED_FILTERS,
@@ -26,6 +25,7 @@ import {
   selectionFor,
   sortRows,
   statusTone,
+  statusWordKey,
 } from "@/components/staff/marking/marking-queue";
 import { useRole } from "@/lib/auth/guards";
 import { useParticipationRows } from "@/lib/api/exam/staff-home";
@@ -82,7 +82,7 @@ export function SubmissionBrowser() {
   );
 
   const sort: FeedSort = FEED_SORTS.includes(params.sort as FeedSort) ? (params.sort as FeedSort) : "submittedAt,desc";
-  const base = { status: feedStatus(params.status), examId: params.exam, q: params.q, sort };
+  const base = { status: feedStatus(params.status), examId: params.exam, q: params.q, sort, ready: params.status === "READY" };
   const categoryModules = params.cat ? (index.categoryModules.get(params.cat) ?? []) : [];
 
   // Every scope but a category is one feed call. A category reads each module's first page.
@@ -104,6 +104,37 @@ export function SubmissionBrowser() {
   const selectedId = selectedNode(params);
   const headerTitle = labelOf(index.tree, selectedId) ?? t("staffMarking.browser.title");
   const selectedExam = params.exam ? exams.find((row) => row.examId === params.exam) : undefined;
+
+  // The exams inside the selection (an exam, a module, a category, or everything). The tab counts read these.
+  const scopeExams = useMemo(() => {
+    if (params.exam) {
+      return exams.filter((row) => row.examId === params.exam);
+    }
+    if (params.module) {
+      return exams.filter((row) => row.moduleId === params.module);
+    }
+    if (params.cat) {
+      const inside = new Set(index.categoryModules.get(params.cat) ?? []);
+      return exams.filter((row) => inside.has(row.moduleId));
+    }
+    return exams;
+  }, [exams, index, params.cat, params.exam, params.module]);
+
+  /** The count on a status tab, for the selection on screen. READY has no count of its own yet, so it shows none. */
+  function scopedCount(filter: string): number | undefined {
+    const sum = (pick: (row: (typeof scopeExams)[number]) => number | null | undefined) =>
+      scopeExams.reduce((total, row) => total + (pick(row) ?? 0), 0);
+    if (filter === "AWAITING") {
+      return sum((row) => row.awaitingMarking);
+    }
+    if (filter === "DRAFT") {
+      return sum((row) => row.draftsAwaitingPublish);
+    }
+    if (filter === "PUBLISHED") {
+      return sum((row) => row.published);
+    }
+    return undefined;
+  }
 
   function choose(nodeId: string) {
     const next = selectionFor(nodeId, index);
@@ -163,7 +194,20 @@ export function SubmissionBrowser() {
           },
         ]
       : []),
-    { key: "student", header: t("staffMarking.browser.student"), cell: (row) => row.studentName },
+    {
+      key: "student",
+      header: t("staffMarking.browser.student"),
+      // A real link, so the paper opens from the keyboard too; the row click is kept for pointers.
+      cell: (row) => (
+        <Link
+          href={`/staff/submissions/${row.participantId}?m=${row.moduleId}`}
+          className="font-medium text-text underline-offset-4 hover:underline"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {row.studentName}
+        </Link>
+      ),
+    },
     {
       key: "exam",
       header: t("staffMarking.browser.exam"),
@@ -183,11 +227,12 @@ export function SubmissionBrowser() {
           },
         ]
       : []),
-    { key: "submitted", header: t("staffMarking.browser.submitted"), cell: (row) => submittedText(row.submittedAt) },
+    { key: "submitted", header: t("staffMarking.browser.submitted"), nowrap: true, cell: (row) => submittedText(row.submittedAt) },
     {
       key: "status",
       header: t("staffMarking.browser.status"),
-      cell: (row) => <Pill tone={statusTone(row.status)}>{t(`staffMarking.statusWord.${row.status}`)}</Pill>,
+      nowrap: true,
+      cell: (row) => <Pill tone={statusTone(row.status)}>{t(`staffMarking.statusWord.${statusWordKey(row)}`)}</Pill>,
     },
   ];
 
@@ -208,9 +253,29 @@ export function SubmissionBrowser() {
         ]}
       />
 
-      <SplitBrowser tree={index.tree} selectedId={selectedId} onSelect={choose}>
+      <SplitBrowser
+        tree={index.tree}
+        selectedId={selectedId}
+        onSelect={choose}
+        heading={t("staffMarking.browser.treeNote")}
+        toggleLabel={(label, expanded) =>
+          t(expanded ? "staffMarking.browser.hideGroup" : "staffMarking.browser.showGroup", { name: label })
+        }
+      >
         <div className="grid gap-4">
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end">
+          <Tabs
+            ariaLabel={t("staffMarking.browser.filterLabel")}
+            tabs={FEED_FILTERS.filter((filter) => filter !== "READY" || canPublishResult).map((filter) => ({
+              value: filter,
+              label: t(`staffMarking.browser.filter.${filter}`),
+              badge: scopedCount(filter),
+            }))}
+            value={params.status}
+            onChange={(status) => setParams({ status, page: 0 })}
+          />
+          <p className="text-meta text-muted">{t("staffMarking.browser.countsFor", { scope: headerTitle })}</p>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_auto] md:items-end">
             <Field label={t("staffMarking.browser.searchLabel")}>
               <SearchInput
                 id="browser-q"
@@ -218,15 +283,6 @@ export function SubmissionBrowser() {
                 onChange={(q) => setParams({ q, page: 0 })}
                 placeholder={t("staffMarking.browser.searchPlaceholder")}
               />
-            </Field>
-            <Field label={t("staffMarking.browser.filterLabel")}>
-              <Select value={params.status} onChange={(event) => setParams({ status: event.target.value, page: 0 })}>
-                {FEED_FILTERS.map((filter) => (
-                  <option key={filter} value={filter}>
-                    {t(`staffMarking.browser.filter.${filter}`)}
-                  </option>
-                ))}
-              </Select>
             </Field>
             <Field label={t("staffMarking.browser.sortLabel")}>
               <Select value={sort} onChange={(event) => setParams({ sort: event.target.value, page: 0 })}>
@@ -250,11 +306,10 @@ export function SubmissionBrowser() {
             {canPublishResult ? (
               <div className="flex flex-wrap items-center gap-2">
                 {selectedExam ? (
-                  <BulkPublishExam
-                    examId={selectedExam.examId}
-                    examTitle={format.pickTitle(selectedExam)}
-                    drafts={selectedExam.draftsAwaitingPublish ?? 0}
-                  />
+                  // The release gate and its counts live on the results page; the browser only links there.
+                  <Button variant="secondary" href={`/staff/exams/${selectedExam.examId}/results`}>
+                    {t("staffResults.release.title")}
+                  </Button>
                 ) : null}
                 <BulkPublishSelected ids={tickedNow} onDone={() => setTicked([])} />
               </div>

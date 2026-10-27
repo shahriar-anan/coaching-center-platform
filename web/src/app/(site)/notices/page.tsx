@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/cn";
 import { noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
 import { announcementText, isLongBody, previewBody } from "./_components/announcement";
+import { isMissing } from "@/lib/api/missing";
 
 export default function NoticesPage() {
   return (
@@ -31,8 +32,9 @@ export default function NoticesPage() {
   );
 }
 
-function kindWord(kind: string, t: (key: string) => string): string {
-  return t(noticeKindLabelKey(kind));
+/** A written result the Master Admin released again after a correction reads "updated", not "published". */
+function kindWord(kind: string, t: (key: string) => string, updated = false): string {
+  return t(kind === "WRITTEN_RESULT" && updated ? "notices.kind.WRITTEN_RESULT_UPDATED" : noticeKindLabelKey(kind));
 }
 
 /**
@@ -42,7 +44,7 @@ function kindWord(kind: string, t: (key: string) => string): string {
 function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice) => void }) {
   const { t, locale } = useLocale();
   const [expanded, setExpanded] = useState(false);
-  const unread = notice.readAt === null;
+  const unread = isMissing(notice.readAt);
   const { title, body } = announcementText(notice.announcement, locale);
   const long = isLongBody(body);
 
@@ -81,7 +83,7 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice
   if (notice.kind === "ANNOUNCEMENT") {
     return <AnnouncementRow notice={notice} onOpen={onOpen} />;
   }
-  const unread = notice.readAt === null;
+  const unread = isMissing(notice.readAt);
   const title = notice.exam ? pickTitle(notice.exam, locale) : "";
   const content = (
     <span className="flex min-w-0 flex-1 items-start gap-3">
@@ -91,18 +93,18 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice
       />
       <span className="grid min-w-0 gap-1">
         <span className="font-semibold text-text">
-          {title || kindWord(notice.kind, t)}
+          {title || kindWord(notice.kind, t, notice.updated === true)}
           {unread ? <span className="sr-only"> ({t("notices.unreadDot")})</span> : null}
         </span>
         <span className="text-meta text-muted">
-          {kindWord(notice.kind, t)}
-          {notice.score !== null && notice.maximum !== null
+          {kindWord(notice.kind, t, notice.updated === true)}
+          {!isMissing(notice.score) && !isMissing(notice.maximum)
             ? ` · ${t("notices.score", { score: formatNumber(notice.score, locale), max: formatNumber(notice.maximum, locale) })}`
             : ""}
         </span>
         <span className="flex flex-wrap items-center gap-2 text-meta text-muted">
           <time dateTime={notice.createdAt}>{formatDateTime(notice.createdAt, locale)}</time>
-          {notice.passed === null ? null : (
+          {isMissing(notice.passed) ? null : (
             <Pill tone={notice.passed ? "ok" : "muted"}>
               {notice.passed ? t("notices.passed") : t("notices.failed")}
             </Pill>
@@ -129,7 +131,7 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice
     <Link
       href={href}
       prefetch
-      aria-label={`${title || kindWord(notice.kind, t)}. ${t("notices.openExam")}`}
+      aria-label={`${title || kindWord(notice.kind, t, notice.updated === true)}. ${t("notices.openExam")}`}
       onClick={() => onOpen(notice)}
       className={className}
     >
@@ -146,11 +148,11 @@ function NoticesView() {
   const markAll = useMarkAllNoticesRead();
   const { toast } = useToast();
   const rows = query.data?.content ?? [];
-  const anyUnread = rows.some((row) => row.readAt === null);
+  const anyUnread = rows.some((row) => isMissing(row.readAt));
 
   // The row is a link to the exam page; opening it also marks the notice read.
   function open(notice: Notice) {
-    if (notice.readAt === null) {
+    if (isMissing(notice.readAt)) {
       markOne.mutate(notice.id, { onError: () => toast({ title: t("common.states.errorBody"), tone: "danger" }) });
     }
   }

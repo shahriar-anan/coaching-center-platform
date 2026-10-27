@@ -10,6 +10,7 @@ import {
   useCategoryTree,
   useDeleteModule,
   useModuleAction,
+  useSaveCategory,
   useSaveModule,
   type CategoryTreeNode,
   type ModuleInput,
@@ -17,6 +18,8 @@ import {
 } from "@/lib/api/exam/staff-catalog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { ModuleStudentPreview } from "@/components/staff/catalog/module-student-preview";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
@@ -82,6 +85,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const publish = useModuleAction(module?.id ?? "", "publish");
   const archive = useModuleAction(module?.id ?? "", "archive");
   const remove = useDeleteModule(module?.id ?? "");
+  const saveCategory = useSaveCategory();
 
   const [form, setForm] = useState<FormState>(() => initialState(module));
   const [baseline, setBaseline] = useState<FormState>(() => initialState(module));
@@ -89,6 +93,11 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState({ titleEn: "", titleBn: "", parentId: "" });
+  const [newCategoryErrors, setNewCategoryErrors] = useState<{ titleEn?: string; titleBn?: string }>({});
+  const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
   const dirty = JSON.stringify(form) !== JSON.stringify(baseline);
   useUnsavedWarning(dirty);
 
@@ -96,6 +105,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const readOnly = archived || (module ? !role.canAuthor : false);
   const creating = !module;
   const categories = useMemo(() => flatCategories(tree.data ?? []), [tree.data]);
+  const selectedCategory = categories.find((c) => c.id === form.categoryId) ?? null;
 
   const priceDisplay = status?.price ?? null;
   const canSetPrice = role.canEditPrice;
@@ -113,6 +123,49 @@ function DetailsBody({ module }: { module?: StaffModule }) {
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  /** Opens the new-category panel. A parent id makes the new category a subcategory of that one. */
+  function openCategoryPanel(parentId: string) {
+    setNewCategory({ titleEn: "", titleBn: "", parentId });
+    setNewCategoryErrors({});
+    setNewCategoryError(null);
+    setAddingCategory(true);
+  }
+
+  function cancelCategory() {
+    setAddingCategory(false);
+    setNewCategory({ titleEn: "", titleBn: "", parentId: "" });
+    setNewCategoryErrors({});
+    setNewCategoryError(null);
+  }
+
+  /** Creates the category, then selects it here so the module details stay as they are. */
+  async function createCategory() {
+    const next: { titleEn?: string; titleBn?: string } = {};
+    if (!newCategory.titleEn.trim()) {
+      next.titleEn = t("staffCatalog.categoryForm.titleEnRequired");
+    }
+    if (!newCategory.titleBn.trim()) {
+      next.titleBn = t("staffCatalog.categoryForm.titleBnRequired");
+    }
+    setNewCategoryErrors(next);
+    if (next.titleEn || next.titleBn) {
+      return;
+    }
+    setNewCategoryError(null);
+    try {
+      const created = await saveCategory.mutateAsync({
+        parentId: newCategory.parentId || null,
+        titleEn: newCategory.titleEn.trim(),
+        titleBn: newCategory.titleBn.trim(),
+      });
+      set("categoryId", created.id);
+      cancelCategory();
+      toast({ title: t("staffCatalog.categoryForm.saved"), tone: "ok" });
+    } catch (error) {
+      setNewCategoryError(t(catalogErrorKey(error)));
+    }
   }
 
   function validate(): ModuleInput | null {
@@ -219,17 +272,83 @@ function DetailsBody({ module }: { module?: StaffModule }) {
               <Textarea rows={4} value={form.descriptionBn} onChange={(e) => set("descriptionBn", e.target.value)} />
             </Field>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t("staffCatalog.moduleForm.category")} required error={errors.categoryId}>
-              <Select value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
-                <option value="">{t("staffCatalog.moduleForm.categoryPick")}</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {`${"— ".repeat(c.depth)}${locale === "bn" ? c.titleBn : c.titleEn}`}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <div className="grid gap-3">
+              <Field label={t("staffCatalog.moduleForm.category")} required error={errors.categoryId}>
+                <Select value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
+                  <option value="">{t("staffCatalog.moduleForm.categoryPick")}</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {`${"— ".repeat(c.depth)}${locale === "bn" ? c.titleBn : c.titleEn}`}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {!addingCategory ? (
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" variant="secondary" onClick={() => openCategoryPanel("")}>
+                    {t("staffCatalog.categories.new")}
+                  </Button>
+                  {selectedCategory ? (
+                    <Button type="button" variant="secondary" onClick={() => openCategoryPanel(selectedCategory.id)}>
+                      {t("staffCatalog.moduleForm.addSubcategory", {
+                        name: locale === "bn" ? selectedCategory.titleBn : selectedCategory.titleEn,
+                      })}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <div role="group" aria-label={t("staffCatalog.moduleForm.newCategoryHeading")} className="grid gap-4 rounded-card border border-border bg-card p-4">
+                  <h3 className="text-label font-semibold">{t("staffCatalog.moduleForm.newCategoryHeading")}</h3>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label={t("staffCatalog.categoryForm.titleEn")} required error={newCategoryErrors.titleEn}>
+                      <TextInput
+                        value={newCategory.titleEn}
+                        onChange={(e) => setNewCategory((current) => ({ ...current, titleEn: e.target.value }))}
+                        dir="ltr"
+                      />
+                    </Field>
+                    <Field label={t("staffCatalog.categoryForm.titleBn")} required error={newCategoryErrors.titleBn}>
+                      <TextInput
+                        value={newCategory.titleBn}
+                        onChange={(e) => setNewCategory((current) => ({ ...current, titleBn: e.target.value }))}
+                      />
+                    </Field>
+                  </div>
+                  <Field label={t("staffCatalog.categoryForm.parent")} hint={t("staffCatalog.categoryForm.parentHint")}>
+                    <Select
+                      value={newCategory.parentId}
+                      onChange={(e) => setNewCategory((current) => ({ ...current, parentId: e.target.value }))}
+                    >
+                      <option value="">{t("staffCatalog.categoryForm.parentNone")}</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {`${"— ".repeat(c.depth)}${locale === "bn" ? c.titleBn : c.titleEn}`}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  {newCategoryError ? (
+                    <p role="alert" className="text-meta text-danger">
+                      {newCategoryError}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      loading={saveCategory.isPending}
+                      disabled={saveCategory.isPending}
+                      onClick={() => void createCategory()}
+                    >
+                      {t("staffCatalog.moduleForm.createCategory")}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={cancelCategory}>
+                      {t("common.cancel")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
             {canSetPrice ? (
               <Field
                 label={t("staffCatalog.moduleForm.price")}
@@ -266,6 +385,18 @@ function DetailsBody({ module }: { module?: StaffModule }) {
         ) : null}
       </form>
 
+      {module ? (
+        <Dialog
+          open={previewing}
+          onOpenChange={setPreviewing}
+          title={t("staffCatalog.moduleForm.studentViewTitle")}
+          description={t("staffCatalog.moduleForm.studentViewBody")}
+          className="sm:max-w-4xl"
+        >
+          {previewing ? <ModuleStudentPreview module={module} /> : null}
+        </Dialog>
+      ) : null}
+
       {module && role.canManageCover ? <CoverUploader module={module} /> : null}
 
       {module && !readOnly && role.canAuthor ? (
@@ -288,6 +419,9 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                 {t("staffCatalog.moduleForm.finalSave")}
               </Button>
             </span>
+            <Button variant="secondary" onClick={() => setPreviewing(true)}>
+              {t("staffCatalog.preview.open")}
+            </Button>
             <Button disabled={!publishable || publish.isPending} loading={publish.isPending} onClick={() => runAction("publish")}>
               {t("staffCatalog.moduleForm.publish")}
             </Button>

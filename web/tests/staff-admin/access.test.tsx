@@ -68,7 +68,7 @@ describe("StudentAccessSection", () => {
     expect(screen.getAllByText("TRAN-PAID-1")[0].closest("a")).toHaveAttribute("href", expect.stringContaining("/staff/payments/TRAN-PAID-1"));
   });
 
-  it("does not offer revoke to System Admin, and says who can", async () => {
+  it("offers neither revoke nor grant to System Admin, and says who can revoke", async () => {
     mockApi({ [`GET /api/v1/students/${studentId}/live-exam-access`]: access });
     renderWithProviders(<StudentAccessSection studentId={studentId} studentName="রহিম" />, {
       user: fixtures.systemAdmin,
@@ -77,7 +77,7 @@ describe("StudentAccessSection", () => {
     await screen.findAllByText("হাতে দেওয়া");
     expect(screen.queryByRole("button", { name: "অ্যাক্সেস বাতিল" })).not.toBeInTheDocument();
     expect(screen.getByText("অ্যাক্সেস বাতিল করতে পারেন শুধু মাস্টার অ্যাডমিন।")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "হাতে অ্যাক্সেস দিন" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "হাতে অ্যাক্সেস দিন" })).not.toBeInTheDocument();
   });
 
   it("asks for a reason before it grants access by hand", async () => {
@@ -86,7 +86,7 @@ describe("StudentAccessSection", () => {
       "GET /api/v1/live-exam-modules": modules,
     });
     renderWithProviders(<StudentAccessSection studentId={studentId} studentName="রহিম" />, {
-      user: fixtures.systemAdmin,
+      user: fixtures.masterAdmin,
     });
     const user = userEvent.setup();
 
@@ -106,7 +106,7 @@ describe("StudentAccessSection", () => {
       "POST /api/v1/live-exam-grants": apiError(409, "GRANT_ALREADY_ACTIVE", "Already granted."),
     });
     renderWithProviders(<StudentAccessSection studentId={studentId} studentName="রহিম" />, {
-      user: fixtures.systemAdmin,
+      user: fixtures.masterAdmin,
     });
     const user = userEvent.setup();
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SubmissionForm } from "@/components/staff/marking/submission-form";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
@@ -21,7 +21,17 @@ describe("submission form by role (moved from people/, WS9 MRK)", () => {
     renderWithProviders(<SubmissionForm paper={paper()} canMark canPublish={false} />, { user: fixtures.instructor });
     expect(screen.getByRole("button", { name: SAVE })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: PUBLISH })).toBeNull();
-    expect(screen.getByText(/শিক্ষার্থী এখনো এটি দেখতে পারবেন না/)).toBeInTheDocument();
+    expect(screen.getByText(/ফল প্রকাশ না হওয়া পর্যন্ত শিক্ষার্থী কিছু দেখবেন না/)).toBeInTheDocument();
+  });
+
+  it("splits the grading panel into tabs by what the role may do", () => {
+    mockApi({});
+    const { unmount } = renderWithProviders(<SubmissionForm paper={paper()} canMark canPublish />, { user: fixtures.masterAdmin });
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["নম্বর দিন", "বিবরণ", "প্রকাশ"]);
+    expect(screen.getByRole("tab", { name: "নম্বর দিন" })).toHaveAttribute("aria-selected", "true");
+    unmount();
+    renderWithProviders(<SubmissionForm paper={paper()} canMark={false} canPublish={false} />, { user: fixtures.systemAdmin });
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["বিবরণ"]);
   });
 
   it("gives System Admin the facts with the examiner's name, and no form", () => {
@@ -76,12 +86,59 @@ describe("saved mark and comment (G1)", () => {
     expect(screen.getByText("আগে জমা দেওয়া ফাইল: rahim-marked.pdf")).toBeInTheDocument();
   });
 
-  it("says before the start that each save needs the marked PDF again", () => {
+  it("says before the start that a save without a file keeps the stored marked PDF", () => {
     mockApi({});
     renderWithProviders(<SubmissionForm paper={paper()} canMark canPublish={false} />, { user: fixtures.instructor });
-    const rule = screen.getByText(/প্রতিবার সেভ করার সময় মূল্যায়ন করা খাতার PDF আবার দিতে হবে/);
+    const rule = screen.getByText(/ফাইল না দিলে আগে জমা দেওয়া মূল্যায়ন করা খাতাই থাকবে/);
     const marks = screen.getByRole("spinbutton", { name: /প্রাপ্ত নম্বর/ });
     expect(rule.compareDocumentPosition(marks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("saves new marks without a file when a marked PDF is already stored", async () => {
+    // Uploads go through XMLHttpRequest, so capture the form that is sent and answer it as saved.
+    mockApi({});
+    const sent: FormData[] = [];
+    const send = vi.spyOn(XMLHttpRequest.prototype, "send").mockImplementation(function (this: XMLHttpRequest, body) {
+      sent.push(body as FormData);
+      Object.defineProperty(this, "status", { value: 200 });
+      Object.defineProperty(this, "responseText", { value: JSON.stringify({ id: "p1", score: 44 }) });
+      this.onload?.(new ProgressEvent("load"));
+    });
+    try {
+      renderWithProviders(
+        <SubmissionForm paper={paper({ score: 40, evaluatedPdf: true, evaluatedFileName: "rahim-marked.pdf" })} canMark canPublish={false} />,
+        { user: fixtures.instructor },
+      );
+      await userEvent.clear(screen.getByRole("spinbutton", { name: /প্রাপ্ত নম্বর/ }));
+      await userEvent.type(screen.getByRole("spinbutton", { name: /প্রাপ্ত নম্বর/ }), "44");
+      await userEvent.click(screen.getByRole("button", { name: SAVE }));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0].get("marks")).toBe("44");
+      expect(sent[0].has("file")).toBe(false);
+    } finally {
+      send.mockRestore();
+    }
+    expect(screen.queryByText("মূল্যায়ন করা খাতার PDF দিন।")).toBeNull();
+  });
+
+  it("leaves the mark box empty when the API leaves out the score of an unmarked paper", () => {
+    mockApi({});
+    // The API omits null fields, so the score key is missing rather than null.
+    const unmarked: Partial<ReturnType<typeof paper>> = { ...paper() };
+    delete unmarked.score;
+    renderWithProviders(<SubmissionForm paper={unmarked as ReturnType<typeof paper>} canMark canPublish={false} />, {
+      user: fixtures.instructor,
+    });
+    expect(screen.getByRole("spinbutton", { name: /প্রাপ্ত নম্বর/ })).toHaveValue(null);
+  });
+
+  it("asks for a PDF before the first save and sends nothing", async () => {
+    const api = mockApi({});
+    renderWithProviders(<SubmissionForm paper={paper()} canMark canPublish={false} />, { user: fixtures.instructor });
+    await userEvent.type(screen.getByRole("spinbutton", { name: /প্রাপ্ত নম্বর/ }), "30");
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
+    expect(screen.getByText("মূল্যায়ন করা খাতার PDF দিন।")).toBeInTheDocument();
+    expect(api.calls.filter((call) => call.method === "POST")).toHaveLength(0);
   });
 
   it("refuses marks above the maximum before any request is sent", async () => {

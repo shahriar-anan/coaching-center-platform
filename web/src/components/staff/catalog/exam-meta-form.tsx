@@ -13,7 +13,8 @@ import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { cn } from "@/components/ui/cn";
+import { ruleLines } from "@/components/student/catalog/lms-blocks";
 import { Textarea } from "@/components/ui/textarea";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
@@ -118,7 +119,7 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
     }
     if (section === "schedule") {
       const duration = Number(form.durationMinutes);
-      if (!Number.isInteger(duration) || duration <= 0) {
+      if (!Number.isInteger(duration) || duration < 2) {
         next.durationMinutes = t("staffCatalog.examMeta.durationInvalid");
       }
       if (form.passPercent !== "") {
@@ -227,6 +228,7 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
       <fieldset disabled={locked} className="grid gap-5">
         {section === "details" ? (
           <>
+            <p className="text-meta text-muted">{t("staffCatalog.examMeta.textHint")}</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t("staffCatalog.examMeta.titleEn")} required error={errors.titleEn}>
                 <TextInput value={form.titleEn} onChange={(e) => set("titleEn", e.target.value)} dir="ltr" />
@@ -251,6 +253,11 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
                 <Textarea rows={3} value={form.rulesBn} onChange={(e) => set("rulesBn", e.target.value)} />
               </Field>
             </div>
+            <p className="text-meta text-muted">{t("staffCatalog.examMeta.rulesHint")}</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <RulesPreview title={t("staffCatalog.examMeta.rulesPreview")} text={form.rulesEn} lang="en" />
+              <RulesPreview title={t("staffCatalog.examMeta.rulesPreview")} text={form.rulesBn} lang="bn" />
+            </div>
             <Field label={t("staffCatalog.examMeta.paperLanguage")} hint={t("staffCatalog.examMeta.paperLanguageHint")}>
               <Select value={form.paperLanguage} onChange={(e) => set("paperLanguage", e.target.value as PaperLanguage)}>
                 <option value="BN">{t("staffCatalog.paperLanguage.BN")}</option>
@@ -263,8 +270,8 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
         {section === "schedule" ? (
           <>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={t("staffCatalog.examMeta.duration")} required error={errors.durationMinutes}>
-                <NumberInput inputMode="numeric" min={1} step={1} value={form.durationMinutes} onChange={(e) => set("durationMinutes", e.target.value)} />
+              <Field label={t("staffCatalog.examMeta.duration")} required hint={t("staffCatalog.examMeta.durationHint")} error={errors.durationMinutes}>
+                <NumberInput inputMode="numeric" min={2} step={1} value={form.durationMinutes} onChange={(e) => set("durationMinutes", e.target.value)} />
               </Field>
               <Field label={t("staffCatalog.examMeta.passPercent")} hint={t("staffCatalog.examMeta.passHint")} error={errors.passPercent}>
                 <NumberInput inputMode="numeric" min={0} max={100} step={1} value={form.passPercent} onChange={(e) => set("passPercent", e.target.value)} />
@@ -276,17 +283,38 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
               ) : null}
             </div>
             <div id="exam-start" className="grid gap-3">
-              <Switch
-                id="exam-undated"
-                label={t("staffCatalog.examMeta.undated")}
-                checked={!form.dated}
-                onCheckedChange={(undated) => {
-                  set("dated", !undated);
-                  if (undated) {
-                    set("liveAt", null);
-                  }
-                }}
-              />
+              <fieldset className="grid gap-2">
+                <legend className="mb-1 text-label font-medium">{t("staffCatalog.examMeta.startLegend")}</legend>
+                <div role="radiogroup" aria-label={t("staffCatalog.examMeta.startLegend")} className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { dated: true, label: t("staffCatalog.examMeta.dateSet") },
+                    { dated: false, label: t("staffCatalog.examMeta.dateLater") },
+                  ].map((option) => {
+                    const selected = form.dated === option.dated;
+                    return (
+                      <button
+                        key={String(option.dated)}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          set("dated", option.dated);
+                          if (!option.dated) {
+                            set("liveAt", null);
+                          }
+                        }}
+                        className={cn(
+                          "min-h-11 rounded-control border px-4 text-start text-body",
+                          selected ? "border-action font-medium ring-1 ring-action" : "border-border-control bg-field hover:border-muted",
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              {!form.dated ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.dateLaterHint")}</p> : null}
               {form.dated ? (
                 <Field label={t("staffCatalog.examMeta.start")} hint={t("staffCatalog.examMeta.startHint")} error={errors.liveAt}>
                   <DateTimeInput value={form.liveAt} onChange={(iso) => set("liveAt", iso)} invalid={Boolean(errors.liveAt)} />
@@ -322,6 +350,24 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
       ) : null}
       {saveRow}
     </form>
+  );
+}
+
+/** The rules as a student sees them: one numbered rule per line. */
+function RulesPreview({ title, text, lang }: { title: string; text: string; lang: "en" | "bn" }) {
+  const items = ruleLines(text);
+  if (items.length === 0) {
+    return null;
+  }
+  return (
+    <div className="grid gap-2 rounded-card border border-border bg-card p-4">
+      <p className="text-meta font-medium text-muted">{title}</p>
+      <ol lang={lang} className="grid list-decimal gap-1.5 ps-6 text-body">
+        {items.map((item, index) => (
+          <li key={`${index}-${item}`}>{item}</li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

@@ -38,6 +38,8 @@ export type ResultsRow = {
   startedAt: string | null;
   submittedAt: string | null;
   publishedAt: string | null;
+  /** True when a correction to a released result waits for release. */
+  releasePending?: boolean | null;
 };
 
 export type ResultsReport = {
@@ -93,32 +95,37 @@ export function useStudentExamHistory(studentId: string, page: number) {
   });
 }
 
-/**
- * How many written results are drafts (marked, not yet published) for one exam. The
- * submissions feed counts them with `status=DRAFT`; the page size is 1 because only the total is used.
- * Only the caller that shows the publish control (Master Admin) asks, so `enabled` is false for others.
- */
-export function useExamDraftCount(examId: string, enabled: boolean) {
+/** What blocks a release and what waits for one. From `GET /api/v1/live-exams/{id}/release-status`. */
+export type ReleaseStatus = {
+  awaiting: number;
+  open: number;
+  drafts: number;
+  ready: number;
+  failedToSubmit: number;
+  canRelease: boolean;
+};
+
+/** The release panel's numbers. Master Admin and System Admin only; `enabled` is false for others. */
+export function useReleaseStatus(examId: string, enabled: boolean) {
   return useQuery({
-    queryKey: ["staffResults", "drafts", examId],
-    queryFn: async ({ signal }) => {
-      const page = await apiRequest<PageResponse<unknown>>(
-        `/api/v1/live-exam-submissions${queryString({ examId, status: "DRAFT", size: 1 })}`,
-        { signal },
-      );
-      return page.totalElements;
-    },
+    queryKey: ["staffResults", "release", examId],
+    queryFn: ({ signal }) => apiRequest<ReleaseStatus>(`/api/v1/live-exams/${examId}/release-status`, { signal }),
     enabled,
     staleTime: 0,
   });
 }
 
-/** Publishes every draft of one written exam at once (Master Admin only). The API returns how many it published. */
-export function usePublishAllResults(examId: string) {
+/**
+ * Releases a written exam's results (Master Admin only). `ready` releases only the papers the markers flagged ready,
+ * which skips the completeness gate. A refused release throws an ApiError with `details: { awaiting, open }`.
+ */
+export function useReleaseResults(examId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiRequest<{ published: number }>(`/api/v1/live-exams/${examId}/publish-results`, { method: "POST" }),
+    mutationFn: ({ ready }: { ready: boolean }) =>
+      apiRequest<{ published: number }>(`/api/v1/live-exams/${examId}/publish-results${ready ? "?ready=true" : ""}`, {
+        method: "POST",
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staffResults"] });
       queryClient.invalidateQueries({ queryKey: ["staffPeople"] });
@@ -126,3 +133,4 @@ export function usePublishAllResults(examId: string) {
     },
   });
 }
+

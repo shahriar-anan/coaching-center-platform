@@ -69,14 +69,13 @@ describe("announcements page", () => {
     expect(await screen.findByText("ঘোষণা পাঠানো হয়েছে। ১২ জন শিক্ষার্থী পেয়েছেন।")).toBeInTheDocument();
   });
 
-  it("shows System Admin the page as information only", async () => {
-    mockApi({ "GET /api/v1/live-exam-modules": modules });
+  it("gives System Admin no announcements page: no form, and no request", async () => {
+    const { calls } = mockApi({ "GET /api/v1/live-exam-modules": modules });
     renderWithProviders(<AnnouncementsPage />, { user: fixtures.systemAdmin });
 
-    expect(
-      await screen.findByText("ঘোষণা পাঠাতে পারেন শুধু মাস্টার অ্যাডমিন। এখানে শুধু তথ্য দেখা যায়।"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("ঘোষণা পাঠাতে পারেন শুধু মাস্টার অ্যাডমিন। এখানে শুধু তথ্য দেখা যায়।")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "ঘোষণা পাঠান" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("শিরোনাম (বাংলা)")).not.toBeInTheDocument();
+    expect(calls.some((call) => call.path === "/api/v1/announcements")).toBe(false);
   });
 });

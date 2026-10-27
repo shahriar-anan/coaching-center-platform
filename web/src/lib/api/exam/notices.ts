@@ -52,6 +52,8 @@ export interface Notice {
   exam: NoticeExam | null;
   /** Set on an ANNOUNCEMENT notice, and null on every other kind. */
   announcement: NoticeAnnouncement | null;
+  /** Set on a written-result notice sent after an earlier one for the same paper (a correction was released). */
+  updated?: boolean | null;
   /** MCQ score or written mark, with the maximum. */
   score: number | null;
   maximum: number | null;

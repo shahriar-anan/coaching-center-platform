@@ -53,6 +53,7 @@ const staffOps = {
     rowMenu: {
       label: "Actions for transaction {id}",
       openStudent: "Open the student",
+      copyTranId: "Copy transaction id",
     },
   },
   paymentDetail: {

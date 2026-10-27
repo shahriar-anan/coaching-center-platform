@@ -213,6 +213,18 @@ describe("StudentShell", () => {
     expect(screen.getByRole("navigation", { name: "নিচের মেনু" })).toBeInTheDocument();
   });
 
+  it("still renders the header when the API sends no name for the account", () => {
+    // The API leaves out a null name, so the field can be missing at runtime.
+    const nameless = { ...fixtures.masterAdmin, fullName: undefined } as unknown as typeof fixtures.masterAdmin;
+    renderWithProviders(
+      <StudentShell>
+        <p>home</p>
+      </StudentShell>,
+      { user: nameless, route: "/" },
+    );
+    expect(screen.getByText("home")).toBeInTheDocument();
+  });
+
   it("hides the tab bar on the paper so it never covers the questions", () => {
     renderWithProviders(
       <StudentShell>

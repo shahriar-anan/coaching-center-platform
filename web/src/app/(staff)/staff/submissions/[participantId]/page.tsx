@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, use, useEffect } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { ApiError } from "@/lib/api/errors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShortcutsPopover } from "@/components/ui/shortcuts-popover";
+import { Tabs } from "@/components/ui/tabs";
 import { PaperViews } from "@/components/staff/marking/paper-views";
 import { SubmissionForm } from "@/components/staff/marking/submission-form";
 import { neighbour, nextToMark, paperStatus } from "@/components/staff/marking/marking-queue";
@@ -60,6 +62,9 @@ function Paper({ participantId }: { participantId: string }) {
   const toPaper = (id: string) => `/staff/submissions/${id}?m=${moduleId}`;
   const browser = moduleId ? `/staff/submissions?module=${moduleId}` : "/staff/submissions";
 
+  // On a phone the script and the mark are two tabs. The script comes first: it is what the marker reads.
+  const [phoneTab, setPhoneTab] = useState<"script" | "mark">("script");
+
   // J and K move through the queue, unless focus is in a field.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -80,7 +85,13 @@ function Paper({ participantId }: { participantId: string }) {
   }, [next, previous, router, moduleId]);
 
   if (paper.isError) {
-    return <ErrorState onRetry={() => paper.refetch()} />;
+    // A refused submission (another instructor's module) is not a network fault, so it gets its own message.
+    const refused = paper.error instanceof ApiError && (paper.error.code === "ACCESS_DENIED" || paper.error.code === "RESOURCE_NOT_FOUND");
+    return refused ? (
+      <EmptyState title={t("staffMarking.submission.unavailable")} />
+    ) : (
+      <ErrorState onRetry={() => paper.refetch()} />
+    );
   }
   if (paper.isPending) {
     return <Skeleton variant="card" count={2} />;
@@ -108,6 +119,7 @@ function Paper({ participantId }: { participantId: string }) {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ShortcutsPopover
+              showLabel
               shortcuts={[
                 { keys: ["J"], label: t("staffMarking.shortcuts.next") },
                 { keys: ["K"], label: t("staffMarking.shortcuts.previous") },
@@ -144,29 +156,56 @@ function Paper({ participantId }: { participantId: string }) {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-2">
-        {canEvaluate && hasAnswer ? (
-          <PaperViews
-            answerId={current.id}
-            studentName={current.studentName}
-            examId={current.examId}
-            examTitle={examTitle}
+      {canEvaluate && hasAnswer ? (
+        <div className="grid gap-2 lg:hidden">
+          <Tabs
+            ariaLabel={t("staffMarking.phone.label")}
+            tabs={[
+              { value: "script", label: t("staffMarking.phone.script") },
+              { value: "mark", label: t("staffMarking.phone.mark") },
+            ]}
+            value={phoneTab}
+            onChange={(value) => setPhoneTab(value === "mark" ? "mark" : "script")}
           />
+          {phoneTab === "script" && current.score !== null ? (
+            <p className="text-meta text-muted">
+              {t("staffMarking.phone.current", {
+                mark: format.formatNumber(current.score),
+                max: format.formatNumber(current.maximum),
+              })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* The script takes the wide column and stays in view while the grading panel scrolls beside it. */}
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)]">
+        {canEvaluate && hasAnswer ? (
+          <div className={phoneTab === "script" ? "lg:sticky lg:top-20" : "hidden lg:sticky lg:top-20 lg:block"}>
+            <PaperViews
+              answerId={current.id}
+              studentName={current.studentName}
+              examId={current.examId}
+              examTitle={examTitle}
+            />
+          </div>
         ) : null}
 
-        <SubmissionForm
-          key={current.id}
-          paper={current}
-          canMark={canEvaluate}
-          canPublish={canPublishResult}
-          onSaved={({ saveAndNext }) => {
-            if (!saveAndNext || !moduleId) {
-              return;
-            }
-            const target = nextToMark(rows, participantId);
-            router.push(target ? toPaper(target.participantId) : browser);
-          }}
-        />
+        <div className={canEvaluate && hasAnswer && phoneTab === "script" ? "hidden lg:block" : undefined}>
+          <SubmissionForm
+            key={current.id}
+            paper={current}
+            canMark={canEvaluate}
+            canPublish={canPublishResult}
+            onSaved={({ saveAndNext }) => {
+              if (!saveAndNext || !moduleId) {
+                return;
+              }
+              const target = nextToMark(rows, participantId);
+              router.push(target ? toPaper(target.participantId) : browser);
+            }}
+          />
+        </div>
       </div>
     </div>
   );

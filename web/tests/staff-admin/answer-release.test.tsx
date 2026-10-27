@@ -46,7 +46,7 @@ describe("AnswerReleaseSwitch", () => {
       },
       [`PUT /api/v1/live-exams/${examId}/answers-released`]: { examId, released: true, releasedAt: "2026-10-26T06:00:00Z" },
     });
-    renderWithProviders(<AnswerReleaseSwitch examId={examId} />, { user: fixtures.systemAdmin });
+    renderWithProviders(<AnswerReleaseSwitch examId={examId} />, { user: fixtures.masterAdmin });
     const user = userEvent.setup();
 
     expect(await screen.findByText("উত্তর এখনো প্রকাশ হয়নি")).toBeInTheDocument();

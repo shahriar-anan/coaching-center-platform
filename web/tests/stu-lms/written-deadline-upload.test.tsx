@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WrittenSitting } from "@/components/student/sitting/written-sitting";
@@ -43,7 +43,7 @@ describe("the deadline passes during a written upload (ST-6)", () => {
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderWithProviders(
-      <WrittenSitting exam={exam} deadlineAt={deadlineAt} watermark="নাঈম" onClosed={onClosed} />,
+      <WrittenSitting exam={exam} deadlineAt={deadlineAt} watermark="নাঈম" onClosed={onClosed} onSubmitted={() => undefined} />,
       { locale: "bn" },
     );
 
@@ -53,6 +53,7 @@ describe("the deadline passes during a written upload (ST-6)", () => {
     // Time passes the deadline while the student is still holding the file.
     vi.advanceTimersByTime(2 * MINUTE);
     await user.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "হ্যাঁ, জমা দিন" }));
 
     await refusedAssertion;
     expect(uploadMock).toHaveBeenCalledWith(expect.objectContaining({ name: "late.pdf" }));

@@ -126,7 +126,8 @@ export function ModuleList() {
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+      {/* Search and the three filters sit on one row only where the content column is wide enough (the sidebar is shown from 768 px). */}
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-end">
         <SearchInput value={text} onChange={setText} placeholder={t("staffCatalog.modules.searchPlaceholder")} />
         <Select
           aria-label={t("staffCatalog.modules.filterCategory")}
@@ -179,7 +180,8 @@ export function ModuleList() {
             rows={modules.data?.content ?? []}
             rowKey={(m) => m.id}
             loading={modules.isPending}
-            onRowClick={canOpen ? (m) => router.push(`/staff/modules/${m.id}`) : undefined}
+            // An instructor's row opens that module's submissions, the only page the instructor works from (C-02).
+            onRowClick={(m) => router.push(canOpen ? `/staff/modules/${m.id}` : `/staff/submissions?module=${m.id}`)}
             empty={
               <EmptyState
                 title={params.q || params.status || params.category ? t("staffCatalog.modules.emptyFiltered") : t("staffCatalog.modules.emptyTitle")}

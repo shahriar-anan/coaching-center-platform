@@ -7,7 +7,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { apiRequest, apiUpload } from "@/lib/api/client";
+import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
 import type { PageResponse, PaperLanguage, ExamType } from "@/lib/api/exam/types";
 
 export type CategoryTreeNode = {
@@ -178,7 +178,7 @@ export function useCategory(id: string | undefined) {
   });
 }
 
-export type CategoryInput = { parentId: string | null; titleEn: string; titleBn: string; position: number };
+export type CategoryInput = { parentId: string | null; titleEn: string; titleBn: string };
 
 export function useSaveCategory(id?: string) {
   const queryClient = useQueryClient();
@@ -271,6 +271,20 @@ export function useUploadModuleCover(id: string) {
       queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
     },
+  });
+}
+
+/**
+ * The module's cover for the staff screens, as a blob URL. The public cover address serves only published
+ * modules and an image tag cannot send the login token, so the image is read with the token here.
+ * `version` changes with each upload (`coverUrl` carries it), so a new cover is fetched.
+ */
+export function useStaffModuleCover(moduleId: string, version: string | null | undefined) {
+  return useQuery({
+    queryKey: ["staffCatalog", "cover", moduleId, version ?? ""],
+    queryFn: async () => URL.createObjectURL(await apiBlob(`/api/v1/live-exam-modules/${moduleId}/cover`)),
+    enabled: Boolean(version),
+    staleTime: Infinity,
   });
 }
 
@@ -381,6 +395,18 @@ export function useDeleteExam(id: string, moduleId: string) {
   return useMutation({
     mutationFn: () => apiRequest<void>(`/api/v1/live-exams/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) }),
+  });
+}
+
+/** Archive hides the exam from students and keeps its posted results (Master Admin only, 2026-10-27). */
+export function useArchiveExam(id: string, moduleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<StaffExam>(`/api/v1/live-exams/${id}/archive`, { method: "POST", body: {} }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) });
+    },
   });
 }
 

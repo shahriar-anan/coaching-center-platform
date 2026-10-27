@@ -19,7 +19,6 @@ import { Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, type Column } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { Pill } from "@/components/ui/pill";
 import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
@@ -51,38 +50,14 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
     }
   }
 
-  const columns: Column<InstructorRow>[] = [
-    { key: "name", header: t("staffCatalog.instructor.columns.name"), cell: (r) => <span className="font-medium">{r.fullName ?? "—"}</span> },
-    { key: "phone", header: t("staffCatalog.instructor.columns.phone"), cell: (r) => <span dir="ltr">{r.phone ?? "—"}</span> },
-    {
-      key: "status",
-      header: t("staffCatalog.instructor.columns.status"),
-      cell: (r) => <Pill tone={STATUS_TONE[r.status]}>{t(`staffCatalog.instructorStatus.${r.status}`)}</Pill>,
-    },
-    {
-      key: "modules",
-      header: t("staffCatalog.instructor.columns.modules"),
-      cell: (r) =>
-        r.modules.length === 0 ? (
-          <span className="text-muted">{t("staffCatalog.instructor.noModules")}</span>
-        ) : (
-          r.modules.map((m) => m.titleBn).join(", ")
-        ),
-    },
-    {
-      key: "pick",
-      header: <span className="sr-only">{t("staffCatalog.instructor.columns.actions")}</span>,
-      align: "end",
-      cell: (r) => (
-        <Button variant="secondary" className="min-h-10" disabled={r.status !== "ACTIVE" || assign.isPending} onClick={() => choose(r)}>
-          {t("staffCatalog.instructor.choose")}
-        </Button>
-      ),
-    },
-  ];
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={t("staffCatalog.instructor.pickerTitle")} description={t("staffCatalog.instructor.pickerBody")}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("staffCatalog.instructor.pickerTitle")}
+      description={t("staffCatalog.instructor.pickerBody")}
+      className="sm:max-w-2xl"
+    >
       <div className="grid gap-3">
         <SearchInput value={params.q} onChange={(q) => setParams({ q, page: 0 })} placeholder={t("staffCatalog.instructor.searchPlaceholder")} />
         <div className="grid gap-3 sm:grid-cols-2">
@@ -107,13 +82,37 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
           <ErrorState onRetry={() => directory.refetch()} message={t("staffCatalog.instructor.loadError")} />
         ) : (
           <>
-            <Table
-              columns={columns}
-              rows={directory.data?.content ?? []}
-              rowKey={(r) => r.id}
-              loading={directory.isPending}
-              empty={<EmptyState title={t("staffCatalog.instructor.emptyDirectory")} />}
-            />
+            {directory.isPending ? <Skeleton variant="card" count={2} /> : null}
+            {!directory.isPending && (directory.data?.content ?? []).length === 0 ? (
+              <EmptyState title={t("staffCatalog.instructor.emptyDirectory")} />
+            ) : null}
+            <ul className="grid gap-3">
+              {(directory.data?.content ?? []).map((r) => (
+                <li key={r.id} className="grid gap-3 rounded-card border border-border bg-card p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="grid min-w-0 gap-0.5">
+                      <p className="font-semibold break-words">{r.fullName ?? "—"}</p>
+                      <p dir="ltr" className="text-meta text-muted tabular-nums">
+                        {r.phone ?? "—"}
+                      </p>
+                    </div>
+                    <Pill tone={STATUS_TONE[r.status]}>{t(`staffCatalog.instructorStatus.${r.status}`)}</Pill>
+                  </div>
+                  <p className="text-meta">
+                    <span className="font-medium text-muted">{t("staffCatalog.instructor.columns.modules")}: </span>
+                    {r.modules.length === 0 ? t("staffCatalog.instructor.noModules") : r.modules.map((m) => m.titleBn).join("، ")}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    className="min-h-11 w-full sm:w-auto sm:justify-self-end"
+                    disabled={r.status !== "ACTIVE" || assign.isPending}
+                    onClick={() => choose(r)}
+                  >
+                    {t("staffCatalog.instructor.choose")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
             <Pagination page={params.page} totalPages={directory.data?.totalPages ?? 0} onPage={(page) => setParams({ page })} />
           </>
         )}

@@ -84,6 +84,14 @@ function routes(content: typeof rows = rows, drafts = 2) {
     [`GET /api/v1/live-exams/${EXAM}`]: writtenExam,
     [`GET /api/v1/live-exams/${EXAM}/results`]: report(content),
     "GET /api/v1/live-exam-submissions": { content: [], page: 0, size: 1, totalElements: drafts, totalPages: 1 },
+    [`GET /api/v1/live-exams/${EXAM}/release-status`]: {
+      awaiting: 0,
+      open: 0,
+      drafts,
+      ready: 0,
+      failedToSubmit: 0,
+      canRelease: true,
+    },
     [`POST /api/v1/live-exams/${EXAM}/publish-results`]: { published: drafts },
   };
 }
@@ -115,11 +123,11 @@ describe("exam results report", () => {
     expect(api.calls.some((call) => call.path === `/api/v1/live-exams/${EXAM}/results`)).toBe(true);
   });
 
-  it("shows the bulk publish button with the draft count, only to Master Admin", async () => {
+  it("shows the release-all button with the draft count, only to Master Admin", async () => {
     mockApi(routes());
     renderResults(fixtures.masterAdmin);
 
-    expect(await screen.findByRole("button", { name: "Publish all drafts (2)" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Release all results (2)" })).toBeEnabled();
   });
 
   it("shows the same copy in Bangla, with Bengali digits in the publish count", async () => {
@@ -131,7 +139,7 @@ describe("exam results report", () => {
       { user: fixtures.masterAdmin, locale: "bn", route: `/staff/exams/${EXAM}/results` },
     );
 
-    expect(await screen.findByRole("button", { name: "সব খসড়া প্রকাশ করুন (২টি)" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "সব ফল প্রকাশ (২টি)" })).toBeEnabled();
     expect(screen.getByText("অংশগ্রহণকারী")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "পরীক্ষার ফলাফল" })).toBeInTheDocument();
   });
@@ -141,7 +149,7 @@ describe("exam results report", () => {
     renderResults(fixtures.instructor);
 
     expect((await screen.findAllByText("Rahim")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: /Publish all drafts/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Release all results/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Rahim" })).toBeNull();
     expect(screen.getByRole("link", { name: "Merit list" })).toBeInTheDocument();
     expect(api.calls.some((call) => call.path === "/api/v1/live-exam-submissions")).toBe(false);
@@ -163,23 +171,23 @@ describe("exam results report", () => {
     renderResults(fixtures.masterAdmin);
 
     expect(await screen.findByText("No results yet")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "No drafts to publish" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Release all results (0)" })).toBeDisabled();
   });
 
-  it("publishes every draft after a confirm that names the exam and the count", async () => {
+  it("releases every draft after a confirm that names the exam and the count", async () => {
     const user = userEvent.setup();
     const api = mockApi(routes());
     renderResults(fixtures.masterAdmin);
 
-    await user.click(await screen.findByRole("button", { name: "Publish all drafts (2)" }));
+    await user.click(await screen.findByRole("button", { name: "Release all results (2)" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Publish results for Evidence Act?")).toBeInTheDocument();
-    expect(within(dialog).getByText(/2 written results will be published/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Release all results for Evidence Act?")).toBeInTheDocument();
+    expect(within(dialog).getByText(/2 results will be released/)).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Publish results" }));
+    await user.click(within(dialog).getByRole("button", { name: "Release" }));
     await waitFor(() =>
       expect(api.calls.some((call) => call.method === "POST" && call.path === `/api/v1/live-exams/${EXAM}/publish-results`)).toBe(true),
     );
-    expect(await screen.findByText("2 results published.")).toBeInTheDocument();
+    expect(await screen.findByText("2 results released.")).toBeInTheDocument();
   });
 });

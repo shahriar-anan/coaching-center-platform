@@ -2,6 +2,7 @@
 
 import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
+import { isMissing } from "@/lib/api/missing";
 import type { PageResponse } from "@/lib/api/exam/types";
 
 /*
@@ -55,6 +56,10 @@ export type FeedRow = {
   evaluatedAt: string | null;
   publishedAt: string | null;
   evaluatorName: string | null;
+  /** True when a correction to a released result waits for release. */
+  releasePending?: boolean | null;
+  /** True when the marker has flagged the paper ready for release. */
+  readyForRelease?: boolean | null;
 };
 
 export type FeedSort = "submittedAt,desc" | "submittedAt,asc" | "studentName";
@@ -67,6 +72,8 @@ export type FeedParams = {
   sort: FeedSort;
   page: number;
   size: number;
+  /** Only the papers the markers flagged ready for release. */
+  ready?: boolean;
 };
 
 /** One paper, as `GET /api/v1/live-exam-participants/{id}` sends it (the marking read). */
@@ -96,6 +103,10 @@ export type MarkingPaper = {
   submittedAt: string | null;
   evaluatedAt: string | null;
   publishedAt: string | null;
+  /** True when a correction to a released result waits for release. */
+  releasePending?: boolean | null;
+  /** True when the marker has flagged the paper ready for release. */
+  readyForRelease?: boolean | null;
 };
 
 /** The most rows one feed page carries. A category view reads one page per module. */
@@ -140,6 +151,7 @@ function feedUrl(params: FeedParams): string {
     sort: params.sort,
     page: params.page,
     size: params.size,
+    ready: params.ready ? "true" : undefined,
   })}`;
 }
 
@@ -194,20 +206,44 @@ export function questionPaperBlob(examId: string): Promise<Blob> {
   return apiBlob(`/api/v1/live-exams/${examId}/question-pdf`);
 }
 
-/** Saves a draft mark. The server still requires a new marked PDF on every save. */
+/**
+ * Saves a draft mark. The marked PDF is optional when the paper already has one; a save without
+ * a file keeps the stored PDF. The first save must send one (the form checks this before the call).
+ */
 export function useSaveMarking(participantId: string) {
   const invalidate = useInvalidateMarking();
   return useMutation({
-    mutationFn: ({ marks, comment, file }: { marks: number; comment: string; file: File }) => {
+    mutationFn: ({ marks, comment, file }: { marks: number; comment: string; file: File | null }) => {
       const form = new FormData();
       form.append("marks", String(marks));
       if (comment.trim()) {
         form.append("comment", comment.trim());
       }
-      form.append("file", file);
+      if (file) {
+        form.append("file", file);
+      }
       return apiUpload<MarkingPaper>(`/api/v1/live-exam-participants/${participantId}/evaluation`, form);
     },
     onSuccess: invalidate,
+  });
+}
+
+/**
+ * Flags the paper ready for release, or clears the flag. The API refuses a flag on a paper with no mark. Any save clears
+ * the flag on its own.
+ */
+export function useSetReady(participantId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateMarking();
+  return useMutation({
+    mutationFn: (ready: boolean) =>
+      apiRequest<MarkingPaper>(`/api/v1/live-exam-participants/${participantId}/ready`, {
+        method: ready ? "POST" : "DELETE",
+      }),
+    onSuccess: () => {
+      void invalidate();
+      queryClient.invalidateQueries({ queryKey: ["staffResults"] });
+    },
   });
 }
 
@@ -220,16 +256,6 @@ export function usePublishPaper(participantId: string) {
   const invalidate = useInvalidateMarking();
   return useMutation({
     mutationFn: () => publishPaper(participantId),
-    onSuccess: invalidate,
-  });
-}
-
-/** Publishes every draft of one exam at once (Master Admin). Returns how many were published. */
-export function usePublishExamResults(examId: string) {
-  const invalidate = useInvalidateMarking();
-  return useMutation({
-    mutationFn: () =>
-      apiRequest<{ published: number }>(`/api/v1/live-exams/${examId}/publish-results`, { method: "POST" }),
     onSuccess: invalidate,
   });
 }
@@ -251,7 +277,7 @@ export function useMarkedToday(evaluatorName: string | undefined, isToday: (valu
   let count: number | null = null;
   if (complete && evaluatorName) {
     count = [...drafts.data!.content, ...published.data!.content].filter(
-      (row) => row.evaluatorName === evaluatorName && row.evaluatedAt !== null && isToday(row.evaluatedAt),
+      (row) => row.evaluatorName === evaluatorName && !isMissing(row.evaluatedAt) && isToday(row.evaluatedAt),
     ).length;
   }
   return { count, isPending: drafts.isPending || published.isPending };

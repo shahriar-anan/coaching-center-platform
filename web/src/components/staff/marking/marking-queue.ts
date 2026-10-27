@@ -4,14 +4,18 @@ import type { FeedRow, FeedSort, FeedStatus, MarkingModule } from "@/lib/api/exa
 import type { ParticipationRow } from "@/lib/api/exam/staff-home";
 
 /** The browser's status filter. `ALL` sends no status to the feed. */
-export const FEED_FILTERS = ["AWAITING", "DRAFT", "PUBLISHED", "FAILED_TO_SUBMIT", "ALL"] as const;
+export const FEED_FILTERS = ["AWAITING", "DRAFT", "READY", "PUBLISHED", "FAILED_TO_SUBMIT", "ALL"] as const;
 export type FeedFilter = (typeof FEED_FILTERS)[number];
 
 export const FEED_SORTS: FeedSort[] = ["submittedAt,desc", "submittedAt,asc", "studentName"];
 
 /** The filter as the feed expects it: `ALL` is no status at all. */
+/** The feed status a tab asks for. "READY" is a draft the markers flagged ready (see `feedReady`). */
 export function feedStatus(filter: string): string {
-  return filter === "ALL" ? "" : filter;
+  if (filter === "ALL") {
+    return "";
+  }
+  return filter === "READY" ? "DRAFT" : filter;
 }
 
 /** Only a paper with an answer and no mark yet is in the marking queue. */
@@ -52,6 +56,20 @@ export function paperStatus(paper: {
   if (paper.status === "FAILED_TO_SUBMIT") return "FAILED_TO_SUBMIT";
   if (paper.published) return "PUBLISHED";
   return paper.evaluatedPdf === true ? "DRAFT" : "AWAITING";
+}
+
+/**
+ * The label key for a row. A marked paper the marker flagged ready reads "Ready for release"; a released result with a
+ * correction waiting reads "Change waiting for release"; otherwise the row's own status.
+ */
+export function statusWordKey(row: Pick<FeedRow, "status" | "releasePending" | "readyForRelease">): string {
+  if (row.status === "DRAFT" && row.readyForRelease) {
+    return "READY";
+  }
+  if (row.status === "DRAFT" && row.releasePending) {
+    return "CHANGE_WAITING";
+  }
+  return row.status;
 }
 
 /** A status word's pill tone. Status is always a word; the colour only reinforces it. */

@@ -41,13 +41,13 @@ function SummaryCards({ showPayments }: { showPayments: boolean }) {
       key: "marking",
       label: t("staffCatalog.home.awaitingMarking"),
       value: summary.data?.awaitingMarking ?? 0,
-      href: "/staff/participation",
+      href: "/staff/participation?focus=mark",
     },
     {
       key: "publish",
       label: t("staffCatalog.home.awaitingPublish"),
       value: summary.data?.draftsAwaitingPublish ?? 0,
-      href: "/staff/participation",
+      href: "/staff/participation?focus=release",
     },
     ...(showPayments
       ? [
@@ -121,7 +121,7 @@ function AgendaRow({ row, status }: { row: ParticipationRow; status: StaffExam["
       <span className="flex flex-wrap items-center gap-3 text-meta">
         {status ? <StatusPill status={status} /> : null}
         <span className="tabular-nums">{t("staffCatalog.home.agenda.participants", { n: formatNumber(row.sitting) })}</span>
-        <Link href={`/staff/modules/${row.moduleId}?tab=exams`} className="text-action hover:underline">
+        <Link href={`/staff/modules/${row.moduleId}?tab=exams`} className="inline-flex min-h-11 items-center text-action hover:underline">
           {t("staffCatalog.home.openModule")}
         </Link>
       </span>
@@ -183,12 +183,15 @@ function Agenda({ rows, now }: { rows: ParticipationRow[]; now: number }) {
   );
 }
 
+const shortcutClass =
+  "flex min-h-11 items-center rounded-control border border-border-control bg-card px-4 text-label font-medium text-text hover:bg-bg";
+
 /** Master Admin and System Admin home: counts, first-run steps while the catalog is empty, quick actions and the agenda. */
 export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
   const { t } = useLocale();
   const now = useServerNow(60_000);
   const categories = useCategoryTree();
-  const rows = useParticipationRows({ sort: "date", size: 100 });
+  const rows = useParticipationRows({ sort: "liveAt", size: 100 });
   const catalogEmpty = categories.isSuccess && categories.data.length === 0;
 
   return (
@@ -197,42 +200,47 @@ export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
 
       <SummaryCards showPayments />
 
-      <section aria-labelledby="quick-heading" className="grid gap-2">
-        <h2 id="quick-heading" className="text-card-title font-semibold">
-          {t("staffCatalog.home.quick.title")}
-        </h2>
-        <ul className="flex flex-wrap gap-2">
-          <li>
-            <Link href="/staff/modules/new" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
-              {t("staffCatalog.home.quick.newModule")}
-            </Link>
-          </li>
-          <li>
-            <Link href="/staff/modules" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
-              {t("staffCatalog.home.quick.newExam")}
-            </Link>
-          </li>
-          <li>
-            <Link href="/staff/payments" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
-              {t("staffCatalog.home.quick.payments")}
-            </Link>
-          </li>
-          <li>
-            <Link href="/staff/students" className="inline-flex min-h-11 items-center rounded-control border border-border bg-card px-4 text-label font-medium hover:bg-bg">
-              {t("staffCatalog.home.quick.findStudent")}
-            </Link>
-          </li>
-        </ul>
-        {!isMasterAdmin ? <p className="text-meta text-muted">{t("staffCatalog.home.quick.systemAdminNote")}</p> : null}
-      </section>
+      {/* The exam list is the main column; the shortcuts sit beside it on wide screens and below it on narrow ones. */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
+        <div className="min-w-0">
+          {rows.isPending ? (
+            <Skeleton variant="rows" count={3} />
+          ) : rows.isError && !rows.data ? (
+            <ErrorState onRetry={() => rows.refetch()} message={t("staffCatalog.home.examsError")} />
+          ) : (
+            <Agenda rows={rows.data?.content ?? []} now={now} />
+          )}
+        </div>
 
-      {rows.isPending ? (
-        <Skeleton variant="rows" count={3} />
-      ) : rows.isError && !rows.data ? (
-        <ErrorState onRetry={() => rows.refetch()} message={t("staffCatalog.home.examsError")} />
-      ) : (
-        <Agenda rows={rows.data?.content ?? []} now={now} />
-      )}
+        <section aria-labelledby="quick-heading" className="grid gap-3">
+          <h2 id="quick-heading" className="text-card-title font-semibold">
+            {t("staffCatalog.home.quick.title")}
+          </h2>
+          <ul className="grid gap-2">
+            <li>
+              <Link href="/staff/modules/new" className={shortcutClass}>
+                {t("staffCatalog.home.quick.newModule")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/staff/modules" className={shortcutClass}>
+                {t("staffCatalog.home.quick.newExam")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/staff/payments" className={shortcutClass}>
+                {t("staffCatalog.home.quick.payments")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/staff/students" className={shortcutClass}>
+                {t("staffCatalog.home.quick.findStudent")}
+              </Link>
+            </li>
+          </ul>
+          {!isMasterAdmin ? <p className="text-meta text-muted">{t("staffCatalog.home.quick.systemAdminNote")}</p> : null}
+        </section>
+      </div>
     </div>
   );
 }

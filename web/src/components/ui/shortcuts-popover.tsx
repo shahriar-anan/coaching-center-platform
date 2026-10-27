@@ -10,15 +10,21 @@ export type Shortcut = {
 };
 
 /** A keyboard button that opens the list of shortcuts for the current screen. */
-export function ShortcutsPopover({ shortcuts }: { shortcuts: Shortcut[] }) {
+/** `showLabel` puts the word "Shortcuts" next to the icon, so the control is found without being guessed. */
+export function ShortcutsPopover({ shortcuts, showLabel = false }: { shortcuts: Shortcut[]; showLabel?: boolean }) {
   const { t } = useLocale();
   return (
     <Popover.Root>
       <Popover.Trigger
         aria-label={t("common.shortcuts.open")}
-        className="inline-flex size-10 items-center justify-center rounded-control text-muted outline-none hover:bg-bg focus-visible:outline-accent"
+        className={
+          showLabel
+            ? "inline-flex min-h-10 items-center gap-2 rounded-control border border-border-control bg-card px-3 text-label text-text outline-none hover:bg-bg focus-visible:outline-accent"
+            : "inline-flex size-10 items-center justify-center rounded-control text-muted outline-none hover:bg-bg focus-visible:outline-accent"
+        }
       >
         <Keyboard aria-hidden="true" className="size-4" />
+        {showLabel ? <span>{t("common.shortcuts.label")}</span> : null}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content

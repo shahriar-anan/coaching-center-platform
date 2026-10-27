@@ -2,7 +2,26 @@ import type { MessageTree } from "../types";
 
 /** Staff marking: the submissions browser, the instructor dashboard, the marking screen and the bulk publish (WS9 MRK). */
 const staffMarking = {
+  submission: {
+    unavailable: "This submission is not available to this account.",
+  },
+  panel: {
+    label: "Grading panel",
+    mark: "Mark",
+    details: "Details",
+    release: "Release",
+  },
+  phone: {
+    label: "Script or mark",
+    script: "Script",
+    mark: "Mark",
+    current: "Current mark: {mark} / {max}",
+  },
   browser: {
+    treeNote: "Waiting for a mark. Each number counts the papers still awaiting a mark.",
+    countsFor: "The counts above are for: {scope}",
+    showGroup: "Show {name}",
+    hideGroup: "Hide {name}",
     title: "Marking",
     allPapers: "All scripts",
     student: "Student",
@@ -22,7 +41,8 @@ const staffMarking = {
     filterLabel: "Show",
     filter: {
       AWAITING: "Awaiting marking",
-      DRAFT: "Draft mark",
+      DRAFT: "Waiting for release",
+      READY: "Ready for release",
       PUBLISHED: "Published",
       FAILED_TO_SUBMIT: "Not submitted",
       ALL: "All",
@@ -39,6 +59,8 @@ const staffMarking = {
     openNote: "A script appears here once its exam deadline has passed. Sittings still open are not listed.",
   },
   statusWord: {
+    READY: "Ready for release",
+    CHANGE_WAITING: "Change waiting for release",
     AWAITING: "Awaiting marking",
     DRAFT: "Draft mark",
     PUBLISHED: "Published",
@@ -52,6 +74,7 @@ const staffMarking = {
     ago: "{duration} ago",
   },
   home: {
+    corrections: "Changes waiting for release",
     awaiting: "Scripts waiting",
     drafts: "Drafts",
     published: "Published",
@@ -75,6 +98,7 @@ const staffMarking = {
     confirmTitle: "Publish all drafts?",
     confirmBody: "The {count} drafts of “{exam}” will be published. Students will see these marks.",
     confirmAction: "Publish",
+    instructorNote: "The Master Admin publishes this result.",
     publishedAll: "{count} results published.",
     publishSelected: "Publish selected ({count})",
     confirmSelectedTitle: "Publish the selected scripts?",
@@ -89,7 +113,7 @@ const staffMarking = {
   },
   questionPaper: {
     title: "Question paper",
-    notAllowed: "You cannot view this question paper.",
+    notAllowed: "This question paper is not available. No file may have been uploaded for this exam yet, or your account may not have access to it.",
     watermark: "Exam Portal · for marking only",
   },
   snippets: {
@@ -113,7 +137,7 @@ const staffMarking = {
     comment: "Teacher's comment",
     commentHint: "Optional",
     markedFile: "Marked script (PDF)",
-    markedFileRule: "Each save needs the marked script PDF again. The stored file is not reused.",
+    markedFileRule: "Leave the file out to keep the stored marked script. Add a PDF only to replace it. The first save needs a PDF.",
     storedFile: "Stored file: {name}",
     viewMarked: "View",
     fileLimit: "PDF only, up to {max} MB.",
@@ -122,7 +146,13 @@ const staffMarking = {
     saveDraft: "Save draft mark",
     saveAndNext: "Save and next",
     saved: "Draft mark saved.",
-    saveNote: "Students cannot see this yet. Saving again hides a published result until you publish it again.",
+    saveNote: "Students see nothing until the result is released. If it is already released, the student keeps it until you release this change.",
+    markedFileRequired: "Required",
+    readyNote: "A paper marked ready is released first. Any save clears the flag.",
+    markReady: "Mark ready for release",
+    clearReady: "Clear the ready flag",
+    markedReady: "Marked ready for release.",
+    clearedReady: "Ready flag cleared.",
     noAnswer: "The script was not submitted, so no marks can be given.",
     unsaved: "Leave without saving?",
     draftFound: "Unsaved changes from an earlier visit were found.",
@@ -136,7 +166,9 @@ const staffMarking = {
   },
   publish: {
     published: "Published",
-    republishNote: "Saving a published mark turns it back into a draft.",
+    republishNote: "The student keeps the released mark. This change waits until you release it.",
+    releaseChange: "Release the change",
+    instructorNote: "The Master Admin publishes this result.",
     note: "Once a draft mark is saved, you can publish the result from here.",
     action: "Publish result",
     confirmTitle: "Publish the result?",
@@ -144,6 +176,7 @@ const staffMarking = {
     done: "Result published.",
   },
   facts: {
+    changeWaiting: "change waiting for release",
     student: "Student",
     exam: "Exam",
     module: "Module",

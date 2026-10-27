@@ -2,13 +2,13 @@ import type { ReactElement } from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { AnswerReleaseSwitch } from "@/components/staff/access/answer-release-switch";
 import StaffAnnouncementsPage from "@/app/(staff)/staff/announcements/page";
 import InstructorsPage from "@/app/(staff)/staff/instructors/page";
 import StaffOrdersPage from "@/app/(staff)/staff/orders/page";
 import StaffSystemStatusPage from "@/app/(staff)/staff/system-status/page";
 import StudentDetailPage from "@/app/(staff)/staff/students/[id]/page";
 import StudentsPage from "@/app/(staff)/staff/students/page";
-import { AnswerReleaseSwitch } from "@/components/staff/access/answer-release-switch";
 import { StudentAccessSection } from "@/components/staff/access/student-access-section";
 import { PendingOrders } from "@/components/staff/orders/pending-orders";
 import { AccountStatusToggle, DeleteAccountButton } from "@/components/staff/status/account-controls";
@@ -99,10 +99,11 @@ const routes = {
   "GET /api/v1/system-status": checks,
 };
 
-/** Button names a System Admin must never see (section 5, admin-only actions). */
+/**
+ * Button names a System Admin must never see (admin-only actions). Suspend and restore
+ * are not here: the 2026-10-26 decision gives them to the System Admin for students.
+ */
 const forbiddenForSystemAdmin = [
-  bnStaffAdmin.account.suspend,
-  bnStaffAdmin.account.restore,
   bnStaffAdmin.account.deleteAction,
   bnStaffAdmin.orders.confirm,
   bnStaffAdmin.orders.reject,
@@ -149,12 +150,13 @@ describe("access matrix: student page", () => {
     expect(screen.getByRole("button", { name: bnStaffAdmin.access.grantOpen })).toBeInTheDocument();
   });
 
-  it("System Admin sees grant by hand, and no action on the account", async () => {
+  it("System Admin sees the access rows and can suspend, but has no grant control and no delete", async () => {
     const { calls } = mockApi(routes);
     renderAs(<StudentPageControls />, fixtures.systemAdmin);
 
     expect((await screen.findAllByText("হাতে দেওয়া"))[0]).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: bnStaffAdmin.access.grantOpen })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: bnStaffAdmin.access.grantOpen })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: bnStaffAdmin.account.suspend })).toBeInTheDocument();
     expect(screen.getByText(bnStaffAdmin.access.revokeOnlyMaster)).toBeInTheDocument();
     for (const name of forbiddenForSystemAdmin) {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
@@ -196,14 +198,17 @@ describe("access matrix: instructors page", () => {
 });
 
 describe("access matrix: exam page", () => {
-  it("Master Admin and System Admin see the answer switch", async () => {
+  it("only the Master Admin sees the answer switch", async () => {
     mockApi(routes);
     const { unmount } = renderAs(<AnswerReleaseSwitch examId={examId} />, fixtures.masterAdmin);
     expect(await screen.findByRole("switch")).toBeInTheDocument();
     unmount();
 
+    const { calls } = mockApi(routes);
     renderAs(<AnswerReleaseSwitch examId={examId} />, fixtures.systemAdmin);
-    expect(await screen.findByRole("switch")).toBeInTheDocument();
+    await settle();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(calls).toHaveLength(0);
   });
 
   it("Instructor sees no switch, and the exam is not requested", async () => {
@@ -267,14 +272,14 @@ describe("access matrix: announcements page", () => {
     expect(calls.some((call) => call.path === "/api/v1/announcements")).toBe(true);
   });
 
-  it("System Admin gets information only: no form, no send, and no history request", async () => {
+  it("System Admin gets no announcements page: no form, no send, and no history request", async () => {
     const { calls } = mockApi(routes);
     renderAs(<StaffAnnouncementsPage />, fixtures.systemAdmin);
     await settle();
 
     expect(screen.queryByRole("button", { name: bnStaffAdmin.announce.send })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(bnStaffAdmin.announce.titleEn)).not.toBeInTheDocument();
-    expect(screen.getByText(bnStaffAdmin.announce.readOnly)).toBeInTheDocument();
+    expect(screen.queryByText(bnStaffAdmin.announce.readOnly)).not.toBeInTheDocument();
     expect(calls.some((call) => call.path === "/api/v1/announcements")).toBe(false);
   });
 
@@ -315,7 +320,6 @@ describe("access matrix: System Admin never sees a control the API refuses", () 
       <>
         <StudentPageControls />
         <PendingOrders />
-        <AnswerReleaseSwitch examId={examId} />
         <InstructorPageControls />
       </>,
       fixtures.systemAdmin,
@@ -325,8 +329,8 @@ describe("access matrix: System Admin never sees a control the API refuses", () 
     for (const name of forbiddenForSystemAdmin) {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     }
-    // Release is allowed to System Admin, so its switch stays.
-    expect(await screen.findByRole("switch")).toBeInTheDocument();
+    // Release is the Master Admin's, so System Admin gets no switch here.
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });
 
@@ -384,14 +388,14 @@ describe("access matrix: students list page", () => {
     expect(screen.getByRole("menuitem", { name: studentMenu.delete })).toBeInTheDocument();
   });
 
-  it("System Admin gets no suspend and no delete, and makes only reads", async () => {
+  it("System Admin can deactivate a student from the row menu, but gets no delete, and opening the menu makes only reads", async () => {
     const { calls } = mockApi(pageRoutes);
     renderAs(<StudentsPage />, fixtures.systemAdmin);
     const user = userEvent.setup();
 
     await user.click((await screen.findAllByRole("button", { name: "রহিম উদ্দিন-এর কাজ" }))[0]!);
     expect(await screen.findByRole("menuitem", { name: "শিক্ষার্থীর পাতা খুলুন" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: studentMenu.deactivate })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: studentMenu.deactivate })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: studentMenu.delete })).not.toBeInTheDocument();
     expect(calls.every((call) => call.method === "GET")).toBe(true);
   });

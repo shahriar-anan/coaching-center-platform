@@ -5,37 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
-import { publishPaper, useInvalidateMarking, usePublishExamResults } from "@/lib/api/exam/staff-marking";
+import { publishPaper, useInvalidateMarking } from "@/lib/api/exam/staff-marking";
 import { useFormat } from "@/lib/format/use-format";
-
-/** Master Admin only. The browser renders this for `canPublishResult` and nobody else. */
-export function BulkPublishExam({ examId, examTitle, drafts }: { examId: string; examTitle: string; drafts: number }) {
-  const { t } = useLocale();
-  const format = useFormat();
-  const { toast } = useToast();
-  const publishAll = usePublishExamResults(examId);
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Button variant="secondary" disabled={drafts === 0} onClick={() => setOpen(true)}>
-        {t("staffMarking.bulk.publishAll", { count: format.formatNumber(drafts) })}
-      </Button>
-      <ConfirmDialog
-        open={open}
-        onOpenChange={setOpen}
-        title={t("staffMarking.bulk.confirmTitle")}
-        body={t("staffMarking.bulk.confirmBody", { exam: examTitle, count: format.formatNumber(drafts) })}
-        confirmLabel={t("staffMarking.bulk.confirmAction")}
-        onConfirm={async () => {
-          const result = await publishAll.mutateAsync();
-          setOpen(false);
-          toast({ title: t("staffMarking.bulk.publishedAll", { count: format.formatNumber(result.published) }), tone: "ok" });
-        }}
-      />
-    </>
-  );
-}
 
 /**
  * Publishes the rows ticked in the browser, one request each, in list order. Shows the
@@ -85,6 +56,11 @@ export function BulkPublishSelected({
       }),
       tone: failed > 0 ? "danger" : "ok",
     });
+  }
+
+  // Nothing ticked and nothing running: no control to show.
+  if (ids.length === 0 && !progress) {
+    return null;
   }
 
   return (

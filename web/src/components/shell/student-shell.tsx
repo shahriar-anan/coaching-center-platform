@@ -86,11 +86,13 @@ function UserMenu() {
     );
   }
   const user = session.user;
-  const firstName = user.fullName.trim().split(/\s+/)[0] || user.fullName;
+  // The API leaves the name out when the account has none, so read it as possibly missing.
+  const fullName = user.fullName ?? "";
+  const firstName = fullName.trim().split(/\s+/)[0] || fullName;
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        aria-label={t("common.nav.userMenu", { name: user.fullName })}
+        aria-label={t("common.nav.userMenu", { name: fullName })}
         className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg max-[379px]:max-w-11 max-[379px]:px-2"
       >
         <span className="truncate max-[379px]:hidden">{firstName}</span>

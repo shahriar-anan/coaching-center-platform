@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SubmissionBrowser } from "@/components/staff/marking/submission-browser";
-import { fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
+import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { modules, paper, participation, serveFeed } from "./fixtures";
 
 // The PDF viewer loads pdf.js; the browser does not show one.
@@ -22,21 +22,44 @@ describe("submissions browser: instructor view", () => {
     expect(screen.queryByText("সালমা খাতুন")).toBeNull();
   });
 
+  it("counts the status tabs for the module on screen, not for every module", async () => {
+    mockApi({ ...LISTS, "GET /api/v1/live-exam-submissions": serveFeed() });
+    const { unmount } = renderWithProviders(<SubmissionBrowser />, {
+      user: fixtures.instructor,
+      route: "/staff/submissions?module=m1",
+    });
+    const awaiting = await screen.findByRole("tab", { name: /মূল্যায়ন বাকি/ });
+    await waitFor(() => expect(within(awaiting).getByText("৩")).toBeInTheDocument());
+    expect(within(screen.getByRole("tab", { name: /প্রকাশের অপেক্ষায়/ })).getByText("১")).toBeInTheDocument();
+    unmount();
+
+    // Bank Job has no papers waiting, so its tab shows no count, even though BCS has three.
+    renderWithProviders(<SubmissionBrowser />, { user: fixtures.instructor, route: "/staff/submissions?module=m2" });
+    // Wait for the tree to load and select Bank Job, so the empty count is read after the data arrives.
+    await screen.findByRole("button", { name: /ব্যাংক চাকরি/, pressed: true });
+    const empty = screen.getByRole("tab", { name: /মূল্যায়ন বাকি/ });
+    expect(within(empty).queryByText("৩")).toBeNull();
+  });
+
   it("shows the category, module and exam tree, and no bulk publish or tick boxes", async () => {
     mockApi({ ...LISTS, "GET /api/v1/live-exam-submissions": serveFeed() });
     renderWithProviders(<SubmissionBrowser />, { user: fixtures.instructor, route: "/staff/submissions" });
-    expect(await screen.findByRole("button", { name: /সরকারি চাকরি/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /বিসিএস প্রিলিমিনারি/ })).toBeInTheDocument();
+    // A category starts closed; its toggle names the category, so the label button is the one not pressed.
+    expect(await screen.findByRole("button", { name: /সরকারি চাকরি/, pressed: false })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "সরকারি চাকরি দেখান" }));
+    // The module sits under the BCS group, which starts closed too.
+    await userEvent.click(screen.getByRole("button", { name: "বিসিএস দেখান" }));
+    expect(screen.getByRole("button", { name: /বিসিএস প্রিলিমিনারি/, pressed: false })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /সব খসড়া প্রকাশ করুন/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /নির্বাচিতগুলো প্রকাশ করুন/ })).toBeNull();
   });
 
-  it("opens a paper from its row, keeping the module in the link", async () => {
+  it("opens a paper from its student-name link, keeping the module in the link", async () => {
     mockApi({ ...LISTS, "GET /api/v1/live-exam-submissions": serveFeed() });
     renderWithProviders(<SubmissionBrowser />, { user: fixtures.instructor, route: "/staff/submissions" });
-    await userEvent.click((await screen.findAllByText("রহিম উদ্দিন"))[0]!);
-    expect(routerState.push).toHaveBeenCalledWith("/staff/submissions/p1?m=m1");
+    const link = (await screen.findAllByRole("link", { name: "রহিম উদ্দিন" }))[0]!;
+    expect(link).toHaveAttribute("href", "/staff/submissions/p1?m=m1");
   });
 });
 
@@ -56,25 +79,17 @@ describe("submissions browser: Master Admin view", () => {
     expect(screen.getAllByText("সালমা খাতুন").length).toBeGreaterThan(0);
   });
 
-  it("offers bulk publish for the chosen exam, names the exam and count, and publishes once", async () => {
-    const api = mockApi({
+  it("links the chosen exam to its release panel, where the release gate and the counts are", async () => {
+    mockApi({
       ...LISTS,
       "GET /api/v1/live-exam-submissions": serveFeed(),
-      "POST /api/v1/live-exams/e1/publish-results": { published: 1 },
     });
     renderWithProviders(<SubmissionBrowser />, {
       user: fixtures.masterAdmin,
       route: "/staff/submissions?exam=e1&module=m1",
     });
-    await userEvent.click(await screen.findByRole("button", { name: "সব খসড়া প্রকাশ করুন (১)" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/রচনা পত্র/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "প্রকাশ করুন" }));
-
-    await waitFor(() =>
-      expect(api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/live-exams/e1/publish-results")).toBe(true),
-    );
-    expect(await screen.findByText("১টি ফলাফল প্রকাশ হয়েছে।")).toBeInTheDocument();
+    const link = await screen.findByRole("link", { name: "ফল প্রকাশ" });
+    expect(link).toHaveAttribute("href", "/staff/exams/e1/results");
   });
 
   it("publishes the ticked drafts one request each, in list order", async () => {

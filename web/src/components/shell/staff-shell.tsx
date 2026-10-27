@@ -9,7 +9,7 @@ import { useSession } from "@/lib/auth/session-context";
 import { Logo } from "@/components/shell/logo";
 import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
-import { staffNavFor, type StaffNavItem } from "@/components/shell/staff-nav";
+import { groupStaffNav, staffNavFor, type StaffNavItem } from "@/components/shell/staff-nav";
 import { Button } from "@/components/ui/button";
 import { StaffQuickSearch } from "@/components/shell/staff-quick-search";
 import { Dialog } from "@/components/ui/dialog";
@@ -38,27 +38,36 @@ function NavList({ items, onNavigate }: { items: StaffNavItem[]; onNavigate?: ()
   const { t } = useLocale();
   const pathname = usePathname() ?? "/staff";
   return (
-    <ul className="grid gap-1">
-      {items.map((item) => {
-        const active = isActive(pathname, item.href);
-        return (
-          <li key={item.key}>
-            <Link
-              href={item.href}
-              prefetch
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex min-h-10 items-center rounded-control px-3 text-label font-medium",
-                active ? "bg-action/10 text-action" : "text-text hover:bg-bg",
-              )}
-            >
-              {t(`common.staffNav.${item.key}`)}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="grid gap-5">
+      {groupStaffNav(items).map(({ group, items: groupItems }) => (
+        <section key={group} aria-labelledby={`staff-nav-${group}`} className="grid gap-1">
+          <h2 id={`staff-nav-${group}`} className="px-3 pb-1 text-meta font-semibold text-muted">
+            {t(`common.staffNavGroup.${group}`)}
+          </h2>
+          <ul className="grid gap-1">
+            {groupItems.map((item) => {
+              const active = isActive(pathname, item.href);
+              return (
+                <li key={item.key}>
+                  <Link
+                    href={item.href}
+                    prefetch
+                    onClick={onNavigate}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-11 items-center rounded-control px-3 text-label font-medium",
+                      active ? "bg-action/10 text-action" : "text-text hover:bg-bg",
+                    )}
+                  >
+                    {t(`common.staffNav.${item.key}`)}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -91,6 +100,16 @@ export function StaffShell({ children }: { children: ReactNode }) {
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen} title={t("common.nav.menu")}>
         {role ? <RoleChip role={role} /> : null}
         <NavList items={items} onNavigate={() => setDrawerOpen(false)} />
+        <div className="mt-5 grid gap-3 border-t border-border pt-4 min-[480px]:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            <LocalePill />
+            <ThemePill />
+          </div>
+          <Button variant="secondary" onClick={() => void logout()} className="min-h-11 justify-start px-3">
+            <LogOut aria-hidden="true" className="size-4" />
+            {t("common.nav.logout")}
+          </Button>
+        </div>
       </Dialog>
 
       <div className="flex min-w-0 flex-col">
@@ -103,7 +122,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
               className="md:hidden"
             />
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Logo href="/staff" className="text-card-title md:hidden" />
+              <Logo href="/staff" compact className="min-h-11 shrink-0 text-card-title md:hidden" />
               <div className="hidden min-w-0 flex-1 md:block">
                 <StaffQuickSearch />
               </div>
@@ -114,18 +133,21 @@ export function StaffShell({ children }: { children: ReactNode }) {
                   label={t("common.quickSearch.open")}
                   icon={<Search aria-hidden="true" className="size-5" />}
                   onClick={() => setSearchOpen(true)}
-                  className="md:hidden"
+                  className="shrink-0 md:hidden"
                 />
               ) : null}
-              <LocalePill />
-              <ThemePill />
-              {session.status === "authenticated" ? (
-                <span className="hidden text-meta text-muted sm:inline">{session.user.fullName}</span>
-              ) : null}
-              <Button variant="secondary" onClick={() => void logout()} className="min-h-10 px-3">
-                <LogOut aria-hidden="true" className="size-4" />
-                <span className="hidden sm:inline">{t("common.nav.logout")}</span>
-              </Button>
+              {/* Under 480 px the language, theme and log out controls move into the menu, so the header fits at large text sizes. */}
+              <div className="hidden items-center gap-2 min-[480px]:flex">
+                <LocalePill />
+                <ThemePill />
+                {session.status === "authenticated" ? (
+                  <span className="hidden text-meta text-muted sm:inline">{session.user.fullName}</span>
+                ) : null}
+                <Button variant="secondary" onClick={() => void logout()} className="min-h-11 shrink-0 px-3">
+                  <LogOut aria-hidden="true" className="size-4" />
+                  <span className="hidden sm:inline">{t("common.nav.logout")}</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>

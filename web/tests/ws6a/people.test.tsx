@@ -168,7 +168,7 @@ describe("instructors", () => {
 });
 
 describe("participation", () => {
-  it("shows a dash in the written-only columns of an MCQ row", async () => {
+  it("shows an MCQ row as scored automatically, with no marking numbers and no \"undefined\"", async () => {
     mockApi({
       "GET /api/v1/live-exam-participation": page([
         {
@@ -184,20 +184,18 @@ describe("participation", () => {
           sitting: 84,
           submitted: 71,
           failedToSubmit: 13,
-          awaitingMarking: null,
-          draftsAwaitingPublish: null,
-          published: null,
+          // The API leaves out the written-only counts for an MCQ.
           retakes: 0,
         },
       ]),
-      "GET /api/v1/live-exam-participation/summary": { awaitingMarking: 62, draftsAwaitingPublish: 9 },
       "GET /api/v1/live-exam-modules": page([]),
     });
     renderWithProviders(<ParticipationPage />, { user: fixtures.instructor, route: "/staff/participation?type=MCQ" });
 
     expect((await screen.findAllByText("সিআরপিসি")).length).toBeGreaterThan(0);
-    const cells = screen.getAllByText("—");
-    expect(cells.length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("স্বয়ংক্রিয় মূল্যায়ন").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/মূল্যায়িত/)).toBeNull();
+    expect(document.body.textContent).not.toContain("undefined");
   });
 });
 

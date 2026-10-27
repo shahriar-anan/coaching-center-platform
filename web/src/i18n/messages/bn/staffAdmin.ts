@@ -39,6 +39,7 @@ const staffAdmin = {
       MANUAL: "হাতে দেওয়া",
     },
     allExams: "মডিউলের সব পরীক্ষা",
+    manageRoster: "মডিউলের তালিকায় দেখুন",
     noTranId: "পেমেন্ট নেই",
     revoke: "অ্যাক্সেস বাতিল",
     revokeOnlyMaster: "অ্যাক্সেস বাতিল করতে পারেন শুধু মাস্টার অ্যাডমিন।",

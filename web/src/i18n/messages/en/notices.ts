@@ -18,6 +18,7 @@ const notices = {
     ANNOUNCEMENT: "Announcement from the centre",
     MCQ_SCORE: "MCQ score",
     WRITTEN_RESULT: "Written result published",
+    WRITTEN_RESULT_UPDATED: "Written result updated",
     other: "Notice",
   },
   score: "{score}/{max}",

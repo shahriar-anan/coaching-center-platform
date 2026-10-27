@@ -18,7 +18,6 @@ import "./copy-setup";
  */
 
 const studentId = "11111111-1111-4111-8111-111111111111";
-const examId = "eeeeeeee-0000-4000-8000-000000000001";
 const orderId = "oooooooo-0000-4000-8000-000000000001";
 
 const access = {
@@ -65,7 +64,6 @@ const orders = {
   totalPages: 1,
 };
 
-const release = { id: examId, examType: "MCQ", titleEn: "CRPC", titleBn: "সিআরপিসি", answersReleasedAt: null };
 
 const modules = {
   content: [{ id: "aaaaaaaa-0000-4000-8000-000000000001", titleEn: "19th BJS", titleBn: "১৯তম বিজেএস", status: "PUBLISHED" }],
@@ -116,8 +114,10 @@ describe("confirm dialogs: focus and Escape", () => {
   });
 
   it("release answers: focus goes in, Escape closes it, and focus returns to the switch", async () => {
+    const examId = "eeeeeeee-0000-4000-8000-000000000001";
+    const release = { id: examId, examType: "MCQ", titleEn: "CRPC", titleBn: "সিআরপিসি", answersReleasedAt: null };
     mockApi({ [`GET /api/v1/live-exams/${examId}`]: release });
-    renderWithProviders(<AnswerReleaseSwitch examId={examId} />, { user: fixtures.systemAdmin, locale: "bn" });
+    renderWithProviders(<AnswerReleaseSwitch examId={examId} />, { user: fixtures.masterAdmin, locale: "bn" });
 
     const trigger = await screen.findByRole("switch");
     await openAndEscape(trigger, "সিআরপিসি এর উত্তর প্রকাশ করবেন?");

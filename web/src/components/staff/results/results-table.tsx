@@ -56,6 +56,7 @@ export function ResultsTable({
     {
       key: "kind",
       header: t("staffResults.columns.kind"),
+      mobileHidden: true,
       cell: (row) => <Pill tone={row.kind === "LIVE" ? "accent" : "muted"}>{t(`staffResults.kind.${row.kind}`)}</Pill>,
     },
     {
@@ -69,11 +70,12 @@ export function ResultsTable({
       key: "score",
       header: t("staffResults.columns.score"),
       align: "end",
-      cell: (row) => (row.score === null ? t("staffResults.result.none") : format.formatNumber(row.score)),
+      cell: (row) => ((row.score ?? null) === null ? t("staffResults.result.none") : format.formatNumber(row.score ?? 0)),
     },
     {
       key: "maximum",
       header: t("staffResults.columns.maximum"),
+      mobileHidden: true,
       align: "end",
       cell: (row) => format.formatNumber(row.maximum),
     },
@@ -81,7 +83,7 @@ export function ResultsTable({
       key: "result",
       header: t("staffResults.columns.result"),
       cell: (row) =>
-        row.passed === null ? (
+        (row.passed ?? null) === null ? (
           t("staffResults.result.none")
         ) : (
           <Pill tone={resultTone(row.passed)}>
@@ -92,21 +94,29 @@ export function ResultsTable({
     {
       key: "started",
       header: t("staffResults.columns.started"),
+      nowrap: true,
+      mobileHidden: true,
       cell: (row) => (row.startedAt ? format.formatDateTime(row.startedAt) : t("staffResults.result.none")),
     },
     {
       key: "submitted",
       header: t("staffResults.columns.submitted"),
+      nowrap: true,
       cell: (row) => (row.submittedAt ? format.formatDateTime(row.submittedAt) : t("staffResults.result.none")),
     },
     {
       key: "published",
       header: t("staffResults.columns.published"),
+      nowrap: true,
       cell: (row) => {
         if (!examWritten) {
           return <span className="text-muted">{t("staffResults.published.notWritten")}</span>;
         }
-        const published = row.publishedAt !== null;
+        if (row.releasePending) {
+          return <Pill tone="warn">{t("staffResults.published.changeWaiting")}</Pill>;
+        }
+        // The API leaves out a null field, so test for a missing value as well as null.
+        const published = (row.publishedAt ?? null) !== null;
         return (
           <Pill tone={publishedTone(published)}>
             {t(published ? "staffResults.published.yes" : "staffResults.published.no")}

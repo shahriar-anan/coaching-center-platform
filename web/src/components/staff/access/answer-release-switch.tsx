@@ -15,13 +15,14 @@ import { adminErrorText } from "./admin-error";
 /**
  * Shows and changes whether the MCQ correct answers of one exam are released to
  * students. Each change asks first and names the exam. Written papers have no
- * answers to release, so the switch is not shown for them. Only Master Admin and
- * System Admin see it; any other role gets nothing, and no request is made.
- * `SLOT: answer release` on the exam page.
+ * answers to release, so the switch is not shown for them. Only the Master Admin sees it:
+ * the API grants release to the Master Admin only. Any other role gets nothing, and no
+ * request is made. The student sees the correct options only once the sitting is over and
+ * this is on (`LiveExamSittingService.questionViews`). `SLOT: answer release` on the exam page.
  */
 export function AnswerReleaseSwitch({ examId }: { examId: string }) {
-  const { isMasterAdmin, isSystemAdmin } = useRole();
-  if (!isMasterAdmin && !isSystemAdmin) {
+  const { isMasterAdmin } = useRole();
+  if (!isMasterAdmin) {
     return null;
   }
   return <ReleaseSwitch examId={examId} />;
@@ -45,7 +46,8 @@ function ReleaseSwitch({ examId }: { examId: string }) {
     return null;
   }
 
-  const released = exam.data.answersReleasedAt !== null;
+  // The API leaves the field out when the answers are withheld, so a missing value must count as "not released".
+  const released = Boolean(exam.data.answersReleasedAt);
   const name = pickTitle(exam.data);
 
   return (

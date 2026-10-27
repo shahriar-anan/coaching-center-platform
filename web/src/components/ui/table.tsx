@@ -11,6 +11,12 @@ export type Column<T> = {
   /** Label shown before the value in the stacked card view. Defaults to the header text. */
   mobileLabel?: string;
   align?: "start" | "end";
+  /** A Tailwind width class, such as `w-36`. Set it on columns whose content must not squeeze. */
+  width?: string;
+  /** Keeps the value on one line. Use it for dates, phone numbers, amounts and codes. */
+  nowrap?: boolean;
+  /** Left out of the stacked card view on a phone. The column stays in the table. Use it for detail that is not needed at a glance. */
+  mobileHidden?: boolean;
 };
 
 type TableProps<T> = {
@@ -37,15 +43,20 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
   const clickable = Boolean(onRowClick);
   return (
     <>
-      <div className="hidden overflow-x-auto rounded-card border border-border bg-card sm:block">
+      <div className="hidden overflow-x-auto rounded-card border border-border-control bg-card sm:block">
         <table className="w-full min-w-[32rem] border-collapse text-body">
           <thead className="sticky top-0 bg-card">
-            <tr className="border-b border-border text-start text-muted">
+            <tr className="border-b border-border-control text-start text-muted">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
-                  className={cn("px-3 py-2.5 font-medium", col.align === "end" ? "text-end" : "text-start")}
+                  className={cn(
+                    "px-3 py-2.5 font-medium",
+                    col.width,
+                    col.nowrap && "whitespace-nowrap",
+                    col.align === "end" ? "text-end" : "text-start",
+                  )}
                 >
                   {col.header}
                 </th>
@@ -62,7 +73,12 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={cn("px-3 py-2.5 align-middle", col.align === "end" ? "text-end" : "text-start")}
+                    className={cn(
+                      "px-3 py-2.5 align-middle",
+                      col.width,
+                      col.nowrap && "whitespace-nowrap",
+                      col.align === "end" ? "text-end" : "text-start",
+                    )}
                   >
                     {col.cell(row)}
                   </td>
@@ -82,12 +98,15 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
               clickable && "cursor-pointer active:bg-bg",
             )}
           >
-            {columns.map((col) => (
+            {columns.filter((col) => !col.mobileHidden).map((col) => (
               <div key={col.key} className="flex items-start justify-between gap-3 text-body">
                 <span className="shrink-0 text-muted">
                   {col.mobileLabel ?? (typeof col.header === "string" ? col.header : null)}
                 </span>
-                <span className="min-w-0 text-end">{col.cell(row)}</span>
+                {/* On a phone the links in a card are 44 px tall, the same as the buttons. */}
+                <span className="min-w-0 text-end [&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center [&_a]:justify-end">
+                  {col.cell(row)}
+                </span>
               </div>
             ))}
           </li>

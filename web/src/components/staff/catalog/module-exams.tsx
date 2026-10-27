@@ -1,24 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
-import { useCopyExam, useCreateExam, useModuleExams, type StaffExam } from "@/lib/api/exam/staff-catalog";
-import type { ExamType } from "@/lib/api/exam/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api/client";
+import { staffCatalogKeys, useCopyExam, useCreateExam, useModuleExams, type ExamInput, type StaffExam } from "@/lib/api/exam/staff-catalog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import type { ExamType, PaperLanguage } from "@/lib/api/exam/types";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Field } from "@/components/ui/field";
+import { NumberInput } from "@/components/ui/number-input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { TextInput } from "@/components/ui/text-input";
 import { Table, type Column } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
-import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
+
+type NewExamForm = {
+  titleEn: string;
+  titleBn: string;
+  descriptionEn: string;
+  descriptionBn: string;
+  rulesEn: string;
+  rulesBn: string;
+  paperLanguage: PaperLanguage | "";
+  durationMinutes: string;
+};
+
+const blankNewExam: NewExamForm = {
+  titleEn: "",
+  titleBn: "",
+  descriptionEn: "",
+  descriptionBn: "",
+  rulesEn: "",
+  rulesBn: "",
+  paperLanguage: "",
+  durationMinutes: "",
+};
 
 function NewExamDialog({ moduleId, open, onOpenChange }: { moduleId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
@@ -26,23 +55,81 @@ function NewExamDialog({ moduleId, open, onOpenChange }: { moduleId: string; ope
   const { toast } = useToast();
   const create = useCreateExam(moduleId);
   const [examType, setExamType] = useState<ExamType>("MCQ");
-  const [titleEn, setTitleEn] = useState("");
-  const [titleBn, setTitleBn] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<NewExamForm>(blankNewExam);
+  const [errors, setErrors] = useState<Partial<Record<keyof NewExamForm, string>>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function set<K extends keyof NewExamForm>(key: K, value: NewExamForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  /** The body to create, or null with each missing field named. Covers what the server requires on create. */
+  function validate(): (ExamInput & { examType: ExamType }) | null {
+    const next: Partial<Record<keyof NewExamForm, string>> = {};
+    const required = t("staffCatalog.moduleExams.fieldRequired");
+    if (!form.titleEn.trim()) {
+      next.titleEn = t("staffCatalog.examMeta.titleEnRequired");
+    }
+    if (!form.titleBn.trim()) {
+      next.titleBn = t("staffCatalog.examMeta.titleBnRequired");
+    }
+    if (!form.descriptionEn.trim()) {
+      next.descriptionEn = required;
+    }
+    if (!form.descriptionBn.trim()) {
+      next.descriptionBn = required;
+    }
+    if (!form.rulesEn.trim()) {
+      next.rulesEn = required;
+    }
+    if (!form.rulesBn.trim()) {
+      next.rulesBn = required;
+    }
+    if (!form.paperLanguage) {
+      next.paperLanguage = t("staffCatalog.moduleExams.paperLanguageRequired");
+    }
+    const duration = Number(form.durationMinutes);
+    if (!Number.isInteger(duration) || duration < 2) {
+      next.durationMinutes = t("staffCatalog.examMeta.durationInvalid");
+    }
+    setErrors(next);
+    if (Object.keys(next).length > 0 || !form.paperLanguage) {
+      return null;
+    }
+    return {
+      examType,
+      titleEn: form.titleEn.trim(),
+      titleBn: form.titleBn.trim(),
+      descriptionEn: form.descriptionEn.trim(),
+      descriptionBn: form.descriptionBn.trim(),
+      rulesEn: form.rulesEn.trim(),
+      rulesBn: form.rulesBn.trim(),
+      paperLanguage: form.paperLanguage,
+      durationMinutes: duration,
+    };
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!titleEn.trim() || !titleBn.trim()) {
-      setError(t("staffCatalog.moduleExams.titlesRequired"));
+    setFormError(null);
+    const body = validate();
+    if (!body) {
       return;
     }
-    setError(null);
     try {
-      const exam = await create.mutateAsync({ examType, titleEn: titleEn.trim(), titleBn: titleBn.trim() });
+      const exam = await create.mutateAsync(body);
       toast({ title: t("staffCatalog.moduleExams.created"), tone: "ok" });
-      router.push(`/staff/exams/${exam.id}`);
+      router.push(`/staff/exams/${exam.id}?created=1`);
     } catch (e) {
-      setError(t(catalogErrorKey(e)));
+      const fromServer: Partial<Record<keyof NewExamForm, string>> = {};
+      for (const key of Object.keys(blankNewExam) as (keyof NewExamForm)[]) {
+        const message = fieldErrorFor(e, key);
+        if (message) {
+          fromServer[key] = message;
+        }
+      }
+      setErrors(fromServer);
+      setFormError(t(catalogErrorKey(e)));
     }
   }
 
@@ -52,6 +139,7 @@ function NewExamDialog({ moduleId, open, onOpenChange }: { moduleId: string; ope
       onOpenChange={onOpenChange}
       title={t("staffCatalog.moduleExams.newTitle")}
       description={t("staffCatalog.moduleExams.newBody")}
+      className="sm:max-w-2xl"
     >
       <form onSubmit={submit} noValidate className="grid gap-4">
         <fieldset className="grid gap-2">
@@ -66,14 +154,61 @@ function NewExamDialog({ moduleId, open, onOpenChange }: { moduleId: string; ope
             </label>
           ))}
         </fieldset>
-        <Field label={t("staffCatalog.moduleForm.titleEn")} required>
-          <TextInput value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" />
-        </Field>
-        <Field label={t("staffCatalog.moduleForm.titleBn")} required error={error ?? undefined}>
-          <TextInput value={titleBn} onChange={(e) => setTitleBn(e.target.value)} />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("staffCatalog.moduleForm.titleEn")} required error={errors.titleEn}>
+            <TextInput value={form.titleEn} onChange={(e) => set("titleEn", e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t("staffCatalog.moduleForm.titleBn")} required error={errors.titleBn}>
+            <TextInput value={form.titleBn} onChange={(e) => set("titleBn", e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("staffCatalog.examMeta.descriptionEn")} required error={errors.descriptionEn}>
+            <Textarea rows={3} value={form.descriptionEn} onChange={(e) => set("descriptionEn", e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t("staffCatalog.examMeta.descriptionBn")} required error={errors.descriptionBn}>
+            <Textarea rows={3} value={form.descriptionBn} onChange={(e) => set("descriptionBn", e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("staffCatalog.examMeta.rulesEn")} required error={errors.rulesEn}>
+            <Textarea rows={3} value={form.rulesEn} onChange={(e) => set("rulesEn", e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t("staffCatalog.examMeta.rulesBn")} required error={errors.rulesBn}>
+            <Textarea rows={3} value={form.rulesBn} onChange={(e) => set("rulesBn", e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label={t("staffCatalog.examMeta.paperLanguage")}
+            hint={t("staffCatalog.examMeta.paperLanguageHint")}
+            required
+            error={errors.paperLanguage}
+          >
+            <Select value={form.paperLanguage} onChange={(e) => set("paperLanguage", e.target.value as PaperLanguage | "")}>
+              <option value="">{t("staffCatalog.moduleExams.paperLanguagePick")}</option>
+              <option value="BN">{t("staffCatalog.paperLanguage.BN")}</option>
+              <option value="EN">{t("staffCatalog.paperLanguage.EN")}</option>
+            </Select>
+          </Field>
+          <Field label={t("staffCatalog.examMeta.duration")} required error={errors.durationMinutes}>
+            <NumberInput
+              inputMode="numeric"
+              min={2}
+              step={1}
+              value={form.durationMinutes}
+              onChange={(e) => set("durationMinutes", e.target.value)}
+              className="max-w-32"
+            />
+          </Field>
+        </div>
+        {formError ? (
+          <p role="alert" className="text-meta text-danger">
+            {formError}
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             {t("common.actions.cancel")}
           </Button>
           <Button type="submit" loading={create.isPending} disabled={create.isPending}>
@@ -108,7 +243,33 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
   const role = useRole();
   const exams = useModuleExams(moduleId);
   const copy = useCopyExam(moduleId);
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
+  // "Create another exam" from the editor's next-step card opens the dialog here (?new=1).
+  const searchParams = useSearchParams();
+  const [creating, setCreating] = useState(() => searchParams.get("new") === "1");
+
+  // Remove the flag once it has opened the dialog, so a reload does not open it again.
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") {
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("new");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, [searchParams]);
+  const [archiving, setArchiving] = useState<StaffExam | null>(null);
+
+  async function archiveExam(exam: StaffExam) {
+    try {
+      await apiRequest<StaffExam>(`/api/v1/live-exams/${exam.id}/archive`, { method: "POST", body: {} });
+      await queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) });
+      toast({ title: t("staffCatalog.editor.archived"), tone: "ok" });
+      setArchiving(null);
+    } catch (e) {
+      toast({ title: t(catalogErrorKey(e)), tone: "danger" });
+    }
+  }
 
   function copyExam(exam: StaffExam) {
     copy.mutate(exam.id, {
@@ -128,6 +289,9 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
     ];
     if (role.canAuthor) {
       items.push({ label: t("staffCatalog.moduleExams.menu.copy"), onClick: () => copyExam(exam) });
+    }
+    if (role.canDelete && exam.status !== "ARCHIVED") {
+      items.push({ label: t("staffCatalog.moduleExams.menu.archive"), onClick: () => setArchiving(exam) });
     }
     // SLOT: results link to /staff/exams/[examId]/results (OPS route). Add the menu item once that route is merged.
     return (
@@ -216,6 +380,19 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
         />
       )}
       {role.canAuthor ? <NewExamDialog moduleId={moduleId} open={creating} onOpenChange={setCreating} /> : null}
+      {role.canDelete && archiving ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setArchiving(null);
+          }}
+          title={t("staffCatalog.editor.archiveTitle", { name: locale === "bn" ? archiving.titleBn : archiving.titleEn })}
+          body={t("staffCatalog.editor.archiveBody")}
+          confirmLabel={t("staffCatalog.editor.archiveConfirm")}
+          tone="danger"
+          onConfirm={() => archiveExam(archiving)}
+        />
+      ) : null}
     </div>
   );
 }

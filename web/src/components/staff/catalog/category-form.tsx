@@ -12,7 +12,6 @@ import {
 } from "@/lib/api/exam/staff-catalog";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { TextInput } from "@/components/ui/text-input";
 import { ErrorState } from "@/components/ui/error-state";
@@ -21,7 +20,7 @@ import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
 import { useUnsavedWarning } from "@/components/staff/catalog/use-unsaved-warning";
 
-type FormState = { titleEn: string; titleBn: string; parentId: string; position: string };
+type FormState = { titleEn: string; titleBn: string; parentId: string };
 
 /** The category and every category under it. A category cannot be its own parent. */
 function descendantIds(nodes: CategoryTreeNode[], id: string): Set<string> {
@@ -81,10 +80,6 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
     if (!form.titleBn.trim()) {
       next.titleBn = t("staffCatalog.categoryForm.titleBnRequired");
     }
-    const position = Number(form.position);
-    if (form.position === "" || !Number.isInteger(position) || position < 0) {
-      next.position = t("staffCatalog.categoryForm.positionInvalid");
-    }
     setErrors(next);
     if (Object.keys(next).length > 0) {
       return null;
@@ -93,7 +88,6 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
       parentId: form.parentId || null,
       titleEn: form.titleEn.trim(),
       titleBn: form.titleBn.trim(),
-      position,
     };
   }
 
@@ -114,7 +108,6 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
           titleEn: saved.titleEn,
           titleBn: saved.titleBn,
           parentId: saved.parentId ?? "",
-          position: String(saved.position),
         };
         setForm(next);
         setBaseline(next);
@@ -125,13 +118,12 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
       setErrors({
         titleEn: titleEn ?? undefined,
         titleBn: fieldErrorFor(error, "titleBn") ?? undefined,
-        position: fieldErrorFor(error, "position") ?? undefined,
       });
     }
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="grid max-w-2xl gap-5">
+    <form onSubmit={onSubmit} noValidate className="grid max-w-3xl gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t("staffCatalog.categoryForm.titleEn")} required error={errors.titleEn}>
           <TextInput value={form.titleEn} onChange={(e) => set("titleEn", e.target.value)} dir="ltr" />
@@ -153,9 +145,6 @@ function CategoryFormBody({ id, initial }: { id?: string; initial: FormState }) 
             </option>
           ))}
         </Select>
-      </Field>
-      <Field label={t("staffCatalog.categoryForm.position")} hint={t("staffCatalog.categoryForm.positionHint")} required error={errors.position}>
-        <NumberInput inputMode="numeric" min={0} step={1} value={form.position} onChange={(e) => set("position", e.target.value)} className="max-w-32" />
       </Field>
 
       {formError ? (
@@ -194,9 +183,8 @@ export function CategoryForm({ id }: { id?: string }) {
         titleEn: category.data.titleEn,
         titleBn: category.data.titleBn,
         parentId: category.data.parentId ?? "",
-        position: String(category.data.position),
       }
-    : { titleEn: "", titleBn: "", parentId: "", position: "0" };
+    : { titleEn: "", titleBn: "", parentId: "" };
 
   return <CategoryFormBody key={category.data?.id ?? "new"} id={id} initial={initial} />;
 }

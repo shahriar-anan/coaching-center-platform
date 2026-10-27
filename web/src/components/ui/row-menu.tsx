@@ -30,7 +30,7 @@ export function RowMenu({
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label={label}
-        className="inline-flex size-10 items-center justify-center rounded-control text-muted outline-none hover:bg-bg focus-visible:outline-accent"
+        className="inline-flex size-11 items-center justify-center rounded-control text-muted outline-none hover:bg-bg focus-visible:outline-accent"
       >
         <MoreHorizontal aria-hidden="true" className="size-4" />
       </DropdownMenu.Trigger>

@@ -53,6 +53,7 @@ const staffOps = {
     rowMenu: {
       label: "লেনদেন {id}-এর কাজ",
       openStudent: "শিক্ষার্থীর পাতা খুলুন",
+      copyTranId: "লেনদেন নম্বর কপি করুন",
     },
   },
   paymentDetail: {

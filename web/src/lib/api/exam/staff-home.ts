@@ -26,6 +26,8 @@ export type ParticipationRow = {
   failedToSubmit: number;
   awaitingMarking: number | null;
   draftsAwaitingPublish: number | null;
+  /** Corrections to released results that wait for release. */
+  correctionsWaiting?: number | null;
   published: number | null;
   retakes: number;
 };
@@ -33,7 +35,8 @@ export type ParticipationRow = {
 export type ParticipationParams = {
   moduleId?: string;
   type?: "MCQ" | "WRITTEN";
-  sort?: "date" | "title" | "sitting";
+  /** The API sorts by `liveAt` (start time, latest first) when no sort is sent; `date` is not accepted. */
+  sort?: "liveAt" | "title" | "sitting";
   size?: number;
 };
 

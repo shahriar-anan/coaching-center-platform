@@ -2,11 +2,11 @@
 
 import { useRef, useState } from "react";
 import { ApiError } from "@/lib/api/errors";
-import { useRemoveModuleCover, useUploadModuleCover, type StaffModule } from "@/lib/api/exam/staff-catalog";
+import { useRemoveModuleCover, useStaffModuleCover, useUploadModuleCover, type StaffModule } from "@/lib/api/exam/staff-catalog";
 import { useLocale } from "@/i18n/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
+import { PackageCover } from "@/components/ui/package/package-cover";
 
 /** The Master Admin's cover image. The browser checks type and size first; the server checks them again. */
 export const COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -18,6 +18,7 @@ export function CoverUploader({ module }: { module: StaffModule }) {
   const input = useRef<HTMLInputElement>(null);
   const upload = useUploadModuleCover(module.id);
   const remove = useRemoveModuleCover(module.id);
+  const cover = useStaffModuleCover(module.id, module.coverUrl);
   const [error, setError] = useState<string | null>(null);
   const busy = upload.isPending || remove.isPending;
   const hasCover = Boolean(module.coverUrl);
@@ -60,7 +61,7 @@ export function CoverUploader({ module }: { module: StaffModule }) {
       </h2>
       <div className="grid gap-4 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-start">
         <PackageCover
-          src={coverSrc(module.coverUrl)}
+          src={cover.data ?? null}
           alt={t("catalog.package.coverAlt", { title: module.titleEn })}
           type={null}
           title={module.titleEn}

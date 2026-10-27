@@ -17,6 +17,7 @@ import { sittingKeys, useModuleExams, useMyModules, type HubExam, type ReviewedR
 import { formatDate, formatNumber, pickTitle } from "@/lib/format";
 import { ExamStatusPill } from "@/components/student/catalog/status-pill";
 import type { MyStatus } from "@/lib/api/exam/catalog";
+import { isMissing } from "@/lib/api/missing";
 
 const RESULT_STATUSES = new Set(["RESULT_READY", "FAILED_TO_SUBMIT"]);
 const MARKING_STATUSES = new Set(["AWAITING_RESULT"]);
@@ -147,7 +148,7 @@ export function ResultsHub() {
                     <span>{exam.liveAt ? formatDate(exam.liveAt, locale) : t("result.hub.undated")}</span>
                     {tab === "results" && result ? (
                       <Pill tone={result.passed ? "ok" : "muted"}>
-                        {result.score === null
+                        {isMissing(result.score)
                           ? t("result.stat.none")
                           : t("result.stat.score", { score: n(result.score), maximum: n(result.maximum) })}
                         {" · "}

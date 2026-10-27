@@ -210,6 +210,8 @@ export type ParticipationRow = {
   /** Written exams only. Null for an MCQ, which staff do not mark. */
   awaitingMarking: number | null;
   draftsAwaitingPublish: number | null;
+  /** Corrections to released results that wait for release (part of `draftsAwaitingPublish`). */
+  correctionsWaiting?: number | null;
   published: number | null;
   retakes: number;
 };

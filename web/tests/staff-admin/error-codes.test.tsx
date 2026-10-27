@@ -34,7 +34,7 @@ describe("unknown error codes on the admin screens", () => {
       "POST /api/v1/live-exam-grants": apiError(500, RAW_CODE, RAW_TEXT),
     });
     renderWithProviders(<StudentAccessSection studentId={studentId} studentName="রহিম" />, {
-      user: fixtures.systemAdmin,
+      user: fixtures.masterAdmin,
       locale: "bn",
     });
     const user = userEvent.setup();

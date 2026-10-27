@@ -30,10 +30,10 @@ const mcqExam: StaffExam = {
   paperLanguage: "BN",
   titleEn: "CrPC",
   titleBn: "সিআরপিসি",
-  descriptionEn: null,
-  descriptionBn: null,
-  rulesEn: null,
-  rulesBn: null,
+  descriptionEn: "Demo description",
+  descriptionBn: "ডেমো বিবরণ",
+  rulesEn: "Read every question first.",
+  rulesBn: "প্রতিটি প্রশ্ন আগে পড়ুন।",
   liveAt: null,
   endAt: null,
   durationMinutes: 40,
@@ -114,6 +114,7 @@ describe("publish summary and next step (UF7, F3)", () => {
   it("states what students get, then publishes and names the next step", async () => {
     const api = mockApi({
       ...routes(mcqExam),
+      [`POST /api/v1/live-exams/${examId}/final-save`]: { ...mcqExam, finallySaved: true },
       [`POST /api/v1/live-exams/${examId}/publish`]: { ...mcqExam, status: "PUBLISHED" },
     });
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
@@ -130,17 +131,20 @@ describe("publish summary and next step (UF7, F3)", () => {
     expect(await screen.findByText(/পরবর্তী ধাপ: সরাসরি ভর্তি করুন।/)).toBeInTheDocument();
   });
 
-  it("System Admin's publish toast names the participation step instead", async () => {
-    mockApi({
-      ...routes(mcqExam),
-      [`POST /api/v1/live-exams/${examId}/publish`]: { ...mcqExam, status: "PUBLISHED" },
-    });
+  it("System Admin has no publish button, and a note says only the Master Admin publishes", async () => {
+    mockApi(routes(mcqExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
-    // System Admin can publish too; the summary is the same for both roles.
-    await userEvent.click(await screen.findByRole("button", { name: "প্রকাশ করুন" }));
-    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "প্রকাশ করুন" }));
-    expect(await screen.findByText(/পরবর্তী ধাপ: অংশগ্রহণ দেখুন।/)).toBeInTheDocument();
+    expect(await screen.findByText("শুধু মাস্টার অ্যাডমিন পরীক্ষা প্রকাশ করতে পারেন।")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "প্রকাশ করুন" })).not.toBeInTheDocument();
+  });
+
+  it("Master Admin cannot publish until the descriptions and rules are filled in", async () => {
+    mockApi(routes({ ...mcqExam, rulesBn: null }));
+    renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
+
+    expect(await screen.findByRole("button", { name: "প্রকাশ করুন" })).toBeDisabled();
+    expect(screen.getByText(/বিবরণ এবং নির্দেশনা যোগ করুন/)).toBeInTheDocument();
   });
 
   it("the summary can be cancelled without publishing", async () => {

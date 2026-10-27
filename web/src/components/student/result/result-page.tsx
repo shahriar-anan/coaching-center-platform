@@ -20,7 +20,7 @@ import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam } from "@/lib/api/exam/sitting";
 import { formatNumber, pickTitle } from "@/lib/format";
-import { useUser } from "@/lib/auth/session-context";
+import { isMissing } from "@/lib/api/missing";
 
 const LETTERS_BN = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"] as const;
 const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
@@ -37,7 +37,7 @@ export function isWithheld(question: {
   explanation?: string | null;
   options: { correct: boolean | null }[];
 }): boolean {
-  return question.options.length > 0 && question.options.every((option) => option.correct === null) && (question.explanation ?? null) === null;
+  return question.options.length > 0 && question.options.every((option) => isMissing(option.correct)) && (question.explanation ?? null) === null;
 }
 
 export function outcomeOf(question: {
@@ -73,9 +73,6 @@ export function ResultPage({ examId }: { examId: string }) {
   const [showScript, setShowScript] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const textSize = usePaperTextSize();
-  const user = useUser();
-  // The marked script is shown over the same watermark as the question paper.
-  const watermark = user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined;
 
   const header = (
     <PageHeader
@@ -130,19 +127,19 @@ export function ResultPage({ examId }: { examId: string }) {
 
   const data = result.data;
   const written = exam.data?.examType === "WRITTEN";
-  const published = written && data.score !== null;
+  const published = written && !isMissing(data.score);
   const notSubmitted = data.status === "FAILED_TO_SUBMIT";
   const awaiting = written && !published && !notSubmitted;
 
   const scoreCell = notSubmitted
     ? n(0)
-    : data.score === null
+    : isMissing(data.score)
       ? t("result.stat.none")
       : t("result.stat.score", { score: n(data.score), maximum: n(data.maximum) });
 
   const outcome = notSubmitted
     ? t("result.outcome.notSubmitted")
-    : data.passed === null
+    : isMissing(data.passed)
       ? t("result.outcome.pending")
       : data.passed
         ? t("result.outcome.passed")
@@ -195,7 +192,7 @@ export function ResultPage({ examId }: { examId: string }) {
         />
       </StatRow>
 
-      {!written && data.passed !== null ? (
+      {!written && !isMissing(data.passed) ? (
         <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
       ) : null}
 
@@ -220,7 +217,6 @@ export function ResultPage({ examId }: { examId: string }) {
             <div className="mt-4">
               <PdfViewer
                 load={() => apiBlob(evaluatedPdfPath(examId))}
-                watermark={watermark}
                 allowDownload={false}
                 label={t("result.written.markedScript")}
               />

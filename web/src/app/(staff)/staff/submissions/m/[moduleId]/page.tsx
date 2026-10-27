@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, use, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -19,10 +19,14 @@ export default function StaffModuleSubmissionsPage({ params }: { params: Promise
 function ModuleRedirect({ params }: { params: Promise<{ moduleId: string }> }) {
   const { moduleId } = use(params);
   const router = useRouter();
+  const search = useSearchParams();
 
   useEffect(() => {
-    router.replace(`/staff/submissions?module=${encodeURIComponent(moduleId)}`);
-  }, [moduleId, router]);
+    // Keep the other filters on the link, such as `exam`, so a count lands on that exam's list.
+    const next = new URLSearchParams(search.toString());
+    next.set("module", moduleId);
+    router.replace(`/staff/submissions?${next.toString()}`);
+  }, [moduleId, router, search]);
 
   return <Skeleton variant="rows" count={3} />;
 }

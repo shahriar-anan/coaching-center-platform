@@ -7,6 +7,7 @@ import { RequireStaff } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CategoryForm } from "@/components/staff/catalog/category-form";
+import { SubcategorySection } from "@/components/staff/catalog/subcategory-section";
 import { useCategory } from "@/lib/api/exam/staff-catalog";
 
 function EditCategoryPage() {
@@ -25,6 +26,7 @@ function EditCategoryPage() {
         ]}
       />
       <CategoryForm id={id} />
+      <SubcategorySection parentId={id} />
     </RequireStaff>
   );
 }

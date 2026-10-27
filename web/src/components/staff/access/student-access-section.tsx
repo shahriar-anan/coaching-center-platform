@@ -41,14 +41,15 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
   const { t } = useLocale();
   const { pickTitle } = useFormat();
   const { toast } = useToast();
-  const { isMasterAdmin, isSystemAdmin } = useRole();
+  const { isMasterAdmin } = useRole();
   const [page, setPage] = useState(0);
   const [adding, setAdding] = useState(false);
   const [revoking, setRevoking] = useState<AdminAccessRow | null>(null);
 
   const access = useStudentAccessRows(studentId, page);
   const revoke = useRevokeGrant(studentId);
-  const canGrant = isMasterAdmin || isSystemAdmin;
+  // Manual grants are the Master Admin's. The System Admin sees the access rows but not the grant control.
+  const canGrant = isMasterAdmin;
 
   const moduleTitle = (row: AdminAccessRow) => pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn });
 
@@ -97,7 +98,8 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
             href={staffHref(`/staff/modules/${row.moduleId}?tab=roster`)}
             className="text-label text-action underline-offset-4 hover:underline"
           >
-            {t("staffPeople.student.addToRoster")}
+            {/* A row already on the roster is managed there (remove is on that tab), so it does not say "add". */}
+            {row.via === "ROSTER" ? t("staffAdmin.access.manageRoster") : t("staffPeople.student.addToRoster")}
           </Link>
         </div>
       ),

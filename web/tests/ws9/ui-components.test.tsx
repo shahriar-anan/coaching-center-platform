@@ -83,6 +83,50 @@ describe("SplitBrowser", () => {
     expect(screen.getByRole("button", { name: /মানবিক/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("ডান পাশ")).toBeInTheDocument();
   });
+
+  it("hides a group's children when its chevron is closed, and shows them again", async () => {
+    renderWithProviders(
+      <SplitBrowser tree={tree} selectedId={null} onSelect={vi.fn()}>
+        <p>ডান পাশ</p>
+      </SplitBrowser>,
+    );
+    // A top-level group starts open.
+    expect(screen.getByRole("button", { name: /পদার্থ/ })).toBeInTheDocument();
+    const hide = screen.getByRole("button", { name: "Hide বিজ্ঞান" });
+    expect(hide).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(hide);
+    expect(screen.queryByRole("button", { name: /পদার্থ/ })).toBeNull();
+    const show = screen.getByRole("button", { name: "Show বিজ্ঞান" });
+    expect(show).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(show);
+    expect(screen.getByRole("button", { name: /পদার্থ/ })).toBeInTheDocument();
+  });
+
+  it("opens the groups above the selected node by itself", () => {
+    renderWithProviders(
+      <SplitBrowser tree={tree} selectedId="physics" onSelect={vi.fn()}>
+        <p>ডান পাশ</p>
+      </SplitBrowser>,
+    );
+    expect(screen.getByRole("button", { name: /পদার্থ/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Hide বিজ্ঞান" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("uses the labels it is given for the chevrons and shows the heading above the tree", () => {
+    renderWithProviders(
+      <SplitBrowser
+        tree={tree}
+        selectedId={null}
+        onSelect={vi.fn()}
+        heading="মূল্যায়ন বাকি"
+        toggleLabel={(label, expanded) => (expanded ? `${label} লুকান` : `${label} দেখান`)}
+      >
+        <p>ডান পাশ</p>
+      </SplitBrowser>,
+    );
+    expect(screen.getByText("মূল্যায়ন বাকি")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "বিজ্ঞান লুকান" })).toBeInTheDocument();
+  });
 });
 
 describe("RowMenu", () => {

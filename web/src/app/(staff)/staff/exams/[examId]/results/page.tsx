@@ -11,11 +11,11 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SummaryStrip } from "@/components/ui/summary-strip";
-import { PublishResultsButton } from "@/components/staff/results/publish-results-button";
 import { RESULT_KINDS, RESULT_SORTS, RESULT_STATUSES, resultsSummaryItems } from "@/components/staff/results/results-copy";
+import { ReleasePanel } from "@/components/staff/results/release-panel";
 import { ResultsTable } from "@/components/staff/results/results-table";
 import { ALL_STAFF, RequireStaff, useRole } from "@/lib/auth/guards";
-import { useExamDraftCount, useExamResults } from "@/lib/api/exam/staff-results";
+import { useExamResults } from "@/lib/api/exam/staff-results";
 import { useStaffExam } from "@/lib/api/exam/staff-ops";
 import { useFormat } from "@/lib/format/use-format";
 import { useListParams } from "@/lib/url/list-params";
@@ -54,7 +54,6 @@ function ResultsReport({ examId }: { examId: string }) {
   const exam = useStaffExam(examId);
   const report = useExamResults(examId, params);
   const examWritten = exam.data?.examType === "WRITTEN";
-  const drafts = useExamDraftCount(examId, isMasterAdmin);
 
   const examTitle = exam.data ? format.pickTitle({ titleEn: exam.data.titleEn, titleBn: exam.data.titleBn }) : "";
   const leaderboardHref = `/staff/exams/${examId}/leaderboard`;
@@ -77,17 +76,15 @@ function ResultsReport({ examId }: { examId: string }) {
             >
               {t("staffResults.openLeaderboard")}
             </a>
-            {isMasterAdmin && examWritten ? (
-              <PublishResultsButton
-                examId={examId}
-                examTitle={examTitle}
-                drafts={drafts.data}
-                loading={drafts.isPending}
-              />
-            ) : null}
           </>
         }
       />
+
+      {isMasterAdmin && examWritten ? (
+        <div id="release" className="scroll-mt-24">
+          <ReleasePanel examId={examId} examTitle={examTitle} />
+        </div>
+      ) : null}
 
       {report.isError ? (
         <ErrorState onRetry={() => report.refetch()} />

@@ -37,7 +37,7 @@ const sizes: Record<ButtonSize, string> = {
 
 const variants: Record<ButtonVariant, string> = {
   primary: "bg-action text-on-action hover:opacity-90 active:opacity-80",
-  secondary: "border border-border bg-card text-text hover:bg-bg active:bg-border",
+  secondary: "border border-border-control bg-card text-text hover:bg-bg active:bg-border",
   ghost: "text-text hover:bg-bg active:bg-border",
   danger: "text-danger hover:underline underline-offset-4 active:opacity-80",
 };

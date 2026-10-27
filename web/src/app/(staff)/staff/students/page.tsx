@@ -42,7 +42,7 @@ export default function StaffStudentsPage() {
 
 function StudentList() {
   const { t } = useLocale();
-  const { isMasterAdmin } = useRole();
+  const { isMasterAdmin, isSystemAdmin } = useRole();
   const [params, setParams] = useListParams({ page: 0, size: 20, q: "" });
   const students = useStudents(params);
   const create = useCreateStudent();
@@ -68,7 +68,7 @@ function StudentList() {
             onSuccess: (result) => setCode({ code: result.activationCode, name: row.fullName }),
           }),
       });
-    } else if (isMasterAdmin) {
+    } else if (isMasterAdmin || isSystemAdmin) {
       items.push({
         label: row.status === "ACTIVE" ? t("staffPeople.students.deactivate") : t("staffPeople.students.activate"),
         onClick: () =>

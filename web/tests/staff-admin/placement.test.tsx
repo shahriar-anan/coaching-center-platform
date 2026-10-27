@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import ExamPage from "@/app/(staff)/staff/exams/[examId]/page";
 import InstructorsPage from "@/app/(staff)/staff/instructors/page";
 import StudentPage from "@/app/(staff)/staff/students/[id]/page";
 import StudentsPage from "@/app/(staff)/staff/students/page";
@@ -10,8 +9,8 @@ import { fixtures, mockApi, apiError, renderWithProviders, routerState } from ".
 import "./copy-setup";
 
 /*
- * Where the admin controls sit on the pages (ADMIN-UI, placement): the answer switch
- * on the exam page, the access list and account controls on the student page, the
+ * Where the admin controls sit on the pages (ADMIN-UI, placement): the access list
+ * and account controls on the student page, the
  * controls on the instructors page, and the row menu and delete on the students list.
  */
 
@@ -107,44 +106,6 @@ function renderStudentPage(user: typeof fixtures.masterAdmin | typeof fixtures.s
   );
 }
 
-/** Lets the screen's requests start, so "no change" is checked after they could have happened. */
-function settle() {
-  return new Promise((resolve) => setTimeout(resolve, 30));
-}
-
-describe("placement: exam page", () => {
-  it("shows the answer switch for an MCQ exam", async () => {
-    mockApi({
-      [`GET /api/v1/live-exams/${EXAM}`]: {
-        id: EXAM,
-        examType: "MCQ",
-        titleEn: "CRPC",
-        titleBn: "সিআরপিসি",
-        answersReleasedAt: null,
-      },
-    });
-    renderWithProviders(<ExamPage />, { user: fixtures.masterAdmin, locale: "bn" });
-
-    expect(await screen.findByRole("switch")).toBeInTheDocument();
-  });
-
-  it("shows no answer switch for a written paper", async () => {
-    const { calls } = mockApi({
-      [`GET /api/v1/live-exams/${EXAM}`]: {
-        id: EXAM,
-        examType: "WRITTEN",
-        titleEn: "CPC written",
-        titleBn: "সিপিসি লিখিত",
-        answersReleasedAt: null,
-      },
-    });
-    renderWithProviders(<ExamPage />, { user: fixtures.masterAdmin, locale: "bn" });
-
-    await waitFor(() => expect(calls.some((call) => call.path === `/api/v1/live-exams/${EXAM}`)).toBe(true));
-    await settle();
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-  });
-});
 
 describe("placement: student page", () => {
   it("shows one access list, and it is the only one on the page", async () => {
@@ -166,15 +127,15 @@ describe("placement: student page", () => {
     expect(screen.getByRole("button", { name: "মুছে ফেলুন" })).toBeInTheDocument();
   });
 
-  it("gives System Admin grant only, with no revoke, roster link, suspend or delete", async () => {
+  it("gives System Admin suspend only, with no grant, revoke, roster link or delete", async () => {
     mockApi(studentRoutes());
     renderStudentPage(fixtures.systemAdmin);
 
-    expect(await screen.findByRole("button", { name: "হাতে অ্যাক্সেস দিন" })).toBeInTheDocument();
     expect(await screen.findByText("অ্যাক্সেস বাতিল করতে পারেন শুধু মাস্টার অ্যাডমিন।")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "হাতে অ্যাক্সেস দিন" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "অ্যাক্সেস বাতিল" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "সরাসরি ভর্তিতে যোগ করুন" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "নিষ্ক্রিয় করুন" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "নিষ্ক্রিয় করুন" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "মুছে ফেলুন" })).not.toBeInTheDocument();
   });
 
@@ -296,14 +257,14 @@ describe("placement: students list", () => {
     expect(screen.getByRole("menuitem", { name: "মুছুন" })).toBeInTheDocument();
   });
 
-  it("shows no suspend and no delete in the row menu to System Admin", async () => {
+  it("shows System Admin the status change in the row menu, and no delete", async () => {
     mockApi(listRoutes);
     renderWithProviders(<StudentsPage />, { user: fixtures.systemAdmin, locale: "bn", route: "/staff/students" });
     const user = userEvent.setup();
 
     await user.click((await screen.findAllByRole("button", { name: "রহিম উদ্দিন-এর কাজ" }))[0]!);
     expect(await screen.findByRole("menuitem", { name: "শিক্ষার্থীর পাতা খুলুন" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "বন্ধ করুন" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "বন্ধ করুন" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "মুছুন" })).not.toBeInTheDocument();
   });
 

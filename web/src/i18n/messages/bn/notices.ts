@@ -18,6 +18,7 @@ const notices = {
     ANNOUNCEMENT: "প্রশাসকের ঘোষণা",
     MCQ_SCORE: "এমসিকিউ স্কোর",
     WRITTEN_RESULT: "রিটেন ফল প্রকাশিত",
+    WRITTEN_RESULT_UPDATED: "রিটেন ফল হালনাগাদ হয়েছে",
     other: "নোটিশ",
   },
   score: "{score}/{max}",

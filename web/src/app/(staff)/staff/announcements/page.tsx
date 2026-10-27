@@ -12,7 +12,7 @@ import { useLocale } from "@/i18n/locale-context";
 export default function StaffAnnouncementsPage() {
   return (
     <Suspense fallback={<Skeleton variant="card" count={2} />}>
-      <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
+      <RequireStaff roles={["MASTER_ADMIN"]}>
         <AnnouncementsPage />
       </RequireStaff>
     </Suspense>

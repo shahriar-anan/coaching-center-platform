@@ -27,14 +27,14 @@ describe("question paper while marking (G8)", () => {
     expect(api.calls.some((call) => call.path.endsWith("/question-pdf"))).toBe(false);
 
     await userEvent.click(screen.getByRole("tab", { name: "প্রশ্নপত্র" }));
-    expect(await screen.findByText("এই প্রশ্নপত্র দেখার অনুমতি নেই।")).toBeInTheDocument();
+    expect(await screen.findByText("এই প্রশ্নপত্র পাওয়া যাচ্ছে না। হয়তো এই পরীক্ষার জন্য কোনো ফাইল আপলোড করা হয়নি, অথবা আপনার অ্যাকাউন্টে এটি দেখার অনুমতি নেই।")).toBeInTheDocument();
   });
 
   it("gives an unassigned instructor the permission line, with no error stack or code", async () => {
     mockApi({ "GET /api/v1/live-exams/e1/question-pdf": notAllowed() });
     renderWithProviders(<PaperViews {...views} />, { user: fixtures.instructor });
     await userEvent.click(screen.getByRole("tab", { name: "প্রশ্নপত্র" }));
-    const body = await screen.findByText("এই প্রশ্নপত্র দেখার অনুমতি নেই।");
+    const body = await screen.findByText("এই প্রশ্নপত্র পাওয়া যাচ্ছে না। হয়তো এই পরীক্ষার জন্য কোনো ফাইল আপলোড করা হয়নি, অথবা আপনার অ্যাকাউন্টে এটি দেখার অনুমতি নেই।");
     expect(within(body.parentElement!).queryByRole("alert")).toBeNull();
     expect(document.body.textContent).not.toContain("RESOURCE_NOT_FOUND");
   });

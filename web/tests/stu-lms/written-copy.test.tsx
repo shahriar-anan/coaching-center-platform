@@ -14,25 +14,26 @@ vi.mock("@/lib/api/exam/sitting", async (importOriginal) => {
   return { ...actual, useUploadAnswer: () => ({ mutateAsync: vi.fn(), isPending: false }) };
 });
 
-const BN_LATE = "খাতা জমা দিতে ভুলে গেলেও শেষ সময়ে সর্বশেষ আপলোড করা খাতাটি জমা হবে। কোনো খাতা আপলোড না হলে পরীক্ষা শেষ করা যাবে না।";
+const BN_LATE = "খাতা একবারই জমা দেওয়া যায়। নিশ্চিত করার আগে ফাইলটি দেখে নিন।";
 const EN_LATE =
-  "Even if you forget to submit, the last script you uploaded before the deadline will count. If no script is uploaded, the exam cannot be finished.";
+  "You can submit your script only once. Check the file before you confirm.";
 
 describe("written paper copy (S-024)", () => {
-  it("the late-upload sentence is in both languages, and the instruction no longer asks for a submit click", () => {
+  it("the submit-once sentence is in both languages, and the instruction no longer asks for a submit click", () => {
     expect(bn.written.lateUpload).toBe(BN_LATE);
     expect(en.written.lateUpload).toBe(EN_LATE);
     expect(bn.written.instruction).not.toContain("জমা দিন");
     expect(en.written.instruction).not.toMatch(/submit/i);
   });
 
-  it("the paper page shows the late-upload sentence", () => {
+  it("the paper page shows the submit-once sentence", () => {
     renderWithProviders(
       <WrittenSitting
         exam={{ id: "ex-w", questionPdf: null } as unknown as StudentExam}
         deadlineAt={new Date(Date.now() + 60 * MINUTE).toISOString()}
         watermark="নাঈম"
         onClosed={() => undefined}
+        onSubmitted={() => undefined}
       />,
       { locale: "bn" },
     );

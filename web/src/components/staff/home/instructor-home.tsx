@@ -40,7 +40,7 @@ export function InstructorHome() {
   const now = useServerNow(60_000);
 
   const modules = useMarkingModules();
-  const written = useParticipationRows({ type: "WRITTEN", sort: "date", size: FEED_PAGE_MAX });
+  const written = useParticipationRows({ type: "WRITTEN", sort: "liveAt", size: FEED_PAGE_MAX });
   const oldestWaiting = useFeed({ status: "AWAITING", moduleId: "", examId: "", q: "", sort: "submittedAt,asc", page: 0, size: 1 });
   const recent = useFeed({ status: "", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: 10 });
   const today = useMarkedToday(name, (iso) => isTodayInDhaka(iso, now));
@@ -50,6 +50,7 @@ export function InstructorHome() {
     () => ({
       awaiting: sum(rows, (row) => row.awaitingMarking),
       drafts: sum(rows, (row) => row.draftsAwaitingPublish),
+      corrections: sum(rows, (row) => row.correctionsWaiting ?? null),
       published: sum(rows, (row) => row.published),
     }),
     [rows],
@@ -114,6 +115,7 @@ export function InstructorHome() {
               href: "/staff/submissions",
             },
             { label: t("staffMarking.home.drafts"), value: format.formatNumber(totals.drafts), tone: "muted" },
+            { label: t("staffMarking.home.corrections"), value: format.formatNumber(totals.corrections), tone: "muted" },
             { label: t("staffMarking.home.published"), value: format.formatNumber(totals.published), tone: "ok" },
           ]}
         />

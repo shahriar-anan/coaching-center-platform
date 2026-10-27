@@ -1,7 +1,8 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WrittenSitting } from "@/components/student/sitting/written-sitting";
+import { ApiError } from "@/lib/api/errors";
 import type { StudentExam } from "@/lib/api/exam/sitting";
 import { renderWithProviders } from "../helpers";
 
@@ -28,6 +29,8 @@ function pdf(name: string) {
   return new File(["%PDF-1.4 test"], name, { type: "application/pdf" });
 }
 
+const onSubmitted = vi.fn();
+
 function renderSitting() {
   return renderWithProviders(
     <WrittenSitting
@@ -35,6 +38,7 @@ function renderSitting() {
       deadlineAt={new Date(Date.now() + 60 * 60 * 1000).toISOString()}
       watermark="নাঈম হাসান"
       onClosed={() => undefined}
+      onSubmitted={onSubmitted}
     />,
   );
 }
@@ -44,32 +48,69 @@ function fileInput() {
 }
 
 describe("written sitting", () => {
-  beforeEach(() => uploadMock.mockReset());
+  beforeEach(() => {
+    uploadMock.mockReset();
+    onSubmitted.mockReset();
+  });
 
-  it("a later file replaces the stored one, and the stored note waits until the new upload", async () => {
-    uploadMock.mockResolvedValue(undefined);
+  it("shows the stored note after a confirmed upload, and a second upload is refused by the server", async () => {
+    uploadMock.mockResolvedValueOnce(undefined);
     renderSitting();
 
     await userEvent.upload(fileInput(), pdf("first.pdf"));
     await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "হ্যাঁ, জমা দিন" }));
     expect(await screen.findByText("খাতা জমা দেওয়া হয়েছে")).toBeInTheDocument();
-
-    await userEvent.upload(fileInput(), pdf("second.pdf"));
-    expect(screen.queryByText("খাতা জমা দেওয়া হয়েছে")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "খাতা জমা দিন" })).toBeEnabled();
-
-    await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
-    expect(uploadMock).toHaveBeenCalledTimes(2);
-    expect(uploadMock.mock.calls[1][0]).toMatchObject({ name: "second.pdf" });
+    expect(onSubmitted).toHaveBeenCalledTimes(1);
   });
 
-  it("a successful upload says which file was stored, in a toast", async () => {
+  it("goes to the submitted page when the server says the script was already submitted", async () => {
+    uploadMock.mockRejectedValue(new ApiError({ code: "ANSWER_ALREADY_SUBMITTED", message: "already", timestamp: "", requestId: "" }, 409));
+    renderSitting();
+
+    await userEvent.upload(fileInput(), pdf("again.pdf"));
+    await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "হ্যাঁ, জমা দিন" }));
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1));
+  });
+
+  it("asks before submitting, and uploads nothing until the student confirms", async () => {
     uploadMock.mockResolvedValue(undefined);
     renderSitting();
 
     await userEvent.upload(fileInput(), pdf("script.pdf"));
     await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
 
-    expect(await screen.findByText("খাতা জমা হয়েছে: script.pdf।")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/script\.pdf/)).toBeInTheDocument();
+    expect(uploadMock).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "বাতিল" }));
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(onSubmitted).not.toHaveBeenCalled();
+  });
+
+  it("goes to the submitted page after the student confirms and the upload succeeds", async () => {
+    uploadMock.mockResolvedValue(undefined);
+    renderSitting();
+
+    await userEvent.upload(fileInput(), pdf("script.pdf"));
+    await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "হ্যাঁ, জমা দিন" }));
+
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1));
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays on the page and shows the error when the upload fails", async () => {
+    uploadMock.mockRejectedValue(new Error("network"));
+    renderSitting();
+
+    await userEvent.upload(fileInput(), pdf("script.pdf"));
+    await userEvent.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "হ্যাঁ, জমা দিন" }));
+
+    expect(await screen.findByText("খাতা আপলোড হয়নি। আবার চেষ্টা করুন।")).toBeInTheDocument();
+    expect(onSubmitted).not.toHaveBeenCalled();
   });
 });
