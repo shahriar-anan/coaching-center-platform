@@ -132,6 +132,14 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 		assertThat(expiring.get("blockedReason").asText()).isEqualTo("ALREADY_HAS_ACCESS");
 		assertThat(Instant.parse(expiring.get("expiresAt").asText())).isEqualTo(windowEnd.plus(Duration.ofDays(30)));
 
+		// The grant on the written paper that ran out reads as NONE, with the end of that grant still shown.
+		Instant expiredEnd = jdbc.queryForObject("SELECT ends_at FROM live_exams WHERE id = ?", Timestamp.class,
+				DemoContentSeed.demo('e', 65)).toInstant();
+		JsonNode expired = examAs(PHONE_STUDENT_D, exam(65)).get("access");
+		assertThat(expired.get("state").asText()).isEqualTo("NONE");
+		assertThat(Instant.parse(expired.get("expiresAt").asText())).isEqualTo(expiredEnd.plus(Duration.ofDays(7)));
+		assertThat(Instant.parse(expired.get("expiresAt").asText())).isBefore(Instant.now());
+
 		// A free exam never ends.
 		JsonNode free = examAs(PHONE_STUDENT_D, exam(61)).get("access");
 		assertThat(free.get("state").asText()).isEqualTo("FREE");

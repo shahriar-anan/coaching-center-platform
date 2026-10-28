@@ -145,8 +145,9 @@ public class StudentOwnAccessService {
 	 * {@code state} is {@code NONE}, {@code MODULE}, {@code EXAM}, {@code ROSTER}, {@code BUNDLE}, {@code MANUAL} or
 	 * {@code FREE} (a free exam, open to everyone). {@code blockedReason}
 	 * is null exactly when {@code buyable} is true, and is always written, even when null. {@code expiresAt} is when the
-	 * access the student holds ends (NR-01, S0.3). It is null for lifetime access, a free exam, or no live access, and is
-	 * always written, even when null.
+	 * access the student holds ends (NR-01, S0.3). Once that access has run out, {@code state} is still {@code NONE} (so the
+	 * student can buy again), and {@code expiresAt} is the end of the grant that ran out (NR-01, follow-up F3). It is null for
+	 * lifetime access, a free exam, or no grant at all, and is always written, even when null.
 	 */
 	public record Access(String state, boolean buyable,
 			@JsonInclude(JsonInclude.Include.ALWAYS) String blockedReason,
@@ -209,7 +210,8 @@ public class StudentOwnAccessService {
 			else if (!hasPhone) {
 				reason = "PHONE_REQUIRED";
 			}
-			return new Access(state, reason == null, reason, NONE.equals(state) ? null : found.endsAt());
+			// The longest route decides (LiveExamAccess.best). When it has run out, every route has, so its end is the one to show.
+			return new Access(state, reason == null, reason, found.endsAt());
 		}
 
 	}
