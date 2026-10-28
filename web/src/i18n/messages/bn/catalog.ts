@@ -177,6 +177,24 @@ const catalog = {
     until: "{date} পর্যন্ত",
     listLabel: "তালিকা মূল্য",
   },
+  popular: {
+    badge: "জনপ্রিয়",
+    title: "জনপ্রিয়",
+    empty: "এখনো জনপ্রিয় কিছু নেই।",
+  },
+  favourite: {
+    label: "পছন্দের তালিকা",
+    failed: "সংরক্ষণ হয়নি। আবার চেষ্টা করুন।",
+  },
+  favourites: {
+    title: "পছন্দের তালিকা",
+    tabExams: "পরীক্ষা",
+    tabPackages: "প্যাকেজ",
+    emptyExams: "এখনো কোনো পছন্দের পরীক্ষা নেই",
+    emptyExamsBody: "কোনো পরীক্ষার তারা চিহ্নে চাপ দিলে তা এখানে থাকবে।",
+    emptyPackages: "এখনো কোনো পছন্দের প্যাকেজ নেই",
+    emptyPackagesBody: "কোনো প্যাকেজের তারা চিহ্নে চাপ দিলে তা এখানে থাকবে।",
+  },
   myExams: {
     title: "আমার পরীক্ষা",
     tabExams: "পরীক্ষা",

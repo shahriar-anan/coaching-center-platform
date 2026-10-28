@@ -25,11 +25,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
+import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useNotice } from "@/lib/notices/use-notice";
 import { doorLabelKey, doorPath, examPath, type Door } from "./catalog-helpers";
 import { ExamPackages } from "./exam-packages";
+import { FavouriteButton } from "./favourite-button";
 import { PriceLine } from "./price-line";
 import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { ruleLines } from "./lms-blocks";
@@ -224,6 +226,7 @@ export function ExamPage({ examId }: { examId: string }) {
       <header className="mt-4 grid gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <TypePill type={examType} />
+          {data.popular ? <Pill tone="accent">{t("catalog.popular.badge")}</Pill> : null}
           {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
           {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
         </div>
@@ -272,6 +275,9 @@ export function ExamPage({ examId }: { examId: string }) {
           <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
             {t("catalog.exam.copyLink")}
           </Button>
+          <div className="flex justify-center">
+            <FavouriteButton kind="exam" id={examId} initial={data.favourite} next={examPath(examId)} />
+          </div>
         </div>
       </section>
 

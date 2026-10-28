@@ -22,6 +22,11 @@ const base: CategoryExam = {
 
 const pkg = (id: string, title: string) => ({ id, titleEn: title, titleBn: title });
 
+/** The row that holds the title: the title is the only link, so the price and status sit in its container. */
+function row(): HTMLElement {
+  return screen.getByRole("link", { name: /CPC MCQ/ }).closest(".group") as HTMLElement;
+}
+
 function renderRow(exam: CategoryExam) {
   return renderWithProviders(
     <ul>
@@ -39,7 +44,7 @@ describe("an exam row in the category list (S2.2)", () => {
       ...base,
       pricing: { price: 400, discountPercent: 25, discountEndsAt: "2026-11-30T17:59:59Z", effectivePrice: 300, free: false, moduleOnly: false },
     });
-    const link = screen.getByRole("link", { name: /CPC MCQ/ });
+    const link = row();
     expect(within(link).getByText("25% off", { exact: false })).toBeInTheDocument();
     expect(within(link).getByText(/until/)).toBeInTheDocument();
     expect(link.querySelector("s")?.textContent).toContain("400");
@@ -48,29 +53,29 @@ describe("an exam row in the category list (S2.2)", () => {
 
   it("shows a plain price when there is no discount", () => {
     renderRow({ ...base, pricing: { price: 300, discountPercent: null, discountEndsAt: null, effectivePrice: 300, free: false, moduleOnly: false } });
-    const link = screen.getByRole("link", { name: /CPC MCQ/ });
+    const link = row();
     expect(link.querySelector("s")).toBeNull();
     expect(link.textContent).toContain("300");
   });
 
   it("says Free for a free exam", () => {
     renderRow({ ...base, pricing: { price: null, discountPercent: null, discountEndsAt: null, effectivePrice: null, free: true, moduleOnly: false } });
-    expect(screen.getByRole("link", { name: /CPC MCQ/ })).toHaveTextContent("Free");
+    expect(row()).toHaveTextContent("Free");
   });
 
   it("says the price is not set for an exam with no price and no package price", () => {
     renderRow({ ...base, pricing: { price: null, discountPercent: null, discountEndsAt: null, effectivePrice: null, free: false, moduleOnly: false } });
-    expect(screen.getByRole("link", { name: /CPC MCQ/ })).toHaveTextContent("Price not set yet.");
+    expect(row()).toHaveTextContent("Price not set yet.");
   });
 
   it("says the exam is only in a package when it has no price of its own", () => {
     renderRow({ ...base, pricing: { price: null, discountPercent: null, discountEndsAt: null, effectivePrice: null, free: false, moduleOnly: true } });
-    expect(screen.getByRole("link", { name: /CPC MCQ/ })).toHaveTextContent("Only in a package");
+    expect(row()).toHaveTextContent("Only in a package");
   });
 
   it("names up to two packages and counts the rest", () => {
     renderRow({ ...base, packages: [pkg("p1", "Alpha"), pkg("p2", "Beta"), pkg("p3", "Gamma")] });
-    const link = screen.getByRole("link", { name: /CPC MCQ/ });
+    const link = row();
     expect(link).toHaveTextContent("Alpha");
     expect(link).toHaveTextContent("Beta");
     expect(link).not.toHaveTextContent("Gamma");
@@ -79,7 +84,7 @@ describe("an exam row in the category list (S2.2)", () => {
 
   it("shows the window status word from the phase", () => {
     renderRow({ ...base, phase: "LIVE" });
-    expect(screen.getByRole("link", { name: /CPC MCQ/ })).toHaveTextContent("Live now");
+    expect(row()).toHaveTextContent("Live now");
   });
 });
 

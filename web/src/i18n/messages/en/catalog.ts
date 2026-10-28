@@ -179,6 +179,24 @@ const catalog: typeof bn = {
     until: "until {date}",
     listLabel: "List price",
   },
+  popular: {
+    badge: "Popular",
+    title: "Popular",
+    empty: "Nothing popular yet.",
+  },
+  favourite: {
+    label: "Favourite",
+    failed: "Could not save. Try again.",
+  },
+  favourites: {
+    title: "Favourites",
+    tabExams: "Exams",
+    tabPackages: "Packages",
+    emptyExams: "No favourite exams yet",
+    emptyExamsBody: "Tap the star on an exam to keep it here.",
+    emptyPackages: "No favourite packages yet",
+    emptyPackagesBody: "Tap the star on a package to keep it here.",
+  },
   myExams: {
     title: "My exams",
     tabExams: "Exams",

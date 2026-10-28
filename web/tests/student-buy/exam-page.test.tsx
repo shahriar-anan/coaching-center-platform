@@ -78,9 +78,9 @@ describe("the exam detail purchase options (S2.3)", () => {
     expect(await screen.findByText("Package one")).toBeInTheDocument();
     expect(screen.getByText("Packages with this exam")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Buy this exam/ })).not.toBeInTheDocument();
-    const card = screen.getByRole("link", { name: /Package one/ });
-    expect(card).toHaveAttribute("href", "/mcq/m/m1");
-    expect(within(card).getByText("3 exams", { exact: false })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Package one/ });
+    expect(link).toHaveAttribute("href", "/mcq/m/m1");
+    expect(within(link.closest(".group") as HTMLElement).getByText("3 exams", { exact: false })).toBeInTheDocument();
   });
 
   it("an exam in no package shows no packages section", async () => {

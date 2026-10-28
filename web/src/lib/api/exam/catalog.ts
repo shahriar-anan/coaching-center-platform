@@ -214,6 +214,33 @@ export function useModuleSearch(q: string) {
   });
 }
 
+/**
+ * The popular exams still to come, for the home page (NR-01, S3.1). `upcoming=true` is required by the API, and `popular=true`
+ * keeps the exams marked popular.
+ */
+export function usePopularExams() {
+  return useQuery({
+    queryKey: ["catalog", "popular-exams"] as const,
+    staleTime: 60_000,
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<UpcomingExam>>("/api/v1/public/live-exams?upcoming=true&popular=true&size=6", { signal }).then(
+        (page) => page.content,
+      ),
+  });
+}
+
+/** The popular packages, for the home page (NR-01, S3.1). */
+export function usePopularPackages() {
+  return useQuery({
+    queryKey: ["catalog", "popular-packages"] as const,
+    staleTime: 60_000,
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<PublicModule>>("/api/v1/public/live-exam-modules?popular=true&size=6", { signal }).then(
+        (page) => page.content,
+      ),
+  });
+}
+
 /** The soonest upcoming exams of one type (G12). Empty until the API has the endpoint. */
 export function useUpcomingExams(examType: ExamType) {
   return useQuery({
