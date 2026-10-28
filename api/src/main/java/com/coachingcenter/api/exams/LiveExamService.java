@@ -579,10 +579,7 @@ public class LiveExamService {
 		}
 		UUID examId = exam.getId();
 		notices.published(examId, exams.findActiveStudentsWithAccessToExam(examId));
-		// The mail queue finds recipients through the exam's first package, so a standalone exam sends no mail yet.
-		if (memberships.primaryModuleId(examId).isPresent()) {
-			afterCommit.run(() -> examMail.onExamPublished(examId));
-		}
+		afterCommit.run(() -> examMail.onExamPublished(examId));
 		return view(exam, true);
 	}
 

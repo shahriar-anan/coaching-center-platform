@@ -97,6 +97,26 @@ class ExamMailIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aStandaloneExamMailsItsExamGrantHoldersAndNobodyElse() {
+		// NR-01: an exam in no package has no module to publish or to read recipients from. The exam grant is its access.
+		Instant liveAt = START.plus(Duration.ofHours(2));
+		Fixture fixture = seed("PUBLISHED", liveAt, "Standalone paper", "একক পরীক্ষা");
+		jdbc.update("update live_exam_package_exams set removed_at = now() where exam_id = ?", fixture.examId);
+		Student holder = student("ACTIVE");
+		Student stranger = student("ACTIVE");
+		jdbc.update("""
+				insert into live_exam_grants (id, student_id, scope, exam_id, created_at, source)
+				values (?, ?, 'EXAM', ?, now(), 'MANUAL')
+				""", UUID.randomUUID(), holder.id, fixture.examId);
+
+		exams.publish(fixture.examId);
+
+		assertThat(count(holder.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(stranger.id, ExamOutboundMail.EXAM_TIME)).isZero();
+		assertThat(sender.sentTo(holder.email).get(0).text()).contains("Standalone paper");
+	}
+
+	@Test
 	void aNullLiveAtOrADraftSendsNothing() {
 		Fixture dated = seed("PUBLISHED", null, "Undated", "তারিখ নেই");
 		Student active = student("ACTIVE");

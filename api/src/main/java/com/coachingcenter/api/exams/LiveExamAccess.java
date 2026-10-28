@@ -85,12 +85,6 @@ public class LiveExamAccess {
 				|| participants.existsByExamIdAndStudentIdAndDeletedAtIsNull(exam.getId(), studentId);
 	}
 
-	/** Granted, ignoring expiry. Kept for callers that predate {@link #canSit}; with no access days set, the two agree. */
-	@Deprecated
-	public boolean hasExam(UUID studentId, LiveExam exam) {
-		return state(studentId, exam, clock.instant()).granted();
-	}
-
 	/** Module-wide access: a roster row or a package grant. It does not look at expiry. */
 	public boolean hasModule(UUID studentId, UUID moduleId) {
 		return roster.existsByModuleIdAndStudentId(moduleId, studentId)

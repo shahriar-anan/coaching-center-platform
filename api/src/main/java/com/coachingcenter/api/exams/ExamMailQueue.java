@@ -37,9 +37,13 @@ class ExamMailQueue {
 
 	private final LiveExamOrderBundle bundles;
 
+	private final LiveExamCatalogVisibility visibility;
+
 	ExamMailQueue(ExamOutboundMailRepository mail, LiveExamOrderRepository orders, LiveExamGrantRepository grants,
 			LiveExamRepository exams, LiveExamModuleRepository modules, UserRepository users, Clock clock,
-			org.springframework.jdbc.core.JdbcTemplate jdbc, LiveExamOrderBundle bundles, LiveExamMemberships memberships) {
+			org.springframework.jdbc.core.JdbcTemplate jdbc, LiveExamOrderBundle bundles, LiveExamMemberships memberships,
+			LiveExamCatalogVisibility visibility) {
+		this.visibility = visibility;
 		this.memberships = memberships;
 		this.mail = mail;
 		this.orders = orders;
@@ -94,7 +98,7 @@ class ExamMailQueue {
 		}
 		List<UUID> ids = new ArrayList<>();
 		Instant now = clock.instant();
-		for (UUID studentId : exams.findActiveStudentsWithAccess(memberships.requirePrimaryModuleId(exam.getId()), exam.getId())) {
+		for (UUID studentId : exams.findActiveStudentsWithAccessToExam(exam.getId())) {
 			ids.addAll(consider(studentId, exam, now));
 		}
 		return ids;
@@ -130,10 +134,10 @@ class ExamMailQueue {
 		Instant after = now.plus(Duration.ofMinutes(15));
 		Instant before = now.plus(Duration.ofMinutes(70));
 		for (LiveExam exam : exams.findPublishedStartingBetween(after, before)) {
-			if (!modulePublished(memberships.requirePrimaryModuleId(exam.getId())) || exam.getLiveAt() == null) {
+			if (!mailable(exam)) {
 				continue;
 			}
-			for (UUID studentId : exams.findActiveStudentsWithAccess(memberships.requirePrimaryModuleId(exam.getId()), exam.getId())) {
+			for (UUID studentId : exams.findActiveStudentsWithAccessToExam(exam.getId())) {
 				insert(ExamOutboundMail.HOUR_BEFORE, ExamMailTexts.examKey(studentId, exam), studentId);
 			}
 		}
@@ -157,8 +161,10 @@ class ExamMailQueue {
 	}
 
 	private boolean mailable(LiveExam exam) {
+		// NR-01 (contracts section 8): published, dated, and its home category branch open. The recipients come from the
+		// published packages the exam is in and from exam grants, so a package no longer has to be the exam's only owner.
 		return exam != null && exam.getDeletedAt() == null && LiveExam.PUBLISHED.equals(exam.getStatus())
-				&& exam.getLiveAt() != null && modulePublished(memberships.requirePrimaryModuleId(exam.getId()));
+				&& exam.getLiveAt() != null && !visibility.branchHidden(exam.getCategoryId());
 	}
 
 	private boolean modulePublished(UUID moduleId) {

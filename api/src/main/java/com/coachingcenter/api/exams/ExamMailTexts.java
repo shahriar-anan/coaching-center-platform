@@ -38,6 +38,8 @@ class ExamMailTexts {
 
 	private final LiveExamModuleRepository modules;
 
+	private final LiveExamCatalogVisibility visibility;
+
 	private final UserRepository users;
 
 	private final LiveExamAccess access;
@@ -47,12 +49,13 @@ class ExamMailTexts {
 	private final MailContext context;
 
 	ExamMailTexts(LiveExamOrderRepository orders, LiveExamGrantRepository grants, LiveExamRepository exams,
-			LiveExamModuleRepository modules, UserRepository users, LiveExamAccess access,
-			StudentProfileRepository profiles, AppProperties properties) {
+			LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility, UserRepository users,
+			LiveExamAccess access, StudentProfileRepository profiles, AppProperties properties) {
 		this.orders = orders;
 		this.grants = grants;
 		this.exams = exams;
 		this.modules = modules;
+		this.visibility = visibility;
 		this.users = users;
 		this.access = access;
 		this.profiles = profiles;
@@ -156,10 +159,12 @@ class ExamMailTexts {
 		if (student == null || exam == null || exam.getLiveAt() == null || !exam.getLiveAt().equals(key.liveAt())) {
 			return null;
 		}
-		if (!LiveExam.PUBLISHED.equals(exam.getStatus()) || !modulePublished(exam.getModuleId())) {
+		// NR-01 (contracts section 8): an exam is visible when it is published and its home category branch is open. A
+		// standalone exam has no package, so the package cannot decide.
+		if (!LiveExam.PUBLISHED.equals(exam.getStatus()) || visibility.branchHidden(exam.getCategoryId())) {
 			return null;
 		}
-		if (!access.hasExam(student.getId(), exam)) {
+		if (!access.canSit(student.getId(), exam, now)) {
 			return null;
 		}
 		boolean hour = ExamOutboundMail.HOUR_BEFORE.equals(row.getKind());
@@ -169,11 +174,6 @@ class ExamMailTexts {
 		RenderedEmail mail = EmailTemplates.examNotice(context, hour, exam.getTitleBn(), exam.getTitleEn(),
 				TIME.format(exam.getLiveAt()), "/exam/" + exam.getId());
 		return new Prepared(student.getEmail(), mail.subject(), mail.text(), mail.html());
-	}
-
-	private boolean modulePublished(UUID moduleId) {
-		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(moduleId).orElse(null);
-		return module != null && LiveExamModule.PUBLISHED.equals(module.getStatus());
 	}
 
 	private User activeStudent(UUID userId) {

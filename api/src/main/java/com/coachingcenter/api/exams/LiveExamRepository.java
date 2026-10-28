@@ -247,21 +247,24 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	List<UUID> findActiveStudentsWithAccess(@Param("moduleId") UUID moduleId, @Param("examId") UUID examId);
 
 	/**
-	 * The students a notice about this exam reaches: a roster row or a package grant on any package the exam is in now, or a
-	 * grant on the exam itself, revoked grants left out. A free exam adds nobody (contracts section 7, item 10).
+	 * The students a notice about this exam reaches: a roster row or a package grant on any published package the exam is
+	 * in now, or a grant on the exam itself, revoked grants left out. A draft, archived or deleted package gives no access,
+	 * so it reaches nobody. A free exam adds nobody (contracts section 7, item 10).
 	 */
 	@Query("""
 			select u.id from User u
 			where u.deletedAt is null and u.role = 'STUDENT' and u.status = 'ACTIVE'
 			  and (
 			    exists (
-			      select r from LiveExamRoster r, LiveExamPackageExam pm
+			      select r from LiveExamRoster r, LiveExamPackageExam pm, LiveExamModule pk
 			      where pm.examId = :examId and pm.removedAt is null and r.moduleId = pm.moduleId and r.studentId = u.id
+			        and pk.id = pm.moduleId and pk.deletedAt is null and pk.status = 'PUBLISHED'
 			    )
 			    or exists (
-			      select gm from LiveExamGrant gm, LiveExamPackageExam pm
+			      select gm from LiveExamGrant gm, LiveExamPackageExam pm, LiveExamModule pk
 			      where pm.examId = :examId and pm.removedAt is null and gm.scope = 'MODULE' and gm.moduleId = pm.moduleId
 			        and gm.studentId = u.id and gm.revokedAt is null
+			        and pk.id = pm.moduleId and pk.deletedAt is null and pk.status = 'PUBLISHED'
 			    )
 			    or exists (
 			      select ge from LiveExamGrant ge
