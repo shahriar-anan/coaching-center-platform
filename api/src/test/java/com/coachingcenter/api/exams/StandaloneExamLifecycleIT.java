@@ -26,7 +26,6 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -125,7 +124,6 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 	 * (findVisibleRoutineCandidates, the EXAM grant branch sits inside the package EXISTS), not in an NR-01 W1 file.
 	 */
 	@Test
-	@Disabled("bug: routine query misses a standalone exam held by an exam grant, see report")
 	void theRoutineShowsAStandaloneExamToTheStudentWhoHoldsItByAnExamGrant() throws Exception {
 		World world = world("Routine");
 		clock.set(BEFORE);

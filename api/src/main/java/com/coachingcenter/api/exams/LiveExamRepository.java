@@ -102,28 +102,33 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""")
 	List<Object[]> countByModuleAndType(@Param("moduleIds") Collection<UUID> moduleIds);
 
+	/**
+	 * Published exams the student holds: through a roster row or a grant on a published package the exam is in, or through an
+	 * exam grant on the exam itself (which needs no package, so a standalone exam is found). The home category must be open.
+	 */
 	@Query("""
 			SELECT e FROM LiveExam e
-			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED'
-			  AND EXISTS (
-			    SELECT pm FROM LiveExamPackageExam pm, LiveExamModule m
-			    WHERE pm.examId = e.id AND pm.removedAt IS NULL
-			      AND m.id = pm.moduleId AND m.deletedAt IS NULL AND m.status = 'PUBLISHED'
-			      AND m.categoryId NOT IN :hiddenCategoryIds
-			      AND (
-			        EXISTS (
-			          SELECT r FROM LiveExamRoster r
-			          WHERE r.moduleId = m.id AND r.studentId = :studentId
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.categoryId NOT IN :hiddenCategoryIds
+			  AND (
+			    EXISTS (
+			      SELECT pm FROM LiveExamPackageExam pm, LiveExamModule m
+			      WHERE pm.examId = e.id AND pm.removedAt IS NULL
+			        AND m.id = pm.moduleId AND m.deletedAt IS NULL AND m.status = 'PUBLISHED'
+			        AND (
+			          EXISTS (
+			            SELECT r FROM LiveExamRoster r
+			            WHERE r.moduleId = m.id AND r.studentId = :studentId
+			          )
+			          OR EXISTS (
+			            SELECT gm FROM LiveExamGrant gm
+			            WHERE gm.scope = 'MODULE' AND gm.moduleId = m.id AND gm.studentId = :studentId
+			          )
 			        )
-			        OR EXISTS (
-			          SELECT gm FROM LiveExamGrant gm
-			          WHERE gm.scope = 'MODULE' AND gm.moduleId = m.id AND gm.studentId = :studentId
-			        )
-			        OR EXISTS (
-			          SELECT ge FROM LiveExamGrant ge
-			          WHERE ge.scope = 'EXAM' AND ge.examId = e.id AND ge.studentId = :studentId
-			        )
-			      )
+			    )
+			    OR EXISTS (
+			      SELECT ge FROM LiveExamGrant ge
+			      WHERE ge.scope = 'EXAM' AND ge.examId = e.id AND ge.studentId = :studentId
+			    )
 			  )
 			""")
 	List<LiveExam> findVisibleRoutineCandidates(@Param("studentId") UUID studentId,
