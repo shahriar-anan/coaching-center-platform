@@ -13,6 +13,8 @@ public interface LiveExamRevisionRepository extends JpaRepository<LiveExamRevisi
 
 	Optional<LiveExamRevision> findByExamId(UUID examId);
 
+	List<LiveExamRevision> findAllByOrderByUpdatedAtDesc();
+
 	/** The exams among {@code examIds} that have a staged revision (NR-01, B3). */
 	@Query("select r.examId from LiveExamRevision r where r.examId in :examIds")
 	List<UUID> findExamIdsIn(@Param("examIds") Collection<UUID> examIds);

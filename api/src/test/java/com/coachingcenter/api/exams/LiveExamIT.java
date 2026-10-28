@@ -113,17 +113,16 @@ class LiveExamIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void anEndedWindowCannotBePublished() throws Exception {
+	void anEndedWindowCanStillBePublishedBecauseArchivedParticipantsSitAfterIt() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		UUID module = publishModule(staff, "Ended");
 		UUID exam = createExam(staff, module, "MCQ", "Yesterday", "গতকাল", "2026-10-20T12:00:00+06:00", 40, 50, null);
 		addQuestion(staff, exam, "Stem", 1, "Because", "Yes", "No");
 		finalSave(staff, exam);
 		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_ENDED"));
-		assertThat(exam(staff, exam).get("status").asText()).isEqualTo("DRAFT");
+		publish(staff, exam);
+		assertThat(exam(staff, exam).get("status").asText()).isEqualTo("PUBLISHED");
+		assertThat(exam(staff, exam).get("phase").asText()).isEqualTo("ENDED");
 	}
 
 	@Test
@@ -205,7 +204,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void deletingAQuestionClosesTheGapLowersTheMaximumAndReturnsTheExamToDraft() throws Exception {
+	void deletingAQuestionClosesTheGapAndLowersTheMaximumWhileTheExamStaysPublished() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String student = token(seed("STUDENT"));
 		UUID module = publishModule(staff, "Delete question");
@@ -221,22 +220,23 @@ class LiveExamIT extends PostgresIntegrationTest {
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isNoContent());
 
+		// Editing a published exam never changes its status (E27); the edit is the working copy until it is published.
 		JsonNode view = exam(staff, exam);
-		assertThat(view.get("status").asText()).isEqualTo("DRAFT");
-		assertThat(view.get("finallySaved").asBoolean()).isFalse();
+		assertThat(view.get("status").asText()).isEqualTo("PUBLISHED");
 		assertThat(view.get("maximum").asInt()).isEqualTo(7);
 		assertThat(view.get("questions")).hasSize(2);
 		assertThat(view.get("questions").get(0).get("id").asText()).isEqualTo(first.toString());
 		assertThat(view.get("questions").get(0).get("position").asInt()).isZero();
 		assertThat(view.get("questions").get(1).get("id").asText()).isEqualTo(third.toString());
 		assertThat(view.get("questions").get(1).get("position").asInt()).isEqualTo(1);
+		// The delete is staged (E31): the rows keep the question and no audit row is written until the publish.
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 		assertThat(jdbc.queryForObject(
 				"select count(*) from live_exam_options where question_id = ? and deleted_at is null", Integer.class, second))
-			.isZero();
+			.isEqualTo(2);
 		assertThat(jdbc.queryForObject(
 				"select count(*) from audit_log where action = 'LIVE_EXAM_QUESTION_DELETE' and entity_id = ?",
-				Integer.class, exam)).isEqualTo(1);
+				Integer.class, exam)).isZero();
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isNotFound());
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + UUID.randomUUID())
@@ -245,7 +245,7 @@ class LiveExamIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aQuestionDeleteIsLockedAfterTheStartRefusedOnWrittenAndCannotEmptyAPublishedExam() throws Exception {
+	void aQuestionDeleteIsAllowedInTheWindowRefusedOnWrittenAndCannotEmptyAPublishedExam() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		UUID module = publishModule(staff, "Question rules");
 		UUID mcq = createExam(staff, module, "MCQ", "Locked", "তালা", "2026-10-20T12:00:00+06:00", 40, 50, null);
@@ -271,11 +271,11 @@ class LiveExamIT extends PostgresIntegrationTest {
 		UUID lateQuestion = addQuestion(staff, late, "One", 1, null, "a", "b");
 		finalSave(staff, late);
 		publish(staff, late);
+		// There is no lock during the window (E27); only a student having started stops a question being removed (R16).
 		clock.set(Instant.parse("2026-10-20T10:30:00Z"));
 		mockMvc.perform(delete("/api/v1/live-exams/" + late + "/questions/" + lateQuestion)
 			.header("Authorization", "Bearer " + staff))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
+			.andExpect(status().isNoContent());
 	}
 
 	@Test
@@ -319,48 +319,25 @@ class LiveExamIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void fiveMinuteGapIsEnforcedInsideOneModuleOnly() throws Exception {
+	void windowsInOnePackageMayOverlapAndNothingIsEnforcedBetweenThem() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
-		UUID module = publishModule(staff, "Gap");
-		UUID otherModule = publishModule(staff, "Other gap");
+		UUID module = publishModule(staff, "Overlap");
 		UUID written = createExam(staff, module, "WRITTEN", "Morning paper", "সকাল খাতা", "2026-10-20T12:00:00+06:00", 40,
 				40, 20);
 		uploadPdf(staff, written);
 		finalSave(staff, written);
 		publish(staff, written);
 
-		UUID crowded = createExam(staff, module, "MCQ", "Too soon", "খুব তাড়াতাড়ি", "2026-10-20T12:44:00+06:00", 20, 40,
+		// D17: the five-minute clash rule is gone, so a window that overlaps the first publishes.
+		UUID crowded = createExam(staff, module, "MCQ", "Too soon", "খুব তাড়াতাড়ি", "2026-10-20T12:10:00+06:00", 20, 40,
 				null);
-		mockMvc.perform(get("/api/v1/live-exams/" + crowded).header("Authorization", "Bearer " + staff))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"))
-			.andExpect(jsonPath("$.liveAt").value("2026-10-20T12:44:00+06:00"));
 		addQuestion(staff, crowded, "Stem", 2, null, "A", "B");
 		finalSave(staff, crowded);
-		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + masterToken()))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
-			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Morning paper")))
-			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("2026-10-20T12:00:00+06:00")))
-			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("2026-10-20T12:40:00+06:00")));
-
-		mockMvc.perform(patch("/api/v1/live-exams/" + crowded).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"liveAt\":\"2026-10-20T12:45:00+06:00\"}"))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"));
-		finalSave(staff, crowded);
 		publish(staff, crowded);
-
-		UUID elsewhere = createExam(staff, otherModule, "MCQ", "Other module", "অন্য মডিউল", "2026-10-20T12:44:00+06:00",
-				20, 40, null);
-		addQuestion(staff, elsewhere, "Stem", 2, null, "A", "B");
-		finalSave(staff, elsewhere);
-		publish(staff, elsewhere);
 	}
 
 	@Test
-	void questionAndScheduleLockWhenTheWindowStartsAndTheExamStaysPublished() throws Exception {
+	void theScheduleScoringAndTextOfAPublishedExamTakeEditsDuringTheWindowAndTheExamStaysPublished() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		UUID module = publishModule(staff, "Lock");
 		UUID exam = createExam(staff, module, "MCQ", "Locked quiz", "বন্ধ কুইজ", "2026-10-20T12:00:00+06:00", 40, 50, null);
@@ -373,25 +350,22 @@ class LiveExamIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(questionJson("Changed stem", 2, "Because", "A", "B")))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
+			.andExpect(status().isOk());
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"liveAt\":\"2026-10-20T12:05:00+06:00\",\"durationMinutes\":50}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
-
-		JsonNode still = exam(staff, exam);
-		assertThat(still.get("questions").get(0).get("stem").asText()).isEqualTo("Original stem");
-		assertThat(still.get("liveAt").asText()).isEqualTo("2026-10-20T12:00:00+06:00");
-		assertThat(still.get("durationMinutes").asInt()).isEqualTo(40);
-		assertThat(still.get("status").asText()).isEqualTo("PUBLISHED");
+			.andExpect(status().isOk());
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"passPercent\":10}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
-		assertThat(exam(staff, exam).get("passPercent").asInt()).isEqualTo(50);
+			.andExpect(status().isOk());
+
+		JsonNode edited = exam(staff, exam);
+		assertThat(edited.get("questions").get(0).get("stem").asText()).isEqualTo("Changed stem");
+		assertThat(edited.get("liveAt").asText()).isEqualTo("2026-10-20T12:05:00+06:00");
+		assertThat(edited.get("durationMinutes").asInt()).isEqualTo(50);
+		assertThat(edited.get("passPercent").asInt()).isEqualTo(10);
+		assertThat(edited.get("status").asText()).isEqualTo("PUBLISHED");
 
 		UUID written = createExam(staff, module, "WRITTEN", "Locked paper", "বন্ধ খাতা", "2026-10-20T12:45:00+06:00", 40,
 				50, 10);
@@ -402,21 +376,15 @@ class LiveExamIT extends PostgresIntegrationTest {
 		mockMvc.perform(patch("/api/v1/live-exams/" + written).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"maximum\":4,\"passPercent\":80}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
+			.andExpect(status().isOk());
 		JsonNode paper = exam(staff, written);
-		assertThat(paper.get("maximum").asInt()).isEqualTo(10);
-		assertThat(paper.get("passPercent").asInt()).isEqualTo(50);
+		assertThat(paper.get("maximum").asInt()).isEqualTo(4);
+		assertThat(paper.get("passPercent").asInt()).isEqualTo(80);
 		assertThat(paper.get("status").asText()).isEqualTo("PUBLISHED");
-
-		clock.set(Instant.parse("2026-10-20T07:00:00Z"));
-		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 	}
 
 	@Test
-	void anUndatedExamPublishesAndADatedPublishStillKeepsTheGap() throws Exception {
+	void anUndatedExamPublishesAndAnEditedScheduleKeepsTheExamPublished() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		UUID module = publishModule(staff, "Routine");
 		UUID otherModule = publishModule(staff, "Other routine");
@@ -448,17 +416,6 @@ class LiveExamIT extends PostgresIntegrationTest {
 		UUID crowded = createExam(staff, module, "MCQ", "Too soon", "কাছাকাছি", "2026-10-20T12:44:00+06:00", 20, 50, null);
 		addQuestion(staff, crowded, "Stem", 2, null, "A", "B");
 		finalSave(staff, crowded);
-		mockMvc.perform(post("/api/v1/live-exams/" + crowded + "/publish").header("Authorization", "Bearer " + masterToken()))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
-			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Morning")));
-		mockMvc.perform(patch("/api/v1/live-exams/" + crowded).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"liveAt\":\"2026-10-20T12:45:00+06:00\"}"))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"))
-			.andExpect(jsonPath("$.finallySaved").value(false));
-		finalSave(staff, crowded);
 		publish(staff, crowded);
 
 		UUID elsewhere = createExam(staff, otherModule, "MCQ", "Same clock", "একই সময়", "2026-10-20T12:00:00+06:00", 40,
@@ -478,27 +435,27 @@ class LiveExamIT extends PostgresIntegrationTest {
 		assertThat(indexOf(list, crowded)).isLessThan(indexOf(list, omitted));
 		assertThat(indexOf(list, crowded)).isLessThan(indexOf(list, explicit));
 
+		// A date set on a published exam is the working copy (the web sends only liveAt, so the end follows it).
 		mockMvc.perform(patch("/api/v1/live-exams/" + omitted).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"liveAt\":\"2026-10-20T15:00:00+06:00\"}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"))
-			.andExpect(jsonPath("$.finallySaved").value(false))
-			.andExpect(jsonPath("$.liveAt").value("2026-10-20T15:00:00+06:00"));
+			.andExpect(jsonPath("$.status").value("PUBLISHED"))
+			.andExpect(jsonPath("$.liveAt").value("2026-10-20T15:00:00+06:00"))
+			.andExpect(jsonPath("$.endAt").value("2026-10-20T15:40:00+06:00"));
 		mockMvc.perform(patch("/api/v1/live-exams/" + crowded).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"liveAt\":null}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"));
+			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 		assertThat(exam(staff, crowded).has("liveAt")).isFalse();
 
 		clock.set(Instant.parse("2026-10-20T06:00:00Z"));
 		mockMvc.perform(patch("/api/v1/live-exams/" + morning).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"liveAt\":\"2026-10-20T16:00:00+06:00\"}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
-		assertThat(exam(staff, morning).get("liveAt").asText()).isEqualTo("2026-10-20T12:00:00+06:00");
+			.andExpect(status().isOk());
+		assertThat(exam(staff, morning).get("liveAt").asText()).isEqualTo("2026-10-20T16:00:00+06:00");
 		assertThat(exam(staff, morning).get("status").asText()).isEqualTo("PUBLISHED");
 	}
 

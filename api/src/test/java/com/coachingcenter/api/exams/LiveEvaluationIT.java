@@ -2938,7 +2938,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aClashingPublishNamesTheExamItClashesWith() throws Exception {
+	void overlappingWindowsInOnePackageBothPublish() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Clash");
 		UUID first = writtenExam(staff, module);
@@ -2961,11 +2961,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exams/" + second + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + second + "/publish").header("Authorization", "Bearer " + masterToken()))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("EXAM_WINDOW_CONFLICT"))
-			.andExpect(jsonPath("$.details.id").value(first.toString()))
-			.andExpect(jsonPath("$.details.titleEn").value("Noon paper"))
-			.andExpect(jsonPath("$.details.liveAt").isNotEmpty());
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("PUBLISHED"));
+		// D17: the five-minute clash rule is gone, so a window that overlaps the first one publishes.
+		assertThat(first).isNotNull();
 	}
 
 	@Test

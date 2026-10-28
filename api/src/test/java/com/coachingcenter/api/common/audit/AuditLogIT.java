@@ -289,6 +289,13 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/announcements",
 			"GET /api/v1/announcements",
 			"GET /api/v1/system-status",
+			// A: NR-01 authoring
+			"POST /api/v1/live-exams",
+			"GET /api/v1/live-exams/{id}/pending-changes",
+			"DELETE /api/v1/live-exams/{id}/pending-changes",
+			"GET /api/v1/live-exam-pending-changes",
+			"GET /api/v1/live-exams/{id}/preview",
+			"GET /api/v1/live-exams/{id}/preview/question-pdf",
 			// B: packages and catalog (NR-01)
 			"POST /api/v1/live-exam-modules/{id}/exams/{examId}",
 			"DELETE /api/v1/live-exam-modules/{id}/exams/{examId}",
