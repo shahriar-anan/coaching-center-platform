@@ -46,11 +46,14 @@ public class LiveExamAccess {
 
 	private final LiveExamRepository exams;
 
+	private final LiveExamModuleRepository modules;
+
 	private final Clock clock;
 
 	public LiveExamAccess(LiveExamRosterRepository roster, LiveExamGrantRepository grants,
 			LiveExamPackageExamRepository memberships, LiveExamParticipantRepository participants, LiveExamRepository exams,
-			Clock clock) {
+			LiveExamModuleRepository modules, Clock clock) {
+		this.modules = modules;
 		this.roster = roster;
 		this.grants = grants;
 		this.memberships = memberships;
@@ -199,6 +202,10 @@ public class LiveExamAccess {
 		for (LiveExamPackageExam membership : memberships.findByExamId(exam.getId())) {
 			UUID moduleId = membership.getModuleId();
 			Instant removedAt = membership.getRemovedAt();
+			// A withdrawn (archived) or deleted package gives no access through it. Other routes still count.
+			if (!packageOpen(moduleId)) {
+				continue;
+			}
 			roster.findById(new LiveExamRoster.Key(moduleId, studentId)).ifPresent(row -> {
 				if (covers(row.getCreatedAt(), removedAt)) {
 					found.add(new Candidate(ROSTER, row.getCreatedAt(), AccessWindow.end(exam, row.getCreatedAt())));
@@ -246,6 +253,13 @@ public class LiveExamAccess {
 
 	private static String moduleSource(LiveExamGrant grant) {
 		return LiveExamGrant.SOURCE_MANUAL.equals(grant.getSource()) ? MANUAL : MODULE;
+	}
+
+	/** Orchestrator ruling, 28 October 2026: access through a package needs the package to be published. */
+	private boolean packageOpen(UUID moduleId) {
+		return modules.findByIdAndDeletedAtIsNull(moduleId)
+			.map(module -> LiveExamModule.PUBLISHED.equals(module.getStatus()))
+			.orElse(false);
 	}
 
 	/** A package still covers a grant made before it was removed (R4). An active package covers every grant. */
