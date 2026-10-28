@@ -17,8 +17,10 @@ import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
 import { BundleSelection } from "./bundle-selection";
+import { PriceLine } from "./price-line";
+import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { bundleOrders } from "@/lib/config";
-import { formatDate, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
+import { formatDate, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { cn } from "@/components/ui/cn";
@@ -247,7 +249,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
             <>
               <div className="grid gap-1">
                 <span className="text-meta font-semibold uppercase tracking-wide text-muted">{t("catalog.buyModule")}</span>
-                <span className="text-3xl font-extrabold tabular-nums text-text-accent">{formatMoney(price, locale) ?? ""}</span>
+                <PriceLine label={priceLabel(pricingOf(data.pricing, price))} size="detail" />
               </div>
               <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
               <IncludedList items={included} />
@@ -276,7 +278,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
           ) : bundleOrders && isStudent ? (
             <BundleSelection
               disabled={checkoutOff}
-              items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: exam.price ?? null, owned: resolveAccess(exam.access).owned }))}
+              items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: chargedAmount(exam.pricing, exam.price), owned: resolveAccess(exam.access).owned }))}
             />
           ) : (
             <ul className="grid gap-3">
@@ -306,7 +308,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                           <AccessBadge via={examAccess.via} />
                         ) : exam.price !== null && exam.price !== undefined ? (
                           <span className="grid justify-items-end gap-0.5 text-meta">
-                            <span className="text-label font-bold tabular-nums">{formatMoney(exam.price, locale)}</span>
+                            <PriceLine label={priceLabel(pricingOf(exam.pricing, exam.price))} />
                             <span className="font-semibold text-text-accent">{t("catalog.buy")} ›</span>
                           </span>
                         ) : (
@@ -381,7 +383,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
           <div className="mx-auto flex max-w-[760px] items-center gap-3">
             <div className="grid min-w-0 flex-1">
               <span className="text-meta text-muted">{t("catalog.buyModule")}</span>
-              <span className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(price, locale) ?? ""}</span>
+              <PriceLine label={priceLabel(pricingOf(data.pricing, price))} size="detail" />
             </div>
             <div className="shrink-0">{barAction}</div>
           </div>
@@ -392,7 +394,18 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
         <PurchaseSheet
           open={buying}
           onOpenChange={setBuying}
-          item={{ kind: "module", id: moduleId, title, price, door, coverUrl: data.coverUrl ?? null, examCount: list.length }}
+          item={{
+            kind: "module",
+            id: moduleId,
+            title,
+            price: chargedAmount(data.pricing, price) ?? price,
+            listPrice: data.pricing?.price ?? price,
+            discountPercent: data.pricing?.discountPercent ?? null,
+            discountEndsAt: data.pricing?.discountEndsAt ?? null,
+            door,
+            coverUrl: data.coverUrl ?? null,
+            examCount: list.length,
+          }}
         />
       ) : null}
     </div>

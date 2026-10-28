@@ -16,18 +16,40 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { IncludedList } from "@/components/student/catalog/included-list";
+import { PriceLine } from "@/components/student/catalog/price-line";
+import { priceLabel } from "@/components/student/catalog/price-view";
+import type { PriceView } from "@/lib/api/exam/types";
 
 export interface PurchaseItem {
   kind: "exam" | "module";
   id: string;
   title: string;
+  /** The amount the order charges: the effective price after any discount (NR-01, S2.6). */
   price: number;
+  /** The list price, shown struck through beside the price when the item is discounted. */
+  listPrice?: number | null;
+  discountPercent?: number | null;
+  discountEndsAt?: string | null;
+  /** The packages an exam is in, named on the sheet so the student knows where it comes from. */
+  packages?: { id: string; title: string }[];
   /** Door to return to after paying (module purchase). */
   door?: "mcq" | "written";
   /** The package cover path, for the summary card. */
   coverUrl?: string | null;
   /** How many exams the package holds now, for the included list. */
   examCount?: number;
+}
+
+/** The price view the sheet shows: the list price and the charged price, so a discount shows struck through (NR-01, S2.6). */
+export function sheetPriceView(item: PurchaseItem): PriceView {
+  return {
+    price: item.listPrice ?? item.price,
+    discountPercent: item.discountPercent ?? null,
+    discountEndsAt: item.discountEndsAt ?? null,
+    effectivePrice: item.price,
+    free: false,
+    moduleOnly: false,
+  };
 }
 
 export const ORDER_MEMO_PREFIX = "exam-portal.order.";
@@ -185,10 +207,15 @@ export function PurchaseSheet({
           />
           <div className="grid min-w-0 gap-1">
             <p className="line-clamp-2 font-bold leading-snug">{item.title}</p>
-            <p className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(item.price, locale)}</p>
+            <PriceLine label={priceLabel(sheetPriceView(item))} size="detail" />
           </div>
         </div>
         <p className="font-semibold">{t(item.kind === "exam" ? "purchase.unlockExam" : "purchase.unlockModule")}</p>
+        {item.kind === "exam" && item.packages && item.packages.length > 0 ? (
+          <p className="text-body text-muted">
+            {t("purchase.inPackages", { titles: item.packages.map((pkg) => pkg.title).join(", ") })}
+          </p>
+        ) : null}
         {item.kind === "module" ? (
           <IncludedList
             items={[
