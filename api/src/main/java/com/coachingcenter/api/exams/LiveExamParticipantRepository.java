@@ -24,6 +24,22 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 
 	Optional<LiveExamParticipant> findByExamIdAndStudentIdAndDeletedAtIsNull(UUID examId, UUID studentId);
 
+	List<LiveExamParticipant> findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(UUID examId, UUID studentId);
+
+	/** The student's attempt that is still open, or empty. At most one exists (V46). */
+	@Query("""
+			select p from LiveExamParticipant p
+			where p.examId = :examId and p.studentId = :studentId and p.status = 'IN_PROGRESS' and p.deletedAt is null
+			""")
+	Optional<LiveExamParticipant> findOpen(@Param("examId") UUID examId, @Param("studentId") UUID studentId);
+
+	/** The attempts that can sit on the leaderboard: first live attempts and first practice attempts. */
+	@Query("""
+			select p from LiveExamParticipant p
+			where p.examId = :examId and p.deletedAt is null and p.kind in ('LIVE', 'PRACTICE')
+			""")
+	List<LiveExamParticipant> findBoardAttempts(@Param("examId") UUID examId);
+
 	List<LiveExamParticipant> findByExamIdAndDeletedAtIsNull(UUID examId);
 
 	boolean existsByExamId(UUID examId);

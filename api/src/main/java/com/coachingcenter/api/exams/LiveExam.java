@@ -28,8 +28,57 @@ public class LiveExam extends BaseEntity {
 
 	public static final String EN = "EN";
 
-	@Column(name = "module_id", nullable = false)
+	/** An exam with a window: live at {@code liveAt}, open until {@code endsAt}. */
+	public static final String MODE_LIVE = "LIVE";
+
+	/** An exam with no window, open from publish. */
+	public static final String MODE_PRACTICE = "PRACTICE";
+
+	/** The package the exam was created in. Kept for history only; access and listing read the membership table. */
+	@Column(name = "module_id")
 	private UUID moduleId;
+
+	@Column(name = "category_id", nullable = false)
+	private UUID categoryId;
+
+	@Column(name = "instructor_id")
+	private UUID instructorId;
+
+	@Column(nullable = false, length = 16)
+	private String mode;
+
+	@Column(name = "ends_at")
+	private Instant endsAt;
+
+	@Column(name = "published_at")
+	private Instant publishedAt;
+
+	@Column(name = "negative_marks", precision = 5, scale = 2)
+	private BigDecimal negativeMarks;
+
+	@Column(name = "answers_changeable", nullable = false)
+	private boolean answersChangeable;
+
+	@Column(name = "question_paper_id")
+	private UUID questionPaperId;
+
+	@Column(name = "is_free", nullable = false)
+	private boolean free;
+
+	@Column(name = "discount_percent")
+	private Integer discountPercent;
+
+	@Column(name = "discount_ends_at")
+	private Instant discountEndsAt;
+
+	@Column(name = "access_days")
+	private Integer accessDays;
+
+	@Column(nullable = false)
+	private boolean popular;
+
+	@Column(name = "preview_enabled", nullable = false)
+	private boolean previewEnabled;
 
 	@Column(name = "exam_type", nullable = false, length = 16)
 	private String examType;
@@ -246,6 +295,118 @@ public class LiveExam extends BaseEntity {
 
 	public void setPrice(BigDecimal price) {
 		this.price = price;
+	}
+
+	public UUID getCategoryId() {
+		return categoryId;
+	}
+
+	public void setCategoryId(UUID categoryId) {
+		this.categoryId = categoryId;
+	}
+
+	public UUID getInstructorId() {
+		return instructorId;
+	}
+
+	public void setInstructorId(UUID instructorId) {
+		this.instructorId = instructorId;
+	}
+
+	public String getMode() {
+		return mode;
+	}
+
+	public void setMode(String mode) {
+		this.mode = mode;
+	}
+
+	public Instant getEndsAt() {
+		return endsAt;
+	}
+
+	public void setEndsAt(Instant endsAt) {
+		this.endsAt = endsAt;
+	}
+
+	public Instant getPublishedAt() {
+		return publishedAt;
+	}
+
+	public void setPublishedAt(Instant publishedAt) {
+		this.publishedAt = publishedAt;
+	}
+
+	public BigDecimal getNegativeMarks() {
+		return negativeMarks;
+	}
+
+	public void setNegativeMarks(BigDecimal negativeMarks) {
+		this.negativeMarks = negativeMarks;
+	}
+
+	public boolean isAnswersChangeable() {
+		return answersChangeable;
+	}
+
+	public void setAnswersChangeable(boolean answersChangeable) {
+		this.answersChangeable = answersChangeable;
+	}
+
+	public UUID getQuestionPaperId() {
+		return questionPaperId;
+	}
+
+	public void setQuestionPaperId(UUID questionPaperId) {
+		this.questionPaperId = questionPaperId;
+	}
+
+	public boolean isFree() {
+		return free;
+	}
+
+	public void setFree(boolean free) {
+		this.free = free;
+	}
+
+	public Integer getDiscountPercent() {
+		return discountPercent;
+	}
+
+	public void setDiscountPercent(Integer discountPercent) {
+		this.discountPercent = discountPercent;
+	}
+
+	public Instant getDiscountEndsAt() {
+		return discountEndsAt;
+	}
+
+	public void setDiscountEndsAt(Instant discountEndsAt) {
+		this.discountEndsAt = discountEndsAt;
+	}
+
+	public Integer getAccessDays() {
+		return accessDays;
+	}
+
+	public void setAccessDays(Integer accessDays) {
+		this.accessDays = accessDays;
+	}
+
+	public boolean isPopular() {
+		return popular;
+	}
+
+	public void setPopular(boolean popular) {
+		this.popular = popular;
+	}
+
+	public boolean isPreviewEnabled() {
+		return previewEnabled;
+	}
+
+	public void setPreviewEnabled(boolean previewEnabled) {
+		this.previewEnabled = previewEnabled;
 	}
 
 

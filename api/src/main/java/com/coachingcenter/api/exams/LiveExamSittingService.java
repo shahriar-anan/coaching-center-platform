@@ -2,6 +2,7 @@ package com.coachingcenter.api.exams;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -219,7 +220,7 @@ public class LiveExamSittingService {
 		boolean review = !clock.instant().isBefore(participant.getDeadlineAt());
 		List<StudentQuestion> questionViews = review && LiveExam.MCQ.equals(exam.getExamType())
 				? questionViews(examId, participant.getId(), true) : null;
-		Integer score = participant.getScore();
+		BigDecimal score = McqScoring.plain(participant.getScore());
 		Boolean passed = participant.getPassed();
 		String comment = participant.getComment();
 		Boolean evaluatedPdf = participant.getEvaluatedStoredFileName() == null ? null : Boolean.TRUE;
@@ -332,7 +333,7 @@ public class LiveExamSittingService {
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
 			if (participant.getAnswerStoredFileName() == null) {
 				participant.setStatus(LiveExamParticipant.FAILED_TO_SUBMIT);
-				participant.setScore(0);
+				participant.setScore(BigDecimal.ZERO);
 				participant.setPassed(false);
 			}
 			else {
@@ -354,7 +355,7 @@ public class LiveExamSittingService {
 				score += marks.getOrDefault(answer.getQuestionId(), 0);
 			}
 		}
-		participant.setScore(score);
+		participant.setScore(BigDecimal.valueOf(score));
 		participant.setPassed(answered && passed(score, exam));
 		participant.setStatus(LiveExamParticipant.SUBMITTED);
 		if (writeNotice) {
@@ -363,7 +364,7 @@ public class LiveExamSittingService {
 	}
 
 	private PostedResult posted(LiveExamParticipant participant, LiveExam exam) {
-		Integer score = participant.getScore();
+		BigDecimal score = McqScoring.plain(participant.getScore());
 		Boolean passed = participant.getPassed();
 		if (LiveExam.WRITTEN.equals(exam.getExamType())
 				&& !LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())
@@ -551,10 +552,10 @@ public class LiveExamSittingService {
 	public record TakeView(UUID id, UUID examId, String kind, String serverTime, String deadlineAt, String startedAt) {
 	}
 
-	public record PostedResult(UUID participantId, Integer score, int maximum, Boolean passed, String status) {
+	public record PostedResult(UUID participantId, BigDecimal score, int maximum, Boolean passed, String status) {
 	}
 
-	public record ReviewedResult(Integer score, int maximum, Boolean passed, String status, List<StudentQuestion> questions,
+	public record ReviewedResult(BigDecimal score, int maximum, Boolean passed, String status, List<StudentQuestion> questions,
 			String comment, Boolean evaluatedPdf, String kind) {
 	}
 

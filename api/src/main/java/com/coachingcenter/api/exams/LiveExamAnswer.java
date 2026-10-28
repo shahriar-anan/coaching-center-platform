@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
+/** One chosen option. A multi-answer question has one row per chosen option (V47). */
 @Entity
 @Table(name = "live_exam_answers")
 @IdClass(LiveExamAnswer.Key.class)
@@ -22,6 +23,7 @@ public class LiveExamAnswer {
 	@Column(name = "question_id", nullable = false)
 	private UUID questionId;
 
+	@Id
 	@Column(name = "option_id", nullable = false)
 	private UUID optionId;
 
@@ -55,12 +57,15 @@ public class LiveExamAnswer {
 
 		private UUID questionId;
 
+		private UUID optionId;
+
 		public Key() {
 		}
 
-		public Key(UUID participantId, UUID questionId) {
+		public Key(UUID participantId, UUID questionId, UUID optionId) {
 			this.participantId = participantId;
 			this.questionId = questionId;
+			this.optionId = optionId;
 		}
 
 		@Override
@@ -71,12 +76,13 @@ public class LiveExamAnswer {
 			if (!(other instanceof Key key)) {
 				return false;
 			}
-			return participantId.equals(key.participantId) && questionId.equals(key.questionId);
+			return participantId.equals(key.participantId) && questionId.equals(key.questionId)
+					&& optionId.equals(key.optionId);
 		}
 
 		@Override
 		public int hashCode() {
-			return participantId.hashCode() * 31 + questionId.hashCode();
+			return (participantId.hashCode() * 31 + questionId.hashCode()) * 31 + optionId.hashCode();
 		}
 
 	}

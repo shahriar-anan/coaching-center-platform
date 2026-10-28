@@ -27,6 +27,17 @@ public class LiveExamQuestion extends BaseEntity {
 	@Column(nullable = false)
 	private int position;
 
+	@Column(name = "multiple_answer", nullable = false)
+	private boolean multipleAnswer;
+
+	public boolean isMultipleAnswer() {
+		return multipleAnswer;
+	}
+
+	public void setMultipleAnswer(boolean multipleAnswer) {
+		this.multipleAnswer = multipleAnswer;
+	}
+
 	public UUID getExamId() {
 		return examId;
 	}

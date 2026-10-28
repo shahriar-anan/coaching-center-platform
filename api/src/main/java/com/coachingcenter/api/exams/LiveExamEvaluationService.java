@@ -2,6 +2,7 @@ package com.coachingcenter.api.exams;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.time.Clock;
 import java.time.Duration;
@@ -178,7 +179,7 @@ public class LiveExamEvaluationService {
 		if (released) {
 			// A released result keeps its mark and PDF for the student. A save now is a correction, held until release.
 			discard = hadPending ? participant.getPendingStoredFileName() : null;
-			participant.setPendingScore(marks);
+			participant.setPendingScore(BigDecimal.valueOf(marks));
 			participant.setPendingPassed(passed(marks, exam, maximum));
 			participant.setPendingComment(comment == null || comment.isBlank() ? null : comment.trim());
 			participant.setPendingEvaluatedBy(actor.userId());
@@ -201,7 +202,7 @@ public class LiveExamEvaluationService {
 		}
 		else {
 			discard = participant.getEvaluatedStoredFileName();
-			participant.setScore(marks);
+			participant.setScore(BigDecimal.valueOf(marks));
 			participant.setPassed(passed(marks, exam, maximum));
 			participant.setComment(comment == null || comment.isBlank() ? null : comment.trim());
 			participant.setEvaluatedBy(actor.userId());
@@ -339,17 +340,17 @@ public class LiveExamEvaluationService {
 				continue;
 			}
 			scored.add(new BoardRow(participant.getStudentId(), studentName(participant.getStudentId()),
-					participant.getScore(), maximum, participant.getPassed() != null && participant.getPassed()));
+					McqScoring.plain(participant.getScore()), maximum, participant.getPassed() != null && participant.getPassed()));
 		}
-		scored.sort(Comparator.comparingInt(BoardRow::score).reversed().thenComparing(BoardRow::name));
+		scored.sort(Comparator.comparing(BoardRow::score).reversed().thenComparing(BoardRow::name));
 		// "mine" is for a student reading the list, and only their own row. Staff never get it.
 		boolean student = !marker && actor.role() == Role.STUDENT;
 		List<LeaderboardRow> rows = new ArrayList<>();
 		int rank = 1;
-		Integer previous = null;
+		BigDecimal previous = null;
 		for (int index = 0; index < scored.size(); index++) {
 			BoardRow row = scored.get(index);
-			if (previous != null && row.score() != previous) {
+			if (previous != null && row.score().compareTo(previous) != 0) {
 				rank = index + 1;
 			}
 			previous = row.score();
@@ -439,7 +440,7 @@ public class LiveExamEvaluationService {
 		}
 		boolean pending = participant.hasPendingRevision();
 		return new SubmissionView(participant.getId(), exam.getId(), participant.getStudentId(),
-				studentName(participant.getStudentId()), participant.getStatus(), scoreOf(participant), maximum(exam),
+				studentName(participant.getStudentId()), participant.getStatus(), McqScoring.plain(scoreOf(participant)), maximum(exam),
 				passedOf(participant), participant.getKind(), participant.getAnswerStoredFileName() != null,
 				storedFileOf(participant) == null ? null : Boolean.TRUE, evaluatorName,
 				participant.getPublishedAt() != null && !pending, commentOf(participant), originalFileOf(participant),
@@ -527,7 +528,7 @@ public class LiveExamEvaluationService {
 		return participant.hasPendingRevision() ? participant.getPendingEvaluatedAt() : participant.getEvaluatedAt();
 	}
 
-	private static Integer scoreOf(LiveExamParticipant participant) {
+	private static BigDecimal scoreOf(LiveExamParticipant participant) {
 		return participant.hasPendingRevision() ? participant.getPendingScore() : participant.getScore();
 	}
 
@@ -681,7 +682,7 @@ public class LiveExamEvaluationService {
 	public record PublishedCount(int published) {
 	}
 
-	public record SubmissionView(UUID id, UUID examId, UUID studentId, String studentName, String status, Integer score,
+	public record SubmissionView(UUID id, UUID examId, UUID studentId, String studentName, String status, BigDecimal score,
 			int maximum, Boolean passed, String kind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
 			boolean published, String comment, String evaluatedFileName, UUID moduleId, String moduleTitleEn,
 			String moduleTitleBn, String examTitleEn, String examTitleBn, Instant submittedAt, Instant evaluatedAt,
@@ -691,10 +692,10 @@ public class LiveExamEvaluationService {
 	public record Leaderboard(List<LeaderboardRow> rows) {
 	}
 
-	public record LeaderboardRow(String name, int rank, int score, int maximum, boolean passed, boolean mine) {
+	public record LeaderboardRow(String name, int rank, BigDecimal score, int maximum, boolean passed, boolean mine) {
 	}
 
-	private record BoardRow(UUID studentId, String name, int score, int maximum, boolean passed) {
+	private record BoardRow(UUID studentId, String name, BigDecimal score, int maximum, boolean passed) {
 	}
 
 }

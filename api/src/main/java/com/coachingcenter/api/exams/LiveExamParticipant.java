@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -13,9 +14,17 @@ import jakarta.persistence.Table;
 @Table(name = "live_exam_participants")
 public class LiveExamParticipant extends BaseEntity {
 
+	/** The first attempt, started inside the window (or the first attempt of a practice exam, see PRACTICE). */
 	public static final String LIVE = "LIVE";
 
+	/** The first attempt, started after the window ended. Stored as RETAKE before V46. */
+	public static final String ARCHIVED = "ARCHIVED";
+
+	/** Any later attempt. */
 	public static final String RETAKE = "RETAKE";
+
+	/** The first attempt of a practice exam. */
+	public static final String PRACTICE = "PRACTICE";
 
 	public static final String IN_PROGRESS = "IN_PROGRESS";
 
@@ -41,11 +50,17 @@ public class LiveExamParticipant extends BaseEntity {
 	@Column(name = "submitted_at")
 	private Instant submittedAt;
 
-	@Column
-	private Integer score;
+	@Column(precision = 8, scale = 2)
+	private BigDecimal score;
 
 	@Column
 	private Boolean passed;
+
+	@Column(name = "attempt_no", nullable = false)
+	private int attemptNo;
+
+	@Column(name = "question_paper_id")
+	private UUID questionPaperId;
 
 	@Column(nullable = false, length = 32)
 	private String status;
@@ -87,8 +102,8 @@ public class LiveExamParticipant extends BaseEntity {
 	private String evaluatedContentType;
 
 	/** A correction to a released result, kept until Master Admin releases it. Null when none is waiting. */
-	@Column(name = "pending_score")
-	private Integer pendingScore;
+	@Column(name = "pending_score", precision = 8, scale = 2)
+	private BigDecimal pendingScore;
 
 	@Column(name = "pending_passed")
 	private Boolean pendingPassed;
@@ -166,12 +181,28 @@ public class LiveExamParticipant extends BaseEntity {
 		this.submittedAt = submittedAt;
 	}
 
-	public Integer getScore() {
+	public BigDecimal getScore() {
 		return score;
 	}
 
-	public void setScore(Integer score) {
+	public void setScore(BigDecimal score) {
 		this.score = score;
+	}
+
+	public int getAttemptNo() {
+		return attemptNo;
+	}
+
+	public void setAttemptNo(int attemptNo) {
+		this.attemptNo = attemptNo;
+	}
+
+	public UUID getQuestionPaperId() {
+		return questionPaperId;
+	}
+
+	public void setQuestionPaperId(UUID questionPaperId) {
+		this.questionPaperId = questionPaperId;
 	}
 
 	public Boolean getPassed() {
@@ -299,11 +330,11 @@ public class LiveExamParticipant extends BaseEntity {
 		return pendingEvaluatedAt != null;
 	}
 
-	public Integer getPendingScore() {
+	public BigDecimal getPendingScore() {
 		return pendingScore;
 	}
 
-	public void setPendingScore(Integer pendingScore) {
+	public void setPendingScore(BigDecimal pendingScore) {
 		this.pendingScore = pendingScore;
 	}
 

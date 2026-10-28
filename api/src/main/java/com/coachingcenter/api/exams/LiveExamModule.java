@@ -64,6 +64,39 @@ public class LiveExamModule extends BaseEntity {
 	@Column(name = "cover_updated_at")
 	private Instant coverUpdatedAt;
 
+	@Column(name = "discount_percent")
+	private Integer discountPercent;
+
+	@Column(name = "discount_ends_at")
+	private Instant discountEndsAt;
+
+	@Column(nullable = false)
+	private boolean popular;
+
+	public Integer getDiscountPercent() {
+		return discountPercent;
+	}
+
+	public void setDiscountPercent(Integer discountPercent) {
+		this.discountPercent = discountPercent;
+	}
+
+	public Instant getDiscountEndsAt() {
+		return discountEndsAt;
+	}
+
+	public void setDiscountEndsAt(Instant discountEndsAt) {
+		this.discountEndsAt = discountEndsAt;
+	}
+
+	public boolean isPopular() {
+		return popular;
+	}
+
+	public void setPopular(boolean popular) {
+		this.popular = popular;
+	}
+
 	public UUID getCategoryId() {
 		return categoryId;
 	}

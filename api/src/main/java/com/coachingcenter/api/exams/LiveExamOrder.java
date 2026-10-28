@@ -20,6 +20,9 @@ public class LiveExamOrder {
 
 	public static final String EXAM = "EXAM";
 
+	/** A paid order for a package as a whole, sold as a bundle (NR-01). */
+	public static final String BUNDLE = "BUNDLE";
+
 	public static final String INITIATED = "INITIATED";
 
 	public static final String SUCCEEDED = "SUCCEEDED";
@@ -41,7 +44,7 @@ public class LiveExamOrder {
 	@Column(nullable = false, length = 8)
 	private String scope;
 
-	@Column(name = "module_id", nullable = false)
+	@Column(name = "module_id")
 	private UUID moduleId;
 
 	@Column(name = "exam_id")
@@ -68,6 +71,13 @@ public class LiveExamOrder {
 
 	@Column(name = "payment_channel", length = 64)
 	private String paymentChannel;
+
+	/** The price the student saw at checkout, before the discount (NR-01, R19). */
+	@Column(name = "list_price", precision = 12, scale = 2)
+	private BigDecimal listPrice;
+
+	@Column(name = "discount_percent")
+	private Integer discountPercent;
 
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
@@ -161,6 +171,22 @@ public class LiveExamOrder {
 
 	public void setValId(String valId) {
 		this.valId = valId;
+	}
+
+	public BigDecimal getListPrice() {
+		return listPrice;
+	}
+
+	public void setListPrice(BigDecimal listPrice) {
+		this.listPrice = listPrice;
+	}
+
+	public Integer getDiscountPercent() {
+		return discountPercent;
+	}
+
+	public void setDiscountPercent(Integer discountPercent) {
+		this.discountPercent = discountPercent;
 	}
 
 	public String getPaymentChannel() {

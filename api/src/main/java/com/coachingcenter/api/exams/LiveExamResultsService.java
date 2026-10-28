@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -126,7 +127,7 @@ public class LiveExamResultsService {
 					exam == null ? null : exam.getTitleEn(), exam == null ? null : exam.getTitleBn(),
 					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
 					module == null ? null : module.getTitleBn(), participant.getKind(), participant.getStatus(),
-					participant.getScore(), maximumByExam.getOrDefault(participant.getExamId(), 0), participant.getPassed(),
+					McqScoring.plain(participant.getScore()), maximumByExam.getOrDefault(participant.getExamId(), 0), participant.getPassed(),
 					participant.getSubmittedAt(), published(participant, exam));
 		}));
 	}
@@ -148,7 +149,7 @@ public class LiveExamResultsService {
 	private Row row(LiveExamParticipant participant, int maximum, StudentProfile profile) {
 		return new Row(participant.getId(), participant.getStudentId(), profile == null ? "" : profile.getFullName(),
 				profile == null || profile.getStudentCode() == null ? "" : profile.getStudentCode(), participant.getStatus(),
-				participant.getKind(), participant.getScore(), maximum, participant.getPassed(), participant.getStartedAt(),
+				participant.getKind(), McqScoring.plain(participant.getScore()), maximum, participant.getPassed(), participant.getStartedAt(),
 				participant.getSubmittedAt(), participant.getPublishedAt(), participant.hasPendingRevision() ? Boolean.TRUE : null);
 	}
 
@@ -167,17 +168,17 @@ public class LiveExamResultsService {
 	private static Summary summary(List<LiveExamParticipant> all, LiveExam exam) {
 		List<LiveExamParticipant> live = all.stream().filter(p -> LiveExamParticipant.LIVE.equals(p.getKind())).toList();
 		List<LiveExamParticipant> finals = live.stream().filter(p -> counted(p, exam)).toList();
-		List<Integer> scores = finals.stream().map(LiveExamParticipant::getScore).toList();
+		List<BigDecimal> scores = finals.stream().map(p -> McqScoring.plain(p.getScore())).toList();
 		int submitted = (int) live.stream().filter(p -> LiveExamParticipant.SUBMITTED.equals(p.getStatus())).count();
 		int failed = (int) live.stream().filter(p -> LiveExamParticipant.FAILED_TO_SUBMIT.equals(p.getStatus())).count();
 		int passCount = (int) finals.stream().filter(p -> Boolean.TRUE.equals(p.getPassed())).count();
 		int practice = (int) all.stream().filter(p -> LiveExamParticipant.RETAKE.equals(p.getKind())).count();
 		Double average = null;
-		Integer highest = null;
-		Integer lowest = null;
+		BigDecimal highest = null;
+		BigDecimal lowest = null;
 		Double passRate = null;
 		if (!scores.isEmpty()) {
-			average = Math.round(scores.stream().mapToInt(Integer::intValue).average().orElse(0) * 10) / 10.0;
+			average = Math.round(scores.stream().mapToDouble(BigDecimal::doubleValue).average().orElse(0) * 10) / 10.0;
 			highest = scores.stream().max(Comparator.naturalOrder()).orElse(null);
 			lowest = scores.stream().min(Comparator.naturalOrder()).orElse(null);
 			passRate = Math.round((double) passCount * 1000 / scores.size()) / 10.0;
@@ -205,8 +206,8 @@ public class LiveExamResultsService {
 	private static Comparator<Row> comparator(String sort) {
 		Comparator<Row> order = switch (sort) {
 			case "submittedAt,asc" -> Comparator.comparing(Row::submittedAt, Comparator.nullsLast(Comparator.<Instant>naturalOrder()));
-			case "score,desc" -> Comparator.comparing(Row::score, Comparator.nullsLast(Comparator.<Integer>reverseOrder()));
-			case "score,asc" -> Comparator.comparing(Row::score, Comparator.nullsLast(Comparator.<Integer>naturalOrder()));
+			case "score,desc" -> Comparator.comparing(Row::score, Comparator.nullsLast(Comparator.<BigDecimal>reverseOrder()));
+			case "score,asc" -> Comparator.comparing(Row::score, Comparator.nullsLast(Comparator.<BigDecimal>naturalOrder()));
 			case "studentName" -> Comparator.comparing(Row::studentName).thenComparing(Row::studentCode);
 			default -> Comparator.comparing(Row::submittedAt, Comparator.nullsLast(Comparator.<Instant>reverseOrder()));
 		};
@@ -237,12 +238,12 @@ public class LiveExamResultsService {
 	}
 
 	/** The summary counts live sittings only. {@code passRate} is a percentage of the counted results. */
-	public record Summary(int participants, int submitted, int failedToSubmit, Double averageScore, Integer highestScore,
-			Integer lowestScore, int passCount, Double passRate, int practiceParticipants) {
+	public record Summary(int participants, int submitted, int failedToSubmit, Double averageScore, BigDecimal highestScore,
+			BigDecimal lowestScore, int passCount, Double passRate, int practiceParticipants) {
 	}
 
 	public record Row(UUID participantId, UUID studentId, String studentName, String studentCode, String status,
-			String kind, Integer score, int maximum, Boolean passed, Instant startedAt, Instant submittedAt,
+			String kind, BigDecimal score, int maximum, Boolean passed, Instant startedAt, Instant submittedAt,
 			Instant publishedAt, Boolean releasePending) {
 	}
 
@@ -250,7 +251,7 @@ public class LiveExamResultsService {
 	}
 
 	public record HistoryRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
-			String moduleTitleEn, String moduleTitleBn, String kind, String status, Integer score, int maximum,
+			String moduleTitleEn, String moduleTitleBn, String kind, String status, BigDecimal score, int maximum,
 			Boolean passed, Instant submittedAt, boolean published) {
 	}
 

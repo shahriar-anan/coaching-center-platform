@@ -28,7 +28,8 @@ public class LiveExamGrant {
 	@Column(nullable = false, length = 8)
 	private String scope;
 
-	@Column(name = "module_id", nullable = false)
+	/** Null for an exam grant that names no package (NR-01, R5). */
+	@Column(name = "module_id")
 	private UUID moduleId;
 
 	@Column(name = "exam_id")
