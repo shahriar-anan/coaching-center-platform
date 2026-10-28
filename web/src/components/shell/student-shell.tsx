@@ -116,7 +116,7 @@ function UserMenu() {
         >
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
-          <MenuLink href="/favourites" icon={Star} label={t("common.nav.favourites")} />
+          <MenuLink href="/wishlist" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
           <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />
           {user.role !== "STUDENT" ? (

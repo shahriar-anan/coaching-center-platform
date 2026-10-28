@@ -45,6 +45,6 @@ describe("student top bar (S1.1)", () => {
     expect(names.indexOf("Wish List")).toBe(names.indexOf("My account") + 1);
     expect(names.indexOf("Notices")).toBe(names.indexOf("Wish List") + 1);
     expect(names).toContain("Routine");
-    expect(items[names.indexOf("Wish List")]).toHaveAttribute("href", "/favourites");
+    expect(items[names.indexOf("Wish List")]).toHaveAttribute("href", "/wishlist");
   });
 });

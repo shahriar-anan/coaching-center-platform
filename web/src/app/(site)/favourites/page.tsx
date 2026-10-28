@@ -1,14 +1,6 @@
-import { Suspense } from "react";
-import { FavouritesPage } from "@/components/student/catalog/favourites-page";
-import { RequireStudent } from "@/lib/auth/guards";
+import { redirect } from "next/navigation";
 
-/** The guard reads the URL (?next=), so it sits inside a Suspense boundary for the static build. */
-export default function Favourites() {
-  return (
-    <Suspense fallback={null}>
-      <RequireStudent>
-        <FavouritesPage />
-      </RequireStudent>
-    </Suspense>
-  );
+/** The Wish List moved from /favourites to /wishlist. Old links land on the new address. */
+export default function Page() {
+  redirect("/wishlist");
 }
