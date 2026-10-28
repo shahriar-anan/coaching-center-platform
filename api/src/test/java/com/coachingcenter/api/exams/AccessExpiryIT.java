@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -10,10 +11,20 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.auth.Role;
+import com.coachingcenter.api.auth.permission.CurrentActor;
+import com.coachingcenter.api.common.error.ApiException;
+import com.coachingcenter.api.common.error.ErrorCode;
 
 /**
  * How long a student's access lasts (NR-01, A2', R4 and B7), against real PostgreSQL. The test rolls back, so the shared
@@ -21,6 +32,7 @@ import com.coachingcenter.api.PostgresIntegrationTest;
  */
 @SpringBootTest
 @Transactional
+@Import(AccessExpiryIT.ClockConfig.class)
 class AccessExpiryIT extends PostgresIntegrationTest {
 
 	private static final Instant WINDOW_START = Instant.parse("2026-10-29T04:00:00Z");
@@ -39,6 +51,86 @@ class AccessExpiryIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private JdbcTemplate jdbc;
+
+	@Autowired
+	private StudentOwnAccessService ownAccess;
+
+	@Autowired
+	private StudentLiveExamAccessService staffAccess;
+
+	@Autowired
+	private LiveExamGrantAdminService grants;
+
+	@Autowired
+	private MutableClock clock;
+
+	@Test
+	void theAccessListsShowWhenAccessEndsAndHideFreeExams() {
+		clock.set(WINDOW_START);
+		UUID category = category();
+		LiveExam standalone = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		LiveExam free = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, true);
+		UUID module = module(category);
+		LiveExam packaged = exam(category, "LIVE", WINDOW_START, WINDOW_END, 10, false);
+		member(module, packaged, EARLY, null);
+		UUID student = student();
+		manualGrant(student, "EXAM", null, standalone, EARLY);
+		manualGrant(student, "EXAM", null, free, EARLY);
+		manualGrant(student, "MODULE", module, null, EARLY);
+
+		StudentOwnAccessService.MyAccess mine = ownAccess.mine(student);
+		assertThat(mine.exams()).as("a free exam is not a grant, so it is not listed").hasSize(1);
+		StudentOwnAccessService.MyExam examRow = mine.exams().get(0);
+		assertThat(examRow.examId()).isEqualTo(standalone.getId());
+		assertThat(examRow.moduleId()).as("a standalone exam is in no package").isNull();
+		assertThat(examRow.endsAt()).isEqualTo(WINDOW_END.plus(Duration.ofDays(30)));
+		assertThat(examRow.expired()).isFalse();
+		StudentOwnAccessService.MyModule moduleRow = mine.modules().get(0);
+		assertThat(moduleRow.endsAt()).as("the package ends with its paid exam").isEqualTo(WINDOW_END.plus(Duration.ofDays(10)));
+
+		clock.set(WINDOW_END.plus(Duration.ofDays(11)));
+		mine = ownAccess.mine(student);
+		assertThat(mine.modules().get(0).expired()).as("expired rows stay listed").isTrue();
+		assertThat(mine.exams().get(0).expired()).isFalse();
+
+		var staff = staffAccess.list(student, PageRequest.of(0, 20)).getContent();
+		assertThat(staff).as("staff see the same rows, without the free exam").hasSize(2);
+		StudentLiveExamAccessService.AccessRow staffExam = staff.stream()
+			.filter(row -> !row.exams().isEmpty())
+			.findFirst()
+			.orElseThrow();
+		assertThat(staffExam.endsAt()).isEqualTo(WINDOW_END.plus(Duration.ofDays(30)));
+		assertThat(staffExam.expired()).isFalse();
+		assertThat(staff.stream().filter(row -> row.exams().isEmpty()).findFirst().orElseThrow().expired()).isTrue();
+	}
+
+	@Test
+	void aManualGrantReplacesALapsedOneAndIsRefusedWhileTheOneBeforeIsLive() {
+		clock.set(WINDOW_START);
+		LiveExam exam = exam(category(), "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		UUID student = student();
+		UUID master = UUID.randomUUID();
+		jdbc.update("insert into users (id, phone, email, role, status, created_at, updated_at)"
+				+ " values (?, ?, ?, 'MASTER_ADMIN', 'ACTIVE', now(), now())", master,
+				"+8801" + String.format("%09d", java.util.concurrent.ThreadLocalRandom.current().nextLong(1_000_000_000L)),
+				master + "@example.com");
+		CurrentActor actor = new CurrentActor(master, Role.MASTER_ADMIN);
+		manualGrant(student, "EXAM", null, exam, EARLY);
+
+		assertThatThrownBy(() -> grants.grant(actor,
+				new LiveExamGrantAdminService.GrantRequest(student, "EXAM", null, exam.getId(), "Early retake")))
+			.isInstanceOfSatisfying(ApiException.class,
+					error -> assertThat(error.code()).isEqualTo(ErrorCode.GRANT_ALREADY_ACTIVE));
+
+		clock.set(WINDOW_END.plus(Duration.ofDays(31)));
+		grants.grant(actor, new LiveExamGrantAdminService.GrantRequest(student, "EXAM", null, exam.getId(), "Second chance"));
+
+		assertThat(jdbc.queryForObject("select count(*) from live_exam_grants where student_id = ? and revoked_at is null",
+				Integer.class, student)).as("one live grant").isEqualTo(1);
+		assertThat(jdbc.queryForObject("select revoke_reason from live_exam_grants where student_id = ? and revoked_at is not null",
+				String.class, student)).isEqualTo(LiveExamAccess.RETIRED);
+		assertThat(access.canSit(student, exam, WINDOW_END.plus(Duration.ofDays(31)))).isTrue();
+	}
 
 	@Test
 	void aLifetimeGrantNeverEnds() {
@@ -257,6 +349,13 @@ class AccessExpiryIT extends PostgresIntegrationTest {
 				+ " values (?, ?, 'MODULE', ?, null, null, ?, 'ORDER')", UUID.randomUUID(), student, module, ts(createdAt));
 	}
 
+	/** A manual grant, which the staff list shows without an order. {@code module} is set for a package, {@code exam} for an exam. */
+	private void manualGrant(UUID student, String scope, UUID module, LiveExam exam, Instant createdAt) {
+		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)"
+				+ " values (?, ?, ?, ?, ?, null, ?, 'MANUAL')", UUID.randomUUID(), student, scope, module,
+				exam == null ? null : exam.getId(), ts(createdAt));
+	}
+
 	private UUID student() {
 		UUID id = UUID.randomUUID();
 		long digits = java.util.concurrent.ThreadLocalRandom.current().nextLong(1_000_000_000L);
@@ -268,6 +367,17 @@ class AccessExpiryIT extends PostgresIntegrationTest {
 
 	private static Timestamp ts(Instant instant) {
 		return instant == null ? null : Timestamp.from(instant);
+	}
+
+	@TestConfiguration
+	static class ClockConfig {
+
+		@Bean
+		@Primary
+		MutableClock mutableClock() {
+			return new MutableClock(WINDOW_START);
+		}
+
 	}
 
 }

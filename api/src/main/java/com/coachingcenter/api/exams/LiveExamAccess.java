@@ -233,7 +233,7 @@ public class LiveExamAccess {
 		return current != null && (candidate == null || candidate.isAfter(current));
 	}
 
-	private static boolean expired(Instant endsAt, Instant now) {
+	static boolean expired(Instant endsAt, Instant now) {
 		return endsAt != null && !now.isBefore(endsAt);
 	}
 
