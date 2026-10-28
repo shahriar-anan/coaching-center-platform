@@ -84,3 +84,8 @@ To cut runs, agents test **once per slice**, in one invocation (the slice's new 
   - Next merge: D, then B, then A.
 - 28 Oct, about 20:25: **full suite after C's merge** was 98 of 100 classes green. The two failures were the known pair (`BookOrderIT`, `CoursePurchaseIT`, 409 on a reused database). Rerun on a fresh database (`-ResetDb`): both pass. C's merge is confirmed.
 - 28 Oct: **ruling, archived package.** An archived or deleted package gives no access through it; other routes still count and results stay readable. Implemented in `LiveExamAccess` on integration (`a16beae`). Contract §8 is about an exam's visibility, not access through a package.
+- 28 Oct, about 21:05: **B merged** (`6fbf4da`). Full suite on a fresh database: 104 of 105 classes green. The one failure is `LiveExamIT.anUndatedExamPublishesAndADatedPublishStillKeepsTheGap`, which asserts the five-minute window gap that D17 removes. A already rewrote it on its branch (`anUndatedExamPublishesAndAnEditedScheduleKeepsTheExamPublished`), so it clears when A merges. Do not "fix" it on integration.
+  - To do when A merges: re-enable `PackageMembershipIT.aStudentWhoHeldThePackageBeforeARemovalKeepsTheExamAndALaterHolderDoesNot` (B disabled it, "needs A").
+  - Rulings given: package and exam discount fields and the free toggle are Master Admin only (EXAM_PRICE). Both A and B were told.
+  - D owes: `MultiAnswerScoringIT`, `LeaderboardPositionIT` green. Rank rule given to D: rank = 1 + count of board rows with a strictly higher score; ties share the better rank; below the pass mark means no rank.
+  - A state: A1 to A5 committed (`a74b0bc` is A3+A4, `346c1a2` is A5); A6 awaiting its test rerun; A7 is a note only.
