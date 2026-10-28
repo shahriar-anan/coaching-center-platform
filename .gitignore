@@ -49,3 +49,5 @@ coverage/
 
 # Personal notes, not for the client
 docs/exam-site/reports/private/
+/.nr01-slots/
+/.nr01-queue/
