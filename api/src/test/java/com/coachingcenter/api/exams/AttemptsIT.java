@@ -197,6 +197,22 @@ class AttemptsIT extends PostgresIntegrationTest {
 				"select count(*) from live_exam_participants where exam_id = ?", Integer.class, fixture.exam())).isZero();
 	}
 
+	@Test
+	void aStudentWhoseAccessHasEndedCannotStartAnAttempt() throws Exception {
+		Fixture fixture = fixture("Expired");
+		// Access counts from the later of the grant and the window end (A2'): one day after 20 October, roster from 1 October.
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("update live_exams set access_days = 1 where id = ?", fixture.exam());
+		jdbc.update("update live_exam_roster set created_at = '2026-10-01T00:00:00Z' where student_id = ?", fixture.studentId());
+		clock.set(Instant.parse("2026-10-25T06:10:00Z"));
+		take(fixture.studentId(), fixture.exam())
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ACCESS_EXPIRED"));
+		assertThat(jdbc.queryForObject(
+				"select count(*) from live_exam_participants where exam_id = ? and student_id = ?", Integer.class,
+				fixture.exam(), fixture.studentId())).isZero();
+	}
+
 	private void submit(Fixture fixture, String at) throws Exception {
 		clock.set(Instant.parse(at));
 		mockMvc.perform(post("/api/v1/live-exams/" + fixture.exam() + "/submit")
