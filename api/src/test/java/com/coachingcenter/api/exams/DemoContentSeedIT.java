@@ -147,8 +147,9 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 				Integer.class, DEMO_EXAM)).isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND live_at IS NULL", Integer.class,
 				DEMO_EXAM)).isEqualTo(3);
+		// The base data has one exam with no price (Penal MCQ); the review adds a free exam and a two-package exam with none of their own.
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND price IS NULL", Integer.class,
-				DEMO_EXAM)).isEqualTo(1);
+				DEMO_EXAM)).isEqualTo(3);
 	}
 
 	@Test
@@ -216,7 +217,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	@Test
 	void everyAccountSignsInWithThePasswordByPhoneAndByEmail() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(count("users", DEMO_STUDENT)).isEqualTo(3);
+		assertThat(count("users", DEMO_STUDENT)).isEqualTo(4);
 		assertThat(count("users", DEMO_INSTRUCTOR)).isEqualTo(1);
 		assertThat(count("users", DEMO_ADMIN)).isEqualTo(1);
 		for (DemoContentSeed.Account account : DemoContentSeed.ACCOUNTS) {
@@ -240,7 +241,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(orderCount("CANCELLED")).isEqualTo(1);
 		assertThat(orderCount("INITIATED")).isEqualTo(3);
 		// Only a paid order carries a grant.
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(5);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(6);
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_grants g JOIN live_exam_orders o ON o.id = g.order_id
 				WHERE g.id::text LIKE ? AND o.status <> 'SUCCEEDED'
@@ -323,7 +324,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		// Make the base marking visible work: the instructor has since marked one paper, which a rerun must not undo.
 		jdbc.update("UPDATE live_exam_participants SET score = 41, evaluated_at = now() WHERE id = ?", DemoContentSeed.demo('7', 4));
 		removeTopUp();
-		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(4);
+		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(6);
 		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(4);
 
 		seed.seed(new String[] { "dev" }, env(), NOW.plus(Duration.ofHours(5)));
@@ -385,7 +386,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM announcements WHERE id = ?", Integer.class, DemoContentSeed.ANNOUNCEMENT))
 			.isEqualTo(1);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE announcement_id = ?", Integer.class,
-				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(3);
+				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(4);
 	}
 
 	@Test
@@ -440,16 +441,16 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 
 	private void assertCatalog() {
 		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(6);
-		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(6);
-		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(25);
-		// Twelve MCQ exams of ten questions (ten published, two drafts), four options each.
-		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(120);
+		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(8);
+		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(30);
+		// Sixteen MCQ exams of ten questions (fourteen published, two drafts), four options each.
+		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(160);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_options WHERE question_id::text LIKE ?", Integer.class,
-				DEMO_QUESTION)).isEqualTo(480);
+				DEMO_QUESTION)).isEqualTo(640);
 		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(8);
-		assertThat(count("users", DEMO_STUDENT)).isEqualTo(3);
+		assertThat(count("users", DEMO_STUDENT)).isEqualTo(4);
 		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(11);
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(5);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(6);
 	}
 
 	/** Published exams only: the draft exams are counted by their own test. */

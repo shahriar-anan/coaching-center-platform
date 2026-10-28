@@ -79,6 +79,9 @@ public class DemoContentSeed {
 
 	static final UUID STUDENT_C = demo('5', 3);
 
+	/** The NR-01 review student, who holds an exam grant that expires (added after the first seed). */
+	static final UUID STUDENT_D = demo('5', 4);
+
 	static final UUID CATEGORY_ROOT = demo('a', 1);
 
 	static final UUID CATEGORY_MCQ = demo('a', 2);
@@ -109,7 +112,19 @@ public class DemoContentSeed {
 	/** b6: a draft package with nothing in it yet. */
 	static final UUID MODULE_DRAFT_EMPTY = demo('b', 6);
 
+	/** b7: a discounted package, 25 percent off until {@link #DISCOUNT_ENDS} (NR-01 review). */
+	static final UUID MODULE_SALE = demo('b', 7);
+
+	/** b8: a popular package (NR-01 review). */
+	static final UUID MODULE_POPULAR = demo('b', 8);
+
+	/** The end of the review discounts: 30 November 2026, 23:59:59 in Dhaka. */
+	static final Instant DISCOUNT_ENDS = Instant.parse("2026-11-30T17:59:59Z");
+
 	static final UUID ANNOUNCEMENT = demo('8', 1);
+
+	private static final Account STUDENT_D_ACCOUNT = new Account(STUDENT_D, "01711000014", "student4@example.com", "তানভীর হাসান",
+			"STUDENT", "DEMO-STU-004");
 
 	/** Phones and emails are fixed so the client can sign in with either. */
 	static final List<Account> ACCOUNTS = List.of(
@@ -117,7 +132,8 @@ public class DemoContentSeed {
 			new Account(INSTRUCTOR, "01711000002", "instructor@example.com", "ডেমো ইন্সট্রাক্টর", "INSTRUCTOR", null),
 			new Account(STUDENT_A, "01711000011", "student1@example.com", "সুমন আহমেদ", "STUDENT", "DEMO-STU-001"),
 			new Account(STUDENT_B, "01711000012", "student2@example.com", "রিনা বেগম", "STUDENT", "DEMO-STU-002"),
-			new Account(STUDENT_C, "01711000013", "student3@example.com", "করিম উদ্দিন", "STUDENT", "DEMO-STU-003"));
+			new Account(STUDENT_C, "01711000013", "student3@example.com", "করিম উদ্দিন", "STUDENT", "DEMO-STU-003"),
+			STUDENT_D_ACCOUNT);
 
 	static final List<Account> STUDENTS = ACCOUNTS.stream().filter(account -> "STUDENT".equals(account.role())).toList();
 
@@ -126,13 +142,16 @@ public class DemoContentSeed {
 			VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?) ON CONFLICT DO NOTHING
 			""";
 
-	/** The category comes from the package, and the window end from the start and duration (NR-01, V45 and V46). */
+	/**
+	 * The category comes from the package, and the window end from the start and duration (NR-01, V45 and V46). A standalone exam
+	 * has no package, so it takes the category passed in.
+	 */
 	private static final String INSERT_EXAM = """
 			INSERT INTO live_exams (id, module_id, category_id, exam_type, title_en, title_bn, description_en, description_bn,
 			  rules_en, rules_bn, paper_language, live_at, ends_at, mode, duration_minutes, pass_percent, written_maximum,
 			  question_stored_file_name, question_original_file_name, question_byte_size, question_content_type, status,
 			  finally_saved, price, answers_released_at, published_at, created_at, updated_at)
-			VALUES (?, ?, (SELECT category_id FROM live_exam_modules WHERE id = ?),
+			VALUES (?, ?, COALESCE((SELECT category_id FROM live_exam_modules WHERE id = ?), ?),
 			  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'LIVE',
 			  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			""";
@@ -279,7 +298,8 @@ public class DemoContentSeed {
 
 	/**
 	 * Loads the demo content once. {@code env} reads {@code SEED_DEMO_PASSWORD}; no password is written into code. The seed
-	 * writes no mail rows. When the demo catalog is already present the run does nothing.
+	 * writes no mail rows. Each part is written only when its marker row is missing, so a database holding an older seed gets
+	 * the parts it lacks, and a database holding all of them is left alone.
 	 */
 	@Transactional
 	public void seed(String[] profiles, Function<String, String> env, Instant now) {
@@ -294,11 +314,12 @@ public class DemoContentSeed {
 		List<ExamSpec> exams = exams(Schedule.at(now));
 		boolean base = exists("live_exams", spec(exams, 1).id());
 		boolean topUp = exists("live_exam_modules", MODULE_DRAFT_READY);
-		if (base && topUp) {
+		boolean review = exists("live_exam_modules", MODULE_SALE);
+		if (base && topUp && review) {
 			return;
 		}
+		String hash = passwords.encode(password);
 		if (!base) {
-			String hash = passwords.encode(password);
 			for (Account account : ACCOUNTS) {
 				ensureAccount(account, hash, now);
 			}
@@ -311,6 +332,9 @@ public class DemoContentSeed {
 		}
 		if (!topUp) {
 			topUp(now);
+		}
+		if (!review) {
+			reviewCases(hash, now);
 		}
 	}
 
@@ -344,6 +368,63 @@ public class DemoContentSeed {
 		insertOrders(topUpOrders(now));
 		notices.purchaseGranted(STUDENT_B, demo('e', 30), "EXAM");
 		notices.purchaseGranted(STUDENT_A, demo('e', 2), "EXAM");
+	}
+
+	/**
+	 * The NR-01 review cases, added once: a discounted package and exam, a free exam, a popular package and exam, an exam in two
+	 * packages with no price of its own, a standalone exam in the root category, and a written paper with a question paper whose
+	 * access lasts 30 days. Student D holds an exam grant on that paper, so the grant expires.
+	 */
+	private void reviewCases(String hash, Instant now) {
+		Schedule s = Schedule.at(now);
+		ensureAccount(STUDENT_D_ACCOUNT, hash, now);
+		module(MODULE_SALE, CATEGORY_MCQ, "BJS Discount Package", "বিজেএস ছাড়ের প্যাকেজ",
+				"Two MCQ papers in one package, 25 percent off until 30 November. Use it to check the list and the effective price.",
+				"একটি প্যাকেজে দুটি এমসিকিউ পরীক্ষা; ৩০ নভেম্বর পর্যন্ত ২৫ শতাংশ ছাড়। তালিকা মূল্য ও কার্যকর মূল্য যাচাইয়ের জন্য।",
+				1000, 1, now);
+		module(MODULE_POPULAR, CATEGORY_MCQ, "BJS Popular Package", "বিজেএস জনপ্রিয় প্যাকেজ",
+				"A package marked popular, with one popular paper and one paper that also sits in the discount package.",
+				"জনপ্রিয় হিসেবে চিহ্নিত একটি প্যাকেজ; এতে একটি জনপ্রিয় পরীক্ষা এবং ছাড়ের প্যাকেজেও থাকা একটি পরীক্ষা আছে।", 900, 2, now);
+		jdbc.update("UPDATE live_exam_modules SET discount_percent = 25, discount_ends_at = ? WHERE id = ?", ts(DISCOUNT_ENDS),
+				MODULE_SALE);
+		jdbc.update("UPDATE live_exam_modules SET popular = true WHERE id = ?", MODULE_POPULAR);
+		List<ExamSpec> exams = List.of(
+				mcq(60, MODULE_SALE, "Discount MCQ", "ছাড়ের এমসিকিউ",
+						"A priced MCQ paper in the discount package: 400 taka, 25 percent off until 30 November.",
+						"ছাড়ের প্যাকেজের একটি এমসিকিউ পরীক্ষা: ৪০০ টাকা, ৩০ নভেম্বর পর্যন্ত ২৫ শতাংশ ছাড়।", s.at23(9), "400.00",
+						DemoContentSeedQuestions.CPC, false),
+				mcq(61, null, "Free MCQ", "বিনামূল্যের এমসিকিউ",
+						"A free MCQ paper in the root category. It has no price and no package, so any signed-in student can start it.",
+						"একটি বিনামূল্যের এমসিকিউ পরীক্ষা। এর কোনো মূল্য বা প্যাকেজ নেই; লগ-ইন করা যে কোনো শিক্ষার্থী শুরু করতে পারে।",
+						s.at23(10), null, CRPC, false),
+				written(62, null, "Written with question paper", "প্রশ্নপত্রসহ রিটেন",
+						"A standalone written paper with a question paper. Access lasts 30 days after the window ends.",
+						"প্রশ্নপত্রসহ একটি স্বতন্ত্র রিটেন পরীক্ষা। উইন্ডো শেষ হওয়ার ৩০ দিন পর্যন্ত অ্যাক্সেস থাকে।", s.at23(11), "300.00"),
+				mcq(63, MODULE_POPULAR, "Popular MCQ", "জনপ্রিয় এমসিকিউ",
+						"A popular MCQ paper in the popular package.", "জনপ্রিয় প্যাকেজের একটি জনপ্রিয় এমসিকিউ পরীক্ষা।", s.at23(12),
+						"300.00", PENAL, false),
+				mcq(64, MODULE_SALE, "Two-package MCQ", "দুই প্যাকেজের এমসিকিউ",
+						"An MCQ paper in two packages, with no price of its own. Buy either package to sit it.",
+						"দুই প্যাকেজে থাকা একটি এমসিকিউ পরীক্ষা, এর নিজস্ব মূল্য নেই। যে কোনো একটি প্যাকেজ কিনে এটি দেওয়া যাবে।", s.at23(13),
+						null, concat(EVIDENCE, DemoContentSeedQuestions.EVIDENCE_EXTRA), false));
+		for (ExamSpec spec : exams) {
+			exam(spec, now);
+		}
+		jdbc.update("UPDATE live_exams SET discount_percent = 25, discount_ends_at = ? WHERE id = ?", ts(DISCOUNT_ENDS), demo('e', 60));
+		jdbc.update("UPDATE live_exams SET is_free = true WHERE id = ?", demo('e', 61));
+		jdbc.update("UPDATE live_exams SET access_days = 30 WHERE id = ?", demo('e', 62));
+		jdbc.update("UPDATE live_exams SET popular = true WHERE id = ?", demo('e', 63));
+		addToPackage(64, MODULE_POPULAR, now);
+		jdbc.update("""
+				INSERT INTO live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)
+				VALUES (?, ?, 'EXAM', NULL, ?, NULL, ?, 'MANUAL') ON CONFLICT (id) DO NOTHING
+				""", demo('d', 20), STUDENT_D, demo('e', 62), ts(now));
+	}
+
+	/** An exam in one more package. Its membership id is the exam's number plus 100, so it cannot clash with the first one. */
+	private void addToPackage(int examNo, UUID module, Instant now) {
+		jdbc.update("INSERT INTO live_exam_package_exams (id, module_id, exam_id, position, added_at) VALUES (?, ?, ?, ?, ?)"
+				+ " ON CONFLICT DO NOTHING", demo('1', examNo + 100L), module, demo('e', examNo), examNo, ts(now));
 	}
 
 	static void refuseProduction(String[] profiles) {
@@ -479,15 +560,17 @@ public class DemoContentSeed {
 			contentType = stored.contentType();
 		}
 		Instant windowEnd = spec.liveAt() == null ? null : spec.liveAt().plus(Duration.ofMinutes(EXAM_MINUTES));
-		jdbc.update(INSERT_EXAM, spec.id(), spec.module(), spec.module(), spec.type(), spec.titleEn(), spec.titleBn(),
+		jdbc.update(INSERT_EXAM, spec.id(), spec.module(), spec.module(), CATEGORY_ROOT, spec.type(), spec.titleEn(), spec.titleBn(),
 				spec.descEn(), spec.descBn(), spec.rulesEn(), spec.rulesBn(), "BN", ts(spec.liveAt()), ts(windowEnd),
 				EXAM_MINUTES, PASS_PERCENT, written ? WRITTEN_FULL_MARKS : null, storedName, originalName, byteSize, contentType,
 				spec.draft() ? "DRAFT" : "PUBLISHED", spec.finalSaved(), spec.price(),
 				spec.released() ? ts(now.minus(Duration.ofDays(1))) : null, spec.draft() ? null : ts(now), ts(now), ts(now));
-		jdbc.update("INSERT INTO live_exam_package_exams (id, module_id, exam_id, position, added_at) VALUES (?, ?, ?, ?, ?)"
-				+ " ON CONFLICT DO NOTHING", demo('1', spec.number()), spec.module(), spec.id(), spec.number(), ts(now));
-		jdbc.update("UPDATE live_exams SET instructor_id = (SELECT instructor_id FROM live_exam_instructors WHERE module_id = ?)"
-				+ " WHERE id = ?", spec.module(), spec.id());
+		if (spec.module() != null) {
+			jdbc.update("INSERT INTO live_exam_package_exams (id, module_id, exam_id, position, added_at) VALUES (?, ?, ?, ?, ?)"
+					+ " ON CONFLICT DO NOTHING", demo('1', spec.number()), spec.module(), spec.id(), spec.number(), ts(now));
+			jdbc.update("UPDATE live_exams SET instructor_id = (SELECT instructor_id FROM live_exam_instructors WHERE module_id = ?)"
+					+ " WHERE id = ?", spec.module(), spec.id());
+		}
 		if (storedName != null) {
 			jdbc.update("INSERT INTO live_exam_question_papers (id, exam_id, version, stored_file_name, original_file_name,"
 					+ " byte_size, content_type, created_at) VALUES (?, ?, 1, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
