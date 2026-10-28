@@ -80,6 +80,46 @@ export interface PublicModule extends Titled {
   writtenCount?: number;
   /** The package cover: an API path, or null when no image has been uploaded. */
   coverUrl?: string | null;
+  /** The price the order charges, with the list price and any discount (NR-01, S2). */
+  pricing?: PriceView | null;
+  popular?: boolean;
+  /** Signed-in students only: whether the package is on their favourites (NR-01, S3). */
+  favourite?: boolean | null;
+}
+
+/** The price block on an exam or package: the list price, the discount, and the price the order charges (NR-01). */
+export interface PriceView {
+  price: number | null;
+  discountPercent: number | null;
+  /** ISO UTC, or null for a discount with no end date. */
+  discountEndsAt: string | null;
+  /** The charged amount: the list price less any active discount. Null when there is no price. */
+  effectivePrice: number | null;
+  free: boolean;
+  /** True for an exam with no price of its own, which is bought only through a priced package. */
+  moduleOnly: boolean;
+}
+
+/** A package an exam is in, as the exam read lists it (NR-01). */
+export interface PackageRef extends Titled {
+  id: string;
+}
+
+/** One row of the category exam list, from `GET /api/v1/public/live-exam-categories/{id}/exams` (NR-01, S2.1). */
+export interface CategoryExam extends Titled {
+  id: string;
+  categoryId: string;
+  examType: ExamType;
+  /** LIVE or PRACTICE. */
+  mode: string;
+  /** UNANNOUNCED, UPCOMING, LIVE, ENDED or PRACTICE. */
+  phase: string;
+  liveAt: string | null;
+  endAt: string | null;
+  popular: boolean;
+  pricing: PriceView | null;
+  packages: PackageRef[];
+  favourite?: boolean | null;
 }
 
 /** `GET /api/v1/public/live-exam-categories`: the one category tree. */
@@ -108,6 +148,13 @@ export interface PublicExam extends Titled {
   endAt: string | null;
   durationMinutes: number;
   price: number | null;
+  /** The price the order charges, with the list price and any discount (NR-01, S2). */
+  pricing?: PriceView | null;
+  /** Every package the exam is in (NR-01, S2.4). */
+  packages?: PackageRef[];
+  popular?: boolean;
+  /** Signed-in students only (NR-01, S3). */
+  favourite?: boolean | null;
 }
 
 export interface StudentQuestionOption {
@@ -143,10 +190,12 @@ export interface StudentExam extends Omit<PublicExam, "price"> {
 }
 
 /** The `access` object on public module and exam responses (plan section 8). */
-export type AccessState = "NONE" | "MODULE" | "EXAM" | "ROSTER" | "MANUAL";
+export type AccessState = "NONE" | "MODULE" | "EXAM" | "ROSTER" | "MANUAL" | "FREE" | "BUNDLE";
 export type BlockedReason = "PHONE_REQUIRED" | "PRICE_REQUIRED" | "ALREADY_HAS_ACCESS" | "CHECKOUT_OFF";
 export interface AccessInfo {
   state: AccessState;
   buyable: boolean;
   blockedReason: BlockedReason | null;
+  /** When the access the student holds ends. Once it has run out, `state` is NONE and this is the end of that grant (NR-01, S0.3 and F3). */
+  expiresAt?: string | null;
 }

@@ -206,6 +206,8 @@ const common = {
       accessGranted: "অ্যাক্সেস আছে",
       via: {
         MODULE: "প্যাকেজ",
+        FREE: "বিনামূল্যে",
+        BUNDLE: "একসাথে কেনা",
         EXAM: "এই পরীক্ষা",
         ROSTER: "রোস্টার",
         MANUAL: "প্রশাসক দিয়েছেন",

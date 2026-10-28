@@ -1,9 +1,10 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type {
+  CategoryExam,
   CategoryNode,
   ExamType,
   MyStatus,
@@ -70,7 +71,23 @@ export const catalogKeys = {
     ["catalog", "my-exams", moduleId, examType ?? "ALL"] as const,
   myExam: (id: string) => ["catalog", "my-exam", id] as const,
   routine: () => ["catalog", "routine"] as const,
+  categoryExams: (categoryId: string, examType: ExamType, branch: boolean) =>
+    ["catalog", "category-exams", categoryId, examType, branch] as const,
 };
+
+/** The category exam list's page size (NR-01, S2.1). */
+export const CATEGORY_EXAM_PAGE = 20;
+
+/** The URL of one page of a category exam list. `branch` adds the exams of every subcategory below it. */
+export function categoryExamsUrl(categoryId: string, examType: ExamType, branch: boolean, page: number): string {
+  const params = new URLSearchParams({
+    examType,
+    branch: String(branch),
+    page: String(page),
+    size: String(CATEGORY_EXAM_PAGE),
+  });
+  return `/api/v1/public/live-exam-categories/${categoryId}/exams?${params.toString()}`;
+}
 
 function typeQuery(examType: ExamType | null, extra: Record<string, string> = {}): string {
   const params = new URLSearchParams(extra);
@@ -168,6 +185,21 @@ export type UpcomingExam = PublicExam & {
  * Published modules matching `q` (G12). Only runs once there is text. An older
  * API that ignores `q` returns everything, so the screen filters by title too.
  */
+/**
+ * The exams of one category, a page at a time (NR-01, S2.1). `branch` on lists every subcategory below it; off lists only the
+ * category's own exams. Changing either setting starts a new list.
+ */
+export function useCategoryExams(categoryId: string, examType: ExamType, branch: boolean) {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.categoryExams(categoryId, examType, branch),
+    initialPageParam: 0,
+    staleTime: CATALOG_STALE,
+    queryFn: ({ pageParam, signal }) =>
+      apiRequest<PageResponse<CategoryExam>>(categoryExamsUrl(categoryId, examType, branch, pageParam), { signal }),
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+  });
+}
+
 export function useModuleSearch(q: string) {
   const term = q.trim();
   return useQuery({

@@ -3,6 +3,7 @@ const purchase = {
   sheetTitleModule: "পুরো প্যাকেজ কিনুন",
   amount: "মূল্য",
   unlockExam: "শুধু এই পরীক্ষাটি খুলবে।",
+  inPackages: "প্যাকেজে: {titles}",
   unlockModule: "এই প্যাকেজের বর্তমান ও ভবিষ্যতের সব পরীক্ষা খুলবে।",
   trust: "SSLCommerz-এর মাধ্যমে নিরাপদ পেমেন্ট · বিকাশ, নগদ, রকেট, কার্ড",
   leaving: "পেমেন্ট করতে আপনাকে SSLCommerz-এর পাতায় নেওয়া হবে।",

@@ -206,6 +206,8 @@ const common = {
       accessGranted: "You have access",
       via: {
         MODULE: "Package",
+        FREE: "Free",
+        BUNDLE: "Bundle",
         EXAM: "This exam",
         ROSTER: "Roster",
         MANUAL: "Given by admin",

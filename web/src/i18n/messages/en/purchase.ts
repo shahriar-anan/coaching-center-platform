@@ -5,6 +5,7 @@ const purchase: typeof bn = {
   sheetTitleModule: "Buy the whole package",
   amount: "Price",
   unlockExam: "Unlocks this exam only.",
+  inPackages: "In package: {titles}",
   unlockModule: "Unlocks all current and future exams in this package.",
   trust: "Secure payment through SSLCommerz · bKash, Nagad, Rocket, card",
   leaving: "You'll be taken to the SSLCommerz page to pay.",
