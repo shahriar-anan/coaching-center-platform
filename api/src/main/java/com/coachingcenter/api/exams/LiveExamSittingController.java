@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -75,23 +76,44 @@ public class LiveExamSittingController {
 		sittings.saveAnswers(id, actorId(), body);
 	}
 
+	/** One question. {@code confirm} makes a multi-answer question final when "answers can be changed" is off. */
+	@PutMapping("/api/v1/live-exams/{id}/answers/{questionId}")
+	public LiveExamSittingService.SavedAnswer saveAnswer(@PathVariable UUID id, @PathVariable UUID questionId,
+			@RequestBody JsonNode body) {
+		requireStudent();
+		return sittings.saveAnswer(id, actorId(), questionId, body);
+	}
+
 	@PostMapping("/api/v1/live-exams/{id}/submit")
 	public LiveExamSittingService.PostedResult submit(@PathVariable UUID id) {
 		requireStudent();
 		return sittings.submit(id, actorId());
 	}
 
+	/** The latest attempt's result, or the one named by {@code attempt}. */
 	@GetMapping("/api/v1/live-exams/{id}/result")
-	public LiveExamSittingService.ReviewedResult result(@PathVariable UUID id) {
+	public LiveExamSittingService.ReviewedResult result(@PathVariable UUID id,
+			@RequestParam(value = "attempt", required = false) Integer attempt) {
 		requireStudent();
-		return sittings.result(id, actorId());
+		return sittings.result(id, actorId(), attempt);
 	}
 
+	@GetMapping("/api/v1/live-exams/{id}/attempts")
+	public List<LiveExamSittingService.AttemptView> attempts(@PathVariable UUID id) {
+		requireStudent();
+		return sittings.attempts(id, actorId());
+	}
+
+	/**
+	 * A student reads the paper of their own open sitting. Staff read the exam's published paper, or the one a participant
+	 * sat when {@code participantId} names them (E29).
+	 */
 	@GetMapping("/api/v1/live-exams/{id}/question-pdf")
-	public ResponseEntity<byte[]> questionPdf(@PathVariable UUID id) {
+	public ResponseEntity<byte[]> questionPdf(@PathVariable UUID id,
+			@RequestParam(value = "participantId", required = false) UUID participantId) {
 		byte[] pdf;
 		if (permissions.has(Permissions.EXAM_READ) || permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
-			pdf = evaluations.questionPdf(id, actor());
+			pdf = evaluations.questionPdf(id, actor(), participantId);
 		}
 		else {
 			requireStudent();

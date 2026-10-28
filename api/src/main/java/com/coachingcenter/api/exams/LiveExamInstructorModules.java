@@ -12,7 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-/** Read-only view of which live exam modules each instructor holds, for the instructor directory. */
+/**
+ * Read-only view of which live exam packages each instructor holds, for the instructor directory. A package counts when it
+ * contains at least one exam assigned to the instructor (D6).
+ */
 @Service
 public class LiveExamInstructorModules {
 
@@ -26,9 +29,10 @@ public class LiveExamInstructorModules {
 			return result;
 		}
 		List<Object[]> rows = entityManager.createQuery("""
-				select i.instructorId, m.id, m.titleEn, m.titleBn, m.status
-				from LiveExamInstructor i, LiveExamModule m
-				where m.id = i.moduleId and m.deletedAt is null and i.instructorId in :ids
+				select distinct e.instructorId, m.id, m.titleEn, m.titleBn, m.status
+				from LiveExam e, LiveExamPackageExam pe, LiveExamModule m
+				where e.instructorId in :ids and e.deletedAt is null and pe.examId = e.id and pe.removedAt is null
+				  and m.id = pe.moduleId and m.deletedAt is null
 				order by m.titleEn, m.id
 				""", Object[].class).setParameter("ids", instructorIds).getResultList();
 		for (Object[] row : rows) {

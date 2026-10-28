@@ -27,8 +27,8 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 
 /**
- * Written submissions across modules, for the marking dashboard and the submissions browser. Master Admin and
- * System Admin see every module; an instructor sees only the modules assigned to them.
+ * Written submissions across packages, for the marking dashboard and the submissions browser. Master Admin and
+ * System Admin see every exam; an instructor sees only the exams assigned to them.
  */
 @Service
 public class LiveExamSubmissionFeedService {
@@ -44,9 +44,16 @@ public class LiveExamSubmissionFeedService {
 
 	private final AdminProfileRepository adminProfiles;
 
-	public LiveExamSubmissionFeedService(LiveExamCategoryRepository categories, AdminProfileRepository adminProfiles) {
+	private final LiveExamMemberships memberships;
+
+	private final LiveExamModuleRepository modules;
+
+	public LiveExamSubmissionFeedService(LiveExamCategoryRepository categories, AdminProfileRepository adminProfiles,
+			LiveExamMemberships memberships, LiveExamModuleRepository modules) {
 		this.categories = categories;
 		this.adminProfiles = adminProfiles;
+		this.memberships = memberships;
+		this.modules = modules;
 	}
 
 	@Transactional(readOnly = true)
@@ -66,33 +73,31 @@ public class LiveExamSubmissionFeedService {
 		if (!SORTS.contains(order)) {
 			throw validationFailed();
 		}
-		List<UUID> moduleIds = null;
-		if (actor.role() == Role.INSTRUCTOR) {
-			moduleIds = assignedModules(actor.userId());
-			if (moduleIds.isEmpty()) {
-				return new PageImpl<>(List.of(), pageable, 0);
-			}
-		}
-		else if (actor.role() != Role.MASTER_ADMIN && actor.role() != Role.SYSTEM_ADMIN) {
+		boolean instructor = actor.role() == Role.INSTRUCTOR;
+		if (!instructor && actor.role() != Role.MASTER_ADMIN && actor.role() != Role.SYSTEM_ADMIN) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
 
+		// An instructor sees the papers of the exams assigned to them, wherever the exam sits (D6); the package is display only.
 		StringBuilder where = new StringBuilder("""
-				FROM LiveExamParticipant p, LiveExam e, LiveExamModule m, StudentProfile s
-				WHERE p.examId = e.id AND e.moduleId = m.id AND s.userId = p.studentId
-				AND e.examType = :written AND p.deletedAt IS NULL AND e.deletedAt IS NULL AND m.deletedAt IS NULL
+				FROM LiveExamParticipant p, LiveExam e, StudentProfile s
+				WHERE p.examId = e.id AND s.userId = p.studentId
+				AND e.examType = :written AND p.deletedAt IS NULL AND e.deletedAt IS NULL
 				AND p.status IN (:submitted, :failed)
 				""");
 		Map<String, Object> params = new HashMap<>();
 		params.put("written", LiveExam.WRITTEN);
 		params.put("submitted", LiveExamParticipant.SUBMITTED);
 		params.put("failed", LiveExamParticipant.FAILED_TO_SUBMIT);
-		if (moduleIds != null) {
-			where.append(" AND m.id IN :moduleIds");
-			params.put("moduleIds", moduleIds);
+		if (instructor) {
+			where.append(" AND e.instructorId = :instructorId");
+			params.put("instructorId", actor.userId());
 		}
 		if (moduleId != null) {
-			where.append(" AND m.id = :moduleId");
+			where.append("""
+					 AND EXISTS (SELECT pe.id FROM LiveExamPackageExam pe
+					 WHERE pe.examId = e.id AND pe.moduleId = :moduleId AND pe.removedAt IS NULL)
+					""");
 			params.put("moduleId", moduleId);
 		}
 		if (examId != null) {
@@ -112,7 +117,7 @@ public class LiveExamSubmissionFeedService {
 		params.forEach(count::setParameter);
 		long total = (Long) count.getSingleResult();
 
-		Query rows = entityManager.createQuery("SELECT p, e, m, s " + where + orderBy(order));
+		Query rows = entityManager.createQuery("SELECT p, e, s " + where + orderBy(order));
 		params.forEach(rows::setParameter);
 		rows.setFirstResult((int) pageable.getOffset());
 		rows.setMaxResults(pageable.getPageSize());
@@ -124,28 +129,20 @@ public class LiveExamSubmissionFeedService {
 		for (Object[] row : found) {
 			LiveExamParticipant participant = (LiveExamParticipant) row[0];
 			LiveExam exam = (LiveExam) row[1];
-			LiveExamModule module = (LiveExamModule) row[2];
-			StudentProfile student = (StudentProfile) row[3];
-			content.add(new FeedRow(participant.getId(), exam.getId(), exam.getTitleEn(), exam.getTitleBn(), module.getId(),
-					module.getTitleEn(), module.getTitleBn(),
-					LiveExamStaffModuleService.pathOf(module.getCategoryId(), byId), student.getFullName(),
+			StudentProfile student = (StudentProfile) row[2];
+			LiveExamModule module = memberships.primaryModuleId(exam.getId()).flatMap(modules::findById).orElse(null);
+			content.add(new FeedRow(participant.getId(), exam.getId(), exam.getTitleEn(), exam.getTitleBn(),
+					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
+					module == null ? null : module.getTitleBn(),
+					LiveExamStaffModuleService.pathOf(exam.getCategoryId(), byId), student.getFullName(),
 					statusOf(participant), LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 					participant.getAnswerStoredFileName() != null,
 					participant.getSubmittedAt(), markedAtOf(participant), participant.getPublishedAt(),
 					evaluatorOf(participant) == null ? null : evaluators.get(evaluatorOf(participant)),
 					participant.hasPendingRevision() ? Boolean.TRUE : null,
-					participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE));
+					participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE, participant.getAttemptNo()));
 		}
 		return new PageImpl<>(content, pageable, total);
-	}
-
-	private List<UUID> assignedModules(UUID instructorId) {
-		@SuppressWarnings("unchecked")
-		List<UUID> ids = entityManager
-			.createQuery("SELECT i.moduleId FROM LiveExamInstructor i WHERE i.instructorId = :instructorId")
-			.setParameter("instructorId", instructorId)
-			.getResultList();
-		return ids;
 	}
 
 	private Map<UUID, String> evaluatorNames(List<Object[]> rows) {
@@ -211,7 +208,7 @@ public class LiveExamSubmissionFeedService {
 	public record FeedRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, List<LiveExamModuleService.CategoryRef> categoryPath,
 			String studentName, String status, String kind, String attemptKind, boolean answerPdf, Instant submittedAt, Instant evaluatedAt,
-			Instant publishedAt, String evaluatorName, Boolean releasePending, Boolean readyForRelease) {
+			Instant publishedAt, String evaluatorName, Boolean releasePending, Boolean readyForRelease, int attemptNo) {
 	}
 
 }

@@ -28,15 +28,19 @@ public class LiveExamResultsController {
 		this.permissions = permissions;
 	}
 
-	/** {@code sort}: {@code submittedAt,desc} (default), {@code submittedAt,asc}, {@code score,desc}, {@code score,asc}, {@code studentName}. */
+	/**
+	 * {@code kind} keeps the legacy values (LIVE, or RETAKE for every attempt that is not the live one) and also takes
+	 * ARCHIVED and PRACTICE; {@code attemptKind} matches one full value exactly. {@code sort}: {@code submittedAt,desc}
+	 * (default), {@code submittedAt,asc}, {@code score,desc}, {@code score,asc}, {@code studentName}.
+	 */
 	@GetMapping("/api/v1/live-exams/{id}/results")
 	public LiveExamResultsService.ResultsReport report(@PathVariable UUID id, @RequestParam(required = false) String kind,
-			@RequestParam(required = false) String status, @RequestParam(required = false) String q,
-			@RequestParam(required = false) String sort, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String attemptKind, @RequestParam(required = false) String status,
+			@RequestParam(required = false) String q, @RequestParam(required = false) String sort, @PageableDefault(size = 20) Pageable pageable) {
 		if (!permissions.has(Permissions.EXAM_READ) && !permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
-		return results.report(id, actor(), kind, status, q, sort, pageable);
+		return results.report(id, actor(), kind, attemptKind, status, q, sort, pageable);
 	}
 
 	private static CurrentActor actor() {

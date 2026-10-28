@@ -72,15 +72,17 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL
 			  AND EXISTS (
-			    SELECT i FROM LiveExamInstructor i
-			    WHERE i.moduleId = m.id AND i.instructorId = :instructorId
+			    SELECT e FROM LiveExam e, LiveExamPackageExam pe
+			    WHERE pe.moduleId = m.id AND pe.removedAt IS NULL AND e.id = pe.examId AND e.deletedAt IS NULL
+			      AND e.instructorId = :instructorId
 			  )
 			""", countQuery = """
 			SELECT count(m) FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL
 			  AND EXISTS (
-			    SELECT i FROM LiveExamInstructor i
-			    WHERE i.moduleId = m.id AND i.instructorId = :instructorId
+			    SELECT e FROM LiveExam e, LiveExamPackageExam pe
+			    WHERE pe.moduleId = m.id AND pe.removedAt IS NULL AND e.id = pe.examId AND e.deletedAt IS NULL
+			      AND e.instructorId = :instructorId
 			  )
 			""")
 	Page<LiveExamModule> findAssignedToInstructor(@Param("instructorId") UUID instructorId, Pageable pageable);
