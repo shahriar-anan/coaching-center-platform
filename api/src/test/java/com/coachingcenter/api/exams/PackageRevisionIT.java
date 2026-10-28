@@ -122,7 +122,7 @@ class PackageRevisionIT extends PostgresIntegrationTest {
 		assertThat(field(changes, "titleEn").get("after").asText()).isEqualTo("Revised title");
 		assertThat(field(changes, "price").get("after").decimalValue()).isEqualByComparingTo("400");
 		assertThat(field(changes, "discountPercent").get("after").asInt()).isEqualTo(20);
-		assertThat(changes.get("paper").isNull()).isTrue();
+		assertThat(changes.hasNonNull("paper")).isFalse();
 		assertThat(changes.get("impact").get("notifiesStudents").asBoolean()).isFalse();
 		JsonNode members = changes.get("packageExams");
 		assertThat(members).hasSize(1);

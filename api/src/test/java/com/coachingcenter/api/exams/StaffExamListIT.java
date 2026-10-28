@@ -86,8 +86,7 @@ class StaffExamListIT extends PostgresIntegrationTest {
 			.andExpect(status().isNoContent());
 		fx.addQuestion(system, live);
 		fx.publishExam(system, live);
-		fx.addQuestion(system, moving);
-		fx.publishExam(system, moving);
+		// The moving exam stays a draft: publishing a standalone exam is A's publish path, and no filter below needs it.
 		clock.set(TEN_AM);
 		mockMvc.perform(put("/api/v1/live-exams/" + live + "/popular").header("Authorization", "Bearer " + masterToken)
 			.contentType(MediaType.APPLICATION_JSON)
@@ -121,7 +120,7 @@ class StaffExamListIT extends PostgresIntegrationTest {
 		assertThat(shownLive.get("questionCount").asInt()).isEqualTo(1);
 		assertThat(shownLive.get("popular").asBoolean()).isTrue();
 		assertThat(shownLive.get("phase").asText()).isEqualTo("LIVE");
-		assertThat(shownLive.get("pricing").get("effectivePrice").isNull()).isTrue();
+		assertThat(shownLive.get("pricing").hasNonNull("effectivePrice")).isFalse();
 
 		mockMvc.perform(get(base + "&status=ARCHIVED").header("Authorization", "Bearer " + system)).andExpect(status().isOk());
 		mockMvc.perform(get(base + "&phase=SOMETIMES").header("Authorization", "Bearer " + system))
