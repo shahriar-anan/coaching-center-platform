@@ -385,6 +385,74 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 				version1)).isEqualTo(1);
 	}
 
+	@Test
+	void theChangesWaitingBadgeListsStagedExamsNewestFirstAndOnlyForStaff() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Badge");
+		UUID first = fx.createExam(staff, module, "MCQ", "Badge first", NOON, 40, null);
+		fx.question(staff, first, "Stem", 1);
+		UUID second = fx.createExam(staff, module, "MCQ", "Badge second", NOON, 40, null);
+		fx.question(staff, second, "Stem", 1);
+		fx.publishNew(master, first);
+		fx.publishNew(master, second);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + first).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"titleEn\":\"Staged first\"}"))
+			.andExpect(status().isOk());
+		clock.set(TEN_AM.plusSeconds(60));
+		mockMvc.perform(patch("/api/v1/live-exams/" + second).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"titleEn\":\"Staged second\"}"))
+			.andExpect(status().isOk());
+
+		JsonNode badge = json.readTree(mockMvc.perform(get("/api/v1/live-exam-pending-changes")
+			.header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+		int firstAt = indexOf(badge, first);
+		int secondAt = indexOf(badge, second);
+		assertThat(firstAt).isGreaterThanOrEqualTo(0);
+		assertThat(secondAt).isGreaterThanOrEqualTo(0);
+		assertThat(secondAt).isLessThan(firstAt);
+		assertThat(badge.get("items").get(secondAt).get("kind").asText()).isEqualTo("EXAM");
+		assertThat(badge.get("exams").asInt()).isGreaterThanOrEqualTo(2);
+
+		mockMvc.perform(get("/api/v1/live-exam-pending-changes").header("Authorization", "Bearer " + fx.token(fx.seed("STUDENT"))))
+			.andExpect(status().isForbidden());
+	}
+
+	/** Packages stage their own revisions (B's package revision). Enabled once B's package staging is on the integration branch. */
+	@Test
+	@org.junit.jupiter.api.Disabled("needs B")
+	void aStagedPackageAppearsOnTheChangesWaitingBadge() throws Exception {
+		String staff = fx.staff();
+		UUID module = fx.module(staff, "Badge package");
+		mockMvc.perform(patch("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"titleEn\":\"Staged package\"}"))
+			.andExpect(status().isOk());
+		JsonNode badge = json.readTree(mockMvc.perform(get("/api/v1/live-exam-pending-changes")
+			.header("Authorization", "Bearer " + staff))
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+		assertThat(indexOf(badge, module)).isGreaterThanOrEqualTo(0);
+	}
+
+	private static int indexOf(JsonNode badge, UUID id) {
+		JsonNode items = badge.get("items");
+		for (int index = 0; index < items.size(); index++) {
+			if (id.toString().equals(items.get(index).get("id").asText())) {
+				return index;
+			}
+		}
+		return -1;
+	}
+
 	private JsonNode pending(String token, UUID exam) throws Exception {
 		return json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/pending-changes")
 			.header("Authorization", "Bearer " + token))

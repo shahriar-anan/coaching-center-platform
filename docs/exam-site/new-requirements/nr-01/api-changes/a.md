@@ -35,3 +35,9 @@ Table format of [../../../current-api.md](../../../current-api.md). The orchestr
 | `DELETE /api/v1/live-exams/{id}/pending-changes` | **New.** Discards the revision (`204`). Audit `LIVE_EXAM_REVISION_DISCARD`. |
 | `POST /api/v1/live-exams/{id}/publish` | Changed. Optional body `{revisionId}`. A stale id gives `409 PENDING_CHANGES_STALE`. Without a body the compatibility path publishes the current revision (logged at warn). |
 | `POST /api/v1/live-exams/{id}/copy` | Changed. Copies the working copy, all memberships, no dates, price, discount or `popular`. |
+
+## A5: changes-waiting badge
+
+| Call | Change |
+|---|---|
+| `GET /api/v1/live-exam-pending-changes` | **New.** `{exams, packages, items:[{kind: EXAM|PACKAGE, id, titleEn, titleBn, updatedAt, updatedBy}]}`, newest first. Master Admin and System Admin. Students get `403`. |
