@@ -143,6 +143,20 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 		assertThat(lifetime.get("expiresAt").isNull()).isTrue();
 	}
 
+	@Test
+	void thePopularPackageIsListedByThePopularFilterOfThePackageList() throws Exception {
+		String body = mockMvc.perform(get("/api/v1/public/live-exam-modules?popular=true&size=100"))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		JsonNode rows = json.readTree(body).get("content");
+		assertThat(ids(rows)).contains(DemoContentSeed.MODULE_POPULAR.toString()).doesNotContain(DemoContentSeed.MODULE_SALE.toString());
+		for (JsonNode row : rows) {
+			assertThat(row.get("popular").asBoolean()).isTrue();
+		}
+	}
+
 	private JsonNode categoryExams(UUID category, String query) throws Exception {
 		String body = mockMvc.perform(get("/api/v1/public/live-exam-categories/" + category + "/exams?size=100" + query))
 			.andExpect(status().isOk())
