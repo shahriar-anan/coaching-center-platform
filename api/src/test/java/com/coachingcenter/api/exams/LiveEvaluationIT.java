@@ -86,9 +86,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	@Autowired
 	private FileStorageProperties files;
 
-	/** The package default instructor each test set, so an exam created afterwards can take it (NR-01 R3). */
-	private final java.util.Map<UUID, UUID> packageInstructors = new java.util.HashMap<>();
-
 	@BeforeEach
 	void setClock() {
 		clock.set(TEN_AM);
@@ -756,14 +753,13 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		take(second, exam);
 		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
+		// D24: neither no-submit zero is at the pass mark, so neither is listed. The reader still sees their own position.
 		JsonNode asFirst = boardAs(first.token(), exam);
-		assertThat(rowNamed(asFirst, "First Missing").get("mine").asBoolean()).isTrue();
-		assertThat(rowNamed(asFirst, "Second Missing").get("mine").asBoolean()).isFalse();
+		assertThat(asFirst.get("rows")).isEmpty();
+		assertThat(asFirst.get("me").get("belowPass").asBoolean()).isTrue();
 		JsonNode asStaff = boardAs(master, exam);
-		for (JsonNode row : asStaff.get("rows")) {
-			assertThat(row.get("mine").asBoolean()).isFalse();
-		}
-		assertThat(asStaff.get("rows").get(0).has("studentId")).isFalse();
+		assertThat(asStaff.get("rows")).isEmpty();
+		assertThat(asStaff.get("belowPass").asInt()).isEqualTo(2);
 	}
 
 	private JsonNode boardAs(String token, UUID exam) throws Exception {
@@ -804,7 +800,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
-		inheritPackageInstructor(module, exam);
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
@@ -2226,20 +2221,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 					{"instructorId":"%s"}
 					""".formatted(instructorId)))
 			.andExpect(status().isCreated());
-		packageInstructors.put(moduleId, instructorId);
 	}
 
-	/**
-	 * An exam takes its package's default instructor when it is created (NR-01 R3, A's slice). Until that is merged, the
-	 * fixture sets it here, and only when nobody has set one, so the test passes either way.
-	 */
-	private void inheritPackageInstructor(UUID moduleId, UUID examId) {
-		UUID instructor = packageInstructors.get(moduleId);
-		if (instructor != null) {
-			new JdbcTemplate(dataSource).update(
-					"update live_exams set instructor_id = ? where id = ? and instructor_id is null", instructor, examId);
-		}
-	}
 
 	private UUID writtenExam(String staff, UUID module) throws Exception {
 		MvcResult created = mockMvc
@@ -2255,7 +2238,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
-		inheritPackageInstructor(module, exam);
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/question-pdf").file(new MockMultipartFile("file",
 			"paper.pdf", "application/pdf", tinyPdf()))
 			.header("Authorization", "Bearer " + staff))
@@ -2281,7 +2263,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
-		inheritPackageInstructor(module, exam);
 		MvcResult question = mockMvc
 			.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -2924,7 +2905,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
-		inheritPackageInstructor(module, exam);
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
