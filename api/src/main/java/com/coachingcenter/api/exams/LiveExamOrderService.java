@@ -2,7 +2,10 @@ package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -42,10 +45,6 @@ public class LiveExamOrderService {
 
 	private final LiveExamMemberships memberships;
 
-	private final LiveExamRosterRepository roster;
-
-	private final LiveExamGrantRepository grants;
-
 	private final LiveExamCatalogVisibility visibility;
 
 	private final UserRepository users;
@@ -58,30 +57,34 @@ public class LiveExamOrderService {
 
 	private final LiveExamOrderBundle bundles;
 
+	private final LiveExamAccess access;
+
+	private final Clock clock;
+
 	public LiveExamOrderService(LiveExamOrderRepository orders, LiveExamOrderTx tx, LiveExamModuleRepository modules,
-			LiveExamRepository exams, LiveExamRosterRepository roster, LiveExamGrantRepository grants,
-			LiveExamCatalogVisibility visibility, UserRepository users, StudentProfileRepository profiles,
-			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones, LiveExamOrderBundle bundles,
-			LiveExamMemberships memberships) {
+			LiveExamRepository exams, LiveExamCatalogVisibility visibility, UserRepository users,
+			StudentProfileRepository profiles, ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones,
+			LiveExamOrderBundle bundles, LiveExamMemberships memberships, LiveExamAccess access, Clock clock) {
 		this.memberships = memberships;
 		this.orders = orders;
 		this.tx = tx;
 		this.modules = modules;
 		this.exams = exams;
-		this.roster = roster;
-		this.grants = grants;
 		this.visibility = visibility;
 		this.users = users;
 		this.profiles = profiles;
 		this.gateways = gateways;
 		this.phones = phones;
 		this.bundles = bundles;
+		this.access = access;
+		this.clock = clock;
 	}
 
 	public InitiateResult initiate(UUID studentId, JsonNode body) {
 		phones.require(studentId);
-		Target target = readTarget(body);
-		rejectOwned(studentId, target);
+		Instant now = clock.instant();
+		Target target = readTarget(body, now);
+		rejectOwned(studentId, target, now);
 		if (gateways.getIfAvailable() == null) {
 			throw unavailable();
 		}
@@ -91,12 +94,13 @@ public class LiveExamOrderService {
 		}
 		if (LiveExamOrderBundle.SCOPE.equals(target.scope())) {
 			LiveExamOrderBundle.Inserted inserted = tx.insertBundle(studentId, target.moduleId(), target.examIds(),
-					target.amount());
+					target.amount(), target.listPrice(), target.discountPercent());
 			return checkout(inserted.order(), inserted.created(), studentId, target.productName());
 		}
 		LiveExamOrder order;
 		try {
-			order = tx.insert(studentId, target.scope(), target.moduleId(), target.examId(), target.amount());
+			order = tx.insert(studentId, target.scope(), target.moduleId(), target.examId(), target.amount(),
+					target.listPrice(), target.discountPercent());
 		}
 		catch (DataIntegrityViolationException exception) {
 			if (!isOpenOrderRace(exception)) {
@@ -233,7 +237,7 @@ public class LiveExamOrderService {
 				"The payment gateway is unavailable.", order.getId(), order.getTranId());
 	}
 
-	private Target readTarget(JsonNode body) {
+	private Target readTarget(JsonNode body, Instant now) {
 		boolean module = present(body, "moduleId");
 		boolean exam = present(body, "examId");
 		boolean bundle = body.has("examIds") && !body.get("examIds").isNull();
@@ -241,28 +245,42 @@ public class LiveExamOrderService {
 			throw validationFailed();
 		}
 		if (bundle) {
-			return readBundle(body.get("examIds"));
+			return readBundle(body.get("examIds"), now);
 		}
 		if (exam) {
+			// An exam is sold on its own, whichever package it is in (R5). It needs a published home category.
 			LiveExam row = exams.findByIdAndDeletedAtIsNull(readId(body, "examId")).orElseThrow(this::notFound);
-			LiveExamModule parent = publishedModule(memberships.requirePrimaryModuleId(row.getId()));
-			if (!LiveExam.PUBLISHED.equals(row.getStatus())) {
+			if (!LiveExam.PUBLISHED.equals(row.getStatus()) || visibility.branchHidden(row.getCategoryId())) {
 				throw notFound();
 			}
-			return new Target(LiveExamOrder.EXAM, parent.getId(), row.getId(), requirePrice(row.getPrice()),
-					row.getTitleEn(), List.of(row.getId()));
+			return new Target(LiveExamOrder.EXAM, null, row.getId(), examAmount(row, now), row.getTitleEn(),
+					List.of(row.getId()), listPrice(row.getPrice()),
+					activePercent(row.getDiscountPercent(), row.getDiscountEndsAt(), now));
 		}
 		UUID moduleId = readId(body, "moduleId");
 		LiveExamModule row = publishedModule(moduleId);
-		return new Target(LiveExamOrder.MODULE, row.getId(), null, requirePrice(row.getPrice()), row.getTitleEn(),
-				List.of());
+		BigDecimal price = requirePrice(row.getPrice());
+		return new Target(LiveExamOrder.MODULE, row.getId(), null,
+				charge(price, row.getDiscountPercent(), row.getDiscountEndsAt(), now), row.getTitleEn(), List.of(), price,
+				activePercent(row.getDiscountPercent(), row.getDiscountEndsAt(), now));
+	}
+
+	/**
+	 * What an exam costs now: its price less the discount active at {@code now}. An exam with no price, or a free one, is not
+	 * for sale on its own (NR-01, B5 and B7).
+	 */
+	private static BigDecimal examAmount(LiveExam row, Instant now) {
+		if (row.isFree() || row.getPrice() == null) {
+			throw notForSale();
+		}
+		return charge(row.getPrice(), row.getDiscountPercent(), row.getDiscountEndsAt(), now);
 	}
 
 	/**
 	 * A bundle (plan D1): 1 to 20 distinct exams of one module, each published and priced as for one exam. The amount is
 	 * the sum of the prices, and the product name is the module's title.
 	 */
-	private Target readBundle(JsonNode node) {
+	private Target readBundle(JsonNode node, Instant now) {
 		if (!node.isArray() || node.isEmpty() || node.size() > LiveExamOrderBundle.MAX_EXAMS) {
 			throw validationFailed();
 		}
@@ -276,19 +294,38 @@ public class LiveExamOrderService {
 		for (UUID id : ids) {
 			rows.add(exams.findByIdAndDeletedAtIsNull(id).orElseThrow(this::notFound));
 		}
-		UUID moduleId = rows.get(0).getModuleId();
-		if (rows.stream().anyMatch(row -> !row.getModuleId().equals(moduleId))) {
-			throw validationFailed();
-		}
-		LiveExamModule parent = publishedModule(moduleId);
+		LiveExamModule parent = publishedModule(commonModule(rows));
 		if (rows.stream().anyMatch(row -> !LiveExam.PUBLISHED.equals(row.getStatus()))) {
 			throw notFound();
 		}
+		BigDecimal list = BigDecimal.ZERO.setScale(2);
 		BigDecimal amount = BigDecimal.ZERO.setScale(2);
+		Set<Integer> percents = new HashSet<>();
 		for (LiveExam row : rows) {
-			amount = amount.add(requirePrice(row.getPrice()));
+			if (row.isFree()) {
+				throw notForSale();
+			}
+			BigDecimal price = requirePrice(row.getPrice());
+			list = list.add(price);
+			amount = amount.add(charge(price, row.getDiscountPercent(), row.getDiscountEndsAt(), now));
+			percents.add(activePercent(row.getDiscountPercent(), row.getDiscountEndsAt(), now));
 		}
-		return new Target(LiveExamOrderBundle.SCOPE, parent.getId(), null, amount, parent.getTitleEn(), List.copyOf(ids));
+		// The order shows one percent only when every exam in it had the same discount.
+		Integer percent = percents.size() == 1 ? percents.iterator().next() : null;
+		return new Target(LiveExamOrderBundle.SCOPE, parent.getId(), null, amount, parent.getTitleEn(), List.copyOf(ids),
+				list, percent);
+	}
+
+	/** The package every exam of a bundle is in: the oldest one they all share. A bundle is sold through one package. */
+	private UUID commonModule(List<LiveExam> rows) {
+		List<UUID> common = new ArrayList<>(memberships.activeModuleIds(rows.get(0).getId()));
+		for (LiveExam row : rows) {
+			common.retainAll(memberships.activeModuleIds(row.getId()));
+		}
+		if (common.isEmpty()) {
+			throw validationFailed();
+		}
+		return common.get(0);
 	}
 
 	private LiveExamModule publishedModule(UUID moduleId) {
@@ -299,13 +336,21 @@ public class LiveExamOrderService {
 		return module;
 	}
 
-	private void rejectOwned(UUID studentId, Target target) {
-		if (roster.existsByModuleIdAndStudentId(target.moduleId(), studentId)
-				|| grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(studentId, LiveExamOrder.MODULE, target.moduleId())) {
-			throw alreadyPurchased();
+	/**
+	 * Refuses a student who can already sit what is bought (ALREADY_PURCHASED). One whose access has run out may buy again
+	 * (A2'). A package counts as held while one of its paid exams can still be sat.
+	 */
+	private void rejectOwned(UUID studentId, Target target, Instant now) {
+		if (LiveExamOrder.MODULE.equals(target.scope())) {
+			AccessState state = access.moduleState(studentId, target.moduleId(), now);
+			if (state.granted() && !state.expired()) {
+				throw alreadyPurchased();
+			}
+			return;
 		}
 		for (UUID examId : target.examIds()) {
-			if (grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(studentId, LiveExamOrder.EXAM, examId)) {
+			LiveExam exam = exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
+			if (access.canSit(studentId, exam, now)) {
 				throw alreadyPurchased();
 			}
 		}
@@ -359,6 +404,24 @@ public class LiveExamOrderService {
 		return price.setScale(2, RoundingMode.UNNECESSARY);
 	}
 
+	private static BigDecimal listPrice(BigDecimal price) {
+		return price == null ? null : price.setScale(2, RoundingMode.UNNECESSARY);
+	}
+
+	/** What the student pays at {@code now}: the price less the discount active then, to two places. */
+	private static BigDecimal charge(BigDecimal price, Integer discountPercent, Instant discountEndsAt, Instant now) {
+		return ExamPricing.effective(price, discountPercent, discountEndsAt, now).setScale(2, RoundingMode.HALF_UP);
+	}
+
+	/** The discount percent the student sees at {@code now}, or null once it has ended (or was never set). */
+	private static Integer activePercent(Integer discountPercent, Instant discountEndsAt, Instant now) {
+		return discountPercent != null && (discountEndsAt == null || now.isBefore(discountEndsAt)) ? discountPercent : null;
+	}
+
+	private static ApiException notForSale() {
+		return new ApiException(ErrorCode.EXAM_NOT_FOR_SALE, HttpStatus.CONFLICT, "This exam is not for sale.");
+	}
+
 	/** The exam's title, or the module's title for a module order and for a bundle (which has no exam id). */
 	private String productName(LiveExamOrder order) {
 		if (LiveExamOrder.EXAM.equals(order.getScope())) {
@@ -383,7 +446,8 @@ public class LiveExamOrderService {
 
 	private OrderView view(LiveExamOrder order, String redirectUrl) {
 		return new OrderView(order.getId(), order.getTranId(), order.getStatus(), order.getAmount(), redirectUrl,
-				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order));
+				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order), order.getListPrice(),
+				order.getDiscountPercent());
 	}
 
 	/** The exams the order covers: the bundle's list, the one exam, or null for a module (it covers future exams too). */
@@ -412,13 +476,17 @@ public class LiveExamOrderService {
 	public record InitiateResult(boolean created, OrderView order) {
 	}
 
+	/** {@code listPrice} and {@code discountPercent} are what the student saw at checkout (R19). */
 	public record OrderView(UUID orderId, String tranId, String status, BigDecimal amount, String redirectUrl,
-			String scope, UUID moduleId, UUID examId, List<UUID> examIds) {
+			String scope, UUID moduleId, UUID examId, List<UUID> examIds, BigDecimal listPrice, Integer discountPercent) {
 	}
 
-	/** {@code examIds} lists the exams owned checks cover: the bundle's, the one exam, or none for a module. */
+	/**
+	 * {@code examIds} lists the exams owned checks cover: the bundle's, the one exam, or none for a module. {@code amount} is
+	 * what the student pays now, and {@code listPrice} and {@code discountPercent} are what they see.
+	 */
 	private record Target(String scope, UUID moduleId, UUID examId, BigDecimal amount, String productName,
-			List<UUID> examIds) {
+			List<UUID> examIds, BigDecimal listPrice, Integer discountPercent) {
 	}
 
 }
