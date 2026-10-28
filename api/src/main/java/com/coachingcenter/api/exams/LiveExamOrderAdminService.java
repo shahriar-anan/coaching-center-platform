@@ -39,8 +39,12 @@ public class LiveExamOrderAdminService {
 			from live_exam_orders o
 			join users u on u.id = o.student_id
 			left join student_profiles sp on sp.user_id = u.id
-			left join live_exam_modules m on m.id = o.module_id
 			left join live_exams e on e.id = o.exam_id
+			left join lateral (select p.module_id from live_exam_package_exams p
+			  join live_exam_modules pm on pm.id = p.module_id and pm.deleted_at is null
+			  where p.exam_id = o.exam_id and p.removed_at is null
+			  order by p.added_at, p.id limit 1) pk on true
+			left join live_exam_modules m on m.id = coalesce(o.module_id, pk.module_id)
 			where (:status = '' or o.status = :status)
 			  and (:tranId = '' or o.tran_id = :tranId)
 			  and (:q = '' or u.phone ilike concat('%', :q, '%') or u.email ilike concat('%', :q, '%')
@@ -67,7 +71,8 @@ public class LiveExamOrderAdminService {
 		Long total = jdbc.queryForObject("select count(*) " + FROM, params, Long.class);
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
 		String sql = """
-				select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, o.module_id, o.exam_id, o.payment_channel,
+				select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, coalesce(o.module_id, pk.module_id) as module_id,
+				  o.exam_id, o.payment_channel, o.list_price, o.discount_percent,
 				  o.val_id, o.created_at, o.updated_at, m.title_en as module_title_en, m.title_bn as module_title_bn,
 				  e.title_en as exam_title_en, e.title_bn as exam_title_bn, u.id as student_id, u.phone, u.email,
 				  sp.full_name, sp.student_code,
@@ -84,7 +89,8 @@ public class LiveExamOrderAdminService {
 						rs.getString("payment_channel"), rs.getString("val_id"), rs.getBoolean("access_granted"),
 						rs.getObject("student_id", UUID.class), rs.getString("full_name"), rs.getString("phone"),
 						rs.getString("email"), rs.getString("student_code"), instant(rs.getTimestamp("created_at")),
-						instant(rs.getTimestamp("updated_at"))));
+						instant(rs.getTimestamp("updated_at")), rs.getBigDecimal("list_price"),
+						rs.getObject("discount_percent", Integer.class)));
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
 
@@ -95,7 +101,8 @@ public class LiveExamOrderAdminService {
 	public record OrderRow(UUID orderId, String tranId, String status, BigDecimal amount, String currency, String scope,
 			UUID moduleId, String moduleTitleEn, String moduleTitleBn, UUID examId, String examTitleEn, String examTitleBn,
 			String paymentChannel, String valId, boolean accessGranted, UUID studentId, String studentName,
-			String studentPhone, String studentEmail, String studentCode, Instant createdAt, Instant updatedAt) {
+			String studentPhone, String studentEmail, String studentCode, Instant createdAt, Instant updatedAt,
+			BigDecimal listPrice, Integer discountPercent) {
 	}
 
 }
