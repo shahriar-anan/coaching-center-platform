@@ -45,9 +45,11 @@ public class LiveExamStaffModuleService {
 
 	private final AdminProfileRepository adminProfiles;
 
+	private final PackageRevisionService revisions;
+
 	public LiveExamStaffModuleService(LiveExamModuleService moduleViews, LiveExamModuleRepository modules,
 			LiveExamCategoryRepository categories, LiveExamRepository exams, LiveExamInstructorRepository instructors,
-			UserRepository users, AdminProfileRepository adminProfiles) {
+			UserRepository users, AdminProfileRepository adminProfiles, PackageRevisionService revisions) {
 		this.moduleViews = moduleViews;
 		this.modules = modules;
 		this.categories = categories;
@@ -55,6 +57,7 @@ public class LiveExamStaffModuleService {
 		this.instructors = instructors;
 		this.users = users;
 		this.adminProfiles = adminProfiles;
+		this.revisions = revisions;
 	}
 
 	/** Master Admin and System Admin. {@code status} is optional; {@code q} matches either title, case-insensitively. */
@@ -97,9 +100,12 @@ public class LiveExamStaffModuleService {
 		return view(module, context(List.of(module)));
 	}
 
+	/** A staged package shows its working copy, so the category path follows the draft (NR-01, B4). */
 	private LiveExamModuleService.ModuleView view(LiveExamModule module, Context context) {
 		Counts counts = context.counts().getOrDefault(module.getId(), Counts.NONE);
-		return moduleViews.staffView(module, pathOf(module.getCategoryId(), context.categories()),
+		PackageRevisionService.Draft working = context.drafts().get(module.getId());
+		UUID categoryId = working == null ? module.getCategoryId() : working.categoryId();
+		return moduleViews.staffView(module, working, pathOf(categoryId, context.categories()),
 				teacherOf(module.getId(), context), counts.mcq(), counts.written());
 	}
 
@@ -148,7 +154,7 @@ public class LiveExamStaffModuleService {
 			}
 			adminProfiles.findAllById(userIds).forEach(profile -> names.put(profile.getUserId(), profile.getFullName()));
 		}
-		return new Context(byId, counts(moduleIds), teacherIds, teachers, names);
+		return new Context(byId, counts(moduleIds), teacherIds, teachers, names, revisions.stagedDrafts(moduleIds));
 	}
 
 	private Map<UUID, Counts> counts(List<UUID> moduleIds) {
@@ -195,7 +201,7 @@ public class LiveExamStaffModuleService {
 	}
 
 	private record Context(Map<UUID, LiveExamCategory> categories, Map<UUID, Counts> counts, Map<UUID, UUID> teacherIds,
-			Map<UUID, User> teachers, Map<UUID, String> names) {
+			Map<UUID, User> teachers, Map<UUID, String> names, Map<UUID, PackageRevisionService.Draft> drafts) {
 	}
 
 }

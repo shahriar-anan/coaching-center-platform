@@ -238,4 +238,84 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""")
 	List<UUID> findActiveStudentsWithAccess(@Param("moduleId") UUID moduleId, @Param("examId") UUID examId);
 
+	/** Published exams whose home category is {@code categoryId} (NR-01, B2). */
+	List<LiveExam> findByCategoryIdAndStatusAndDeletedAtIsNull(UUID categoryId, String status);
+
+	/** Published exams whose home category is not in {@code categoryIds}: the catalog's visible exams (NR-01, B2). */
+	List<LiveExam> findByStatusAndDeletedAtIsNullAndCategoryIdNotIn(String status, Set<UUID> categoryIds);
+
+	/** Every exam not deleted, in any status: the staff category tree (NR-01, B2). */
+	List<LiveExam> findByDeletedAtIsNull();
+
+	/**
+	 * Published, dated exams in categories outside {@code hidden} whose window has not ended. An exam joins the catalog
+	 * through its home category, not through a package (NR-01, B2). Soonest first is the caller's order.
+	 */
+	@Query("""
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.liveAt IS NOT NULL AND e.endsAt > :now
+			  AND e.categoryId NOT IN :hidden AND (:anyType = true OR e.examType = :examType)
+			""")
+	List<LiveExam> findUpcomingInCatalog(@Param("now") Instant now, @Param("hidden") Set<UUID> hidden,
+			@Param("anyType") boolean anyType, @Param("examType") String examType);
+
+	/**
+	 * The staff list across packages (NR-01, B3). Every filter is switched off by its flag, so no parameter is null.
+	 * {@code phase} is one of the {@link ExamWindow} phases, or empty for any. {@code pattern} is a lower-case LIKE
+	 * pattern on either title.
+	 */
+	@Query(value = """
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL
+			  AND (:anyCategory = true OR e.categoryId = :categoryId)
+			  AND (:anyPackage = true OR EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm
+			    WHERE pm.examId = e.id AND pm.moduleId = :packageId AND pm.removedAt IS NULL))
+			  AND (:standalone = false OR NOT EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm WHERE pm.examId = e.id AND pm.removedAt IS NULL))
+			  AND (:anyType = true OR e.examType = :examType)
+			  AND (:anyMode = true OR e.mode = :mode)
+			  AND (:anyStatus = true OR e.status = :status)
+			  AND (:pendingOnly = false OR EXISTS (SELECT r FROM LiveExamRevision r WHERE r.examId = e.id))
+			  AND (:popularOnly = false OR e.popular = true)
+			  AND (:scoped = false OR e.instructorId = :instructorId)
+			  AND (:anyText = true OR lower(e.titleEn) LIKE :pattern OR lower(e.titleBn) LIKE :pattern)
+			  AND (:phase = ''
+			    OR (:phase = 'PRACTICE' AND e.mode = 'PRACTICE')
+			    OR (:phase = 'UNANNOUNCED' AND e.mode = 'LIVE' AND e.liveAt IS NULL)
+			    OR (:phase = 'UPCOMING' AND e.liveAt > :now)
+			    OR (:phase = 'LIVE' AND e.liveAt <= :now AND e.endsAt > :now)
+			    OR (:phase = 'ENDED' AND e.endsAt <= :now))
+			""", countQuery = """
+			SELECT count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL
+			  AND (:anyCategory = true OR e.categoryId = :categoryId)
+			  AND (:anyPackage = true OR EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm
+			    WHERE pm.examId = e.id AND pm.moduleId = :packageId AND pm.removedAt IS NULL))
+			  AND (:standalone = false OR NOT EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm WHERE pm.examId = e.id AND pm.removedAt IS NULL))
+			  AND (:anyType = true OR e.examType = :examType)
+			  AND (:anyMode = true OR e.mode = :mode)
+			  AND (:anyStatus = true OR e.status = :status)
+			  AND (:pendingOnly = false OR EXISTS (SELECT r FROM LiveExamRevision r WHERE r.examId = e.id))
+			  AND (:popularOnly = false OR e.popular = true)
+			  AND (:scoped = false OR e.instructorId = :instructorId)
+			  AND (:anyText = true OR lower(e.titleEn) LIKE :pattern OR lower(e.titleBn) LIKE :pattern)
+			  AND (:phase = ''
+			    OR (:phase = 'PRACTICE' AND e.mode = 'PRACTICE')
+			    OR (:phase = 'UNANNOUNCED' AND e.mode = 'LIVE' AND e.liveAt IS NULL)
+			    OR (:phase = 'UPCOMING' AND e.liveAt > :now)
+			    OR (:phase = 'LIVE' AND e.liveAt <= :now AND e.endsAt > :now)
+			    OR (:phase = 'ENDED' AND e.endsAt <= :now))
+			""")
+	Page<LiveExam> searchForStaff(@Param("anyCategory") boolean anyCategory, @Param("categoryId") UUID categoryId,
+			@Param("anyPackage") boolean anyPackage, @Param("packageId") UUID packageId,
+			@Param("standalone") boolean standalone, @Param("anyType") boolean anyType,
+			@Param("examType") String examType, @Param("anyMode") boolean anyMode, @Param("mode") String mode,
+			@Param("anyStatus") boolean anyStatus, @Param("status") String status,
+			@Param("pendingOnly") boolean pendingOnly, @Param("popularOnly") boolean popularOnly,
+			@Param("scoped") boolean scoped, @Param("instructorId") UUID instructorId, @Param("anyText") boolean anyText,
+			@Param("pattern") String pattern, @Param("phase") String phase, @Param("now") Instant now, Pageable pageable);
+
 }

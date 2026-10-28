@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +27,13 @@ public interface LiveExamPackageExamRepository extends JpaRepository<LiveExamPac
 	List<LiveExamPackageExam> findByModuleId(UUID moduleId);
 
 	boolean existsByModuleIdAndExamIdAndRemovedAtIsNull(UUID moduleId, UUID examId);
+
+	/** Active memberships of several exams (NR-01, B2 and B3). */
+	@Query("select m from LiveExamPackageExam m where m.examId in :examIds and m.removedAt is null")
+	List<LiveExamPackageExam> findActiveByExamIdIn(@Param("examIds") Collection<UUID> examIds);
+
+	/** Every active membership, for the category trees (NR-01, B2). */
+	List<LiveExamPackageExam> findByRemovedAtIsNull();
 
 	default boolean existsActive(UUID moduleId, UUID examId) {
 		return existsByModuleIdAndExamIdAndRemovedAtIsNull(moduleId, examId);
