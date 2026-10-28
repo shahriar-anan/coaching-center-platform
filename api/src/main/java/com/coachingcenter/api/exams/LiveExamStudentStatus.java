@@ -3,8 +3,12 @@ package com.coachingcenter.api.exams;
 import java.time.Instant;
 
 /**
- * The state of one exam for one student, derived from the window, the server clock, and that student's own participant
- * row. It never reads another student and never writes.
+ * The state of one exam for one student, derived from the window, the server clock, that student's access and their own
+ * latest attempt. It never reads another student and never writes.
+ *
+ * <p>{@code status} is the vocabulary the current web knows (contracts §7.8). The three states the new rules add
+ * ({@link #ARCHIVED_OPEN}, {@link #PRACTICE_OPEN}, {@link #EXPIRED}) go out as {@code detail} and map to a legacy value in
+ * {@code status}, so an unknown value never reaches the web's status pill.
  */
 final class LiveExamStudentStatus {
 
@@ -26,24 +30,58 @@ final class LiveExamStudentStatus {
 
 	static final String MISSED = "MISSED";
 
+	/** The window has ended, the student has no attempt and may still sit. Legacy: {@link #MISSED}. */
+	static final String ARCHIVED_OPEN = "ARCHIVED_OPEN";
+
+	/** A practice exam with no attempt yet, open from publish. Legacy: {@link #OPEN}. */
+	static final String PRACTICE_OPEN = "PRACTICE_OPEN";
+
+	/** The student's access has ended, so they cannot start an attempt. Legacy: {@link #MISSED}. */
+	static final String EXPIRED = "EXPIRED";
+
 	private LiveExamStudentStatus() {
 	}
 
+	/** For callers that do not know the student's access: the student is taken to hold it, and no written retake is granted. */
 	static Result of(LiveExam exam, LiveExamParticipant participant, Instant now) {
-		if (exam.getLiveAt() == null) {
-			return new Result(NOT_ANNOUNCED, false);
+		return of(exam, participant, now, true, false);
+	}
+
+	/**
+	 * @param latest the student's latest attempt, or null
+	 * @param canSit access holds and has not expired ({@code LiveExamAccess.canSit})
+	 * @param retakeGranted the student holds an unused written retake grant
+	 */
+	static Result of(LiveExam exam, LiveExamParticipant latest, Instant now, boolean canSit, boolean retakeGranted) {
+		String phase = ExamWindow.phase(exam, now);
+		if (ExamWindow.UNANNOUNCED.equals(phase)) {
+			return new Result(NOT_ANNOUNCED, false, NOT_ANNOUNCED);
 		}
-		if (now.isBefore(exam.getLiveAt())) {
-			return new Result(UPCOMING, false);
+		if (ExamWindow.UPCOMING.equals(phase)) {
+			return new Result(UPCOMING, false, UPCOMING);
 		}
 		boolean written = LiveExam.WRITTEN.equals(exam.getExamType());
-		if (participant != null) {
-			return new Result(written ? written(participant, now) : mcq(participant, now), false);
+		if (latest != null) {
+			String status = written ? written(latest, now) : mcq(latest, now);
+			boolean finished = finished(latest, now);
+			boolean retake = canSit && finished && (written ? retakeGranted : true);
+			return new Result(status, retake, status);
 		}
-		if (now.isBefore(exam.getLiveAt().plusSeconds(exam.getDurationMinutes() * 60L))) {
-			return new Result(OPEN, false);
+		if (!canSit) {
+			return new Result(MISSED, false, EXPIRED);
 		}
-		return new Result(MISSED, !written);
+		if (ExamWindow.PRACTICE.equals(phase)) {
+			return new Result(OPEN, false, PRACTICE_OPEN);
+		}
+		if (ExamWindow.LIVE.equals(phase)) {
+			return new Result(OPEN, false, OPEN);
+		}
+		return new Result(MISSED, !written, ARCHIVED_OPEN);
+	}
+
+	/** An attempt is finished once it is posted or past its own deadline: a student may start another MCQ attempt. */
+	private static boolean finished(LiveExamParticipant participant, Instant now) {
+		return participant.getSubmittedAt() != null || !now.isBefore(participant.getDeadlineAt());
 	}
 
 	private static String mcq(LiveExamParticipant participant, Instant now) {
@@ -68,7 +106,8 @@ final class LiveExamStudentStatus {
 		return stored ? SUBMITTED : IN_PROGRESS;
 	}
 
-	record Result(String status, boolean retakeAvailable) {
+	/** {@code status} is the legacy value, {@code detail} the full one ({@code myStatusDetail}). */
+	record Result(String status, boolean retakeAvailable, String detail) {
 	}
 
 }

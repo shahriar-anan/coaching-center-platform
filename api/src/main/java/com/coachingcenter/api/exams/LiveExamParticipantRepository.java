@@ -48,8 +48,14 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 
 	boolean existsByExamIdAndStudentIdAndDeletedAtIsNull(UUID examId, UUID studentId);
 
-	List<LiveExamParticipant> findByStudentIdAndExamIdInAndDeletedAtIsNull(UUID studentId,
-			java.util.Collection<UUID> examIds);
+	/** The student's attempts on the given exams, oldest first, so a caller that keeps one per exam keeps the latest. */
+	@Query("""
+			select p from LiveExamParticipant p
+			where p.studentId = :studentId and p.examId in :examIds and p.deletedAt is null
+			order by p.examId, p.attemptNo asc
+			""")
+	List<LiveExamParticipant> findByStudentIdAndExamIdInAndDeletedAtIsNull(@Param("studentId") UUID studentId,
+			@Param("examIds") java.util.Collection<UUID> examIds);
 
 	/** One student's sittings, newest first. A sitting whose exam is deleted is left out, as if missing. */
 	@Query(value = """

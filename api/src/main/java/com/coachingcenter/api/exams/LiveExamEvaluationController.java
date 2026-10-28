@@ -28,13 +28,24 @@ public class LiveExamEvaluationController {
 
 	private final LiveExamEvaluationService evaluations;
 
+	private final LiveExamLeaderboardService leaderboards;
+
+	private final LiveExamInstructorService examInstructors;
+
 	private final PermissionChecker permissions;
 
-	public LiveExamEvaluationController(LiveExamEvaluationService evaluations, PermissionChecker permissions) {
+	public LiveExamEvaluationController(LiveExamEvaluationService evaluations, LiveExamLeaderboardService leaderboards,
+			LiveExamInstructorService examInstructors, PermissionChecker permissions) {
 		this.evaluations = evaluations;
+		this.leaderboards = leaderboards;
+		this.examInstructors = examInstructors;
 		this.permissions = permissions;
 	}
 
+	/**
+	 * Sets the package's default instructor. {@code applyToExams} (default true, which is what the current screen relies
+	 * on) also sets every exam already in the package; send false to set the default for new exams only.
+	 */
 	@PostMapping("/api/v1/live-exam-modules/{moduleId}/instructor")
 	public ResponseEntity<LiveExamEvaluationService.Assignment> assign(@PathVariable UUID moduleId,
 			@RequestBody JsonNode body) {
@@ -43,14 +54,43 @@ public class LiveExamEvaluationController {
 		if (instructorId == null || instructorId.isNull() || instructorId.asText().isBlank()) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 		}
+		JsonNode apply = body.get("applyToExams");
+		boolean applyToExams = apply == null || apply.isNull() || apply.asBoolean();
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(evaluations.assign(moduleId, UUID.fromString(instructorId.asText())));
+			.body(evaluations.assign(moduleId, UUID.fromString(instructorId.asText()), applyToExams));
 	}
 
+	/** Clears the package default. With {@code applyToExams} (default true) it also clears the exams that held that instructor. */
 	@DeleteMapping("/api/v1/live-exam-modules/{moduleId}/instructor")
-	public ResponseEntity<Void> unassign(@PathVariable UUID moduleId) {
+	public ResponseEntity<Void> unassign(@PathVariable UUID moduleId,
+			@RequestParam(value = "applyToExams", defaultValue = "true") boolean applyToExams) {
 		require(Permissions.LIVE_EXAM_ASSIGN);
-		evaluations.unassign(moduleId);
+		evaluations.unassign(moduleId, applyToExams);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/api/v1/live-exams/{id}/instructor")
+	public ResponseEntity<LiveExamInstructorService.Assignment> assignToExam(@PathVariable UUID id,
+			@RequestBody JsonNode body) {
+		require(Permissions.LIVE_EXAM_ASSIGN);
+		JsonNode instructorId = body.get("instructorId");
+		if (instructorId == null || instructorId.isNull() || instructorId.asText().isBlank()) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
+		}
+		UUID parsed;
+		try {
+			parsed = UUID.fromString(instructorId.asText());
+		}
+		catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
+		}
+		return ResponseEntity.status(HttpStatus.CREATED).body(examInstructors.assign(id, parsed));
+	}
+
+	@DeleteMapping("/api/v1/live-exams/{id}/instructor")
+	public ResponseEntity<Void> unassignFromExam(@PathVariable UUID id) {
+		require(Permissions.LIVE_EXAM_ASSIGN);
+		examInstructors.unassign(id);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -76,6 +116,15 @@ public class LiveExamEvaluationController {
 	public ResponseEntity<byte[]> staffEvaluatedPdf(@PathVariable UUID id) {
 		requireReader();
 		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.staffEvaluatedPdf(id, actor()));
+	}
+
+	/** The question paper this participant sat, which can differ from the exam's current paper (E29). */
+	@GetMapping("/api/v1/live-exam-participants/{id}/question-pdf")
+	public ResponseEntity<byte[]> participantQuestionPdf(@PathVariable UUID id) {
+		requireReader();
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.body(evaluations.participantQuestionPdf(id, actor()));
 	}
 
 	@PostMapping(value = "/api/v1/live-exam-participants/{id}/evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -120,22 +169,26 @@ public class LiveExamEvaluationController {
 	}
 
 	@GetMapping("/api/v1/live-exams/{id}/leaderboard")
-	public LiveExamEvaluationService.Leaderboard leaderboard(@PathVariable UUID id) {
-		if (permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
-			return evaluations.leaderboard(id, actor(), true);
+	public LiveExamLeaderboardService.Leaderboard leaderboard(@PathVariable UUID id) {
+		if (permissions.has(Permissions.LIVE_EXAM_EVALUATE) || permissions.has(Permissions.EXAM_READ)) {
+			return leaderboards.board(id, actor(), true);
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
-			return evaluations.leaderboard(id, actor(), false);
+			return leaderboards.board(id, actor(), false);
 		}
 		throw denied();
 	}
 
+	/** The student's own marked PDF. {@code attempt} picks an attempt; without it, the latest released one. */
 	@GetMapping("/api/v1/live-exams/{id}/evaluated-pdf")
-	public ResponseEntity<byte[]> evaluatedPdf(@PathVariable UUID id) {
+	public ResponseEntity<byte[]> evaluatedPdf(@PathVariable UUID id,
+			@RequestParam(value = "attempt", required = false) Integer attempt) {
 		if (!permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
 			throw denied();
 		}
-		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.evaluatedPdf(id, actor().userId()));
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.body(evaluations.evaluatedPdf(id, actor().userId(), attempt));
 	}
 
 	private void require(String permission) {

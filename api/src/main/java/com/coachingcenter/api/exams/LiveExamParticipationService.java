@@ -54,9 +54,15 @@ public class LiveExamParticipationService {
 
 	private static final String PUBLISHED = "(p.published_at is not null and p.pending_evaluated_at is null)";
 
+	// The package shown beside an exam is the first one it joined that is still active. An exam in no package still lists.
 	private static final String FROM = """
 			from live_exams e
-			join live_exam_modules m on m.id = e.module_id and m.deleted_at is null
+			left join lateral (
+			  select m2.id, m2.title_en, m2.title_bn from live_exam_package_exams pe
+			  join live_exam_modules m2 on m2.id = pe.module_id and m2.deleted_at is null
+			  where pe.exam_id = e.id and pe.removed_at is null
+			  order by pe.added_at, pe.id limit 1
+			) m on true
 			left join live_exam_participants p on p.exam_id = e.id and p.deleted_at is null
 			""";
 
@@ -75,12 +81,11 @@ public class LiveExamParticipationService {
 		String where = where(actor, filter, params);
 		int size = Math.min(Math.max(pageable.getPageSize(), 1), MAX_SIZE);
 		Pageable page = PageRequest.of(pageable.getPageNumber(), size);
-		Long total = jdbc.queryForObject("select count(*) from live_exams e join live_exam_modules m on m.id = e.module_id"
-				+ " and m.deleted_at is null where " + where, params, Long.class);
+		Long total = jdbc.queryForObject("select count(*) from live_exams e where " + where, params, Long.class);
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
 		String sql = """
-				select e.id, e.module_id, m.title_en as module_title_en, m.title_bn as module_title_bn, e.exam_type,
-				  e.title_en, e.title_bn, e.live_at, e.duration_minutes,
+				select e.id, m.id as module_id, m.title_en as module_title_en, m.title_bn as module_title_bn, e.exam_type,
+				  e.title_en, e.title_bn, e.live_at, e.ends_at,
 				  count(p.id) filter (where %s) as sitting,
 				  count(p.id) filter (where %s) as submitted,
 				  count(p.id) filter (where %s) as failed,
@@ -89,10 +94,14 @@ public class LiveExamParticipationService {
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and %s) as published,
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and p.ready_for_release_at is not null) as ready,
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and p.pending_evaluated_at is not null) as corrections,
-				  count(p.id) filter (where p.kind in ('ARCHIVED', 'RETAKE')) as retakes
+				  count(p.id) filter (where p.kind in ('ARCHIVED', 'RETAKE')) as retakes,
+				  count(p.id) filter (where p.kind = 'LIVE') as live_n,
+				  count(p.id) filter (where p.kind = 'ARCHIVED') as archived_n,
+				  count(p.id) filter (where p.kind = 'RETAKE') as retake_n,
+				  count(p.id) filter (where p.kind = 'PRACTICE') as practice_n
 				%s
 				where %s
-				group by e.id, m.id
+				group by e.id, m.id, m.title_en, m.title_bn
 				order by %s
 				limit :limit offset :offset
 				""".formatted(SITTING, SUBMITTED, FAILED, AWAITING, DRAFT, PUBLISHED, FROM, where, order(filter.sort()));
@@ -100,14 +109,15 @@ public class LiveExamParticipationService {
 			boolean written = "WRITTEN".equals(rs.getString("exam_type"));
 			Timestamp liveAt = rs.getTimestamp("live_at");
 			String start = liveAt == null ? null : format(liveAt.toInstant());
-			String end = liveAt == null ? null
-					: format(liveAt.toInstant().plusSeconds(rs.getInt("duration_minutes") * 60L));
+			Timestamp endsAt = rs.getTimestamp("ends_at");
+			String end = endsAt == null ? null : format(endsAt.toInstant());
 			return new ParticipationRow(rs.getObject("id", UUID.class), rs.getObject("module_id", UUID.class),
 					rs.getString("module_title_en"), rs.getString("module_title_bn"), rs.getString("exam_type"),
 					rs.getString("title_en"), rs.getString("title_bn"), start, end, rs.getInt("sitting"),
 					rs.getInt("submitted"), rs.getInt("failed"), written ? rs.getInt("awaiting") : null,
 					written ? rs.getInt("drafts") : null, written ? rs.getInt("published") : null, rs.getInt("retakes"),
-					written ? rs.getInt("ready") : null, written ? rs.getInt("corrections") : null);
+					written ? rs.getInt("ready") : null, written ? rs.getInt("corrections") : null, rs.getInt("live_n"),
+					rs.getInt("archived_n"), rs.getInt("retake_n"), rs.getInt("practice_n"));
 		});
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
@@ -131,15 +141,15 @@ public class LiveExamParticipationService {
 		clauses.add("e.status = 'PUBLISHED'");
 		if (actor.role() == Role.INSTRUCTOR) {
 			params.addValue("me", actor.userId());
-			clauses.add("exists (select 1 from live_exam_instructors i where i.module_id = e.module_id"
-					+ " and i.instructor_id = :me)");
+			clauses.add("e.instructor_id = :me");
 		}
 		if (filter.moduleId() != null) {
 			if (actor.role() == Role.INSTRUCTOR && !holds(actor.userId(), filter.moduleId())) {
 				throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 			}
 			params.addValue("moduleId", filter.moduleId());
-			clauses.add("e.module_id = :moduleId");
+			clauses.add("exists (select 1 from live_exam_package_exams x where x.exam_id = e.id and x.module_id = :moduleId"
+					+ " and x.removed_at is null)");
 		}
 		if (filter.type() != null && !filter.type().isBlank()) {
 			String type = filter.type().trim();
@@ -166,7 +176,8 @@ public class LiveExamParticipationService {
 
 	private boolean holds(UUID instructorId, UUID moduleId) {
 		Integer found = jdbc.queryForObject(
-				"select count(*) from live_exam_instructors where module_id = :m and instructor_id = :i",
+				"select count(*) from live_exams e join live_exam_package_exams pe on pe.exam_id = e.id and pe.removed_at is null"
+						+ " where pe.module_id = :m and e.instructor_id = :i and e.deleted_at is null",
 				Map.of("m", moduleId, "i", instructorId), Integer.class);
 		return found != null && found > 0;
 	}
@@ -194,7 +205,7 @@ public class LiveExamParticipationService {
 	public record ParticipationRow(UUID examId, UUID moduleId, String moduleTitleEn, String moduleTitleBn, String examType,
 			String titleEn, String titleBn, String liveAt, String endAt, int sitting, int submitted, int failedToSubmit,
 			Integer awaitingMarking, Integer draftsAwaitingPublish, Integer published, int retakes, Integer readyForRelease,
-			Integer correctionsWaiting) {
+			Integer correctionsWaiting, int live, int archived, int retake, int practice) {
 	}
 
 	public record Summary(int awaitingMarking, int draftsAwaitingPublish) {

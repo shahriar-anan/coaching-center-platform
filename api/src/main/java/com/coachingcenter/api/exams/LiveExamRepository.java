@@ -195,6 +195,14 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""")
 	List<LiveExam> findPublishedStartingBetween(@Param("after") Instant after, @Param("before") Instant before);
 
+	/** Published exams whose window is open at {@code now}: started before it and not yet ended. */
+	@Query("""
+			select e from LiveExam e
+			where e.deletedAt is null and e.status = 'PUBLISHED' and e.liveAt is not null and e.liveAt < :now
+			  and e.endsAt > :now
+			""")
+	List<LiveExam> findPublishedOpenAt(@Param("now") Instant now);
+
 	/** The longest duration of any live exam. Used as the look-back so that no running exam is missed. */
 	@Query("SELECT coalesce(max(e.durationMinutes), 0) FROM LiveExam e WHERE e.deletedAt IS NULL")
 	int maxDurationMinutes();

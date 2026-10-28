@@ -4,7 +4,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,6 +28,9 @@ class StudentReminderJob {
 	static final Duration LEAD = Duration.ofHours(48);
 
 	static final Duration SOON = Duration.ofMinutes(60);
+
+	/** Matches no package, so the access query returns only the holders of an exam grant. */
+	private static final UUID NO_PACKAGE = new UUID(0, 0);
 
 	private static final Logger log = LoggerFactory.getLogger(StudentReminderJob.class);
 
@@ -77,16 +82,14 @@ class StudentReminderJob {
 				notices::startingSoon);
 	}
 
-	/** The window-open notice, `EXAM_OPEN`. Each run looks back the longest duration, and the writer keeps it to once. */
+	/** The window-open notice, `EXAM_OPEN`, for every exam whose window is open. The writer keeps it to once per student. */
 	int scanOpened() {
 		return sweep("open", this::openNow, notices::opened);
 	}
 
+	/** The exams whose window is open now. A window can run for hours, so this reads the stored window, not a look-back. */
 	private List<LiveExam> openNow(Instant now) {
-		Instant since = now.minus(Duration.ofMinutes(exams.maxDurationMinutes()));
-		return exams.findPublishedStartingBetween(since, now).stream()
-			.filter(exam -> now.isBefore(exam.getLiveAt().plusSeconds(exam.getDurationMinutes() * 60L)))
-			.toList();
+		return exams.findPublishedOpenAt(now);
 	}
 
 	private int sweep(String kind, Function<Instant, List<LiveExam>> candidates, StartWriter writer) {
@@ -121,12 +124,21 @@ class StudentReminderJob {
 		if (exam.getLiveAt() == null) {
 			return 0;
 		}
-		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(memberships.requirePrimaryModuleId(exam.getId())).orElse(null);
-		if (module == null || !LiveExamModule.PUBLISHED.equals(module.getStatus())
-				|| visibility.branchHidden(module.getCategoryId())) {
+		if (exam.getCategoryId() == null || visibility.branchHidden(exam.getCategoryId())) {
 			return 0;
 		}
-		List<UUID> students = exams.findActiveStudentsWithAccess(memberships.requirePrimaryModuleId(exam.getId()), exam.getId());
+		// Everyone who holds the exam through any of its packages, or on its own, once (contracts §8). A draft package sends nothing.
+		List<UUID> moduleIds = memberships.activeModuleIds(exam.getId());
+		Set<UUID> students = new LinkedHashSet<>();
+		if (moduleIds.isEmpty()) {
+			students.addAll(exams.findActiveStudentsWithAccess(NO_PACKAGE, exam.getId()));
+		}
+		for (UUID moduleId : moduleIds) {
+			LiveExamModule module = modules.findByIdAndDeletedAtIsNull(moduleId).orElse(null);
+			if (module != null && LiveExamModule.PUBLISHED.equals(module.getStatus())) {
+				students.addAll(exams.findActiveStudentsWithAccess(moduleId, exam.getId()));
+			}
+		}
 		return writer.write(exam.getId(), exam.getLiveAt(), students);
 	}
 

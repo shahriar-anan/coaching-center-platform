@@ -86,6 +86,9 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	@Autowired
 	private FileStorageProperties files;
 
+	/** The package default instructor each test set, so an exam created afterwards can take it (NR-01 R3). */
+	private final java.util.Map<UUID, UUID> packageInstructors = new java.util.HashMap<>();
+
 	@BeforeEach
 	void setClock() {
 		clock.set(TEN_AM);
@@ -224,7 +227,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		take(submitted, exam);
 		upload(submitted, exam);
 		take(missing, exam);
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + missing.token()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("FAILED_TO_SUBMIT"));
@@ -258,9 +261,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andReturn()
 			.getResponse()
 			.getContentAsString();
-		assertThat(board).contains("No PDF");
-		assertThat(board).doesNotContain("Has PDF");
-		assertThat(json.readTree(board).get("rows").get(0).get("score").asInt()).isZero();
+		// D24: a no-submit zero is below the pass mark, so the board does not list it; the student sees it as their own position.
+		assertThat(board).doesNotContain("No PDF", "Has PDF");
+		assertThat(json.readTree(board).get("rows")).isEmpty();
+		assertThat(json.readTree(board).get("me").get("belowPass").asBoolean()).isTrue();
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + missing.token()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(0))
@@ -284,7 +288,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		upload(higher, exam);
 		UUID lowerId = take(lower, exam);
 		upload(lower, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + higher.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + lower.token()))
@@ -315,7 +319,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.param("marks", "6")
 			.header("Authorization", "Bearer " + instructor.token()))
 			.andExpect(status().isOk());
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		String hidden = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
 			.header("Authorization", "Bearer " + higher.token()))
 			.andExpect(status().isOk())
@@ -394,12 +398,13 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andReturn()
 			.getResponse()
 			.getContentAsString());
-		assertThat(rank(board, "Higher Paper")).isEqualTo(2);
+		// D24: a score under the pass mark is not listed, so the higher paper, at 4 of 10, is absent.
+		assertThat(board.toString()).doesNotContain("Higher Paper");
 		assertThat(rank(board, "Lower Paper")).isEqualTo(1);
 	}
 
 	@Test
-	void theMcqBoardWaitsFiveMinutesAndSkipsTiedRanks() throws Exception {
+	void theMcqBoardOpensAtTheWindowEndAndSkipsTiedRanksAndBelowPass() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Board");
@@ -423,11 +428,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/submit").header("Authorization", "Bearer " + second.token()))
 			.andExpect(status().isOk());
 
+		// D12: the full board opens when the window ends, so the students see the two live rows at 06:41.
 		clock.set(Instant.parse("2026-10-20T06:41:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + paper.examId() + "/leaderboard")
 			.header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.rows").isEmpty());
+			.andExpect(jsonPath("$.rows.length()").value(2));
 		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/retake").header("Authorization", "Bearer " + retake.token()))
 			.andExpect(status().isOk());
 		saveCorrect(retake, paper);
@@ -435,7 +441,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(10));
 
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		deadlineJob.settleDue();
 		String board = mockMvc.perform(get("/api/v1/live-exams/" + paper.examId() + "/leaderboard")
 			.header("Authorization", "Bearer " + first.token()))
@@ -447,8 +453,9 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		JsonNode rows = json.readTree(board);
 		assertThat(rank(rows, "Tie One")).isEqualTo(1);
 		assertThat(rank(rows, "Tie Two")).isEqualTo(1);
-		assertThat(rank(rows, "Blank Paper")).isEqualTo(3);
-		assertThat(rows.get("rows")).hasSize(3);
+		// D24: a score under the pass mark is not listed, and the archived retake is never on the board (R11).
+		assertThat(rows.get("rows")).hasSize(2);
+		assertThat(board).doesNotContain("Blank Paper");
 	}
 
 	@Test
@@ -459,6 +466,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID other = publishModule(staff, "Other Module");
 		Instructor instructor = instructor(master, "List Instructor");
 		assign(master, assigned, instructor.id());
+		// A package lists for an instructor only once one of its exams is theirs (R3), so the package needs an exam.
+		writtenExam(staff, assigned);
 
 		JsonNode page = json.readTree(mockMvc.perform(get("/api/v1/live-exam-modules")
 			.header("Authorization", "Bearer " + instructor.token()))
@@ -530,7 +539,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
@@ -571,7 +580,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		upload(marked, exam);
 		UUID unmarkedId = take(unmarked, exam);
 		upload(unmarked, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + marked.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + unmarked.token()))
@@ -608,7 +617,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
@@ -641,7 +650,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
@@ -718,7 +727,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + later.token()))
 			.andExpect(status().isNotFound());
 
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		deadlineJob.settleDue();
 		String board = mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard")
 			.header("Authorization", "Bearer " + missed.token()))
@@ -726,10 +735,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andReturn()
 			.getResponse()
 			.getContentAsString();
-		assertThat(board).contains("Missed Live");
-		assertThat(board).doesNotContain("Later Retake");
-		assertThat(json.readTree(board).get("rows")).hasSize(1);
-		assertThat(json.readTree(board).get("rows").get(0).get("score").asInt()).isZero();
+		// The no-submit zero is below the pass mark, so it is not listed (D24), and the student sees it as their own position.
+		assertThat(board).doesNotContain("Later Retake", "Missed Live");
+		assertThat(json.readTree(board).get("rows")).isEmpty();
+		assertThat(json.readTree(board).get("me").get("belowPass").asBoolean()).isTrue();
 	}
 
 	@Test
@@ -745,7 +754,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		take(first, exam);
 		take(second, exam);
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		JsonNode asFirst = boardAs(first.token(), exam);
 		assertThat(rowNamed(asFirst, "First Missing").get("mine").asBoolean()).isTrue();
@@ -795,6 +804,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		inheritPackageInstructor(module, exam);
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
@@ -833,7 +843,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID storedId = take(stored, exam);
 		upload(stored, exam);
 		UUID missingId = take(missing, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		JsonNode rows = json.readTree(mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions")
 			.header("Authorization", "Bearer " + marker.token()))
@@ -878,7 +888,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(stored, exam);
 		upload(stored, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("first.pdf"))
 			.param("marks", "6")
@@ -921,7 +931,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation")
 			.param("marks", "5")
@@ -971,7 +981,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		upload(done, exam);
 		UUID waitingId = take(waiting, exam);
 		upload(waiting, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		// Reads never post a sitting; the deadline job does, about a minute after the deadline.
 		deadlineJob.settleDue();
 
@@ -1045,7 +1055,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("first.pdf"))
 			.param("marks", "6")
 			.header("Authorization", "Bearer " + marker.token()))
@@ -1099,7 +1109,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.details.awaiting").value(0))
 			.andExpect(jsonPath("$.details.open").value(3));
 
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.details.awaiting").value(2))
@@ -1131,7 +1141,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("first.pdf"))
 			.param("marks", "6")
 			.header("Authorization", "Bearer " + marker.token()))
@@ -1177,7 +1187,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID storedId = take(stored, exam);
 		upload(stored, exam);
 		UUID missingId = take(missing, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + storedId + "/evaluation").file(sheet("yes.pdf"))
 			.param("marks", "8")
@@ -1207,7 +1217,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("master.pdf"))
@@ -1277,7 +1287,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		assertThat(liveRow.get("submitted").asInt()).isZero();
 		assertThat(liveRow.get("failedToSubmit").asInt()).isZero();
 
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		JsonNode after = participation(master, "moduleId", writtenModule.toString()).get("content").get(0);
 		assertThat(after.get("sitting").asInt()).isZero();
 		assertThat(after.get("submitted").asInt()).isEqualTo(3);
@@ -1416,7 +1426,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		upload(one, mineExam);
 		upload(two, mineExam);
 		upload(three, otherExam);
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		UUID twoParticipant = new JdbcTemplate(dataSource).queryForObject(
 				"select id from live_exam_participants where exam_id = ? and student_id = ?", UUID.class, mineExam, two.id());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + twoParticipant + "/evaluation").file(sheet("s.pdf"))
@@ -1477,7 +1487,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		assertThat(noticeCount("MCQ_SCORE", submits.id())).isEqualTo(1);
 		assertThat(noticeCount("MCQ_SCORE", silent.id())).isZero();
 
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		deadlineJob.settleDue();
 		deadlineJob.settleDue();
 		assertThat(noticeCount("MCQ_SCORE", submits.id())).isEqualTo(1);
@@ -1510,7 +1520,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("one.pdf"))
 			.param("marks", "6")
@@ -1569,7 +1579,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		take(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		deadlineJob.settleDue();
 		assertThat(new JdbcTemplate(dataSource).queryForObject(
 				"select status from live_exam_participants where exam_id = ? and student_id = ?", String.class, exam,
@@ -1699,7 +1709,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 
 		Student late = seedStudent("Open late");
 		mark(master, module, late.id());
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		reminders.scanOpened();
 		assertThat(noticeCount("EXAM_OPEN", late.id())).isZero();
 	}
@@ -2000,7 +2010,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
 			.param("marks", "6")
 			.header("Authorization", "Bearer " + first.token()))
@@ -2086,7 +2096,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
@@ -2119,7 +2129,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(writer, written);
 		upload(writer, written);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + written + "/submit").header("Authorization", "Bearer " + writer.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish")
@@ -2153,7 +2163,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
@@ -2216,6 +2226,19 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 					{"instructorId":"%s"}
 					""".formatted(instructorId)))
 			.andExpect(status().isCreated());
+		packageInstructors.put(moduleId, instructorId);
+	}
+
+	/**
+	 * An exam takes its package's default instructor when it is created (NR-01 R3, A's slice). Until that is merged, the
+	 * fixture sets it here, and only when nobody has set one, so the test passes either way.
+	 */
+	private void inheritPackageInstructor(UUID moduleId, UUID examId) {
+		UUID instructor = packageInstructors.get(moduleId);
+		if (instructor != null) {
+			new JdbcTemplate(dataSource).update(
+					"update live_exams set instructor_id = ? where id = ? and instructor_id is null", instructor, examId);
+		}
 	}
 
 	private UUID writtenExam(String staff, UUID module) throws Exception {
@@ -2232,6 +2255,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		inheritPackageInstructor(module, exam);
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/question-pdf").file(new MockMultipartFile("file",
 			"paper.pdf", "application/pdf", tinyPdf()))
 			.header("Authorization", "Bearer " + staff))
@@ -2257,6 +2281,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		inheritPackageInstructor(module, exam);
 		MvcResult question = mockMvc
 			.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -2472,7 +2497,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 		assertThat(noticeCount("MCQ_SCORE", initial.id())).isEqualTo(1);
 
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/retake")
 			.header("Authorization", "Bearer " + retaker.token()))
 			.andExpect(status().isOk());
@@ -2569,7 +2594,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + retaker.token()))
 			.andExpect(status().isOk());
 
-		clock.set(Instant.parse("2026-10-20T06:45:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		Student lateStudent = seedStudent("Late taker");
 		mark(master, module, lateStudent.id());
 		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/retake")
@@ -2644,7 +2669,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		// The assigned instructor reads the paper only once the window has ended (06:00Z to 06:40Z on this exam).
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + marker.token()))
 			.andExpect(status().isNotFound());
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		assertPaperReadable(marker.token(), exam);
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + stranger.token()))
 			.andExpect(status().isNotFound());
@@ -2666,7 +2691,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
 		UUID participant = take(student, exam);
 		upload(student, exam);
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
 			.param("marks", "7")
 			.param("comment", "Good effort")
@@ -2740,7 +2765,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		upload(alpha, exam);
 		take(beta, otherExam);
 		upload(beta, otherExam);
-		clock.set(Instant.parse("2026-10-20T06:46:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		deadlineJob.settleDue();
 
 		mockMvc.perform(get("/api/v1/live-exam-submissions").param("q", "feed").header("Authorization", "Bearer " + marker.token()))
@@ -2899,6 +2924,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID exam = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		inheritPackageInstructor(module, exam);
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""

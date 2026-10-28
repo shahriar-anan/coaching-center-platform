@@ -43,7 +43,9 @@ public class LiveExamEvaluationService {
 
 	private final LiveExamQuestionRepository questions;
 
-	private final LiveExamService examViews;
+	private final LiveExamRetakeGrantRepository retakeGrants;
+
+	private final LiveExamInstructorService examInstructors;
 
 	private final LiveExamSittingService sittings;
 
@@ -65,17 +67,18 @@ public class LiveExamEvaluationService {
 
 	public LiveExamEvaluationService(LiveExamRepository exams, LiveExamModuleRepository modules,
 			LiveExamParticipantRepository participants, LiveExamInstructorRepository instructors,
-			LiveExamQuestionRepository questions, LiveExamService examViews, LiveExamSittingService sittings,
-			UserRepository users, StudentProfileRepository students, AdminProfileRepository admins, LocalFileStorage files,
-			PdfCompressor pdfs, Clock clock, AuditRecorder audit, StudentNoticeWriter notices,
-			LiveExamMemberships memberships) {
+			LiveExamQuestionRepository questions, LiveExamRetakeGrantRepository retakeGrants, LiveExamInstructorService examInstructors,
+			LiveExamSittingService sittings, UserRepository users, StudentProfileRepository students,
+			AdminProfileRepository admins, LocalFileStorage files, PdfCompressor pdfs, Clock clock, AuditRecorder audit,
+			StudentNoticeWriter notices, LiveExamMemberships memberships) {
 		this.memberships = memberships;
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
 		this.instructors = instructors;
 		this.questions = questions;
-		this.examViews = examViews;
+		this.retakeGrants = retakeGrants;
+		this.examInstructors = examInstructors;
 		this.sittings = sittings;
 		this.users = users;
 		this.students = students;
@@ -85,6 +88,19 @@ public class LiveExamEvaluationService {
 		this.clock = clock;
 		this.audit = audit;
 		this.notices = notices;
+	}
+
+	/**
+	 * Sets the package's default instructor, which a new exam in the package inherits. With {@code applyToExams} it also
+	 * sets the instructor of every exam in the package, replacing any it had (D6).
+	 */
+	@Transactional
+	public Assignment assign(UUID moduleId, UUID instructorId, boolean applyToExams) {
+		Assignment assignment = assign(moduleId, instructorId);
+		if (applyToExams) {
+			examInstructors.setForPackageExams(moduleId, instructorId);
+		}
+		return assignment;
 	}
 
 	@Transactional
@@ -109,12 +125,13 @@ public class LiveExamEvaluationService {
 	}
 
 	@Transactional
-	public void unassign(UUID moduleId) {
+	public void unassign(UUID moduleId, boolean applyToExams) {
 		if (modules.findByIdAndDeletedAtIsNull(moduleId).isEmpty()) {
 			throw notFound();
 		}
-		if (!instructors.existsById(moduleId)) {
-			throw notFound();
+		LiveExamInstructor current = instructors.findById(moduleId).orElseThrow(this::notFound);
+		if (applyToExams) {
+			examInstructors.clearForPackageExams(moduleId, current.getInstructorId());
 		}
 		instructors.deleteById(moduleId);
 		audit.record(AuditRecorder.LIVE_EXAM_INSTRUCTOR_UNASSIGN, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, moduleId);
@@ -122,13 +139,22 @@ public class LiveExamEvaluationService {
 
 	@Transactional
 	public List<SubmissionView> list(UUID moduleId, CurrentActor actor) {
-		requireReader(moduleId, actor);
+		if (actor.role() != Role.MASTER_ADMIN && actor.role() != Role.SYSTEM_ADMIN && actor.role() != Role.INSTRUCTOR) {
+			throw denied();
+		}
+		List<LiveExam> readable = exams.findByModuleIdAndStatusAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED).stream()
+			.filter(exam -> reads(exam, actor))
+			.toList();
+		// An instructor holding none of the package's exams has no business here, as before.
+		if (actor.role() == Role.INSTRUCTOR && readable.isEmpty()) {
+			throw denied();
+		}
+		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(moduleId).orElse(null);
 		List<SubmissionView> views = new ArrayList<>();
-		for (LiveExam exam : exams.findByModuleIdAndStatusAndDeletedAtIsNull(moduleId, LiveExam.PUBLISHED)) {
+		for (LiveExam exam : readable) {
 			if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 				continue;
 			}
-			LiveExamModule module = moduleOf(exam);
 			for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(exam.getId())) {
 				views.add(view(participant, exam, module));
 			}
@@ -144,7 +170,7 @@ public class LiveExamEvaluationService {
 			throw notFound();
 		}
 		LiveExam exam = requireExam(participant.getExamId());
-		requireReader(primaryModuleId(exam), actor);
+		requireReader(exam, actor);
 		sittings.settleParticipant(participantId);
 		return view(participant, exam, moduleOf(exam));
 	}
@@ -159,7 +185,7 @@ public class LiveExamEvaluationService {
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is marked.");
 		}
-		requireMarker(primaryModuleId(exam), actor);
+		requireMarker(exam, actor);
 		sittings.settleParticipant(participantId);
 		if (!LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || participant.getAnswerStoredFileName() == null) {
 			throw new ApiException(ErrorCode.EVALUATION_NOT_ALLOWED, HttpStatus.CONFLICT,
@@ -310,60 +336,6 @@ public class LiveExamEvaluationService {
 		return new PublishedCount(published);
 	}
 
-	@Transactional
-	public Leaderboard leaderboard(UUID examId, CurrentActor actor, boolean marker) {
-		LiveExam exam = requireExam(examId);
-		if (marker) {
-			requireMarker(primaryModuleId(exam), actor);
-		}
-		else {
-			examViews.get(examId, false, actor.userId());
-		}
-		if (exam.getLiveAt() == null) {
-			return new Leaderboard(List.of());
-		}
-		Instant openAt = exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes())).plus(Duration.ofMinutes(5));
-		if (clock.instant().isBefore(openAt)) {
-			return new Leaderboard(List.of());
-		}
-		int maximum = maximum(exam);
-		List<BoardRow> scored = new ArrayList<>();
-		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(examId)) {
-			if (!LiveExamParticipant.LIVE.equals(participant.getKind())) {
-				continue;
-			}
-			if (LiveExam.MCQ.equals(exam.getExamType())) {
-				if (!LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || participant.getScore() == null) {
-					continue;
-				}
-			}
-			else if (LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())) {
-				// A missing PDF is already scored zero and does not wait for publish.
-			}
-			else if (participant.getPublishedAt() == null || participant.getScore() == null) {
-				continue;
-			}
-			scored.add(new BoardRow(participant.getStudentId(), studentName(participant.getStudentId()),
-					McqScoring.plain(participant.getScore()), maximum, participant.getPassed() != null && participant.getPassed()));
-		}
-		scored.sort(Comparator.comparing(BoardRow::score).reversed().thenComparing(BoardRow::name));
-		// "mine" is for a student reading the list, and only their own row. Staff never get it.
-		boolean student = !marker && actor.role() == Role.STUDENT;
-		List<LeaderboardRow> rows = new ArrayList<>();
-		int rank = 1;
-		BigDecimal previous = null;
-		for (int index = 0; index < scored.size(); index++) {
-			BoardRow row = scored.get(index);
-			if (previous != null && row.score().compareTo(previous) != 0) {
-				rank = index + 1;
-			}
-			previous = row.score();
-			boolean mine = student && actor.userId().equals(row.studentId());
-			rows.add(new LeaderboardRow(row.name(), rank, row.score(), row.maximum(), row.passed(), mine));
-		}
-		return new Leaderboard(rows);
-	}
-
 	@Transactional(readOnly = true)
 	public byte[] answerPdf(UUID participantId, CurrentActor actor) {
 		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
@@ -371,7 +343,7 @@ public class LiveExamEvaluationService {
 			throw notFound();
 		}
 		LiveExam exam = requireExam(participant.getExamId());
-		requireMarker(primaryModuleId(exam), actor);
+		requireMarker(exam, actor);
 		if (participant.getAnswerStoredFileName() == null) {
 			throw notFound();
 		}
@@ -383,9 +355,17 @@ public class LiveExamEvaluationService {
 		}
 	}
 
+	/**
+	 * The student's own marked PDF. {@code attempt} picks one attempt; without it, the latest attempt whose result is
+	 * released, so a retake still waiting for its mark does not hide the first result's PDF.
+	 */
 	@Transactional(readOnly = true)
-	public byte[] evaluatedPdf(UUID examId, UUID studentId) {
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+	public byte[] evaluatedPdf(UUID examId, UUID studentId, Integer attempt) {
+		List<LiveExamParticipant> own = participants
+			.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(examId, studentId);
+		LiveExamParticipant participant = own.stream()
+			.filter(p -> attempt == null ? p.getPublishedAt() != null : p.getAttemptNo() == attempt)
+			.findFirst()
 			.orElseThrow(this::notFound);
 		if (participant.getPublishedAt() == null || participant.getEvaluatedStoredFileName() == null) {
 			throw notFound();
@@ -407,7 +387,7 @@ public class LiveExamEvaluationService {
 		}
 		LiveExam exam = requireExam(participant.getExamId());
 		String stored = storedFileOf(participant);
-		if (!readerOf(primaryModuleId(exam), actor) || stored == null) {
+		if (!reads(exam, actor) || stored == null) {
 			throw notFound();
 		}
 		try {
@@ -418,22 +398,55 @@ public class LiveExamEvaluationService {
 		}
 	}
 
-	/** The written question paper for staff readers. An unassigned instructor gets 404, not 403. */
+	/**
+	 * The written question paper for staff readers. An unassigned instructor gets 404, not 403. With a participant, the
+	 * paper that participant sat (E29); without one, the exam's published paper. An instructor reads a live exam's paper
+	 * once its window has ended, and a practice exam's paper only through a participant, after that participant's deadline.
+	 */
 	@Transactional(readOnly = true)
-	public byte[] questionPdf(UUID examId, CurrentActor actor) {
+	public byte[] questionPdf(UUID examId, CurrentActor actor, UUID participantId) {
 		LiveExam exam = requireExam(examId);
-		if (!readerOf(primaryModuleId(exam), actor) || exam.getQuestionStoredFileName() == null) {
+		LiveExamParticipant participant = null;
+		if (participantId != null) {
+			participant = participants.findById(participantId).orElseThrow(this::notFound);
+			if (participant.getDeletedAt() != null || !examId.equals(participant.getExamId())) {
+				throw notFound();
+			}
+		}
+		if (!reads(exam, actor)) {
 			throw notFound();
 		}
-		if (actor.role() == Role.INSTRUCTOR && !windowEnded(exam)) {
+		if (actor.role() == Role.INSTRUCTOR && !paperOpenToInstructor(exam, participant)) {
+			throw notFound();
+		}
+		String stored = sittings.paperFile(exam, participant == null ? null : participant.getQuestionPaperId());
+		if (stored == null) {
 			throw notFound();
 		}
 		try {
-			return Files.readAllBytes(files.resolve(exam.getQuestionStoredFileName()));
+			return Files.readAllBytes(files.resolve(stored));
 		}
 		catch (IOException exception) {
 			throw notFound();
 		}
+	}
+
+	/** The paper this participant sat, for a staff reader. */
+	@Transactional(readOnly = true)
+	public byte[] participantQuestionPdf(UUID participantId, CurrentActor actor) {
+		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
+		return questionPdf(participant.getExamId(), actor, participantId);
+	}
+
+	private boolean paperOpenToInstructor(LiveExam exam, LiveExamParticipant participant) {
+		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			return false;
+		}
+		Instant now = clock.instant();
+		if (LiveExam.MODE_PRACTICE.equals(exam.getMode())) {
+			return participant != null && !now.isBefore(participant.getDeadlineAt());
+		}
+		return ExamWindow.ENDED.equals(ExamWindow.phase(exam, now));
 	}
 
 	private SubmissionView view(LiveExamParticipant participant, LiveExam exam, LiveExamModule module) {
@@ -443,19 +456,24 @@ public class LiveExamEvaluationService {
 			evaluatorName = admins.findById(evaluator).map(profile -> profile.getFullName()).orElse(null);
 		}
 		boolean pending = participant.hasPendingRevision();
+		RetakeGrantView grant = retakeGrants.findActive(exam.getId(), participant.getStudentId())
+			.map(found -> new RetakeGrantView(found.getId(), found.getUsedParticipantId() != null))
+			.orElse(null);
 		return new SubmissionView(participant.getId(), exam.getId(), participant.getStudentId(),
 				studentName(participant.getStudentId()), participant.getStatus(), McqScoring.plain(scoreOf(participant)), maximum(exam),
 				passedOf(participant), LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 				participant.getAnswerStoredFileName() != null,
 				storedFileOf(participant) == null ? null : Boolean.TRUE, evaluatorName,
 				participant.getPublishedAt() != null && !pending, commentOf(participant), originalFileOf(participant),
-				module.getId(), module.getTitleEn(), module.getTitleBn(), exam.getTitleEn(), exam.getTitleBn(),
+				module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
+				module == null ? null : module.getTitleBn(), exam.getTitleEn(), exam.getTitleBn(),
 				participant.getSubmittedAt(), markedAt(participant), participant.getPublishedAt(), pending ? Boolean.TRUE : null,
-				participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE);
+				participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE, participant.getAttemptNo(), grant);
 	}
 
+	/** The package shown beside a paper: the exam's first active one, or null for an exam in no package. */
 	private LiveExamModule moduleOf(LiveExam exam) {
-		return modules.findById(primaryModuleId(exam)).orElseThrow(this::notFound);
+		return memberships.primaryModuleId(exam.getId()).flatMap(modules::findById).orElse(null);
 	}
 
 	/**
@@ -472,7 +490,7 @@ public class LiveExamEvaluationService {
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is marked.");
 		}
-		requireMarker(primaryModuleId(exam), actor);
+		requireMarker(exam, actor);
 		sittings.settleParticipant(participantId);
 		if (!ready) {
 			participant.setReadyForReleaseAt(null);
@@ -531,11 +549,6 @@ public class LiveExamEvaluationService {
 	/** The mark a staff reader works on: the correction waiting for release if there is one, else the released or draft mark. */
 	private static Instant markedAt(LiveExamParticipant participant) {
 		return participant.hasPendingRevision() ? participant.getPendingEvaluatedAt() : participant.getEvaluatedAt();
-	}
-
-	/** The exam's package for marking and reading: its first active membership. Throws when it is in none. */
-	private UUID primaryModuleId(LiveExam exam) {
-		return memberships.primaryModuleId(exam.getId()).orElseThrow(this::notFound);
 	}
 
 	private static BigDecimal scoreOf(LiveExamParticipant participant) {
@@ -608,38 +621,30 @@ public class LiveExamEvaluationService {
 				compressed.length, LiveExamSittingService.MAX_PDF_BYTES);
 	}
 
-	/** An instructor reads a paper only after its shared window has ended (liveAt plus the duration). */
-	private boolean windowEnded(LiveExam exam) {
-		return LiveExam.PUBLISHED.equals(exam.getStatus()) && exam.getLiveAt() != null
-				&& !clock.instant().isBefore(exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes())));
-	}
-
-	private void requireMarker(UUID moduleId, CurrentActor actor) {
-		if (actor.role() == Role.MASTER_ADMIN) {
-			return;
-		}
-		if (assignedInstructor(moduleId, actor)) {
+	private void requireMarker(LiveExam exam, CurrentActor actor) {
+		if (actor.role() == Role.MASTER_ADMIN || assignedInstructor(exam, actor)) {
 			return;
 		}
 		throw denied();
 	}
 
-	private void requireReader(UUID moduleId, CurrentActor actor) {
-		if (!readerOf(moduleId, actor)) {
+	private void requireReader(LiveExam exam, CurrentActor actor) {
+		if (!reads(exam, actor)) {
 			throw denied();
 		}
 	}
 
-	private boolean readerOf(UUID moduleId, CurrentActor actor) {
-		return actor.role() == Role.MASTER_ADMIN || actor.role() == Role.SYSTEM_ADMIN || assignedInstructor(moduleId, actor);
+	static boolean reads(LiveExam exam, CurrentActor actor) {
+		return marks(exam, actor) || actor.role() == Role.SYSTEM_ADMIN;
 	}
 
-	private boolean assignedInstructor(UUID moduleId, CurrentActor actor) {
-		if (actor.role() != Role.INSTRUCTOR) {
-			return false;
-		}
-		LiveExamInstructor assignment = instructors.findById(moduleId).orElse(null);
-		return assignment != null && actor.userId().equals(assignment.getInstructorId());
+	/** Who marks an exam: the Master Admin, or the instructor assigned to the exam itself (D6, contracts §8). */
+	static boolean marks(LiveExam exam, CurrentActor actor) {
+		return actor.role() == Role.MASTER_ADMIN || assignedInstructor(exam, actor);
+	}
+
+	private static boolean assignedInstructor(LiveExam exam, CurrentActor actor) {
+		return actor.role() == Role.INSTRUCTOR && actor.userId().equals(exam.getInstructorId());
 	}
 
 	private String studentName(UUID studentId) {
@@ -696,16 +701,11 @@ public class LiveExamEvaluationService {
 			int maximum, Boolean passed, String kind, String attemptKind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
 			boolean published, String comment, String evaluatedFileName, UUID moduleId, String moduleTitleEn,
 			String moduleTitleBn, String examTitleEn, String examTitleBn, Instant submittedAt, Instant evaluatedAt,
-			Instant publishedAt, Boolean releasePending, Boolean readyForRelease) {
+			Instant publishedAt, Boolean releasePending, Boolean readyForRelease, int attemptNo, RetakeGrantView retakeGrant) {
 	}
 
-	public record Leaderboard(List<LeaderboardRow> rows) {
-	}
-
-	public record LeaderboardRow(String name, int rank, BigDecimal score, int maximum, boolean passed, boolean mine) {
-	}
-
-	private record BoardRow(UUID studentId, String name, BigDecimal score, int maximum, boolean passed) {
+	/** A written retake grant on the student's result: whether the retake it allows was used. */
+	public record RetakeGrantView(UUID id, boolean used) {
 	}
 
 }

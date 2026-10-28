@@ -30,7 +30,8 @@ import com.coachingcenter.api.users.StudentProfileRepository;
 @Service
 public class LiveExamResultsService {
 
-	private static final Set<String> KINDS = Set.of(LiveExamParticipant.LIVE, LiveExamParticipant.RETAKE);
+	private static final Set<String> KINDS = Set.of(LiveExamParticipant.LIVE, LiveExamParticipant.ARCHIVED,
+			LiveExamParticipant.RETAKE, LiveExamParticipant.PRACTICE);
 
 	private static final Set<String> STATUSES = Set.of(LiveExamParticipant.IN_PROGRESS, LiveExamParticipant.SUBMITTED,
 			LiveExamParticipant.FAILED_TO_SUBMIT);
@@ -46,7 +47,7 @@ public class LiveExamResultsService {
 
 	private final LiveExamQuestionRepository questions;
 
-	private final LiveExamInstructorRepository instructors;
+	private final LiveExamRetakeGrantRepository retakeGrants;
 
 	private final StudentProfileRepository students;
 
@@ -54,24 +55,26 @@ public class LiveExamResultsService {
 
 	public LiveExamResultsService(LiveExamRepository exams, LiveExamModuleRepository modules,
 			LiveExamParticipantRepository participants, LiveExamQuestionRepository questions,
-			LiveExamInstructorRepository instructors, StudentProfileRepository students, LiveExamMemberships memberships) {
+			LiveExamRetakeGrantRepository retakeGrants, StudentProfileRepository students, LiveExamMemberships memberships) {
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
 		this.questions = questions;
-		this.instructors = instructors;
+		this.retakeGrants = retakeGrants;
 		this.memberships = memberships;
 		this.students = students;
 	}
 
 	/**
-	 * Master Admin and System Admin read every exam. An instructor reads a written exam in an assigned module; anything
-	 * else is 404. {@code kind} is LIVE or RETAKE (practice), {@code status} a participant status.
+	 * Master Admin and System Admin read every exam. An instructor reads a written exam assigned to them; anything else is
+	 * 404. {@code kind} is LIVE, or RETAKE for every attempt that is not the live one (the value the current web sends), and
+	 * also ARCHIVED or PRACTICE; {@code attemptKind} matches one full value exactly. {@code status} is a participant status.
 	 */
 	@Transactional
-	public ResultsReport report(UUID examId, CurrentActor actor, String kind, String status, String q, String sort,
-			Pageable pageable) {
+	public ResultsReport report(UUID examId, CurrentActor actor, String kind, String attemptKind, String status, String q,
+			String sort, Pageable pageable) {
 		String kindFilter = filter(kind, KINDS);
+		String attemptFilter = filter(attemptKind, KINDS);
 		String statusFilter = filter(status, STATUSES);
 		String order = sort == null || sort.isBlank() ? "submittedAt,desc" : sort.trim();
 		if (!SORTS.contains(order)) {
@@ -79,7 +82,7 @@ public class LiveExamResultsService {
 		}
 		LiveExam exam = exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
 		if (actor.role() == Role.INSTRUCTOR) {
-			if (!LiveExam.WRITTEN.equals(exam.getExamType()) || !assigned(primaryModuleId(exam), actor)) {
+			if (!LiveExam.WRITTEN.equals(exam.getExamType()) || !actor.userId().equals(exam.getInstructorId())) {
 				throw notFound();
 			}
 		}
@@ -89,11 +92,14 @@ public class LiveExamResultsService {
 		int maximum = maximum(exam);
 		List<LiveExamParticipant> all = participants.findByExamIdAndDeletedAtIsNull(examId);
 		Map<UUID, StudentProfile> profiles = profiles(all);
+		Map<UUID, LiveExamRetakeGrant> grants = new HashMap<>();
+		retakeGrants.findAllActive(examId).forEach(grant -> grants.put(grant.getStudentId(), grant));
 		String needle = q == null ? "" : q.trim().toLowerCase();
 		List<Row> rows = all.stream()
-			.filter(p -> kindFilter == null || kindFilter.equals(LiveExamParticipant.legacyKind(p.getKind())))
+			.filter(p -> kindFilter == null || kindMatches(kindFilter, p.getKind()))
+			.filter(p -> attemptFilter == null || attemptFilter.equals(p.getKind()))
 			.filter(p -> statusFilter == null || statusFilter.equals(p.getStatus()))
-			.map(p -> row(p, maximum, profiles.get(p.getStudentId())))
+			.map(p -> row(p, maximum, profiles.get(p.getStudentId()), grants))
 			.filter(row -> needle.isEmpty() || row.studentName().toLowerCase().contains(needle)
 					|| row.studentCode().toLowerCase().contains(needle))
 			.sorted(comparator(order))
@@ -117,33 +123,30 @@ public class LiveExamResultsService {
 		for (UUID examId : examIds) {
 			exams.findByIdAndDeletedAtIsNull(examId).ifPresent(exam -> examById.put(exam.getId(), exam));
 		}
-		Map<UUID, LiveExamModule> moduleById = new HashMap<>();
+		Map<UUID, LiveExamModule> moduleByExam = new HashMap<>();
 		for (LiveExam exam : examById.values()) {
-			modules.findByIdAndDeletedAtIsNull(primaryModuleId(exam)).ifPresent(module -> moduleById.put(module.getId(), module));
+			memberships.primaryModuleId(exam.getId())
+				.flatMap(modules::findByIdAndDeletedAtIsNull)
+				.ifPresent(module -> moduleByExam.put(exam.getId(), module));
 		}
 		Map<UUID, Integer> maximumByExam = new HashMap<>();
 		examById.values().forEach(exam -> maximumByExam.put(exam.getId(), maximum(exam)));
 		return PageResponse.from(page.map(participant -> {
 			LiveExam exam = examById.get(participant.getExamId());
-			LiveExamModule module = exam == null ? null : moduleById.get(primaryModuleId(exam));
+			LiveExamModule module = exam == null ? null : moduleByExam.get(exam.getId());
 			return new HistoryRow(participant.getId(), exam == null ? null : exam.getId(),
 					exam == null ? null : exam.getTitleEn(), exam == null ? null : exam.getTitleBn(),
 					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
 					module == null ? null : module.getTitleBn(), LiveExamParticipant.legacyKind(participant.getKind()),
 					participant.getKind(), participant.getStatus(),
 					McqScoring.plain(participant.getScore()), maximumByExam.getOrDefault(participant.getExamId(), 0), participant.getPassed(),
-					participant.getSubmittedAt(), published(participant, exam));
+					participant.getSubmittedAt(), published(participant, exam), participant.getAttemptNo());
 		}));
 	}
 
-	/** The exam's package for listing and marking: its first active membership, or null when it is in none. */
-	private UUID primaryModuleId(LiveExam exam) {
-		return memberships.primaryModuleId(exam.getId()).orElse(null);
-	}
-
-	private boolean assigned(UUID moduleId, CurrentActor actor) {
-		return instructors.findById(moduleId).map(assignment -> actor.userId().equals(assignment.getInstructorId()))
-			.orElse(false);
+	/** The legacy RETAKE filter means every attempt that is not the live one; the other values match exactly. */
+	private static boolean kindMatches(String filter, String kind) {
+		return LiveExamParticipant.RETAKE.equals(filter) ? !LiveExamParticipant.LIVE.equals(kind) : filter.equals(kind);
 	}
 
 	private Map<UUID, StudentProfile> profiles(List<LiveExamParticipant> all) {
@@ -155,12 +158,15 @@ public class LiveExamResultsService {
 		return byId;
 	}
 
-	private Row row(LiveExamParticipant participant, int maximum, StudentProfile profile) {
+	private Row row(LiveExamParticipant participant, int maximum, StudentProfile profile, Map<UUID, LiveExamRetakeGrant> grants) {
+		LiveExamRetakeGrant grant = grants.get(participant.getStudentId());
 		return new Row(participant.getId(), participant.getStudentId(), profile == null ? "" : profile.getFullName(),
 				profile == null || profile.getStudentCode() == null ? "" : profile.getStudentCode(), participant.getStatus(),
 				LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 				McqScoring.plain(participant.getScore()), maximum, participant.getPassed(), participant.getStartedAt(),
-				participant.getSubmittedAt(), participant.getPublishedAt(), participant.hasPendingRevision() ? Boolean.TRUE : null);
+				participant.getSubmittedAt(), participant.getPublishedAt(), participant.hasPendingRevision() ? Boolean.TRUE : null,
+				participant.getAttemptNo(),
+				grant == null ? null : new LiveExamEvaluationService.RetakeGrantView(grant.getId(), grant.getUsedParticipantId() != null));
 	}
 
 	private int maximum(LiveExam exam) {
@@ -174,9 +180,14 @@ public class LiveExamResultsService {
 		return sum;
 	}
 
-	/** Live rows only. A score counts once it is final: an MCQ submit, or a written publish, or a no-submit zero. */
+	/**
+	 * Board attempts only (the live attempt, or a practice exam's first attempt), plus a count per kind. A score counts once
+	 * it is final: an MCQ submit, or a written publish, or a no-submit zero.
+	 */
 	private static Summary summary(List<LiveExamParticipant> all, LiveExam exam) {
-		List<LiveExamParticipant> live = all.stream().filter(p -> LiveExamParticipant.LIVE.equals(p.getKind())).toList();
+		List<LiveExamParticipant> live = all.stream()
+			.filter(p -> LiveExamParticipant.LIVE.equals(p.getKind()) || LiveExamParticipant.PRACTICE.equals(p.getKind()))
+			.toList();
 		List<LiveExamParticipant> finals = live.stream().filter(p -> counted(p, exam)).toList();
 		List<BigDecimal> scores = finals.stream().map(p -> McqScoring.plain(p.getScore())).toList();
 		int submitted = (int) live.stream().filter(p -> LiveExamParticipant.SUBMITTED.equals(p.getStatus())).count();
@@ -194,7 +205,13 @@ public class LiveExamResultsService {
 			lowest = scores.stream().min(Comparator.naturalOrder()).orElse(null);
 			passRate = Math.round((double) passCount * 1000 / scores.size()) / 10.0;
 		}
-		return new Summary(live.size(), submitted, failed, average, highest, lowest, passCount, passRate, practice);
+		return new Summary(live.size(), submitted, failed, average, highest, lowest, passCount, passRate, practice,
+				count(all, LiveExamParticipant.LIVE), count(all, LiveExamParticipant.ARCHIVED), count(all, LiveExamParticipant.RETAKE),
+				count(all, LiveExamParticipant.PRACTICE));
+	}
+
+	private static int count(List<LiveExamParticipant> all, String kind) {
+		return (int) all.stream().filter(p -> kind.equals(p.getKind())).count();
 	}
 
 	private static boolean counted(LiveExamParticipant participant, LiveExam exam) {
@@ -248,14 +265,19 @@ public class LiveExamResultsService {
 		return new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 	}
 
-	/** The summary counts live sittings only. {@code passRate} is a percentage of the counted results. */
+	/**
+	 * The averages and pass figures cover board attempts only (live, or a practice exam's first attempt). {@code passRate} is
+	 * a percentage of the counted results. {@code live}, {@code archived}, {@code retake} and {@code practice} count every
+	 * attempt of that kind; {@code practiceParticipants} is the legacy count of every attempt that is not the live one.
+	 */
 	public record Summary(int participants, int submitted, int failedToSubmit, Double averageScore, BigDecimal highestScore,
-			BigDecimal lowestScore, int passCount, Double passRate, int practiceParticipants) {
+			BigDecimal lowestScore, int passCount, Double passRate, int practiceParticipants, int live, int archived,
+			int retake, int practice) {
 	}
 
 	public record Row(UUID participantId, UUID studentId, String studentName, String studentCode, String status,
 			String kind, String attemptKind, BigDecimal score, int maximum, Boolean passed, Instant startedAt, Instant submittedAt,
-			Instant publishedAt, Boolean releasePending) {
+			Instant publishedAt, Boolean releasePending, int attemptNo, LiveExamEvaluationService.RetakeGrantView retakeGrant) {
 	}
 
 	public record ResultsReport(Summary summary, PageResponse<Row> rows) {
@@ -264,7 +286,7 @@ public class LiveExamResultsService {
 	public record HistoryRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, String kind, String attemptKind, String status, BigDecimal score,
 			int maximum,
-			Boolean passed, Instant submittedAt, boolean published) {
+			Boolean passed, Instant submittedAt, boolean published, int attemptNo) {
 	}
 
 }

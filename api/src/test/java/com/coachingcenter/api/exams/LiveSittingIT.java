@@ -87,7 +87,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void readingBeforeTakeHidesStemsAndALateTapKeepsTheSharedEnd() throws Exception {
+	void readingBeforeTakeHidesStemsAndALateTapRunsItsOwnDuration() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -113,9 +113,12 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"startedAt\":\"2026-10-20T09:00:00+06:00\"}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T12:40:00+06:00"))
+			// D15: the deadline is the student's own start plus the duration, not the shared window end (12:40).
+			.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T12:50:00+06:00"))
 			.andExpect(jsonPath("$.serverTime").value("2026-10-20T12:10:00+06:00"))
 			.andExpect(jsonPath("$.kind").value("LIVE"))
+			.andExpect(jsonPath("$.attemptKind").value("LIVE"))
+			.andExpect(jsonPath("$.attemptNo").value(1))
 			.andReturn();
 		UUID participantId = UUID.fromString(json.readTree(taken.getResponse().getContentAsString()).get("id").asText());
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + student)
@@ -138,7 +141,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void savingReplacesTheSelectionAndAnEarlySubmitHidesTheReviewUntilTheDeadline() throws Exception {
+	void savingReplacesTheSelectionAndAnEarlySubmitShowsTheKeyAtOnce() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -165,28 +168,12 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getContentAsString();
 		assertThat(posted).doesNotContain("correct", "Because");
 
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
-		String withheld = mockMvc
-			.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.questions[0].stem").exists())
-			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
-			.andExpect(jsonPath("$.questions[0].options[0].correct").doesNotExist())
-			.andExpect(jsonPath("$.questions[0].explanation").doesNotExist())
-			.andReturn()
-			.getResponse()
-			.getContentAsString();
-		assertThat(withheld).doesNotContain("\"correct\"", "Because");
-		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
-			.andExpect(jsonPath("$.questions[0].options[0].correct").doesNotExist())
-			.andExpect(jsonPath("$.questions[0].explanation").doesNotExist());
-
-		releaseAnswers(holder.examId());
+		// D21: the key and the explanations come with the result at submit, mid-window, with no release step.
+		clock.set(Instant.parse("2026-10-20T06:20:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
 			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
 			.andExpect(jsonPath("$.questions[0].options[1].correct").value(false));
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
@@ -196,7 +183,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void releasedAnswersStayHiddenWhileTheStudentsOwnSittingIsOpen() throws Exception {
+	void theKeyStaysHiddenWhileTheSittingIsOpenWhateverTheReleaseSwitchSaysAndShowsOnSubmit() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -217,26 +204,20 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsString();
 		assertThat(during).doesNotContain("\"correct\"", "Because");
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk());
-		String early = mockMvc
-			.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.questions").doesNotExist())
-			.andReturn()
-			.getResponse()
-			.getContentAsString();
-		assertThat(early).doesNotContain("\"correct\"", "Because");
-		assertThat(mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andReturn()
-			.getResponse()
-			.getContentAsString()).doesNotContain("\"correct\"", "Because");
-
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+
+		// The switch is no longer read (P-d): an exam whose answers were never released shows them at submit all the same.
+		new JdbcTemplate(dataSource).update("update live_exams set answers_released_at = null where id = ?", holder.examId());
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
 	}
 
@@ -299,7 +280,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aStudentWhoNeverTappedCanRetakeOnceAndALiveParticipantCannot() throws Exception {
+	void aStudentWhoNeverTappedStartsLateAsArchivedAndAnOpenSittingCannotBeRetaken() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -312,29 +293,33 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + live)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}"))
-			.andExpect(status().isOk());
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("LIVE"))
+			.andExpect(jsonPath("$.attemptKind").value("LIVE"));
 
+		// D1: an open attempt is handed back, even after the window has ended; the deadline is the student's own (06:50).
 		clock.set(Instant.parse("2026-10-20T06:41:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + live)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.attemptNo").value(1))
+			.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T12:50:00+06:00"));
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + live))
 			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
+			.andExpect(jsonPath("$.code").value("ATTEMPT_IN_PROGRESS"));
+
+		// D20 and contracts §7.9: a student who never started may start after the window, as an archived attempt.
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/take").header("Authorization", "Bearer " + absent)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
-		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + live))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
-		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + absent))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.kind").value("RETAKE"))
+			.andExpect(jsonPath("$.attemptKind").value("ARCHIVED"))
 			.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T13:21:00+06:00"));
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + absent))
 			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("RETAKE_NOT_ALLOWED"));
+			.andExpect(jsonPath("$.code").value("ATTEMPT_IN_PROGRESS"));
 	}
 
 	@Test
@@ -384,7 +369,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isPayloadTooLarge());
 		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(secondName);
 
-		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		// The sitting started at 06:50, so its deadline is 07:30 (D15).
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + missing))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("FAILED_TO_SUBMIT"))
@@ -393,7 +379,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void anEarlySubmitStillAcceptsALaterSaveAndTheDeadlinePostsThatSelection() throws Exception {
+	void anEarlySubmitShowsTheKeyAtOnceAndRefusesALaterSave() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -414,28 +400,24 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsString();
 		assertThat(posted).doesNotContain("Because");
+		// D21: the key and the explanations come with the result as soon as the attempt is submitted.
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(2))
-			.andExpect(jsonPath("$.questions").doesNotExist());
-
-		save(student, holder.examId(), holder.questions());
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
-		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(10))
-			.andExpect(jsonPath("$.passed").value(true));
-		releaseAnswers(holder.examId());
-		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(10))
-			.andExpect(jsonPath("$.passed").value(true))
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
-			.andExpect(jsonPath("$.questions[0].options[0].correct").exists());
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true));
+
+		// A posted score must not drift away from the answers it was scored on, so a later save is refused.
+		mockMvc.perform(put("/api/v1/live-exams/" + holder.examId() + "/answers").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(answersJson(holder.questions())))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
+		assertThat(sittingScore(holder.examId(), holder.studentId())).isEqualTo(2);
 	}
 
 	@Test
-	void aRetakeSubmitHidesTheReviewUntilThePersonalTimerEnds() throws Exception {
+	void anArchivedSittingShowsItsKeyOnSubmitAndAMcqRetakeIsAFreshAttempt() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -445,6 +427,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:41:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + absent))
 			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.attemptKind").value("ARCHIVED"))
 			.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T13:21:00+06:00"));
 		save(absent, holder.examId(), holder.questions().subList(0, 1));
 		String posted = mockMvc
@@ -455,21 +438,17 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsString();
 		assertThat(posted).doesNotContain("Because");
-		save(absent, holder.examId(), holder.questions());
-		clock.set(Instant.parse("2026-10-20T07:20:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + absent))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(2))
-			.andExpect(jsonPath("$.questions").doesNotExist());
-		clock.set(Instant.parse("2026-10-20T07:21:00Z"));
-		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + absent))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(10));
-		releaseAnswers(holder.examId());
-		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + absent))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(10))
+			.andExpect(jsonPath("$.attemptKind").value("ARCHIVED"))
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+		// D19: MCQ retakes are unlimited, so a finished attempt is followed by a new one, and it is not on the board.
+		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/retake").header("Authorization", "Bearer " + absent))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("RETAKE"))
+			.andExpect(jsonPath("$.attemptKind").value("RETAKE"))
+			.andExpect(jsonPath("$.attemptNo").value(2));
 	}
 
 	@Test
@@ -492,7 +471,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.content("{}"))
 			.andExpect(status().isOk());
 		save(saved, holder.examId(), holder.questions().subList(0, 2));
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		// The sitting's own deadline is 06:50 (D15), so the read after it posts the attempt.
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + saved))
 			.andExpect(status().isOk());
@@ -530,7 +510,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + stored))
 			.andExpect(status().isNoContent());
-		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		// The sitting started at 06:50, so its deadline is 07:30 (D15), not the window end.
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
 
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + missing))
 			.andExpect(status().isOk());
@@ -566,7 +547,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(submittedAt(holder.examId(), holder.studentId())).isNull();
 		assertThat(submittedAt(holder.examId(), blankId)).isNull();
 
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		deadlineJob.settleDue();
 
 		assertThat(sittingStatus(holder.examId(), holder.studentId())).isEqualTo("SUBMITTED");
@@ -577,7 +558,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		Object firstPost = submittedAt(holder.examId(), holder.studentId());
 		assertThat(firstPost).isNotNull();
 
-		clock.set(Instant.parse("2026-10-20T06:55:00Z"));
+		clock.set(Instant.parse("2026-10-20T07:00:00Z"));
 		deadlineJob.settleDue();
 		assertThat(submittedAt(holder.examId(), holder.studentId())).isEqualTo(firstPost);
 		assertThat(sittingScore(holder.examId(), holder.studentId())).isEqualTo(5);
@@ -607,7 +588,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + stored))
 			.andExpect(status().isNoContent());
 
-		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
 		deadlineJob.settleDue();
 
 		assertThat(sittingStatus(exam, missingId)).isEqualTo("FAILED_TO_SUBMIT");
@@ -637,13 +618,13 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T13:25:00+06:00"));
+				.andExpect(jsonPath("$.deadlineAt").value("2026-10-20T13:30:00+06:00"));
 		}
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "first.pdf",
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + uploader))
 			.andExpect(status().isNoContent());
-		clock.set(Instant.parse("2026-10-20T07:24:59Z"));
+		clock.set(Instant.parse("2026-10-20T07:29:59Z"));
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "last.pdf",
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + uploader))
@@ -651,7 +632,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
 		String last = storedAnswer(exam, uploaderId);
 
-		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "late.pdf",
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + uploader))
@@ -782,16 +763,21 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(detailStatus(student, holder.examId())).isEqualTo("SUBMITTED");
 		assertThat(myStatus(other, holder.moduleId(), holder.examId())).isEqualTo("OPEN");
 
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		// The window has ended at 06:40, but the sitting runs to its own deadline, 06:50 (D15).
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		assertThat(myStatus(student, holder.moduleId(), holder.examId())).isEqualTo("RESULT_READY");
 		assertThat(detailStatus(student, holder.examId())).isEqualTo("RESULT_READY");
 		assertThat(myStatus(other, holder.moduleId(), holder.examId())).isEqualTo("MISSED");
+		assertThat(json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + holder.examId())
+			.header("Authorization", "Bearer " + other)).andReturn().getResponse().getContentAsString())
+			.get("myStatusDetail").asText()).isEqualTo("ARCHIVED_OPEN");
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + holder.moduleId() + "/exams")
 			.header("Authorization", "Bearer " + other))
 			.andExpect(jsonPath("$.content[0].retakeAvailable").value(true));
+		// D19: MCQ retakes are unlimited, so a finished attempt offers the next one.
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + holder.moduleId() + "/exams")
 			.header("Authorization", "Bearer " + student))
-			.andExpect(jsonPath("$.content[0].retakeAvailable").value(false));
+			.andExpect(jsonPath("$.content[0].retakeAvailable").value(true));
 	}
 
 	@Test
@@ -1038,7 +1024,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getContentAsString();
 		assertThat(during).doesNotContain("\"correct\"", "Because");
 
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		// Past the sitting's own deadline (06:50), the key shows on the student's read (D21); the release switch is ignored.
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		releaseAnswers(holder.examId());
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
@@ -1288,7 +1275,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + other))
 			.andExpect(status().isNotFound());
 
-		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
+		// The sitting started at 06:50, so it is over at 07:30 (D15), whatever the window says.
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + sitter))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questionPdf").doesNotExist());
@@ -1587,6 +1575,8 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T07:25:00Z"));
 		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
 			.andExpect(jsonPath("$.content").isEmpty());
+		// The written sitting, started at 06:50, is due at 07:30 (D15).
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + later + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk());
 	}
@@ -1612,7 +1602,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}"))
 			.andExpect(status().isOk());
-		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + hiddenExam + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(0));
@@ -1983,10 +1973,11 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				studentId);
 	}
 
-	private int sittingScore(UUID examId, UUID studentId) {
+	/** The stored score. The column is NUMERIC(8,2) (NR-01 V47), so it is read as a decimal. */
+	private double sittingScore(UUID examId, UUID studentId) {
 		return new JdbcTemplate(dataSource).queryForObject(
-				"select score from live_exam_participants where exam_id = ? and student_id = ?", Integer.class, examId,
-				studentId);
+				"select score from live_exam_participants where exam_id = ? and student_id = ?", java.math.BigDecimal.class,
+				examId, studentId).doubleValue();
 	}
 
 	private String storedAnswer(UUID examId, UUID studentId) {
