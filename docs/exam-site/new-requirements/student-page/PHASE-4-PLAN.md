@@ -1,6 +1,6 @@
 # Student page, Phase 4: plan
 
-Status: **planning only.** No code yet. Questions in section 9 need answers before step S4.1 starts.
+Status: **planned and answered (2026-10-29). Ready to build.** No code yet.
 Branch: `ui/nr01-ui` (worktree `F:\cc-wt\nr01-ui`). Commit only, no push.
 Builds on: S0 to S3 (see `plan.md`, `progress/S0-review.md` to `progress/S3-review.md`).
 
@@ -8,215 +8,274 @@ Builds on: S0 to S3 (see `plan.md`, `progress/S0-review.md` to `progress/S3-revi
 
 | # | Request | Where it lands |
 |---|---|---|
-| A1 | My exams: filter or tab for MCQ and Written | `my-exams-page.tsx` |
+| A1 | My exams: filter for MCQ and Written | `catalog/my-exams-page.tsx` |
 | A2 | Remove MCQ and Written links from the desktop top bar (doors stay reachable from Home) | `shell/student-shell.tsx` |
 | A3 | Results: same MCQ and Written filter | `result/results-hub.tsx` |
-| A4 | Category and subcategory cards: show exam count and package count | `catalog/door-page.tsx`, `catalog-helpers.ts` |
+| A4 | Category and subcategory cards: exam count and package count | `catalog/door-page.tsx`, `catalog-helpers.ts` |
 | A5 | Package page: smaller photo; purchase button is the main focus | `catalog/module-page.tsx` |
-| A6 | Exam page: details first; no large photo | `catalog/exam-page.tsx` |
+| A6 | Exam page: exam image as a banner, but details first | `catalog/exam-page.tsx`, API E1 |
 | A7 | Wish List control: compact, not a full row | `catalog/favourite-button.tsx`, `exam-row.tsx`, `module-page.tsx`, `exam-page.tsx` |
-| A8 | Notices: tabs for Results, Exams, Announcements; restyled cards | `app/(site)/notices/` |
-| A9 | Payment history: previous payments, backend features, link from menu and from bought items in My exams | `app/(site)/account/payments/`, `shell/student-shell.tsx`, `my-exams-page.tsx` |
-| A10 | Plan verified, API changes listed, questions asked | this file |
+| A8 | Notices: tabs for Results, Exams, Announcements; restyled cards | `app/(site)/notices/`, API N1 |
+| A9 | Payment history: industry-standard; linked from the menu and from every page where a payment matters, so it can be checked and managed easily | `app/(site)/account/payments/`, many pages, API P1 to P4 |
 
-## 2. Current state (checked in code, 2026-10-29)
+## 2. Decisions (user answers, 2026-10-29)
 
-**Exam image.** The API has no exam image. The exam page shows the cover of its first package (`exam-page.tsx` line ~145, `coverPackage = packageReads[0]?.data`, banner at `h-28 md:h-40`). So the big picture A6 talks about is a package cover, not an exam cover.
+| Q | Decision |
+|---|---|
+| Q1 Category counts | No answer; the recommendation stands: a parent card counts the whole branch, a leaf card counts its own exams (the two are the same on a leaf). |
+| Q2 Exam picture | Exam cover approved (E1). Layout puts details first (section 5, S4.4). |
+| Q3 Filter control | No answer; the recommendation stands: a segmented control "All · MCQ · Written" under the existing tabs, default All. |
+| Q4 Notice tabs | Mapping in S4.5 confirmed. `PURCHASE_GRANTED` goes under **Exams**. |
+| Q5 Payment history | Keep `/account/payments` and restyle it. Link it from other pages too (section 5, S4.6, "Where the payment links live"). |
+| Q6 API | N1, P1, P2, P3 approved. P4 (receipt number and PDF) and E1 (exam cover) approved. |
+| Q7 Refunds | No refunds. No refund states, no refund wording. |
+| Q8 Bangla | Confirmed for now. May change after the client sees it, so keep every term in the message catalogs (no hard-coded Bangla). |
 
-**Package page.** `PackageCover` is full width at the top, then title, then the buy section. On desktop the buy block starts below the cover, so the cover pushes it down. A sticky bottom bar already exists for phones (`barAction`, line ~104).
+## 3. Current state (checked in code, 2026-10-29)
 
-**Exam page.** Same pattern: cover banner, title, a four-column stats list (`dl` at line ~253), then the action block. The Wish List mark sits in the header (line ~279).
+**Exam image.** The API has no exam image. The exam page shows the cover of its first package as a banner (`exam-page.tsx` ~line 145 and ~line 219, `h-28 md:h-40`).
 
-**Wish List control.** `StudentToggle` renders a `<button>` with a star and a `sr-only` label, but inside a `flex-col` span that also holds an error text. In a row it becomes its own column, which is why it looks like a full block. The star itself is already icon-only.
+**Package cover.** One optional cover per package (V41: `cover_stored_name`, `cover_content_type`, `cover_byte_size`, `cover_updated_at`). Upload `POST /api/v1/live-exam-modules/{id}/cover` (Master Admin, `MODULE_COVER_MANAGE`), staff read `GET /api/v1/live-exam-modules/{id}/cover`, public read for published packages. Up to 2 MB (`ModuleCoverService.MAX_COVER_BYTES`). The cover is saved at once, not staged as a revision. Staff upload control: `components/staff/catalog/cover-uploader.tsx`.
 
-**Category cards.** `CategoryCard` (door-page.tsx line ~24) shows one line: categories count if it has children, otherwise packages count (`countModules`). Exams are not counted. The tree already carries exams: `PublicCategory.exams` holds the exams whose home is the category (`LiveExamPublicService` line ~490). So the count needs no API change. Direct exams = `node.exams.length`; branch exams = the sum over the subtree. The category list uses the same published filter, so the counts match the list.
+**Package page.** Full-width cover on top, then title, then the buy section. On desktop the buy block starts below the cover. A sticky bottom bar already exists for phones (`module-page.tsx` ~line 104).
 
-**Top bar.** `student-shell.tsx` shows MCQ and Written links on desktop; the mobile `TABS` (Home, My exams, Results, Notices, Account) do not include them.
+**Exam page.** Banner, title, four-column stats list (`dl` ~line 253), action block. The Wish List mark sits in the header (~line 279).
 
-**My exams and Results.** My exams already has an Exams / Packages `Tabs` (`my-exams-page.tsx` line ~102). Results has Results / Marking / Other `Tabs` (`results-hub.tsx` line ~39). Both rows already carry `examType` (MCQ or WRITTEN). No API change is needed for the type filter.
+**Wish List control.** `StudentToggle` is an icon button with a `sr-only` label, wrapped in a `flex-col` span that also holds its error text. In a row that wrapper becomes its own column.
 
-**Notices.** `GET /api/v1/me/notices?page&size` takes no kind filter (`StudentInboxController` line ~34). The page lists 20 per page. A tab built on the loaded page would hide notices on later pages, so tabs need an API change (N1). Each notice already carries `exam.examType` and `updated`.
+**Category cards.** `CategoryCard` (door-page.tsx ~line 24) shows the subcategory count or the package count (`countModules`). The tree already holds each category's own exams (`PublicCategory.exams`, `LiveExamPublicService` ~line 490), with the same published filter as the category exam list. No API change needed.
 
-**Payments.** `/account/payments` already exists and is linked only from the account page. It shows a table of `MyOrder` rows (`lib/api/exam/account.ts`) and a print view at `account/payments/receipt`. The print view is built from the list row and uses `window.print()`; there is no receipt endpoint.
+**Top bar.** `TOP_LINKS` (student-shell.tsx lines 31 to 38) holds `/mcq` and `/written`. The mobile `TABS` do not. `UserMenu` (~lines 117 to 121) lists Home, Account, Wish List, Notices, Routine. No payment link.
 
-**Backend order fields** (`LiveExamOrderHistoryService.OwnOrderRow`): `orderId, tranId, status, amount, currency, scope, moduleId, moduleTitle*, examId, examTitle*, paymentChannel, createdAt, listPrice, discountPercent`. The API already sends `listPrice` and `discountPercent`; the frontend type `MyOrder` does not declare them.
+**My exams and Results.** My exams has Exams / Packages tabs (~line 102); Results has Results / Marking / Other tabs (~line 39). Both rows carry `examType`.
 
-**Order scope.** The backend writes `BUNDLE` for bundle orders (`LiveExamOrderBundle.SCOPE`). The frontend type says `"MODULE" | "EXAM"`, and the payments page labels anything not MODULE as an exam. A bundle row would therefore read as a single exam. This is a frontend bug to fix in S4.7.
+**Notices.** `GET /api/v1/me/notices?page&size` has no kind filter; 20 per page. `POST /api/v1/me/notices/read-all` marks every notice. `GET /api/v1/me/notices/unread-count` returns one count. Each notice carries `exam.examType` and `updated`.
 
-**Grants carry the order.** `GET /api/v1/me/live-exam-access` returns `orderId`, `grantedAt`, `endsAt`, `expired` on each module and exam grant. My exams can link a bought item to its payment without a new endpoint, but the payment list cannot yet be filtered to one order (see P3).
+**Orders, student side.**
+- List `GET /api/v1/me/live-exam-orders` (page and size only). Row: `orderId, tranId, status, amount, currency, scope, moduleId, moduleTitle*, examId, examTitle*, paymentChannel, createdAt, listPrice, discountPercent`. The frontend `MyOrder` type misses `listPrice` and `discountPercent` and types `scope` as `MODULE | EXAM`, but the API also sends `BUNDLE`. The payments page labels a bundle as an exam (bug).
+- Status words: `PENDING, PAID, FAILED, CANCELLED` (`LiveExamOrderService.publicStatus`).
+- Times: `created_at` and `updated_at` only. No paid time.
+- One order `GET /api/v1/live-exam-orders/{id}` (owner check) returns `OrderView` with `examIds`, `listPrice`, `discountPercent`, no titles, no redirect.
+- Cancel `POST /api/v1/live-exam-orders/{id}/cancel` (student, own pending order).
+- Continue a pending payment: `POST /api/v1/live-exam-orders` with the same target finds the open order (`findOpen`) and returns a fresh gateway redirect. **No API change needed** for "Continue payment"; the page re-posts the order's target (module, exam, or the bundle's `examIds`).
+- Receipt: a browser print view at `/account/payments/receipt`, built from the list row. The backend also mails a receipt (`ExamOutboundMail.PAYMENT_RECEIPT`). No receipt number. PDFBox is already a dependency (`PdfCompressor`).
 
-**Cancel.** Students can cancel a pending order: `POST /api/v1/live-exam-orders/{id}/cancel` (`LiveExamOrderController` line ~99). The payment page can offer it without an API change.
+**Grants.** `GET /api/v1/me/live-exam-access` returns `orderId`, `grantedAt`, `endsAt`, `expired` per module and exam grant (`orderId` null for roster and manual grants).
 
-## 3. Research applied
+## 4. Research applied
 
-Two searches were run. The results were mostly LMS plugin docs and templates, not the big platforms, and the payment results were general e-commerce. Treat these as patterns, not as a description of Udemy or Coursera.
+Two searches. The results were LMS plugin docs, templates and general e-commerce, not the big platforms; treat them as patterns.
 
 **Course details (A5, A6, A7).**
-- Two columns on desktop: the content on the left, a narrow purchase card on the right that stays in view while scrolling. Sources: [Masteriyo single course layout](https://docs.masteriyo.com/course-creation/single-course-layout), [Tutor LMS sticky sidebar](https://docs.themeum.com/tutor-lms/tutorials/sticky-sidebar/).
-- The purchase card holds the price, the main button, what is included, and the remaining count. Source: [Masteriyo single course layout](https://docs.masteriyo.com/course-creation/single-course-layout).
-- On phones the purchase action sits in a bottom bar. Source: [StyleMix LMS course settings](https://docs.stylemixthemes.com/globalstudy/masterstudy-lms-settings/course).
-- Pricing shows the old price struck through next to the new one, with one clear button. Source: [Lovable course storefront template](https://lovable.dev/hi/templates/websites/ecommerce/reel-creator-course-storefront-template).
-- Curriculum as a drawer on small screens. Source: [Blake UI course detail](https://blake-ui.vercel.app/docs/course-detail-page).
+- Two columns on desktop: content on the left, a narrow purchase card on the right that stays in view. The card opens with the media (cover), then price, main button, what is included. Sources: [Masteriyo single course layout](https://docs.masteriyo.com/course-creation/single-course-layout), [Tutor LMS sticky sidebar](https://docs.themeum.com/tutor-lms/tutorials/sticky-sidebar/).
+- Phones: the purchase action in a bottom bar. Source: [StyleMix LMS course settings](https://docs.stylemixthemes.com/globalstudy/masterstudy-lms-settings/course).
+- Old price struck through beside the new one, one clear button. Source: [Lovable course storefront template](https://lovable.dev/hi/templates/websites/ecommerce/reel-creator-course-storefront-template).
+- Long lists (curriculum) as a drawer or tab on small screens. Source: [Blake UI course detail](https://blake-ui.vercel.app/docs/course-detail-page).
 
 **Payment history (A9).**
-- Filters for status, payment method and date, with less common filters behind "more". Keep the current filters in the address so a view can be shared. Source: [Lightspeed orders filter](https://resto-support.lightspeedhq.com/hc/en-us/articles/360005902274-Filtering-the-Orders-List).
-- Status vocabulary: paid, unpaid, refunded, partly paid. For us: Paid, Awaiting payment, Failed, Cancelled (refund is not in the model yet). Source: [Zoho orders](https://help.zoho.com/portal/en/kb/commerce/user-guide/orders/articles/orders).
-- Say clearly what is hidden by default. Sources: [Lightspeed](https://resto-support.lightspeedhq.com/hc/en-us/articles/360005902274-Filtering-the-Orders-List), [Intercom orders tab](https://intercom.help/dfy-crm/en/articles/12395046-how-to-use-the-orders-tab-in-your-payments-section).
+- Filters for status, method and date, rarer ones behind "more", filters kept in the address. Source: [Lightspeed orders filter](https://resto-support.lightspeedhq.com/hc/en-us/articles/360005902274-Filtering-the-Orders-List).
+- Clear payment status words. Source: [Zoho orders](https://help.zoho.com/portal/en/kb/commerce/user-guide/orders/articles/orders).
+- Say what is hidden by default. Source: [Intercom orders tab](https://intercom.help/dfy-crm/en/articles/12395046-how-to-use-the-orders-tab-in-your-payments-section).
 - Compact rows that open for detail. Source: [shadcn order history](https://www.shadcnblocks.com/block/order-history2).
-- Payment confirmations show a clear status and links to related help. Source: [Baymard order pages](https://baymard.com/ecommerce-design-examples/104-orders-overview) (general e-commerce).
+- Clear status plus links to help. Source: [Baymard order pages](https://baymard.com/ecommerce-design-examples/104-orders-overview).
 
-## 4. API changes (proposed)
+## 5. API changes (approved)
 
-These need the user's go before S4 starts. Each has a fallback if the user says no.
+All additive: old clients keep working. Work in its own worktree on branch `p4/api` from `ui/nr01-ui`, run with the `nr01-mvn.ps1` runner (own DB), merged into `ui/nr01-ui` when green. Migrations start at **V52** (latest is V51).
 
-| ID | Change | Why | Without it |
-|---|---|---|---|
-| N1 | `GET /api/v1/me/notices` takes `group=RESULTS\|EXAMS\|ANNOUNCEMENTS` (kinds map on the server, see section 5.6). Optional: `unreadByGroup` in the response or in the unread count. | Tabs must be correct across pages | Tabs filter only the loaded page. Wrong counts. Not acceptable. |
-| P1 | `GET /api/v1/me/live-exam-orders` takes `status`, `scope` (MODULE, EXAM, BUNDLE), `from`, `to` (dates). | History filters must work across all pages | Filters work on one page of 20 only. |
-| P2 | Add `paidAt` (nullable, ISO UTC) to `OwnOrderRow`. | "Paid on" is different from "created on"; `updated_at` is not reliable for it | Show "created on" only, and label it that way. |
-| P3 | Student order filter: `orderId` query param on the list, or `GET /api/v1/me/live-exam-orders/{id}`. | A "View payment" link from My exams must open one order | Link opens the full list with no highlight, or the link is dropped. |
-| P4 | Receipt number and PDF receipt endpoint. | Industry-standard receipts carry a number and a file | Keep the browser print view (no change). **Out of scope unless the user asks.** |
-| E1 | Exam cover: column, upload and read (mirrors the package cover, V41). | Only if the user wants an exam image | Not needed for the details-first layout. |
+### N1. Notice groups
 
-No change needed for: listPrice and discountPercent (already sent), category counts (tree), MCQ/Written filters (examType on rows), notice exam type, grant order links.
+- `GET /api/v1/me/notices?group=RESULTS|EXAMS|ANNOUNCEMENTS` (absent = all, as now). Unknown value: 400 `VALIDATION_FAILED`.
+- Server mapping (one place, `NoticeGroup` enum):
+  - RESULTS: `MCQ_SCORE`, `WRITTEN_RESULT`
+  - EXAMS: `EXAM_OPEN`, `EXAM_PUBLISHED`, `EXAM_REMINDER`, `EXAM_STARTING_SOON`, `RETAKE_AVAILABLE`, `EXAM_UPDATED`, `PURCHASE_GRANTED`, and any kind added later unless mapped elsewhere
+  - ANNOUNCEMENTS: `ANNOUNCEMENT`
+- `GET /api/v1/me/notices/unread-count` adds `byGroup: {RESULTS, EXAMS, ANNOUNCEMENTS}`; `count` stays.
+- `POST /api/v1/me/notices/read-all?group=` marks one group (absent = all).
+- Tests: every kind lands in one group; paging inside a group; counts; read-all per group; other students' notices never appear.
 
-## 5. Sub-steps
+### P1. Order filters and summary
 
-Each step: files, behaviour, tests, and what to check at the end. Working rules are as before: lint per slice, targeted unit tests, one build for the phase, headless overflow text report only, no screenshots.
+- `GET /api/v1/me/live-exam-orders` adds `status` (PENDING, PAID, FAILED, CANCELLED; repeatable), `scope` (MODULE, EXAM, BUNDLE), `moduleId`, `examId` (an exam matches its own orders and bundles that hold it), `from`, `to` (dates, Bangladesh time, `to` inclusive), `orderId` (see P3). Sort newest first, as now.
+- `GET /api/v1/me/live-exam-orders/summary` returns `{ totalPaid, currency, paidCount, pendingCount }` for the signed-in student (all time).
+- Tests: each filter alone and combined; date edges at midnight Bangladesh time; bundle match by `examId`; another student's orders never counted.
+
+### P2. Paid time
+
+- V52: `live_exam_orders.paid_at timestamptz null`. Set in the same transaction that marks an order PAID (gateway verify, IPN, Master Admin confirm).
+- Backfill: PAID rows get `paid_at = updated_at`. This is the best value on record; note it in `current-api.md`.
+- `paidAt` added to the student list row, to `OrderView`, and to the staff order row.
+- Tests: each path that pays sets it once; a later update does not move it.
+
+### P3. One order
+
+- `orderId` filter on the list (P1), returning zero or one row with titles. Another student's id returns an empty page (no leak).
+- `OrderView` keeps its shape; the page uses the list row.
+
+### P4. Receipt number and PDF
+
+- V52 (same file as P2): `receipt_no varchar(24) unique null`, from a sequence, set when the order becomes PAID. Format `RCPT-2026-000123` (year of `paid_at`, Bangladesh time). Backfill existing PAID orders in `paid_at` order.
+- `receiptNo` added to the list row, `OrderView`, staff row, and the receipt email.
+- `GET /api/v1/me/live-exam-orders/{id}/receipt.pdf`: own PAID order only (404 otherwise). One A4 page built with PDFBox: site name, receipt number, paid time, student name and phone, item (type and title), list price, discount, amount paid, payment method, transaction ID, order ID.
+- **Bangla in the PDF.** PDFBox does not shape Bangla script, so Bangla text would render broken. The PDF uses English labels and the English title; when an item has only a Bangla title, the PDF prints the item type and order ID instead. The web print view stays as the Bangla receipt, and the page offers both ("Download PDF", "Print").
+- Tests: number assigned once and in order; PDF for own PAID order is a valid PDF holding the receipt number; 404 for pending, other student's, and unknown orders.
+
+### E1. Exam cover
+
+- V53: on `live_exams` the same four columns as V41 (`cover_stored_name`, `cover_content_type`, `cover_byte_size`, `cover_updated_at`).
+- `ExamCoverService` mirroring `ModuleCoverService` (same store, same 2 MB limit, same types, old file removed after commit). Saved at once, not staged, same as the package cover.
+- Routes: `POST` and `DELETE /api/v1/live-exams/{id}/cover` (Master Admin, `MODULE_COVER_MANAGE`), staff `GET /api/v1/live-exams/{id}/cover`, public `GET /api/v1/public/live-exams/{id}/cover` (published exams only).
+- `coverUrl` (null when none) added to: public exam read, student exam read, category exam rows, package exam rows, popular rows, favourites rows.
+- Audit entries as for the package cover.
+- Seed: none (no image asset in the seed). Review by upload.
+- Tests: upload, replace, delete, size and type limits, draft cover hidden from the public route, permission.
+
+### Not changed
+
+listPrice and discountPercent (already sent); category counts (tree); MCQ/Written filters (rows); notice exam type; grant order links; continue payment (re-post).
+
+## 6. Sub-steps
+
+Working rules as before: lint per slice, targeted unit tests, one build for the phase, headless overflow text report only, no screenshots. Every new label in `en` and `bn`.
+
+### S4.0 API (N1, P1 to P4, E1)
+
+As section 5, then `current-api.md` (new "Added" section), `decisions.md` (Phase 4 lines), and the frontend types (`MyOrder`: `scope` with BUNDLE, `listPrice`, `discountPercent`, `paidAt`, `receiptNo`; exam types: `coverUrl`; notices: `group`, `byGroup`).
 
 ### S4.1 Top bar and category counts (A2, A4)
 
-- `student-shell.tsx`: remove the MCQ and Written links from the desktop bar only. Mobile `TABS` unchanged. Home still has the doors.
-- `catalog-helpers.ts`: add `countExams(node)` (direct) and `countBranchExams(node)` (recursive), and use `countModules` as today.
-- `door-page.tsx` `CategoryCard`: show both counts, e.g. "12 exams · 3 packages". A category with no exams and no packages keeps "Coming soon". Zero counts are written out, not hidden.
-- Keys: `catalog.countExams`, `catalog.countPackages` in `en` and `bn` (`bn` marked draft).
-- Tests: `tests/student-nav/top-bar.test.tsx` (MCQ and Written absent on desktop, present on mobile tabs), a new `category-counts.test.tsx`.
+- Remove `/mcq` and `/written` from `TOP_LINKS` (desktop only). Routes stay; Home keeps the doors.
+- `catalog-helpers.ts`: `countBranchExams(node)` (own exams plus all subcategories).
+- `CategoryCard`: two lines in one: "34 exams · 3 packages" (branch counts, so a leaf shows its own). A card with subcategories adds "5 categories" before them. Nothing at all: "Coming soon" as now. Zero parts are left out ("3 packages" alone if no exams).
+- Keys: `catalog.countExams`.
+- Tests: top bar (MCQ and Written gone on desktop; mobile tabs unchanged); counts on a three-level tree.
 
 ### S4.2 Type filter on My exams and Results (A1, A3)
 
-- A segmented control "All · MCQ · Written" under the existing tabs (not a replacement).
-- State in the URL: `?type=MCQ|WRITTEN` via `useListParams`, so the view can be shared.
-- Badges on the existing tabs count only the chosen type.
-- Empty state text names the type ("No written exams in this tab").
-- Results: the same control; filters the three existing tabs.
-- Tests: pure filter function unit test; component test for both pages.
+- Segmented control "All · MCQ · Written" under the existing tabs. URL `?type=MCQ|WRITTEN`. Badges count the chosen type. Empty text names the type.
+- My exams, Packages tab: a package holds both types, so the control filters the exam tab only and hides itself on the Packages tab.
+- Tests: pure filter function; both pages, including URL restore.
 
-### S4.3 Package page (A5, A7)
+### S4.3 Shared detail layout (A5, A6)
 
-- Desktop: two columns. Left: cover (small), title, summary, tabs (Exams, Routine, About). Right: a sticky purchase card with price, discount, main button, what is included, access length.
-- Cover: from full width to a thumbnail (about 120 px wide, 16:9) beside the title on desktop; on phone a thin 96 px band at the top. Use `PackageCover` with a size prop. Do not change the cover endpoint.
-- Phone: the buy block comes right after the title, above the exam list; keep the sticky bottom bar.
-- Exam rows: the Wish List mark becomes a 44 px icon button at the top-right corner of the card (absolute position), so the card keeps its text width. Error text from the toggle moves to a toast.
-- Tests: `module-page` layout test (buy block before the exam list in DOM order on phone); overflow check at 320, 375, 768, 1280 px.
-- Known issue to check: the "বিবরণ" button clipping at 320 px (from the earlier overflow check).
+One layout component used by the package page and the exam page (`catalog/detail-layout.tsx`):
+- Desktop (`lg` and up): left column for header and details; right column a sticky card (`top` below the top bar) that opens with the cover (16:9, card width, about 320 px) and then price, discount, main action, what is included, access length.
+- Phone and tablet: header first (type, title, status, short summary), then the main action block, then a 16:9 cover band capped at 160 px tall, then details. The existing sticky bottom bar stays.
+- No cover: the typed placeholder that `PackageCover` already draws, at the same small size.
 
-### S4.4 Exam page (A6, A7)
+### S4.4 Package page and exam page (A5, A6, A7)
 
-- No big banner. Header first: type, title, status pill; then the primary action; then the stats list; then description and packages.
-- The package cover (the one the exam page shows now) becomes a small thumbnail next to the title, or is removed. Decision in question Q2.
-- Desktop: right sticky card with the status and primary action (same pattern as S4.3).
-- Wish List: the same compact corner icon (44 px).
-- Tests: DOM order (title before the cover, action before the description on phone); favourite button is one icon with an accessible name.
+- Package page on the shared layout: buy card on the right (desktop) or right after the header (phone); tabs Exams, Routine, About below. Owned package: the card shows the progress bar and the payment line (S4.6).
+- Exam page on the shared layout: cover is the exam's own cover; with none, the first package's cover; with neither, the placeholder. Stats list and description in the left column, packages below.
+- Wish List: a 44 px icon button in the top-right corner of the header (detail pages) and of each card (rows), absolutely placed so the text keeps its width. The toggle's error message moves to a toast. Same in `ExamRow`, `CatalogExamRow`, package cards on the Wish List page.
+- Exam rows and cards with an exam cover: no image in rows (rows stay compact); the cover shows on the detail page only.
+- Fix the "বিবরণ" clipping at 320 px seen earlier.
+- Tests: DOM order (header and action before the cover on phone); cover fallback chain; favourite button one icon with a name; overflow report.
 
-### S4.5 Notice cards and tabs (A8)
+### S4.5 Notices (A8)
 
-- Tabs: Results | Exams | Announcements. Each tab carries its unread count when N1 provides it. Tab state in the URL (`?tab=`).
-- Mapping (proposed, Q4 to confirm):
-  - Results: `MCQ_SCORE`, `WRITTEN_RESULT`
-  - Exams: `EXAM_OPEN`, `EXAM_PUBLISHED`, `EXAM_REMINDER`, `EXAM_STARTING_SOON`, `RETAKE_AVAILABLE`, `EXAM_UPDATED`
-  - Announcements: `ANNOUNCEMENT`
-  - `PURCHASE_GRANTED`: no tab yet (Q4 offers a fourth "Purchases" tab, or Exams).
-  - Unknown kinds: Exams tab, with the generic label (the current fallback).
-- Card restyle (all tabs): a kind pill with a left accent bar in the tab's colour; title; meta line (exam title, date and time); for results a score chip "34/50" and a pass/fail pill; unread dot; one action button ("View result", "Open exam"); announcements keep read-in-place and the expand control.
-- Read state: marking read on open stays as now.
-- Tests: `noticeTabOf(kind)` unit test covering every kind in `NOTICE_KINDS` and one unknown kind; component test for tab switch and URL state.
+- Tabs: Results | Exams | Announcements, each with its unread count (`byGroup`). URL `?tab=`. Default: Results if it has unread, else Exams if it has unread, else Announcements if it has unread, else Exams.
+- "Mark all as read" acts on the open tab.
+- Card restyle:
+  - A kind icon and a coloured edge per tab (results: success colour; exams: accent; announcements: muted).
+  - Kind pill, title, meta line (exam title, date and time), unread dot.
+  - Results: score chip "34/50" and a pass or fail pill; "View result".
+  - Exams: start time for reminders; "Open exam".
+  - Purchase granted: "Open exam" (or "My exams" when no exam) and "View payment" (to `/account/payments?examId=` or `?moduleId=`).
+  - Announcements: read in place, expand control, as now.
+- Unknown kinds: Exams tab with the generic label (matches the server's group rule).
+- Tests: tab per kind for every kind in `NOTICE_KINDS` and one unknown; tab switch and URL; read-all per tab; empty states per tab.
 
 ### S4.6 Payment history (A9)
 
-Route: keep `/account/payments` (links, print view and bookmarks stay valid). Page title becomes "Payment history" (bn draft).
+Route `/account/payments`, title "Payment history".
 
-- Menu: add "Payment history" to the student `UserMenu` (after Account). The mobile Account tab leads to the account page, which keeps its card.
-- My exams: each bought module or exam row (grant with `orderId`) gets "View payment" → `/account/payments?order=<id>` (needs P3; without it, the link is dropped and the row shows the order date only).
-- Layout (industry pattern, section 3):
-  - Summary strip: total paid (this page or all, per P1), number of orders.
-  - Filters: status, scope (Package, Exam, Bundle), date range. Visible filters at the top; "more" hides the rarer ones. Filters in the URL.
-  - Desktop: table (date, item, status, amount, method, order ID with copy). Phone: cards with the same fields.
-  - Amount: amount paid, and when different, the list price struck through and the discount percent.
-  - Expandable row: payment method, transaction ID (copy), order ID, access until (`endsAt` from the grant, when known), what was bought (bundle items, from `examIds`).
-  - Actions: "Cancel" for Awaiting payment (existing endpoint); "Print receipt" for Paid (existing print view).
-  - Empty state: "No payments yet" with a link to Home.
-- Bundle fix: scope `BUNDLE` gets its own label (and `MyOrder.scope` type updated).
-- Status labels: Paid, Awaiting payment, Failed, Cancelled (existing keys, check wording in `bn`).
-- Tests: filter-to-query mapping unit test; list render for each status and scope (fixtures); print view unchanged; `BUNDLE` row label test.
+**Page.**
+- Summary strip (P1 summary): total paid, paid orders, awaiting payment (the last one is a button that sets the status filter).
+- Filters in the URL: status, type (Package, Exam, Bundle), date range; "Clear filters". A line says what is filtered ("Showing: Paid, last 30 days").
+- Desktop table: date, item, type, status, amount, method, receipt number. Phone: cards with the same fields.
+- Amount: paid amount; when it differs, the list price struck through and "−25%".
+- Row opens a detail panel: order ID and transaction ID (copy), paid time (P2) or created time for others, receipt number (P4), method, what was bought (bundle: each exam, by title, from the access read), access until (`endsAt` from the grant: date, "Lifetime", or "Expired on").
+- Actions by status:
+  - Paid: "Download PDF" (P4), "Print receipt" (existing view), "Open" (the package or exam).
+  - Awaiting payment: "Continue payment" (re-posts the target, goes to the gateway), "Cancel" (existing endpoint, with a confirm).
+  - Failed or cancelled: "Buy again" (opens the item page).
+- `?order=<id>` opens that row's panel (P3); `?examId=` and `?moduleId=` filter to one item.
+- Help line at the bottom: "Problem with a payment? Contact us" → `/contact`, showing the order ID to quote.
+- Empty state: "No payments yet" with the door actions.
+- Bundle label fix (`scope` BUNDLE).
 
-### S4.7 Data and types
+**Where the payment links live** (Q5: checked and managed easily).
 
-- `MyOrder`: add `listPrice`, `discountPercent`, and `paidAt` (when P2 lands). Scope type: `"MODULE" | "EXAM" | "BUNDLE"`.
-- Existing receipt page uses `useMyOrders(params.page)`; keep working after P1 adds params.
+| Place | Link |
+|---|---|
+| Student menu (`UserMenu`) | "Payment history" after Account |
+| Account page | Existing card, renamed "Payment history" |
+| My exams page header | "Payment history" |
+| My exams, each bought row (grant with `orderId`) | "Purchased {date} · View payment" → `?order=` |
+| Package page and exam page, when bought | Same line in the buy card |
+| Package page and exam page, with an open order | "Payment waiting" with "Continue payment" and "Cancel" (P1 `moduleId`/`examId` plus `status=PENDING`) |
+| Purchase result page | "View payment" and, when paid, "Download receipt" |
+| Purchase-granted notice | "View payment" |
+| Receipt print view | "Back to payment history" (exists) |
 
-### S4.8 Checks
+Rows from a roster or manual grant show "Given by admin" or "Roster", no payment link.
 
-- Lint for each slice.
-- Targeted unit tests for each slice.
-- One build at the end of the phase.
-- Headless overflow text report at 320, 375, 768, 1280 px for: Home, Browse (door and category), package page, exam page, My exams, Results, Notices, Payment history, Wish List. No screenshots.
-- i18n: `en` and `bn` key parity (see the messages parity test pattern in `tests/ws5/messages.test.ts`).
-- Progress review file `progress/S4-review.md`, markers in `markers.md` for anything waiting on an API change.
+- Tests: filters to query mapping; each status's actions; bundle row; `?order=` opens the panel; continue payment posts the right target for MODULE, EXAM and BUNDLE; links present on each place in the table.
 
-## 6. Markers (waiting on an API change or a decision)
+### S4.7 Staff side (needed by E1 and P4)
 
-| Marker | Waiting on | Interim behaviour |
+- Exam editor: cover upload using `cover-uploader.tsx` (same as packages), with remove. Placed in the exam details section. Not staged; a note says the change is live at once (same as the package cover).
+- Staff order list: show `paidAt` and `receiptNo` columns.
+- Tests: uploader on the exam editor; order list columns.
+
+### S4.8 Checks and review
+
+- Lint per slice; targeted unit tests; API ITs through the runner; one web build at the end.
+- Overflow text report at 320, 375, 768, 1280 px for Home, Browse (door and category), package page, exam page, My exams, Results, Notices, Payment history, receipt view, Wish List.
+- `en` and `bn` key parity (pattern: `tests/ws5/messages.test.ts`).
+- `progress/S4-review.md`: review accounts and cases (an exam with and without a cover, a paid, a pending, a failed and a cancelled order, a bundle order, a discounted order). Seed: add one pending, one failed and one cancelled order for the review student (insert-only, dev and staging only), if the seed lacks them.
+- QA checklist addition for Phase 4.
+
+## 7. Markers
+
+None expected: every item has API support once S4.0 lands. If S4.0 is late, the UI slices ship behind these interim behaviours and list them in `markers.md`:
+
+| Marker | Waiting on | Interim |
 |---|---|---|
-| M-N1 | N1 notices group filter | Tabs hidden; single list as now |
-| M-P1 | P1 order filters | Filters work on the loaded page, labelled "This page" |
-| M-P2 | P2 paidAt | Show "Created on" only |
-| M-P3 | P3 order lookup | "View payment" link not shown |
-| M-E1 | E1 exam cover | Not implemented unless Q2 says yes |
-| M-P4 | P4 receipt number | Print view as now |
+| M-N1 | N1 | No tabs; single list as now |
+| M-P1 | P1 | No filters or summary; payment lines on detail pages hidden |
+| M-P2 | P2 | "Created on" only |
+| M-P3 | P3 | "View payment" goes to the full list |
+| M-P4 | P4 | No receipt number; print view only |
+| M-E1 | E1 | Package cover fallback only |
 
-## 7. Omission check (what was verified)
+## 8. Final recheck
 
-- Every item in section 1 is mapped to a step (A1 to A9 → S4.1 to S4.6).
-- Mobile layout: the tab bar keeps Results and My exams; removing the desktop links does not remove mobile access to MCQ or Written, because those are filters now.
-- Deep links: `/mcq` and `/written` (door pages, `student-shell.tsx` TOP_LINKS lines 33-34) stay as routes; only the desktop links go. They remain reachable from Home.
-- Payment history has no menu entry today: `UserMenu` (student-shell.tsx ~line 117-121) lists Home, Account, Wish List, Notices, Routine. S4.6 adds it.
-- Old `/favourites` redirect unchanged.
-- The Wish List error text moves to a toast (no lost message).
-- Filters and tabs are in the URL, so back and refresh keep state.
-- Bundle orders were missing from the payment labels (found in this check); added to S4.6.
-- Order `updated_at` is not used as "paid on" (found in this check); P2 added.
-- Notice tabs cannot be done client-side across pages (found in this check); N1 added.
-- Exam image: none in the API; the exam page banner is the package cover (found in this check).
-- Refunds: not in the order status model. Not added; see Q7.
-- Account and receipt: no receipt number in the API (P4 optional).
-- Pending order cancel: endpoint exists; used in S4.6.
+Verified against the code and the answers:
 
-## 8. Things not covered
+- A1 to A9 each map to a step (S4.1 to S4.6), and every API change to S4.0.
+- E1 and P4 need staff work (upload, order columns): added as S4.7.
+- Bangla in the PDF: PDFBox cannot shape it; English PDF plus the Bangla print view.
+- Pending orders: "Continue payment" needs no API change (the open order is reused); detail pages need P1 item filters to know about it: added `moduleId`, `examId` to P1.
+- `examId` filter must match bundles holding the exam: in P1.
+- Notice "Mark all as read" would clear other tabs: per-group read-all added to N1.
+- New notice kinds later: the server default puts them under Exams; the page does the same.
+- Paid time backfill is approximate for old orders: recorded in `current-api.md`.
+- Bundle label bug on the payment page: fixed in S4.6.
+- Packages tab on My exams has no single type: filter hidden there.
+- Roster and manual grants have no order: no payment link, a source label instead.
+- Review data: seed adds the order states the review needs.
+- Refunds: none, per Q7.
+- Not covered on purpose: refunds, invoices and tax lines, instalments, search in payment history, a pending order's price after a discount change (existing behaviour: the open order keeps its amount).
 
-- Refund flow and refund status (not in the model).
-- Invoices and tax lines (not in the model).
-- Instalments (not in the model).
-- Search inside payment history.
-- Staff side (not part of the student page).
+## 9. Order of work
 
-## 9. Questions for the user
+1. S4.0 API on `p4/api` (one agent), in parallel with S4.1 and S4.2 on `ui/nr01-ui` (no API needed).
+2. S4.3 and S4.4 (E1 for the exam cover; package side needs nothing).
+3. Merge `p4/api` into `ui/nr01-ui` when its ITs pass.
+4. S4.5 and S4.6.
+5. S4.7.
+6. S4.8 checks and review file; the user's QA.
 
-1. **Category counts (A4).** Count only exams whose home is this category, or the whole branch (the same choice the category exam list makes with its branch switch)? *Recommend: show both on the card: "12 exams (34 in branch)" is too busy; use branch count on parent cards and direct count on leaf cards.* Your call.
-2. **Exam picture (A6).** Remove the package cover from the exam page, or keep a small thumbnail? An exam-specific picture needs API change E1. *Recommend: small thumbnail of the package cover for now, no E1.*
-3. **My exams and Results filter (A1, A3).** Segmented control under the tabs (recommended), or chips, or a single dropdown? Default: All.
-4. **Notice tabs (A8).** Confirm the mapping in S4.5. Where should `PURCHASE_GRANTED` go: Exams, or a fourth "Purchases" tab? *Recommend: Exams.*
-5. **Payment history (A9).** Keep `/account/payments` and restyle (recommended), or a new `/payments` route? Fields in S4.6 are right, or add or remove any?
-6. **API changes (section 4).** Approve N1, P1, P2, P3? P4 and E1 only if you want them.
-7. **Refunds.** Out of scope for this phase, or needed? If needed, the refund states must come from the backend first.
-8. **Bangla terms.** Confirm the new Bangla labels for: Payment history, Awaiting payment, Results / Exams / Announcements tabs, "Wish List" (still draft), "Exams and packages" count labels.
-
-## 10. Order of work
-
-1. S4.1 (quick, no API) and S4.2 (no API) in parallel.
-2. S4.3 and S4.4 (layout, no API; compact Wish List).
-3. API changes N1, P1, P2, P3 if approved (backend agent, separate branch and tests).
-4. S4.5 (needs N1 for real tabs; shows markers until then).
-5. S4.6 and S4.7 (needs P1 to 3 for full behaviour; markers until then).
-6. S4.8 checks and review file.
-
-Nothing is pushed. Each slice is a separate commit on `ui/nr01-ui`.
+Nothing is pushed. Each slice is its own commit.
