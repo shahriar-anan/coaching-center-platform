@@ -153,3 +153,68 @@ These are not all done. Two of them are small API work that the UI cannot do wit
 ## 9. Next step
 
 Shahriar chooses the steps and phases. After that the phase plan is written into this folder, and Phase 0 starts.
+
+## 10. Second analysis (29 October 2026): what the web actually does
+
+Read from the code on `ui/nr01-ui`. Corrects two earlier statements: "everything else the UI needs already exists" was wrong, and the answer-sheet watermark was not checked before.
+
+### Exam creation and editing (MCQ and written)
+
+- The editor has five sections in `exam-meta-form.tsx`: Details, Schedule and marks, Question paper, Price, and Check and publish.
+- `StaffExam` and `ExamInput` in `lib/api/exam/staff-catalog.ts` lack the new fields: mode, package list, instructor, negative marks, answers changeable, preview, popular, free, discount, access days, pending changes. None is read or sent.
+- The lock is client-side: `locked = liveAt <= now` (`exam-editor.tsx`). It disables every section, and is the cause of the "exam has started" banners. It must go, and the staged-edit flow replaces it.
+- `publishable` is `… && exam.status !== "PUBLISHED"`. A published exam with staged edits therefore cannot be published at all. The change-list flow has to replace this condition.
+- The schedule computes the end from the duration. The API has a separate window end, which must be at least the duration.
+- The MCQ question editor supports one correct option only (`question-editor.tsx`: `correct: number | null`). Multi-answer questions cannot be authored in the UI. Creating MCQ exams "fully integrated" therefore includes this, unless you decide to keep multi-answer authoring out.
+- `errors.ts` maps retired codes (EXAM_WINDOW_CONFLICT, EXAM_WINDOW_ENDED, CONTENT_LOCKED) and none of the new ones (QUESTION_STRUCTURE_LOCKED, PENDING_CHANGES_STALE, EXAM_WINDOW_INVALID, ANSWER_LOCKED, NO_PENDING_CHANGES, EXAM_ALREADY_IN_PACKAGE).
+- Paper language drives the answer letters (ক, খ, গ, ঘ or A, B, C, D) in the MCQ paper, the result page and the exam page. The editor sets `lang` from it. "Both" needs a rule for the letters and for the typeface, and the API needs the change.
+
+### Dashboards and navigation
+
+- Staff home (`app/(staff)/staff/page.tsx`) shows `InstructorHome` for instructors and `AdminHome` for admins.
+- `AdminHome` has summary cards, a 14-day agenda, and four quick links (New package, New exam, Payments, Students). "New exam" links to the package list, not to a creation form.
+- The master admin has no Exams list. The only route under `staff/exams` is `[examId]`. The new Exams page is a new route.
+- `InstructorHome` lists the instructor's waiting marks and recent submissions, grouped by package. The per-exam instructor needs the package grouping to change.
+- The sidebar's "Catalog" group is Categories and Modules. The new Exams entry goes there.
+
+### Student browsing and access
+
+- The home (`home-page.tsx`) has four sections: next exam, now, upcoming, and my modules. The results hub has three tabs: results, marking, other. Notices live at `app/(site)/notices`. The student tabs request starts from these.
+- Doors are `mcq` and `written`, reached through `modulePath`.
+- The exam page's buy button uses `data.price`, the raw price. The API returns a separate `pricing` object with the effective price, and the order charges that. A discounted item would show the list price and charge less, with no explanation. No web file reads `pricing`, `discountPercent`, `free` or `popular`.
+- `AccessInfo` has only `state`, `buyable` and `blockedReason`. The API's `blockedReason` values match the web's four. Expiry is not on the exam's access object, so an expired student sees the exam as owned. Expiry does appear in the "my access" list (`endsAt`, `expired`), and the web does not show it there.
+- Admin grants exist: `components/staff/access/grant-access-form.tsx` and `student-access-section.tsx`. The grant form calls `live-exam-grants`. It may not handle an exam grant with no package, and needs checking when the written flow is planned.
+- The preview endpoint, favourites, retake grants, attempts, and pending changes are called by no web file.
+
+### Written sitting, marking and result
+
+- The sitting shows the question paper inline with `allowDownload={false}` (`written-sitting.tsx`). The answer upload sits below it.
+- The marking tabs are Answer and Question paper only (`paper-views.tsx`: `type View = "answer" | "question"`). The Evaluated tab is missing.
+- The student result page (`result-page.tsx`) already shows the evaluated paper through `PdfViewer` with no watermark.
+
+### Watermarks, every surface
+
+| Surface | Watermark today |
+|---|---|
+| Student question paper in the sitting | student name · code |
+| Student marked script on the result page | none |
+| Staff answer sheet viewer (`paper-views.tsx`) | SYMAMLAW, diagonal |
+| Staff marked script (`marked-pdf-view.tsx`) | SYMAMLAW, diagonal |
+| Staff question paper panel (`question-paper-panel.tsx`) | SYMAMLAW, diagonal |
+| Staff editor preview (`written-paper.tsx`, `exam-editor.tsx`) | SYMAMLAW, diagonal |
+
+The staff answer sheet and the staff marked script already carry the diagonal SYMAMLAW watermark. The redesign has to cover every one of these, not only the student's question paper.
+
+### Module to package wording
+
+- About 160 English strings contain "module". The nav labels are in `common.ts` and `staffCatalog.ts`. Student copy such as "Buy whole module" and "My modules" is in `catalog.ts` and `account.ts`. Staff copy such as "My modules" is in `staffMarking.ts`.
+- URLs keep `/modules/`. Only the words change.
+
+### Open items from this analysis
+
+1. The exam page and purchase sheet must show the effective price, with the list price struck through. The purchase sheet needs the same fix.
+2. Expiry must reach the exam page's access object, or the web must read the "my access" list for expiry. The API change is small.
+3. Multi-answer authoring: include it in the MCQ creation work, or keep it out?
+4. "Both" paper language: the letters and the typeface rule are needed, and the API change is needed.
+5. The staff answer sheet and marked script watermarks need the new design, the same as the question paper.
+6. Access and grants for written exams: the grant form needs checking, and the purchase path for a written exam needs confirming with you (item 10).
