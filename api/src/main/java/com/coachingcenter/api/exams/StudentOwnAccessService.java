@@ -1,9 +1,9 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -46,20 +46,20 @@ public class StudentOwnAccessService {
 			ORDER BY g.exam_id, via
 			""";
 
-	/** When a target has more than one module-wide reason, the first one here wins. */
-	private static final List<String> MODULE_STATES = List.of("ROSTER", "MODULE", "MANUAL");
-
 	private final NamedParameterJdbcTemplate jdbc;
 
 	private final ObjectProvider<LiveExamPaymentGateway> gateways;
 
-	private final LiveExamMemberships memberships;
+	private final LiveExamAccess access;
 
-	StudentOwnAccessService(JdbcTemplate jdbc, ObjectProvider<LiveExamPaymentGateway> gateways,
-		LiveExamMemberships memberships) {
-		this.memberships = memberships;
+	private final Clock clock;
+
+	StudentOwnAccessService(JdbcTemplate jdbc, ObjectProvider<LiveExamPaymentGateway> gateways, LiveExamAccess access,
+		Clock clock) {
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.gateways = gateways;
+		this.access = access;
+		this.clock = clock;
 	}
 
 	/**
@@ -74,7 +74,8 @@ public class StudentOwnAccessService {
 			return null;
 		}
 		String phone = phones.get(0);
-		return new Viewer(mine(studentId), phone != null && !phone.isBlank(), gateways.getIfAvailable() != null, memberships);
+		return new Viewer(access, studentId, clock.instant(), phone != null && !phone.isBlank(),
+				gateways.getIfAvailable() != null);
 	}
 
 	@Transactional(readOnly = true)
@@ -100,53 +101,52 @@ public class StudentOwnAccessService {
 	}
 
 	/**
-	 * {@code state} is {@code NONE}, {@code MODULE}, {@code EXAM}, {@code ROSTER} or {@code MANUAL}. {@code blockedReason}
+	 * {@code state} is {@code NONE}, {@code MODULE}, {@code EXAM}, {@code ROSTER}, {@code BUNDLE}, {@code MANUAL} or
+	 * {@code FREE} (a free exam, open to everyone). {@code blockedReason}
 	 * is null exactly when {@code buyable} is true, and is always written, even when null.
 	 */
 	public record Access(String state, boolean buyable,
 			@JsonInclude(JsonInclude.Include.ALWAYS) String blockedReason) {
 	}
 
-	/** One signed-in student's view of the catalog. Built once per request, then asked per module or exam. */
+	/**
+	 * One signed-in student's view of the catalog, asked per module or exam. A route that has run out (expired) reads as
+	 * {@code NONE}, so the student can buy again (A2' and R19).
+	 */
 	public static final class Viewer {
 
 		static final String NONE = "NONE";
 
-		private final Map<UUID, String> moduleStates = new HashMap<>();
+		private final LiveExamAccess access;
 
-		private final Map<UUID, String> examStates = new HashMap<>();
+		private final UUID studentId;
+
+		private final Instant now;
 
 		private final boolean hasPhone;
 
 		private final boolean checkoutEnabled;
 
-		private final LiveExamMemberships memberships;
-
-		Viewer(MyAccess access, boolean hasPhone, boolean checkoutEnabled, LiveExamMemberships memberships) {
-			for (MyModule module : access.modules()) {
-				moduleStates.merge(module.moduleId(), module.via(),
-						(a, b) -> MODULE_STATES.indexOf(a) <= MODULE_STATES.indexOf(b) ? a : b);
-			}
-			for (MyExam exam : access.exams()) {
-				examStates.merge(exam.examId(), exam.via(), (a, b) -> "EXAM".equals(a) ? a : b);
-			}
+		Viewer(LiveExamAccess access, UUID studentId, Instant now, boolean hasPhone, boolean checkoutEnabled) {
+			this.access = access;
+			this.studentId = studentId;
+			this.now = now;
 			this.hasPhone = hasPhone;
 			this.checkoutEnabled = checkoutEnabled;
-			this.memberships = memberships;
 		}
 
-		/** Module-wide access only: owning one exam of the module does not own the module. */
+		/** Access to the package as a whole: a roster row or a package grant that has not run out. */
 		public Access module(LiveExamModule module) {
-			return access(moduleStates.getOrDefault(module.getId(), NONE), module.getPrice());
+			return access(state(access.moduleState(studentId, module.getId(), now)), module.getPrice());
 		}
 
-		/** Module-wide access first, then a grant on this exam. The price is the exam's own price. */
+		/** Any route to the exam, through any package it is in, or a grant on the exam. The price is the exam's own price. */
 		public Access exam(LiveExam exam) {
-			String state = moduleStates.getOrDefault(memberships.requirePrimaryModuleId(exam.getId()), NONE);
-			if (NONE.equals(state)) {
-				state = examStates.getOrDefault(exam.getId(), NONE);
-			}
-			return access(state, exam.getPrice());
+			return access(state(access.state(studentId, exam, now)), exam.getPrice());
+		}
+
+		private static String state(AccessState state) {
+			return state.granted() && !state.expired() ? state.source() : NONE;
 		}
 
 		/** Reasons the student cannot fix come before the phone, which they can. */
