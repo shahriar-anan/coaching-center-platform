@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useCheckoutEnabled,
   useMyExam,
   usePublicExam,
-  usePublicModule,
+  usePublicModulesById,
   type StudentExam,
 } from "@/lib/api/exam/catalog";
 import { ApiError } from "@/lib/api/errors";
@@ -15,7 +14,7 @@ import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
 import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
-import { formatDateTime, formatDuration, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
+import { formatDate, formatDateTime, formatDuration, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { cn } from "@/components/ui/cn";
@@ -29,7 +28,10 @@ import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useNotice } from "@/lib/notices/use-notice";
-import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
+import { doorLabelKey, doorPath, examPath, type Door } from "./catalog-helpers";
+import { ExamPackages } from "./exam-packages";
+import { PriceLine } from "./price-line";
+import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { ruleLines } from "./lms-blocks";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -61,7 +63,6 @@ export function ExamPage({ examId }: { examId: string }) {
   const isStudent = signedIn && session.user.role === "STUDENT";
   const phoneRequired = isStudent && Boolean(session.user.phoneRequired);
   const [buying, setBuying] = useState(false);
-  const [moduleBuying, setModuleBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
   const [actionOffscreen, setActionOffscreen] = useState(false);
   const actionRef = useRef<HTMLDivElement | null>(null);
@@ -84,8 +85,9 @@ export function ExamPage({ examId }: { examId: string }) {
     }
   }
   const data = exam.data;
-  const moduleId = data?.moduleId ?? "";
-  const moduleQuery = usePublicModule(moduleId, signedIn);
+  // Every package the exam is in, read once for the cards and the cover (NR-01, S2.4).
+  const packageRefs = data?.packages ?? [];
+  const packageReads = usePublicModulesById(packageRefs.map((pkg) => pkg.id));
 
   // The sticky bar appears once the primary action has scrolled out of view. Only a phone needs it.
   const ready = Boolean(exam.data);
@@ -131,10 +133,14 @@ export function ExamPage({ examId }: { examId: string }) {
   const owned: StudentExam | null = mine.data ?? null;
   const ownsExam = examAccess.owned;
   const status = owned?.myStatus ?? null;
-  const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data, locale) : "";
-  const modulePrice = moduleQuery.data?.price ?? null;
-  const moduleAccess = resolveAccess(moduleQuery.data?.access);
-  const moduleOwned = moduleAccess.owned;
+  const pricing = pricingOf(data.pricing, data.price);
+  const label = priceLabel(pricing);
+  // The student can buy the exam itself only when it has a price of its own (plan Q12).
+  const ownPrice = label.kind === "price" || label.kind === "discounted";
+  const charged = chargedAmount(pricing, data.price);
+  const expiresAt = data.access?.expiresAt ?? null;
+  const endedAccess = isStudent && !ownsExam && Boolean(expiresAt);
+  const coverPackage = packageReads[0]?.data;
   const crumbs = [
     { label: t("catalog.home"), href: "/" },
     { label: doorLabel, href: doorPath(door) },
@@ -146,25 +152,26 @@ export function ExamPage({ examId }: { examId: string }) {
   const hasWindow = Boolean(startsAt && endsAt);
   const beforeStart = hasWindow && now < Date.parse(startsAt as string);
   const windowOpen = hasWindow && now >= Date.parse(startsAt as string) && now < Date.parse(endsAt as string);
-  const price = data.price;
   const examType = data.examType;
   const retakeOffer = status === "MISSED" && owned?.retakeAvailable === true && examType === "MCQ";
   // The sitting's deadline has passed, but the server has not posted it yet: show the result, not Resume.
   const sittingEnded = Boolean(owned?.sitting && Date.parse(owned.sitting.deadlineAt) <= now);
   const loginHref = `/login?next=${encodeURIComponent(examPath(examId))}`;
+  const buyLabel = t("catalog.exam.buyExam", { price: formatMoney(charged, locale) ?? "" });
 
   // One primary action, chosen by state.
   let primary: ReactNode = null;
   if (!signedIn) {
-    primary =
-      price !== null && price !== undefined ? (
-        <Button fullWidth href={loginHref}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>
-      ) : null;
+    if (label.kind === "free") {
+      primary = <Button fullWidth href={loginHref}>{t("catalog.exam.freeLogin")}</Button>;
+    } else if (ownPrice) {
+      primary = <Button fullWidth href={loginHref}>{buyLabel}</Button>;
+    }
   } else if (isStudent && !ownsExam) {
     if (phoneRequired || examAccess.blockedReason === "PHONE_REQUIRED") {
       primary = <Button fullWidth href={`/set-phone?next=${encodeURIComponent(examPath(examId))}`}>{t("catalog.exam.addPhone")}</Button>;
-    } else if (price !== null && price !== undefined) {
-      primary = <Button fullWidth disabled={checkoutOff || examAccess.buyable === false} onClick={() => setBuying(true)}>{t("catalog.exam.buyExam", { price: formatMoney(price, locale) ?? "" })}</Button>;
+    } else if (ownPrice) {
+      primary = <Button fullWidth disabled={checkoutOff || examAccess.buyable === false} onClick={() => setBuying(true)}>{buyLabel}</Button>;
     }
   } else if (ownsExam) {
     if (status === "NOT_ANNOUNCED") {
@@ -172,7 +179,7 @@ export function ExamPage({ examId }: { examId: string }) {
     } else if (status === "UPCOMING") {
       primary = <Button fullWidth disabled>{t("catalog.exam.startExam")}</Button>;
     } else if (status === "OPEN") {
-      primary = <Button fullWidth onClick={() => setStarting("live")}>{t("catalog.exam.startExam")}</Button>;
+      primary = <Button fullWidth onClick={() => setStarting("live")}>{examAccess.via === "FREE" ? t("catalog.exam.freeStart") : t("catalog.exam.startExam")}</Button>;
     } else if ((status === "IN_PROGRESS" || (status === "SUBMITTED" && windowOpen)) && !sittingEnded) {
       primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t(status === "SUBMITTED" ? "catalog.exam.reviewAnswers" : "catalog.exam.resume")}</Button>;
     } else if (status === "MISSED") {
@@ -201,30 +208,16 @@ export function ExamPage({ examId }: { examId: string }) {
       t("catalog.dateTbd")
     );
 
-  // The fourth fact: full marks once the student owns the exam, otherwise the price.
-  const fourth =
-    owned && owned.maximum
-      ? { label: t("catalog.exam.fullMarks"), value: formatNumber(owned.maximum, locale) }
-      : price !== null && price !== undefined
-        ? { label: t("catalog.exam.price"), value: formatMoney(price, locale) ?? "" }
-        : null;
-
   return (
     <div className={cn(barAllowed && "pb-24 md:pb-0")}>
       <Breadcrumbs items={crumbs} />
       <ConfigNotice show={checkoutOff} />
 
-      {moduleTitle ? (
-        <Link href={modulePath(door, moduleId)} prefetch className="mt-3 inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-muted hover:text-text">
-          ← {moduleTitle}
-        </Link>
-      ) : null}
-
       <PackageCover
-        src={coverSrc(moduleQuery.data?.coverUrl)}
-        alt={t("catalog.package.coverAlt", { title: moduleTitle || title })}
+        src={coverSrc(coverPackage?.coverUrl)}
+        alt={t("catalog.package.coverAlt", { title: pickTitle(coverPackage ?? data, locale) || title })}
         type={examType === "MCQ" ? "MCQ" : "WRITTEN"}
-        title={moduleTitle || title}
+        title={pickTitle(coverPackage ?? data, locale) || title}
         className="mt-3 aspect-auto h-28 rounded-card md:h-40"
       />
 
@@ -236,6 +229,16 @@ export function ExamPage({ examId }: { examId: string }) {
         </div>
         <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
         <p className="text-body text-muted">{timingLine}</p>
+        {ownsExam && expiresAt ? (
+          <p className="text-body font-semibold text-muted">
+            {t("catalog.exam.accessUntil", { date: formatDate(expiresAt, locale, { year: "auto" }) })}
+          </p>
+        ) : null}
+        {endedAccess && expiresAt ? (
+          <p className="text-body font-semibold text-warn">
+            {t("catalog.exam.accessEnded", { date: formatDate(expiresAt, locale, { year: "auto" }) })}
+          </p>
+        ) : null}
         {status === "SUBMITTED" && owned?.sitting?.submittedAt ? (
           <p className="text-body font-semibold text-ok">
             {t("catalog.exam.submittedLine", { time: formatTime(owned.sitting.submittedAt, locale), deadline: formatTime(owned.sitting.deadlineAt, locale) })}
@@ -252,16 +255,20 @@ export function ExamPage({ examId }: { examId: string }) {
             sub={endsAt ? `${t("catalog.exam.end")}: ${formatTime(endsAt, locale)}` : undefined}
           />
           <Fact label={t("catalog.exam.paperLanguage")} value={data.paperLanguage === "EN" ? t("catalog.exam.langEn") : t("catalog.exam.langBn")} />
-          {fourth ? <Fact label={fourth.label} value={fourth.value} /> : null}
+          {owned && owned.maximum ? (
+            <Fact label={t("catalog.exam.fullMarks")} value={formatNumber(owned.maximum, locale)} />
+          ) : (
+            <div className="grid content-start gap-0.5">
+              <dt className="text-meta text-muted">{t("catalog.exam.price")}</dt>
+              <dd>
+                <PriceLine label={label} size="detail" />
+              </dd>
+            </div>
+          )}
         </dl>
 
         <div ref={actionRef} className="grid gap-2 border-t border-border pt-5">
           {primary}
-          {isStudent && !ownsExam && price !== null && price !== undefined && moduleTitle && modulePrice !== null && !moduleOwned ? (
-            <Button variant="secondary" fullWidth disabled={checkoutOff || moduleAccess.buyable === false} onClick={() => setModuleBuying(true)}>
-              {t("catalog.buyModuleWithPrice", { price: formatMoney(modulePrice, locale) ?? "" })}
-            </Button>
-          ) : null}
           <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
             {t("catalog.exam.copyLink")}
           </Button>
@@ -297,6 +304,11 @@ export function ExamPage({ examId }: { examId: string }) {
           </Section>
         ) : null}
         {ownsExam ? <p className="font-semibold text-ok">✓ {t("catalog.exam.unlockedNote")}</p> : null}
+        {packageRefs.length > 0 ? (
+          <Section title={t("catalog.exam.packagesTitle")}>
+            <ExamPackages door={door} packages={packageRefs} reads={packageReads} />
+          </Section>
+        ) : null}
       </div>
 
       {showBar ? (
@@ -308,8 +320,8 @@ export function ExamPage({ examId }: { examId: string }) {
           <div className="mx-auto flex max-w-[760px] items-center gap-3">
             <div className="grid min-w-0 flex-1">
               <span className="line-clamp-1 text-body font-semibold">{title}</span>
-              {!ownsExam && price !== null && price !== undefined ? (
-                <span className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(price, locale)}</span>
+              {!ownsExam && ownPrice ? (
+                <span className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(charged, locale)}</span>
               ) : null}
             </div>
             <div className="shrink-0">{primary}</div>
@@ -317,24 +329,23 @@ export function ExamPage({ examId }: { examId: string }) {
         </div>
       ) : null}
 
-      {isStudent && price !== null && price !== undefined && !ownsExam ? (
+      {isStudent && ownPrice && !ownsExam ? (
         <PurchaseSheet
           open={buying}
           onOpenChange={setBuying}
-          item={{ kind: "exam", id: examId, title, price, door, coverUrl: moduleQuery.data?.coverUrl ?? null }}
-          moduleOffer={!moduleOwned && modulePrice !== null && modulePrice !== undefined ? { price: modulePrice } : null}
-          onSwitchToModule={() => {
-            setBuying(false);
-            setModuleBuying(true);
+          item={{
+            kind: "exam",
+            id: examId,
+            title,
+            price: charged ?? 0,
+            listPrice: pricing?.price ?? null,
+            discountPercent: pricing?.discountPercent ?? null,
+            discountEndsAt: pricing?.discountEndsAt ?? null,
+            packages: packageRefs.map((pkg) => ({ id: pkg.id, title: pickTitle(pkg, locale) })),
+            door,
+            coverUrl: coverPackage?.coverUrl ?? null,
           }}
-          examMeta={{ moduleId, door }}
-        />
-      ) : null}
-      {isStudent && modulePrice !== null && modulePrice !== undefined && moduleTitle ? (
-        <PurchaseSheet
-          open={moduleBuying}
-          onOpenChange={setModuleBuying}
-          item={{ kind: "module", id: moduleId, title: moduleTitle, price: modulePrice, door, coverUrl: moduleQuery.data?.coverUrl ?? null }}
+          examMeta={{ moduleId: data.moduleId, door }}
         />
       ) : null}
       {owned && starting ? (
