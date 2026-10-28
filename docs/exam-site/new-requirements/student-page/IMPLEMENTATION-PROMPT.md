@@ -1,49 +1,45 @@
-# Implementation prompt: student page overhaul (start with S0)
+# Implementation prompt: student page overhaul
 
-Paste everything below the line into a new session.
+Two parts. Part A is the S0 follow-up, to run first. Part B (S1 onward) starts only after Shahriar's go on S0. Paste the block for the part you're starting into a new session.
 
 ---
 
-You are implementing the student page overhaul for the coaching-center exam site. Work only in the worktree `F:\cc-wt\nr01-ui`, branch `ui/nr01-ui`. Start by running `git -C /f/cc-wt/nr01-ui rev-parse --show-toplevel` and `git branch --show-current`. They must print `F:/cc-wt/nr01-ui` and `ui/nr01-ui`. If not, stop and report.
+## Part A: S0 follow-up (paste from here)
 
-## Read first, in this order
+You are finishing S0 of the student page overhaul for the coaching-center exam site. Work only in `F:\cc-wt\nr01-ui`, branch `ui/nr01-ui`. First run `git -C /f/cc-wt/nr01-ui rev-parse --show-toplevel` and `git branch --show-current`. They must print `F:/cc-wt/nr01-ui` and `ui/nr01-ui`. If not, stop and report. Do not run Maven from any other checkout.
 
-1. `docs/exam-site/new-requirements/student-page/plan.md`: the decisions, the steps, the files, the tests, and the review rules. This is the source of truth.
-2. `docs/exam-site/new-requirements/student-page/steps.md`: the earlier draft and its open questions (answered in plan.md).
-3. `docs/exam-site/new-requirements/nr-01-ui/conversation-decisions.md`: the decisions for the whole UI, including wording, the watermark and the rules for working with the API.
-4. `docs/exam-site/new-requirements/nr-01-ui/README.md`: the working rules and the worker brief.
-5. `docs/exam-site/new-requirements/nr-01/contracts.md`, section 7 (compatibility rules). Do not break them.
+**Read first, in order:**
+1. `docs/exam-site/new-requirements/student-page/plan.md`: the source of truth (section 4, S0).
+2. `docs/exam-site/new-requirements/student-page/progress/S0-review.md`: what S0 did and the review accounts.
+3. `docs/exam-site/new-requirements/nr-01/contracts.md`, section 7 (compatibility rules). Do not break them.
 
-## What to do now: S0 only
+**Decisions already made for this follow-up (do not re-open them):**
 
-Implement **S0** from `plan.md` section 4, and nothing else:
+- **F1. Expired seed row.** Add one expired grant to the seed, so the "expired" state can be seen on the dev server. Give student 4 (তানভীর হাসান) a second manual exam grant on a seeded exam whose access has already ended, such as a past-window exam, so the grant is expired. Insert-only, behind its own marker, and idempotent. Keep the existing accounts.
+- **F2. Popular packages on the home page need no API change.** `GET /api/v1/public/live-exam-modules?popular=true` already exists. Do not add an endpoint. Verify the seeded popular package (b8) appears with that filter, and add an assertion to `CategoryBranchExamsIT` or `DemoContentSeedIT`.
+- **F3. Expired access shows its past end date.** Today an expired grant reads as `NONE` with `expiresAt: null`. Change it so that `state` stays `NONE` (so an expired holder can still buy again, as decided in C2), but `expiresAt` carries the end date of the expired grant. Only when no live access exists. Where the object is built, look at `StudentOwnAccessService` and `LiveExamAccess` (`candidates`, `best`). The change is additive: no field is removed, and existing responses keep their meaning. Update `CategoryBranchExamsIT` to assert the new value.
+- **F4. Bangla for the new seed rows.** Keep the drafted terms already in the seed. Do not block on them. List each term in `S0-review.md` under "Bangla to confirm", so Shahriar can correct them later.
 
-- **S0.1 (API1):** `GET /api/v1/public/live-exam-categories/{id}/exams` gains a `branch` boolean parameter (default false). With `branch=true`, the list includes exams in every subcategory under that category. The default stays exactly as it is today. Use `LiveExamPublicController` and `LiveExamPublicService.categoryExams`. Add the query needed to find the descendant category ids. The category tree is stored with `parent_id` in `live_exam_categories`.
-- **S0.2 (API2):** `GET /api/v1/public/live-exams` gains a `popular` boolean parameter (default false). Filter by `popular = true`. The existing `upcoming` behaviour must not change.
-- **S0.3 (API3):** the exam's `access` object (returned by the public and student exam reads, built in `StudentOwnAccessService`) gains `expiresAt` (ISO UTC, or null for lifetime, free, or undated). Take the value from `LiveExamAccess.state(...)`, which already computes `endsAt`. Check the field name against `AccessInfo` in `web/src/lib/api/exam/types.ts` and keep the JSON shape additive.
-- **S0.4:** extend `DemoContentSeed.java` with the NR-01 review cases. It must be insert-only and idempotent, like the existing seed. Add: a discounted exam and a discounted package; a free exam; a popular exam and a popular package; one exam in two packages; a standalone exam in a category (no package); a student with an expiring grant; a written exam with a question PDF. Keep the existing accounts and passwords as they are. Look at the existing seed's style first and match it.
-- **S0.5:** run the API IT classes once. Put the new IT class in `api/src/test/java/com/coachingcenter/api/exams/`, named `CategoryBranchExamsIT`, and include the popular and expiry cases in it. Also run `DemoContentSeedIT`.
+**Tests for this follow-up:**
+- `CategoryBranchExamsIT`, `DemoContentSeedIT`, and the access classes `StudentAccessIT` and `AccessExpiryIT` (the access object changed).
+- One run, from the worktree:
+  `Set-Location F:\cc-wt\nr01-ui; powershell -NoProfile -File docs\exam-site\new-requirements\nr-01\tools\nr01-mvn.ps1 -Agent INT -Tests "CategoryBranchExamsIT,DemoContentSeedIT,StudentAccessIT,AccessExpiryIT"`
+  Run it in the background and wait for the completion notice. Do not poll. Never run `mvn` directly. Never print or commit a password.
+- Do not run `-Full` in this follow-up.
 
-## Rules
+**Full-suite check for S0.** The full suite after S0 is being run by the orchestrator from the UI worktree. If the orchestrator reports a failure, fix only what it names. Do not start on other failures.
 
-- **Maven only through the runner script.** From PowerShell, in the worktree: `Set-Location F:\cc-wt\nr01-ui; powershell -NoProfile -File docs\exam-site\new-requirements\nr-01\tools\nr01-mvn.ps1 -Agent INT -Tests "CategoryBranchExamsIT,DemoContentSeedIT"`. It waits for the shared test lock, which is expected. Run it once with a long timeout or in the background, and wait for its completion notice. Do not poll. Never run `mvn` directly. Never print or commit a password. Do not use `-Full` in this step.
-- **Web checks.** Only if you change web code in S0 (you should not need to). If you do, take the heavy lock by writing `UI` into `F:\coaching-center-platform\.heavy.lock`, run the check, and always delete the lock afterwards.
-- **No change to the main checkout.** Work only in `F:\cc-wt\nr01-ui`. Never commit to `demo/client-review` or `nr01/integration`.
-- **Do not push to `demo/client-review`.** You may push `ui/nr01-ui` after the step is green.
-- **Commits:** one commit per sub-step, with a message in the usual style, ending with `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`. Never use `--no-verify`.
-- **Scope:** do not change web code, the compatibility rules, the staging database or the staging server. Do not start S1.
-- **Do not guess.** If a field name, a query or a seed pattern is unclear, read the existing code first (grep, then a 50 to 100 line window). If it's still unclear, stop and ask.
-- **Token care.** Search before reading. Do not read whole files over 500 lines. Keep status updates to one line.
+**Rules:**
+- Commit each change separately, ending with `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`. Never use `--no-verify`.
+- Do not touch web code, the staging database or the staging server. Do not deploy.
+- Do not start S1.
+- If a name or pattern is unclear, read the existing code first. If still unclear, stop and ask.
+- Search before reading. Don't read whole files over 500 lines.
 
-## When S0 is done
+**When done:** update `S0-review.md` with a "Follow-up" section (what changed, commit hashes, test results with counts, the new review account and case for the expired row, and the Bangla list). Push `ui/nr01-ui`. Stop and report in five lines.
 
-1. Write `docs/exam-site/new-requirements/student-page/progress/S0-review.md` with:
-   - what changed, sub-step by sub-step, with commit hashes;
-   - the test commands and their real results, with counts;
-   - the review accounts: which login, which role, which exams each one can see, and which seeded exam each case uses (discounted, free, popular, two packages, standalone, expiring grant, written with PDF);
-   - anything you were unsure about.
-2. Add any new markers to `docs/exam-site/new-requirements/student-page/markers.md` (create it if missing).
-3. Push `ui/nr01-ui`.
-4. Stop and report in five lines: sub-steps done, commit hashes, test results, the review file path, anything blocking.
+---
 
-Do not start S1 until Shahriar has reviewed S0 and sent his go.
+## Part B: S1 onward (paste later, after Shahriar's go on S0)
+
+Not yet. Part B will be written after S0 is accepted. It will follow `plan.md` section 4 (S1 navigation, S2 browsing and purchase, S3 popular and favourites), with one worker per step and a review note and push at the end of each step.
