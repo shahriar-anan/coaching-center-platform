@@ -61,6 +61,10 @@ Merge order: **C, D, B, A.** Then stage 3.
 
 The orchestrator runs on **Sonnet 5.5**, and **every agent runs on Haiku 5.5**. Relaunched agents use `model: haiku`, whatever they ran on before.
 
+## Test-run rule (Shahriar, 28 October 2026)
+
+To cut runs, agents test **once per slice**, in one invocation (the slice's new classes plus the existing classes it touched), and rerun only failing classes. Agents **do not run `-Full`**. The orchestrator runs the full suite on `nr01/integration` after each merge, and again at the end. Any resumed agent prompt must say this.
+
 ## Log
 
 - 28 Oct: F merged, plus orchestrator fixes (`ApiExceptionHandler` field errors, primary package by `added_at`, contracts §8). A, B, C and D launched.
@@ -73,3 +77,8 @@ The orchestrator runs on **Sonnet 5.5**, and **every agent runs on Haiku 5.5**. 
   - **Copy** takes the staff working copy, not the published rows.
   - **`myStatusDetail`** may mirror `myStatus` until D merges.
   - **A's edit to D's `LiveEvaluationIT`** clash test is accepted (D17). Resolve it at D's merge.
+- 28 Oct, about 20:10: **C merged** into `nr01/integration` (`a44668e`). C's own full run: 475 tests, 0 failures. Full suite on the merged result: running.
+  - C's follow-ups, for integration:
+    - `AnnouncementService.TO_MODULE` matches grants by `g.module_id`. An exam grant now has no package, so an exam buyer no longer receives package announcements. This is a small behaviour change; decide in integration whether to include exam buyers through the memberships.
+    - Deleting a package keeps its buyers' exam grants (R5). That is intended.
+  - Next merge: D, then B, then A.

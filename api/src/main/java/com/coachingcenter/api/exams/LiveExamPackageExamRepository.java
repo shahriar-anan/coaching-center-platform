@@ -22,6 +22,9 @@ public interface LiveExamPackageExamRepository extends JpaRepository<LiveExamPac
 	/** Every membership of the exam, removed ones included. */
 	List<LiveExamPackageExam> findByExamId(UUID examId);
 
+	/** Every membership of the package, removed ones included: a grant still covers an exam it held before it was removed. */
+	List<LiveExamPackageExam> findByModuleId(UUID moduleId);
+
 	boolean existsByModuleIdAndExamIdAndRemovedAtIsNull(UUID moduleId, UUID examId);
 
 	default boolean existsActive(UUID moduleId, UUID examId) {

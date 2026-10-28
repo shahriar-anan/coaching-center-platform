@@ -84,6 +84,9 @@ class StudentAccessIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.content[2].orderId").doesNotExist())
 			.andExpect(jsonPath("$.content[2].tranId").doesNotExist())
 			.andExpect(jsonPath("$.content[2].moduleTitleEn").exists())
+			.andExpect(jsonPath("$.content[0].expired").value(false))
+			.andExpect(jsonPath("$.content[1].expired").value(false))
+			.andExpect(jsonPath("$.content[2].expired").value(false))
 			.andReturn();
 		assertThat(result.getResponse().getContentAsString()).doesNotContain(examB.toString());
 
@@ -106,11 +109,14 @@ class StudentAccessIT extends PostgresIntegrationTest {
 			.andExpect(status().isForbidden());
 		mockMvc.perform(get("/api/v1/students/" + studentId + "/live-exam-access")).andExpect(status().isUnauthorized());
 
+		// Deleting the package ends its roster and package rows; the bought exam stays the student's (R5).
 		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
 		mockMvc.perform(get("/api/v1/students/" + studentId + "/live-exam-access").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.totalElements").value(0));
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].via").value("EXAM_PURCHASE"))
+			.andExpect(jsonPath("$.content[0].exams[0].id").value(examA.toString()));
 	}
 
 	@Test
@@ -159,10 +165,12 @@ class StudentAccessIT extends PostgresIntegrationTest {
 		assertThat(row(body.get("modules"), "moduleId", rostered).has("orderId")).isFalse();
 		assertThat(row(body.get("modules"), "moduleId", bought).get("orderId").asText()).isEqualTo(moduleOrder.toString());
 		assertThat(row(body.get("modules"), "moduleId", granted).has("orderId")).isFalse();
+		assertThat(row(body.get("modules"), "moduleId", bought).get("expired").asBoolean()).isFalse();
 		JsonNode exams = body.get("exams");
 		assertThat(row(exams, "examId", examBought).get("via").asText()).isEqualTo("EXAM");
 		assertThat(row(exams, "examId", examBought).get("moduleId").asText()).isEqualTo(single.toString());
 		assertThat(row(exams, "examId", examBought).get("orderId").asText()).isEqualTo(examOrder.toString());
+		assertThat(row(exams, "examId", examBought).get("expired").asBoolean()).isFalse();
 		assertThat(row(exams, "examId", examGranted).get("via").asText()).isEqualTo("MANUAL");
 		assertThat(row(exams, "examId", examBundled).get("via").asText()).isEqualTo("EXAM");
 		assertThat(row(exams, "examId", examBundled).get("orderId").asText()).isEqualTo(bundleOrder.toString());

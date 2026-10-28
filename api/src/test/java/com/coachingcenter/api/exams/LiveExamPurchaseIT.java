@@ -158,7 +158,7 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"examId\":\"" + free + "\"}"))
 			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("PRICE_REQUIRED"));
+			.andExpect(jsonPath("$.code").value("EXAM_NOT_FOR_SALE"));
 
 		JsonNode first = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
 		JsonNode second = initiate(student, "{\"examId\":\"" + exam + "\"}", 200);

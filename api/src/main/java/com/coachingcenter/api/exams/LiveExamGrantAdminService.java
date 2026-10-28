@@ -40,9 +40,12 @@ public class LiveExamGrantAdminService {
 
 	private final StudentNoticeWriter notices;
 
+	private final LiveExamAccess access;
+
 	public LiveExamGrantAdminService(LiveExamGrantRepository grants, LiveExamModuleRepository modules,
 			LiveExamRepository exams, UserRepository users, AuditRecorder audit, Clock clock, StudentNoticeWriter notices,
-			LiveExamMemberships memberships) {
+			LiveExamMemberships memberships, LiveExamAccess access) {
+		this.access = access;
 		this.memberships = memberships;
 		this.grants = grants;
 		this.modules = modules;
@@ -61,13 +64,12 @@ public class LiveExamGrantAdminService {
 	public GrantView grant(CurrentActor actor, GrantRequest request) {
 		String scope = request.scope().trim().toUpperCase();
 		UUID moduleId;
-		UUID examId;
+		LiveExam exam = null;
 		if (LiveExamOrder.MODULE.equals(scope)) {
 			if (request.moduleId() == null || request.examId() != null) {
 				throw validationFailed();
 			}
 			moduleId = request.moduleId();
-			examId = null;
 			if (modules.findByIdAndDeletedAtIsNull(moduleId).isEmpty()) {
 				throw notFound();
 			}
@@ -76,12 +78,12 @@ public class LiveExamGrantAdminService {
 			if (request.examId() == null) {
 				throw validationFailed();
 			}
-			LiveExam exam = exams.findByIdAndDeletedAtIsNull(request.examId()).orElseThrow(this::notFound);
-			if (request.moduleId() != null && !request.moduleId().equals(memberships.requirePrimaryModuleId(exam.getId()))) {
+			exam = exams.findByIdAndDeletedAtIsNull(request.examId()).orElseThrow(this::notFound);
+			// An exam grant names no package (R5). A package named here must be one the exam is in now.
+			if (request.moduleId() != null && !memberships.activeModuleIds(exam.getId()).contains(request.moduleId())) {
 				throw validationFailed();
 			}
-			moduleId = memberships.requirePrimaryModuleId(exam.getId());
-			examId = exam.getId();
+			moduleId = null;
 		}
 		else {
 			throw validationFailed();
@@ -89,25 +91,31 @@ public class LiveExamGrantAdminService {
 		User student = users.findByIdAndDeletedAtIsNull(request.studentId())
 			.filter(user -> Role.STUDENT.name().equals(user.getRole()))
 			.orElseThrow(this::notFound);
-		boolean active = LiveExamOrder.MODULE.equals(scope)
-				? grants.existsByStudentIdAndScopeAndModuleIdAndRevokedAtIsNull(student.getId(), scope, moduleId)
-				: grants.existsByStudentIdAndScopeAndExamIdAndRevokedAtIsNull(student.getId(), scope, examId);
-		if (active) {
-			throw new ApiException(ErrorCode.GRANT_ALREADY_ACTIVE, HttpStatus.CONFLICT,
-					"This student already has active access to that module or exam.");
+		Instant now = clock.instant();
+		if (exam == null) {
+			if (access.holdsModuleGrant(student.getId(), moduleId, now)) {
+				throw grantActive();
+			}
+			access.retireExpiredGrants(student.getId(), scope, moduleId, null, now, LiveExamAccess.RETIRED);
+		}
+		else {
+			if (access.holdsExamGrant(student.getId(), exam, now)) {
+				throw grantActive();
+			}
+			access.retireExpiredGrants(student.getId(), scope, null, exam, now, LiveExamAccess.RETIRED);
 		}
 		LiveExamGrant grant = new LiveExamGrant();
 		grant.setId(UUID.randomUUID());
 		grant.setStudentId(student.getId());
 		grant.setScope(scope);
 		grant.setModuleId(moduleId);
-		grant.setExamId(examId);
+		grant.setExamId(exam == null ? null : exam.getId());
 		grant.setSource(LiveExamGrant.SOURCE_MANUAL);
 		grant.setGrantedBy(actor.userId());
 		grant.setReason(request.reason().trim());
-		grant.setCreatedAt(clock.instant());
+		grant.setCreatedAt(now);
 		grants.saveAndFlush(grant);
-		notices.purchaseGranted(student.getId(), LiveExamOrder.MODULE.equals(scope) ? moduleId : examId, scope);
+		notices.purchaseGranted(student.getId(), exam == null ? moduleId : exam.getId(), scope);
 		audit.record(AuditRecorder.ACCESS_GRANTED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grant.getId());
 		return view(grant);
 	}
@@ -137,6 +145,11 @@ public class LiveExamGrantAdminService {
 		return new GrantView(grant.getId(), grant.getStudentId(), grant.getScope(), grant.getModuleId(), grant.getExamId(),
 				grant.getSource(), grant.getGrantedBy(), grant.getReason(), grant.getCreatedAt(), grant.getRevokedAt(),
 				grant.getRevokedBy(), grant.getRevokeReason());
+	}
+
+	private static ApiException grantActive() {
+		return new ApiException(ErrorCode.GRANT_ALREADY_ACTIVE, HttpStatus.CONFLICT,
+				"This student already has active access to that module or exam.");
 	}
 
 	private static ApiException validationFailed() {
