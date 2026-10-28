@@ -282,6 +282,9 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	/** Published exams whose home category is {@code categoryId} (NR-01, B2). */
 	List<LiveExam> findByCategoryIdAndStatusAndDeletedAtIsNull(UUID categoryId, String status);
 
+	/** Published exams whose home category is one of {@code categoryIds}: a category and its subcategories (NR-01, S0.1). */
+	List<LiveExam> findByCategoryIdInAndStatusAndDeletedAtIsNull(Collection<UUID> categoryIds, String status);
+
 	/** Published exams whose home category is not in {@code categoryIds}: the catalog's visible exams (NR-01, B2). */
 	List<LiveExam> findByStatusAndDeletedAtIsNullAndCategoryIdNotIn(String status, Set<UUID> categoryIds);
 

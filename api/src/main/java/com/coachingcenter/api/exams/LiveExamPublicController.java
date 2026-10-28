@@ -52,16 +52,18 @@ public class LiveExamPublicController {
 
 	/**
 	 * The published exams of one category: standalone ones and those in its packages alike (NR-01, B2). {@code mode},
-	 * {@code phase} and {@code popular} filter the list.
+	 * {@code phase} and {@code popular} filter the list. {@code branch} adds the exams of every subcategory below it (NR-01,
+	 * S0.1); without it only the category's own exams are listed.
 	 */
 	@GetMapping("/api/v1/public/live-exam-categories/{id}/exams")
 	public PageResponse<LiveExamPublicService.CategoryExam> categoryExams(@PathVariable UUID id,
 			@RequestParam(required = false) String examType, @RequestParam(required = false) String mode,
 			@RequestParam(required = false) String phase,
 			@RequestParam(required = false, defaultValue = "false") boolean popular,
+			@RequestParam(required = false, defaultValue = "false") boolean branch,
 			@PageableDefault(size = 20) Pageable pageable) {
 		Page<LiveExamPublicService.CategoryExam> page = catalog.categoryExams(id, LiveExamTypeFilter.parse(examType),
-				LiveExamTypeFilter.parseMode(mode), LiveExamTypeFilter.parsePhase(phase), popular, pageable);
+				LiveExamTypeFilter.parseMode(mode), LiveExamTypeFilter.parsePhase(phase), popular, branch, pageable);
 		UUID student = studentId();
 		if (student != null) {
 			Set<UUID> marked = favourites.examIds(student);

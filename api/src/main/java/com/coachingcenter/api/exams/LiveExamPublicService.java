@@ -5,9 +5,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -241,18 +243,23 @@ public class LiveExamPublicService {
 		return examRow(exam, visiblePackages(List.of(exam.getId()), hidden).getOrDefault(exam.getId(), List.of()), viewer);
 	}
 
-	/** The published exams of one category, for the category's exam list (NR-01, B2). */
+	/**
+	 * The published exams of one category, for the category's exam list (NR-01, B2). {@code branch} adds the exams of every
+	 * subcategory below it, at any depth (NR-01, S0.1). Exams in a hidden subcategory stay out.
+	 */
 	@Transactional(readOnly = true)
 	public Page<CategoryExam> categoryExams(UUID categoryId, String examType, String mode, String phase,
-			boolean popularOnly, Pageable pageable) {
+			boolean popularOnly, boolean branch, Pageable pageable) {
 		categories.findByIdAndDeletedAtIsNull(categoryId).orElseThrow(this::notFound);
 		if (visibility.branchHidden(categoryId)) {
 			return Page.empty(pageable);
 		}
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		Instant now = clock.instant();
-		List<LiveExam> candidates = new ArrayList<>(
-				exams.findByCategoryIdAndStatusAndDeletedAtIsNull(categoryId, LiveExam.PUBLISHED));
+		List<LiveExam> candidates = new ArrayList<>(branch
+				? exams.findByCategoryIdInAndStatusAndDeletedAtIsNull(branchOf(categoryId), LiveExam.PUBLISHED)
+				: exams.findByCategoryIdAndStatusAndDeletedAtIsNull(categoryId, LiveExam.PUBLISHED));
+		candidates.removeIf(exam -> hidden.contains(exam.getCategoryId()));
 		candidates.sort(START_ORDER);
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
 				candidates.stream().map(LiveExam::getId).toList(), hidden);
@@ -273,6 +280,25 @@ public class LiveExamPublicService {
 			rows.add(categoryExam(exam, now, packagesByExam.getOrDefault(exam.getId(), List.of())));
 		}
 		return page(rows, pageable);
+	}
+
+	/** The category and every category below it, at any depth (NR-01, S0.1). */
+	private Set<UUID> branchOf(UUID categoryId) {
+		Map<UUID, List<UUID>> childrenOf = new HashMap<>();
+		for (LiveExamCategory category : categories.findByDeletedAtIsNull()) {
+			if (category.getParentId() != null) {
+				childrenOf.computeIfAbsent(category.getParentId(), ignored -> new ArrayList<>()).add(category.getId());
+			}
+		}
+		Set<UUID> branch = new HashSet<>();
+		Deque<UUID> pending = new ArrayDeque<>(List.of(categoryId));
+		while (!pending.isEmpty()) {
+			UUID id = pending.pop();
+			if (branch.add(id)) {
+				pending.addAll(childrenOf.getOrDefault(id, List.of()));
+			}
+		}
+		return branch;
 	}
 
 	private LiveExamModule requireModule(UUID id) {
