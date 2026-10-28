@@ -170,10 +170,10 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.rows.content.length()").value(1))
 			.andExpect(jsonPath("$.rows.content[0].attemptNo").value(1));
-		mockMvc.perform(get("/api/v1/live-exam-participation").header("Authorization", "Bearer " + world.master()))
+		mockMvc.perform(get("/api/v1/live-exam-participation").param("size", "500").header("Authorization", "Bearer " + world.master()))
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString(world.mcq().toString())));
-		mockMvc.perform(get("/api/v1/students/" + world.s1() + "/live-exam-results")
+		mockMvc.perform(get("/api/v1/students/" + world.s1() + "/live-exam-results").param("size", "500")
 			.header("Authorization", "Bearer " + world.master()))
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString(world.mcq().toString())));
@@ -236,10 +236,10 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 		JsonNode board = bodyOf(mockMvc.perform(get("/api/v1/live-exams/" + world.written() + "/leaderboard")
 			.header("Authorization", "Bearer " + world.s1Token())));
 		assertThat(board.get("rows")).hasSize(1);
-		mockMvc.perform(get("/api/v1/live-exam-participation").header("Authorization", "Bearer " + master))
+		mockMvc.perform(get("/api/v1/live-exam-participation").param("size", "500").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString(world.written().toString())));
-		mockMvc.perform(get("/api/v1/students/" + world.s1() + "/live-exam-results").header("Authorization", "Bearer " + master))
+		mockMvc.perform(get("/api/v1/students/" + world.s1() + "/live-exam-results").param("size", "500").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString(world.written().toString())));
 	}
