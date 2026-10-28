@@ -11,3 +11,6 @@ Committed together with B1 to B3 and B5 to B6 (shared files).
 ## Tests: `PackageRevisionIT` 6/6 (green)
 - Test fixes: the price is changed by the Master Admin (only it holds `EXAM_PRICE`); the description expectation matches the fixture; the start time moved to 10:10 (content lock).
 - Decided behaviour change: a published package edit is staged, not reset to DRAFT (`LiveCatalogIT` updated, E34). Stated in the commit.
+
+## Discount permission (orchestrator answer)
+- `discountPercent` and `discountEndsAt` need `EXAM_PRICE`, the Master Admin's permission, as the price does. A System Admin who sends them gets 403 `ACCESS_DENIED`, on a draft and on a staged revision. Test: `PackageRevisionIT.aSystemAdminCannotStageADiscountButTheMasterAdminCan`.

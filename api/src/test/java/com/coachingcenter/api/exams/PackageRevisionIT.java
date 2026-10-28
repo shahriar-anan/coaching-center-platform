@@ -222,6 +222,30 @@ class PackageRevisionIT extends PostgresIntegrationTest {
 		assertThat(access.canSit(holder, exams.findById(exam).orElseThrow(), TEN_AM)).isTrue();
 	}
 
+	/** The discount is the Master Admin's, as the price is (EXAM_PRICE): a System Admin cannot stage one (NR-01, B4). */
+	@Test
+	void aSystemAdminCannotStageADiscountButTheMasterAdminCan() throws Exception {
+		String system = fx.token(fx.seed("SYSTEM_ADMIN"));
+		String master = fx.token(fx.seed("MASTER_ADMIN"));
+		UUID pkg = publishedPackage(system, "Discounted package");
+
+		mockMvc.perform(patch("/api/v1/live-exam-modules/" + pkg).header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountPercent\":15}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + pkg + "/pending-changes").header("Authorization", "Bearer " + system))
+			.andExpect(status().isNotFound());
+
+		mockMvc.perform(patch("/api/v1/live-exam-modules/" + pkg).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountPercent\":15}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.pendingChanges").value(true));
+		assertThat(field(fx.body(system, "/api/v1/live-exam-modules/" + pkg + "/pending-changes"), "discountPercent")
+			.get("after").asInt()).isEqualTo(15);
+	}
+
 	/** A package with a title and no edits waiting, published by the Master Admin's first publish path. */
 	private UUID publishedPackage(String system, String titleEn) throws Exception {
 		UUID category = fx.createCategory(system, "Revision shelf");

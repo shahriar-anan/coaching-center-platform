@@ -14,3 +14,7 @@ Committed together with B2 to B6 (the code is shared; see b-b2.md).
 ## Test changes (not weakened)
 - `reorderAndRemove` test: the package is published, so the order, removal and re-add are staged. The test now has the Master Admin publish after each change (decided behaviour, E34 and B4).
 - Access test: exam start moved from 10:00 to 10:10 (the content lock, which A is removing, rejected question adds at the start time).
+
+## Disabled until A merges
+- `aStudentWhoHeldThePackageBeforeARemovalKeepsTheExamAndALaterHolderDoesNot` carries `@Disabled("needs A: visibility by home category, re-enable after A merges")`. The body is unchanged. The orchestrator re-enables it when A's visibility change is on `nr01/integration`.
+- With `nr01/integration` merged (archived or deleted package gives no access through it), `PackageMembershipIT` runs 3 cases and skips 1.

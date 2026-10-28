@@ -165,8 +165,10 @@ public class LiveExamModuleController {
 		}
 	}
 
+	/** The price and the discount are the Master Admin's (EXAM_PRICE), on a draft and on a staged revision alike. */
 	private void requirePricePermission(JsonNode body) {
-		if (body.has("price") && !permissions.has(Permissions.EXAM_PRICE)) {
+		boolean pricing = body.has("price") || body.has("discountPercent") || body.has("discountEndsAt");
+		if (pricing && !permissions.has(Permissions.EXAM_PRICE)) {
 			throw denied();
 		}
 	}
