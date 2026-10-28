@@ -50,14 +50,17 @@ public class LiveExamResultsService {
 
 	private final StudentProfileRepository students;
 
+	private final LiveExamMemberships memberships;
+
 	public LiveExamResultsService(LiveExamRepository exams, LiveExamModuleRepository modules,
 			LiveExamParticipantRepository participants, LiveExamQuestionRepository questions,
-			LiveExamInstructorRepository instructors, StudentProfileRepository students) {
+			LiveExamInstructorRepository instructors, StudentProfileRepository students, LiveExamMemberships memberships) {
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
 		this.questions = questions;
 		this.instructors = instructors;
+		this.memberships = memberships;
 		this.students = students;
 	}
 
@@ -76,7 +79,7 @@ public class LiveExamResultsService {
 		}
 		LiveExam exam = exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
 		if (actor.role() == Role.INSTRUCTOR) {
-			if (!LiveExam.WRITTEN.equals(exam.getExamType()) || !assigned(exam.getModuleId(), actor)) {
+			if (!LiveExam.WRITTEN.equals(exam.getExamType()) || !assigned(primaryModuleId(exam), actor)) {
 				throw notFound();
 			}
 		}
@@ -88,7 +91,7 @@ public class LiveExamResultsService {
 		Map<UUID, StudentProfile> profiles = profiles(all);
 		String needle = q == null ? "" : q.trim().toLowerCase();
 		List<Row> rows = all.stream()
-			.filter(p -> kindFilter == null || kindFilter.equals(p.getKind()))
+			.filter(p -> kindFilter == null || kindFilter.equals(LiveExamParticipant.legacyKind(p.getKind())))
 			.filter(p -> statusFilter == null || statusFilter.equals(p.getStatus()))
 			.map(p -> row(p, maximum, profiles.get(p.getStudentId())))
 			.filter(row -> needle.isEmpty() || row.studentName().toLowerCase().contains(needle)
@@ -116,20 +119,26 @@ public class LiveExamResultsService {
 		}
 		Map<UUID, LiveExamModule> moduleById = new HashMap<>();
 		for (LiveExam exam : examById.values()) {
-			modules.findByIdAndDeletedAtIsNull(exam.getModuleId()).ifPresent(module -> moduleById.put(module.getId(), module));
+			modules.findByIdAndDeletedAtIsNull(primaryModuleId(exam)).ifPresent(module -> moduleById.put(module.getId(), module));
 		}
 		Map<UUID, Integer> maximumByExam = new HashMap<>();
 		examById.values().forEach(exam -> maximumByExam.put(exam.getId(), maximum(exam)));
 		return PageResponse.from(page.map(participant -> {
 			LiveExam exam = examById.get(participant.getExamId());
-			LiveExamModule module = exam == null ? null : moduleById.get(exam.getModuleId());
+			LiveExamModule module = exam == null ? null : moduleById.get(primaryModuleId(exam));
 			return new HistoryRow(participant.getId(), exam == null ? null : exam.getId(),
 					exam == null ? null : exam.getTitleEn(), exam == null ? null : exam.getTitleBn(),
 					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
-					module == null ? null : module.getTitleBn(), participant.getKind(), participant.getStatus(),
+					module == null ? null : module.getTitleBn(), LiveExamParticipant.legacyKind(participant.getKind()),
+					participant.getKind(), participant.getStatus(),
 					McqScoring.plain(participant.getScore()), maximumByExam.getOrDefault(participant.getExamId(), 0), participant.getPassed(),
 					participant.getSubmittedAt(), published(participant, exam));
 		}));
+	}
+
+	/** The exam's package for listing and marking: its first active membership, or null when it is in none. */
+	private UUID primaryModuleId(LiveExam exam) {
+		return memberships.primaryModuleId(exam.getId()).orElse(null);
 	}
 
 	private boolean assigned(UUID moduleId, CurrentActor actor) {
@@ -149,7 +158,8 @@ public class LiveExamResultsService {
 	private Row row(LiveExamParticipant participant, int maximum, StudentProfile profile) {
 		return new Row(participant.getId(), participant.getStudentId(), profile == null ? "" : profile.getFullName(),
 				profile == null || profile.getStudentCode() == null ? "" : profile.getStudentCode(), participant.getStatus(),
-				participant.getKind(), McqScoring.plain(participant.getScore()), maximum, participant.getPassed(), participant.getStartedAt(),
+				LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
+				McqScoring.plain(participant.getScore()), maximum, participant.getPassed(), participant.getStartedAt(),
 				participant.getSubmittedAt(), participant.getPublishedAt(), participant.hasPendingRevision() ? Boolean.TRUE : null);
 	}
 
@@ -172,7 +182,8 @@ public class LiveExamResultsService {
 		int submitted = (int) live.stream().filter(p -> LiveExamParticipant.SUBMITTED.equals(p.getStatus())).count();
 		int failed = (int) live.stream().filter(p -> LiveExamParticipant.FAILED_TO_SUBMIT.equals(p.getStatus())).count();
 		int passCount = (int) finals.stream().filter(p -> Boolean.TRUE.equals(p.getPassed())).count();
-		int practice = (int) all.stream().filter(p -> LiveExamParticipant.RETAKE.equals(p.getKind())).count();
+		int practice = (int) all.stream()
+			.filter(p -> LiveExamParticipant.RETAKE.equals(LiveExamParticipant.legacyKind(p.getKind()))).count();
 		Double average = null;
 		BigDecimal highest = null;
 		BigDecimal lowest = null;
@@ -243,7 +254,7 @@ public class LiveExamResultsService {
 	}
 
 	public record Row(UUID participantId, UUID studentId, String studentName, String studentCode, String status,
-			String kind, BigDecimal score, int maximum, Boolean passed, Instant startedAt, Instant submittedAt,
+			String kind, String attemptKind, BigDecimal score, int maximum, Boolean passed, Instant startedAt, Instant submittedAt,
 			Instant publishedAt, Boolean releasePending) {
 	}
 
@@ -251,7 +262,8 @@ public class LiveExamResultsService {
 	}
 
 	public record HistoryRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
-			String moduleTitleEn, String moduleTitleBn, String kind, String status, BigDecimal score, int maximum,
+			String moduleTitleEn, String moduleTitleBn, String kind, String attemptKind, String status, BigDecimal score,
+			int maximum,
 			Boolean passed, Instant submittedAt, boolean published) {
 	}
 

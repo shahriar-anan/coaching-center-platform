@@ -42,17 +42,21 @@ public class LiveExamPublicService {
 
 	private final LiveExamRepository exams;
 
+	private final LiveExamMemberships memberships;
+
 	private final LiveExamCatalogVisibility visibility;
 
 	private final Clock clock;
 
 	public LiveExamPublicService(LiveExamCategoryRepository categories, LiveExamModuleRepository modules,
-			LiveExamRepository exams, LiveExamCatalogVisibility visibility, Clock clock) {
+			LiveExamRepository exams, LiveExamCatalogVisibility visibility, Clock clock,
+			LiveExamMemberships memberships) {
 		this.clock = clock;
 		this.categories = categories;
 		this.modules = modules;
 		this.exams = exams;
 		this.visibility = visibility;
+		this.memberships = memberships;
 	}
 
 	/**
@@ -176,8 +180,8 @@ public class LiveExamPublicService {
 		modules.findAllById(slice.stream().map(LiveExam::getModuleId).distinct().toList())
 			.forEach(module -> moduleById.put(module.getId(), module));
 		List<UpcomingExam> content = slice.stream().map(exam -> {
-			LiveExamModule module = moduleById.get(exam.getModuleId());
-			return new UpcomingExam(exam.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(), exam.getModuleId(),
+			LiveExamModule module = moduleById.get(memberships.requirePrimaryModuleId(exam.getId()));
+			return new UpcomingExam(exam.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(), memberships.requirePrimaryModuleId(exam.getId()),
 					module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(), exam.getLiveAt(),
 					end(exam), exam.getPrice(), exam.getPrice() == null && module != null && module.getPrice() != null);
 		}).toList();
@@ -209,7 +213,7 @@ public class LiveExamPublicService {
 		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
 			throw notFound();
 		}
-		requireModule(exam.getModuleId());
+		requireModule(memberships.requirePrimaryModuleId(exam.getId()));
 		return examView(exam, viewer);
 	}
 
@@ -287,7 +291,7 @@ public class LiveExamPublicService {
 	}
 
 	private PublicExam examView(LiveExam exam, StudentOwnAccessService.Viewer viewer) {
-		return new PublicExam(exam.getId(), exam.getModuleId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
+		return new PublicExam(exam.getId(), memberships.requirePrimaryModuleId(exam.getId()), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
 				exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(),
 				exam.getPaperLanguage(), format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(),
 				exam.getPrice(), viewer == null ? null : viewer.exam(exam));

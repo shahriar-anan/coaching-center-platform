@@ -2,7 +2,7 @@
 -- demo rows: sittings, orders, grants and notices of the demo students, and anything hanging off the demo exams and packages.
 -- Demo ids all share the shape <letter-or-digit>0000000-0000-4000-8000-<12 digits>, so each table is matched by its prefix:
 --   4 = the staff account, 5 = the three demo students, 6 = the instructor, 8 = the announcement, a = categories, b = modules,
---   c = orders, d = grants, e = exams, f = questions, 9 = options, 7 = sittings.
+--   c = orders, d = grants, e = exams, f = questions, 9 = options, 7 = sittings, 1 = package memberships, 2 = paper versions.
 -- Demo orders have tran ids starting with DEMO-; real tran ids are 30 hex characters and never match.
 -- audit_log is append-only by trigger, so audit rows written during the review stay. They hold no foreign key to the users.
 -- The earlier fourteen-exam demo used the same prefixes, so this script also clears it.
@@ -68,6 +68,32 @@ WHERE participant_id IN (
        OR student_id::text LIKE '50000000-0000-4000-8000-%'
 );
 
+DELETE FROM live_exam_answer_confirmations
+WHERE participant_id IN (
+    SELECT id FROM live_exam_participants
+    WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+       OR student_id::text LIKE '50000000-0000-4000-8000-%'
+);
+
+DELETE FROM live_exam_retake_grants
+WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR student_id::text LIKE '50000000-0000-4000-8000-%';
+
+DELETE FROM student_favourites
+WHERE student_id::text LIKE '50000000-0000-4000-8000-%'
+   OR exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR module_id::text LIKE 'b0000000-0000-4000-8000-%';
+
+DELETE FROM live_exam_change_log
+WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR module_id::text LIKE 'b0000000-0000-4000-8000-%';
+
+DELETE FROM live_exam_revisions
+WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%';
+
+DELETE FROM live_exam_module_revisions
+WHERE module_id::text LIKE 'b0000000-0000-4000-8000-%';
+
 DELETE FROM live_exam_participants
 WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%'
    OR student_id::text LIKE '50000000-0000-4000-8000-%';
@@ -85,6 +111,18 @@ WHERE module_id::text LIKE 'b0000000-0000-4000-8000-%'
 DELETE FROM live_exam_instructors
 WHERE module_id::text LIKE 'b0000000-0000-4000-8000-%'
    OR instructor_id::text LIKE '60000000-0000-4000-8000-%';
+
+-- A paper version is referenced by the exam that holds it and by the sittings that sat it. The exam link goes first.
+UPDATE live_exams SET question_paper_id = NULL
+WHERE id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR module_id::text LIKE 'b0000000-0000-4000-8000-%';
+
+DELETE FROM live_exam_question_papers
+WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%';
+
+DELETE FROM live_exam_package_exams
+WHERE exam_id::text LIKE 'e0000000-0000-4000-8000-%'
+   OR module_id::text LIKE 'b0000000-0000-4000-8000-%';
 
 DELETE FROM live_exams
 WHERE id::text LIKE 'e0000000-0000-4000-8000-%'

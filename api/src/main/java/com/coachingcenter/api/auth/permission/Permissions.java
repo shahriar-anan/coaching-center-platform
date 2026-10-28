@@ -99,6 +99,14 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_ANNOUNCE = "LIVE_EXAM_ANNOUNCE";
 
+	public static final String LIVE_EXAM_POPULAR = "LIVE_EXAM_POPULAR";
+
+	public static final String LIVE_EXAM_RETAKE_GRANT = "LIVE_EXAM_RETAKE_GRANT";
+
+	public static final String LIVE_EXAM_PACKAGE_EDIT = "LIVE_EXAM_PACKAGE_EDIT";
+
+	public static final String LIVE_EXAM_FAVOURITE = "LIVE_EXAM_FAVOURITE";
+
 	private Permissions() {
 	}
 

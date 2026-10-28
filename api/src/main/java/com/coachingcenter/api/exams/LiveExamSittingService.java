@@ -3,6 +3,7 @@ package com.coachingcenter.api.exams;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -80,7 +82,7 @@ public class LiveExamSittingService {
 	public StudentExam studentExam(UUID examId, UUID studentId) {
 		LiveExamService.ExamView shell = exams.get(examId, false, studentId);
 		LiveExam exam = requireExam(examId);
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant participant = latest(examId, studentId)
 			.orElse(null);
 		if (participant != null && !clock.instant().isBefore(participant.getDeadlineAt())) {
 			postIfDue(participant, exam);
@@ -110,7 +112,7 @@ public class LiveExamSittingService {
 		exams.get(examId, false, studentId);
 		lockExam(examId);
 		LiveExam exam = requireExam(examId);
-		LiveExamParticipant existing = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant existing = latest(examId, studentId)
 			.orElse(null);
 		Instant now = clock.instant();
 		if (existing != null) {
@@ -137,7 +139,7 @@ public class LiveExamSittingService {
 			throw new ApiException(ErrorCode.RETAKE_NOT_ALLOWED, HttpStatus.CONFLICT,
 					"A written exam has no later attempt.");
 		}
-		if (participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId).isPresent()) {
+		if (latest(examId, studentId).isPresent()) {
 			throw new ApiException(ErrorCode.RETAKE_NOT_ALLOWED, HttpStatus.CONFLICT,
 					"A live participant cannot retake, and a retake can be taken once.");
 		}
@@ -145,7 +147,7 @@ public class LiveExamSittingService {
 		if (exam.getLiveAt() == null || now.isBefore(end(exam))) {
 			throw notOpen();
 		}
-		LiveExamParticipant participant = start(exam, studentId, LiveExamParticipant.RETAKE, now,
+		LiveExamParticipant participant = start(exam, studentId, LiveExamParticipant.ARCHIVED, now,
 				now.plus(Duration.ofMinutes(exam.getDurationMinutes())));
 		return takeView(participant);
 	}
@@ -189,7 +191,7 @@ public class LiveExamSittingService {
 	public PostedResult submit(UUID examId, UUID studentId) {
 		exams.get(examId, false, studentId);
 		LiveExam exam = requireExam(examId);
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant participant = latest(examId, studentId)
 			.orElseThrow(LiveExamSittingService::notOpen);
 		if (clock.instant().isBefore(participant.getStartedAt())) {
 			throw notOpen();
@@ -207,7 +209,7 @@ public class LiveExamSittingService {
 	@Transactional
 	public ReviewedResult result(UUID examId, UUID studentId) {
 		LiveExam exam = requireExam(examId);
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant participant = latest(examId, studentId)
 			.orElseThrow(this::notFound);
 		if (clock.instant().isBefore(participant.getDeadlineAt())) {
 			if (participant.getSubmittedAt() == null) {
@@ -233,7 +235,7 @@ public class LiveExamSittingService {
 			evaluatedPdf = null;
 		}
 		return new ReviewedResult(score, maximum(exam), passed, participant.getStatus(), questionViews, comment,
-				evaluatedPdf, participant.getKind());
+				evaluatedPdf, LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind());
 	}
 
 	@Transactional
@@ -262,7 +264,7 @@ public class LiveExamSittingService {
 	public byte[] questionPdf(UUID examId, UUID studentId) {
 		exams.get(examId, false, studentId);
 		LiveExam exam = requireExam(examId);
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant participant = latest(examId, studentId)
 			.orElse(null);
 		if (participant == null || !clock.instant().isBefore(participant.getDeadlineAt())
 				|| exam.getQuestionStoredFileName() == null) {
@@ -345,18 +347,14 @@ public class LiveExamSittingService {
 	}
 
 	private void scoreMcq(LiveExamParticipant participant, LiveExam exam, boolean writeNotice) {
-		int score = 0;
-		boolean answered = false;
-		Map<UUID, UUID> correct = correctOptions(exam.getId());
-		Map<UUID, Integer> marks = marks(exam.getId());
+		Map<UUID, Set<UUID>> chosen = new HashMap<>();
 		for (LiveExamAnswer answer : answers.findByParticipantId(participant.getId())) {
-			answered = true;
-			if (answer.getOptionId().equals(correct.get(answer.getQuestionId()))) {
-				score += marks.getOrDefault(answer.getQuestionId(), 0);
-			}
+			chosen.computeIfAbsent(answer.getQuestionId(), ignored -> new HashSet<>()).add(answer.getOptionId());
 		}
-		participant.setScore(BigDecimal.valueOf(score));
-		participant.setPassed(answered && passed(score, exam));
+		List<McqScoring.QuestionKey> key = key(exam.getId());
+		BigDecimal score = McqScoring.total(key, chosen, exam.getNegativeMarks()).setScale(2, RoundingMode.HALF_UP);
+		participant.setScore(score);
+		participant.setPassed(!chosen.isEmpty() && McqScoring.passed(score, McqScoring.maximum(key), exam.getPassPercent()));
 		participant.setStatus(LiveExamParticipant.SUBMITTED);
 		if (writeNotice) {
 			notices.mcqScore(participant.getStudentId(), exam.getId(), participant.getId());
@@ -375,9 +373,25 @@ public class LiveExamSittingService {
 		return new PostedResult(participant.getId(), score, maximum(exam), passed, participant.getStatus());
 	}
 
-	private boolean passed(int score, LiveExam exam) {
-		int percent = exam.getPassPercent() == null ? 0 : exam.getPassPercent();
-		return (long) score * 100 >= (long) percent * maximum(exam);
+	/** The paper's answer key, one entry per question in position order. */
+	private List<McqScoring.QuestionKey> key(UUID examId) {
+		List<McqScoring.QuestionKey> key = new ArrayList<>();
+		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId)) {
+			Set<UUID> correct = new HashSet<>();
+			for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(question.getId())) {
+				if (option.isCorrect()) {
+					correct.add(option.getId());
+				}
+			}
+			key.add(new McqScoring.QuestionKey(question.getId(), question.getMarks(), correct));
+		}
+		return key;
+	}
+
+	/** The student's latest sitting on the exam, or empty. A student has one attempt today; the newest is the one that counts. */
+	private Optional<LiveExamParticipant> latest(UUID examId, UUID studentId) {
+		return participants.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(examId, studentId).stream()
+			.findFirst();
 	}
 
 	private int maximum(LiveExam exam) {
@@ -414,26 +428,6 @@ public class LiveExamSittingService {
 		return views;
 	}
 
-	private Map<UUID, UUID> correctOptions(UUID examId) {
-		Map<UUID, UUID> correct = new HashMap<>();
-		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId)) {
-			for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(question.getId())) {
-				if (option.isCorrect()) {
-					correct.put(question.getId(), option.getId());
-				}
-			}
-		}
-		return correct;
-	}
-
-	private Map<UUID, Integer> marks(UUID examId) {
-		Map<UUID, Integer> marks = new HashMap<>();
-		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId)) {
-			marks.put(question.getId(), question.getMarks());
-		}
-		return marks;
-	}
-
 	private boolean optionBelongs(UUID questionId, UUID optionId) {
 		for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId)) {
 			if (option.getId().equals(optionId)) {
@@ -444,7 +438,7 @@ public class LiveExamSittingService {
 	}
 
 	private LiveExamParticipant openParticipant(UUID examId, UUID studentId) {
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant participant = latest(examId, studentId)
 			.orElseThrow(LiveExamSittingService::notOpen);
 		if (!LiveExamParticipant.IN_PROGRESS.equals(participant.getStatus())
 				|| !clock.instant().isBefore(participant.getDeadlineAt())) {
@@ -454,7 +448,7 @@ public class LiveExamSittingService {
 	}
 
 	private LiveExamParticipant answerable(UUID examId, UUID studentId) {
-		LiveExamParticipant participant = participants.findByExamIdAndStudentIdAndDeletedAtIsNull(examId, studentId)
+		LiveExamParticipant participant = latest(examId, studentId)
 			.orElseThrow(LiveExamSittingService::notOpen);
 		if (!clock.instant().isBefore(participant.getDeadlineAt())
 				|| LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())) {
@@ -468,9 +462,12 @@ public class LiveExamSittingService {
 		participant.setExamId(exam.getId());
 		participant.setStudentId(studentId);
 		participant.setKind(kind);
+		participant.setAttemptNo(1);
 		participant.setStartedAt(started);
 		participant.setDeadlineAt(deadline);
 		participant.setStatus(LiveExamParticipant.IN_PROGRESS);
+		// A written sitting keeps the paper version it was given, so a later PDF change does not reach it (E29).
+		participant.setQuestionPaperId(exam.getQuestionPaperId());
 		return participants.save(participant);
 	}
 
@@ -479,13 +476,14 @@ public class LiveExamSittingService {
 		if (participant == null) {
 			return null;
 		}
-		return new SittingView(participant.getKind(), format(participant.getStartedAt()),
-				format(participant.getDeadlineAt()),
+		return new SittingView(LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
+				participant.getAttemptNo(), format(participant.getStartedAt()), format(participant.getDeadlineAt()),
 				participant.getSubmittedAt() == null ? null : format(participant.getSubmittedAt()));
 	}
 
 	private TakeView takeView(LiveExamParticipant participant) {
-		return new TakeView(participant.getId(), participant.getExamId(), participant.getKind(), format(clock.instant()),
+		return new TakeView(participant.getId(), participant.getExamId(),
+				LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(), format(clock.instant()),
 				format(participant.getDeadlineAt()), format(participant.getStartedAt()));
 	}
 
@@ -545,18 +543,23 @@ public class LiveExamSittingService {
 	public record StudentOption(UUID id, String text, Boolean correct, Boolean selected) {
 	}
 
-	/** The student's own open or past sitting: kind, start, deadline, and when they submitted early (or null). */
-	public record SittingView(String kind, String startedAt, String deadlineAt, String submittedAt) {
+	/**
+	 * The student's own open or past sitting: kind, start, deadline, and when they submitted early (or null). {@code kind}
+	 * is the legacy LIVE or RETAKE; {@code attemptKind} is the full value (NR-01, contracts §7.7).
+	 */
+	public record SittingView(String kind, String attemptKind, int attemptNo, String startedAt, String deadlineAt,
+			String submittedAt) {
 	}
 
-	public record TakeView(UUID id, UUID examId, String kind, String serverTime, String deadlineAt, String startedAt) {
+	public record TakeView(UUID id, UUID examId, String kind, String attemptKind, String serverTime, String deadlineAt,
+			String startedAt) {
 	}
 
 	public record PostedResult(UUID participantId, BigDecimal score, int maximum, Boolean passed, String status) {
 	}
 
 	public record ReviewedResult(BigDecimal score, int maximum, Boolean passed, String status, List<StudentQuestion> questions,
-			String comment, Boolean evaluatedPdf, String kind) {
+			String comment, Boolean evaluatedPdf, String kind, String attemptKind) {
 	}
 
 }

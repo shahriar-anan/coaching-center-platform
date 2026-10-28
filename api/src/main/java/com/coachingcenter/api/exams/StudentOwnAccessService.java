@@ -53,7 +53,11 @@ public class StudentOwnAccessService {
 
 	private final ObjectProvider<LiveExamPaymentGateway> gateways;
 
-	StudentOwnAccessService(JdbcTemplate jdbc, ObjectProvider<LiveExamPaymentGateway> gateways) {
+	private final LiveExamMemberships memberships;
+
+	StudentOwnAccessService(JdbcTemplate jdbc, ObjectProvider<LiveExamPaymentGateway> gateways,
+		LiveExamMemberships memberships) {
+		this.memberships = memberships;
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.gateways = gateways;
 	}
@@ -70,7 +74,7 @@ public class StudentOwnAccessService {
 			return null;
 		}
 		String phone = phones.get(0);
-		return new Viewer(mine(studentId), phone != null && !phone.isBlank(), gateways.getIfAvailable() != null);
+		return new Viewer(mine(studentId), phone != null && !phone.isBlank(), gateways.getIfAvailable() != null, memberships);
 	}
 
 	@Transactional(readOnly = true)
@@ -116,7 +120,9 @@ public class StudentOwnAccessService {
 
 		private final boolean checkoutEnabled;
 
-		Viewer(MyAccess access, boolean hasPhone, boolean checkoutEnabled) {
+		private final LiveExamMemberships memberships;
+
+		Viewer(MyAccess access, boolean hasPhone, boolean checkoutEnabled, LiveExamMemberships memberships) {
 			for (MyModule module : access.modules()) {
 				moduleStates.merge(module.moduleId(), module.via(),
 						(a, b) -> MODULE_STATES.indexOf(a) <= MODULE_STATES.indexOf(b) ? a : b);
@@ -126,6 +132,7 @@ public class StudentOwnAccessService {
 			}
 			this.hasPhone = hasPhone;
 			this.checkoutEnabled = checkoutEnabled;
+			this.memberships = memberships;
 		}
 
 		/** Module-wide access only: owning one exam of the module does not own the module. */
@@ -135,7 +142,7 @@ public class StudentOwnAccessService {
 
 		/** Module-wide access first, then a grant on this exam. The price is the exam's own price. */
 		public Access exam(LiveExam exam) {
-			String state = moduleStates.getOrDefault(exam.getModuleId(), NONE);
+			String state = moduleStates.getOrDefault(memberships.requirePrimaryModuleId(exam.getId()), NONE);
 			if (NONE.equals(state)) {
 				state = examStates.getOrDefault(exam.getId(), NONE);
 			}

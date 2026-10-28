@@ -40,6 +40,8 @@ public class LiveExamOrderService {
 
 	private final LiveExamRepository exams;
 
+	private final LiveExamMemberships memberships;
+
 	private final LiveExamRosterRepository roster;
 
 	private final LiveExamGrantRepository grants;
@@ -59,7 +61,9 @@ public class LiveExamOrderService {
 	public LiveExamOrderService(LiveExamOrderRepository orders, LiveExamOrderTx tx, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamRosterRepository roster, LiveExamGrantRepository grants,
 			LiveExamCatalogVisibility visibility, UserRepository users, StudentProfileRepository profiles,
-			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones, LiveExamOrderBundle bundles) {
+			ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones, LiveExamOrderBundle bundles,
+			LiveExamMemberships memberships) {
+		this.memberships = memberships;
 		this.orders = orders;
 		this.tx = tx;
 		this.modules = modules;
@@ -241,7 +245,7 @@ public class LiveExamOrderService {
 		}
 		if (exam) {
 			LiveExam row = exams.findByIdAndDeletedAtIsNull(readId(body, "examId")).orElseThrow(this::notFound);
-			LiveExamModule parent = publishedModule(row.getModuleId());
+			LiveExamModule parent = publishedModule(memberships.requirePrimaryModuleId(row.getId()));
 			if (!LiveExam.PUBLISHED.equals(row.getStatus())) {
 				throw notFound();
 			}

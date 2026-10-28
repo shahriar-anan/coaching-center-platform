@@ -30,6 +30,8 @@ public class LiveExamGrantAdminService {
 
 	private final LiveExamRepository exams;
 
+	private final LiveExamMemberships memberships;
+
 	private final UserRepository users;
 
 	private final AuditRecorder audit;
@@ -39,7 +41,9 @@ public class LiveExamGrantAdminService {
 	private final StudentNoticeWriter notices;
 
 	public LiveExamGrantAdminService(LiveExamGrantRepository grants, LiveExamModuleRepository modules,
-			LiveExamRepository exams, UserRepository users, AuditRecorder audit, Clock clock, StudentNoticeWriter notices) {
+			LiveExamRepository exams, UserRepository users, AuditRecorder audit, Clock clock, StudentNoticeWriter notices,
+			LiveExamMemberships memberships) {
+		this.memberships = memberships;
 		this.grants = grants;
 		this.modules = modules;
 		this.exams = exams;
@@ -73,10 +77,10 @@ public class LiveExamGrantAdminService {
 				throw validationFailed();
 			}
 			LiveExam exam = exams.findByIdAndDeletedAtIsNull(request.examId()).orElseThrow(this::notFound);
-			if (request.moduleId() != null && !request.moduleId().equals(exam.getModuleId())) {
+			if (request.moduleId() != null && !request.moduleId().equals(memberships.requirePrimaryModuleId(exam.getId()))) {
 				throw validationFailed();
 			}
-			moduleId = exam.getModuleId();
+			moduleId = memberships.requirePrimaryModuleId(exam.getId());
 			examId = exam.getId();
 		}
 		else {

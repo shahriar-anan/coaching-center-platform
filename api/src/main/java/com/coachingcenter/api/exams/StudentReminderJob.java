@@ -31,6 +31,8 @@ class StudentReminderJob {
 
 	private final LiveExamRepository exams;
 
+	private final LiveExamMemberships memberships;
+
 	private final LiveExamModuleRepository modules;
 
 	private final LiveExamCatalogVisibility visibility;
@@ -45,7 +47,9 @@ class StudentReminderJob {
 	private boolean scheduled = true;
 
 	StudentReminderJob(LiveExamRepository exams, LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility,
-			StudentNoticeWriter notices, Clock clock) {
+			StudentNoticeWriter notices, Clock clock,
+			LiveExamMemberships memberships) {
+		this.memberships = memberships;
 		this.exams = exams;
 		this.modules = modules;
 		this.visibility = visibility;
@@ -117,12 +121,12 @@ class StudentReminderJob {
 		if (exam.getLiveAt() == null) {
 			return 0;
 		}
-		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(exam.getModuleId()).orElse(null);
+		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(memberships.requirePrimaryModuleId(exam.getId())).orElse(null);
 		if (module == null || !LiveExamModule.PUBLISHED.equals(module.getStatus())
 				|| visibility.branchHidden(module.getCategoryId())) {
 			return 0;
 		}
-		List<UUID> students = exams.findActiveStudentsWithAccess(exam.getModuleId(), exam.getId());
+		List<UUID> students = exams.findActiveStudentsWithAccess(memberships.requirePrimaryModuleId(exam.getId()), exam.getId());
 		return writer.write(exam.getId(), exam.getLiveAt(), students);
 	}
 

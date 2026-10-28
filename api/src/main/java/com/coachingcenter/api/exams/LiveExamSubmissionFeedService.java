@@ -129,7 +129,8 @@ public class LiveExamSubmissionFeedService {
 			content.add(new FeedRow(participant.getId(), exam.getId(), exam.getTitleEn(), exam.getTitleBn(), module.getId(),
 					module.getTitleEn(), module.getTitleBn(),
 					LiveExamStaffModuleService.pathOf(module.getCategoryId(), byId), student.getFullName(),
-					statusOf(participant), participant.getKind(), participant.getAnswerStoredFileName() != null,
+					statusOf(participant), LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
+					participant.getAnswerStoredFileName() != null,
 					participant.getSubmittedAt(), markedAtOf(participant), participant.getPublishedAt(),
 					evaluatorOf(participant) == null ? null : evaluators.get(evaluatorOf(participant)),
 					participant.hasPendingRevision() ? Boolean.TRUE : null,
@@ -209,7 +210,7 @@ public class LiveExamSubmissionFeedService {
 	/** One submission. {@code evaluatorName} is staff-only; students never see this feed. */
 	public record FeedRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, List<LiveExamModuleService.CategoryRef> categoryPath,
-			String studentName, String status, String kind, boolean answerPdf, Instant submittedAt, Instant evaluatedAt,
+			String studentName, String status, String kind, String attemptKind, boolean answerPdf, Instant submittedAt, Instant evaluatedAt,
 			Instant publishedAt, String evaluatorName, Boolean releasePending, Boolean readyForRelease) {
 	}
 

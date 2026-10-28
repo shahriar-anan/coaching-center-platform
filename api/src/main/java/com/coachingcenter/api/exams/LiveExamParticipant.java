@@ -153,6 +153,17 @@ public class LiveExamParticipant extends BaseEntity {
 		return kind;
 	}
 
+	/**
+	 * The kind the current web reads: LIVE for a live sitting, and RETAKE for every other attempt, whose full value is
+	 * {@link #getKind()} (NR-01, contracts §7.7). Null in, null out.
+	 */
+	public static String legacyKind(String kind) {
+		if (kind == null) {
+			return null;
+		}
+		return LIVE.equals(kind) ? LIVE : RETAKE;
+	}
+
 	public void setKind(String kind) {
 		this.kind = kind;
 	}

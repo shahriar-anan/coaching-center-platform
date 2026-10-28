@@ -89,7 +89,7 @@ public class LiveExamParticipationService {
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and %s) as published,
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and p.ready_for_release_at is not null) as ready,
 				  count(p.id) filter (where e.exam_type = 'WRITTEN' and p.pending_evaluated_at is not null) as corrections,
-				  count(p.id) filter (where p.kind = 'RETAKE') as retakes
+				  count(p.id) filter (where p.kind in ('ARCHIVED', 'RETAKE')) as retakes
 				%s
 				where %s
 				group by e.id, m.id

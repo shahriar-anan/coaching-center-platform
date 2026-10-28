@@ -23,6 +23,8 @@ class ExamMailQueue {
 
 	private final LiveExamGrantRepository grants;
 
+	private final LiveExamMemberships memberships;
+
 	private final LiveExamRepository exams;
 
 	private final LiveExamModuleRepository modules;
@@ -37,7 +39,8 @@ class ExamMailQueue {
 
 	ExamMailQueue(ExamOutboundMailRepository mail, LiveExamOrderRepository orders, LiveExamGrantRepository grants,
 			LiveExamRepository exams, LiveExamModuleRepository modules, UserRepository users, Clock clock,
-			org.springframework.jdbc.core.JdbcTemplate jdbc, LiveExamOrderBundle bundles) {
+			org.springframework.jdbc.core.JdbcTemplate jdbc, LiveExamOrderBundle bundles, LiveExamMemberships memberships) {
+		this.memberships = memberships;
 		this.mail = mail;
 		this.orders = orders;
 		this.grants = grants;
@@ -91,7 +94,7 @@ class ExamMailQueue {
 		}
 		List<UUID> ids = new ArrayList<>();
 		Instant now = clock.instant();
-		for (UUID studentId : exams.findActiveStudentsWithAccess(exam.getModuleId(), exam.getId())) {
+		for (UUID studentId : exams.findActiveStudentsWithAccess(memberships.requirePrimaryModuleId(exam.getId()), exam.getId())) {
 			ids.addAll(consider(studentId, exam, now));
 		}
 		return ids;
@@ -127,10 +130,10 @@ class ExamMailQueue {
 		Instant after = now.plus(Duration.ofMinutes(15));
 		Instant before = now.plus(Duration.ofMinutes(70));
 		for (LiveExam exam : exams.findPublishedStartingBetween(after, before)) {
-			if (!modulePublished(exam.getModuleId()) || exam.getLiveAt() == null) {
+			if (!modulePublished(memberships.requirePrimaryModuleId(exam.getId())) || exam.getLiveAt() == null) {
 				continue;
 			}
-			for (UUID studentId : exams.findActiveStudentsWithAccess(exam.getModuleId(), exam.getId())) {
+			for (UUID studentId : exams.findActiveStudentsWithAccess(memberships.requirePrimaryModuleId(exam.getId()), exam.getId())) {
 				insert(ExamOutboundMail.HOUR_BEFORE, ExamMailTexts.examKey(studentId, exam), studentId);
 			}
 		}
@@ -155,7 +158,7 @@ class ExamMailQueue {
 
 	private boolean mailable(LiveExam exam) {
 		return exam != null && exam.getDeletedAt() == null && LiveExam.PUBLISHED.equals(exam.getStatus())
-				&& exam.getLiveAt() != null && modulePublished(exam.getModuleId());
+				&& exam.getLiveAt() != null && modulePublished(memberships.requirePrimaryModuleId(exam.getId()));
 	}
 
 	private boolean modulePublished(UUID moduleId) {

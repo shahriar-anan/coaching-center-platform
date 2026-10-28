@@ -365,6 +365,9 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		for (UUID exam : exams) {
 			jdbc.update("DELETE FROM live_exam_options WHERE question_id IN (SELECT id FROM live_exam_questions WHERE exam_id = ?)", exam);
 			jdbc.update("DELETE FROM live_exam_questions WHERE exam_id = ?", exam);
+			jdbc.update("UPDATE live_exams SET question_paper_id = NULL WHERE id = ?", exam);
+			jdbc.update("DELETE FROM live_exam_question_papers WHERE exam_id = ?", exam);
+			jdbc.update("DELETE FROM live_exam_package_exams WHERE exam_id = ?", exam);
 			jdbc.update("DELETE FROM live_exams WHERE id = ?", exam);
 		}
 		jdbc.update("DELETE FROM live_exam_modules WHERE id IN (?, ?)", DemoContentSeed.MODULE_DRAFT_READY,

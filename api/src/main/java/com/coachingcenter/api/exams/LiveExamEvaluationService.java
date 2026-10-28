@@ -35,6 +35,8 @@ public class LiveExamEvaluationService {
 
 	private final LiveExamModuleRepository modules;
 
+	private final LiveExamMemberships memberships;
+
 	private final LiveExamParticipantRepository participants;
 
 	private final LiveExamInstructorRepository instructors;
@@ -65,7 +67,9 @@ public class LiveExamEvaluationService {
 			LiveExamParticipantRepository participants, LiveExamInstructorRepository instructors,
 			LiveExamQuestionRepository questions, LiveExamService examViews, LiveExamSittingService sittings,
 			UserRepository users, StudentProfileRepository students, AdminProfileRepository admins, LocalFileStorage files,
-			PdfCompressor pdfs, Clock clock, AuditRecorder audit, StudentNoticeWriter notices) {
+			PdfCompressor pdfs, Clock clock, AuditRecorder audit, StudentNoticeWriter notices,
+			LiveExamMemberships memberships) {
+		this.memberships = memberships;
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
@@ -140,7 +144,7 @@ public class LiveExamEvaluationService {
 			throw notFound();
 		}
 		LiveExam exam = requireExam(participant.getExamId());
-		requireReader(exam.getModuleId(), actor);
+		requireReader(primaryModuleId(exam), actor);
 		sittings.settleParticipant(participantId);
 		return view(participant, exam, moduleOf(exam));
 	}
@@ -155,7 +159,7 @@ public class LiveExamEvaluationService {
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is marked.");
 		}
-		requireMarker(exam.getModuleId(), actor);
+		requireMarker(primaryModuleId(exam), actor);
 		sittings.settleParticipant(participantId);
 		if (!LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || participant.getAnswerStoredFileName() == null) {
 			throw new ApiException(ErrorCode.EVALUATION_NOT_ALLOWED, HttpStatus.CONFLICT,
@@ -310,7 +314,7 @@ public class LiveExamEvaluationService {
 	public Leaderboard leaderboard(UUID examId, CurrentActor actor, boolean marker) {
 		LiveExam exam = requireExam(examId);
 		if (marker) {
-			requireMarker(exam.getModuleId(), actor);
+			requireMarker(primaryModuleId(exam), actor);
 		}
 		else {
 			examViews.get(examId, false, actor.userId());
@@ -367,7 +371,7 @@ public class LiveExamEvaluationService {
 			throw notFound();
 		}
 		LiveExam exam = requireExam(participant.getExamId());
-		requireMarker(exam.getModuleId(), actor);
+		requireMarker(primaryModuleId(exam), actor);
 		if (participant.getAnswerStoredFileName() == null) {
 			throw notFound();
 		}
@@ -403,7 +407,7 @@ public class LiveExamEvaluationService {
 		}
 		LiveExam exam = requireExam(participant.getExamId());
 		String stored = storedFileOf(participant);
-		if (!readerOf(exam.getModuleId(), actor) || stored == null) {
+		if (!readerOf(primaryModuleId(exam), actor) || stored == null) {
 			throw notFound();
 		}
 		try {
@@ -418,7 +422,7 @@ public class LiveExamEvaluationService {
 	@Transactional(readOnly = true)
 	public byte[] questionPdf(UUID examId, CurrentActor actor) {
 		LiveExam exam = requireExam(examId);
-		if (!readerOf(exam.getModuleId(), actor) || exam.getQuestionStoredFileName() == null) {
+		if (!readerOf(primaryModuleId(exam), actor) || exam.getQuestionStoredFileName() == null) {
 			throw notFound();
 		}
 		if (actor.role() == Role.INSTRUCTOR && !windowEnded(exam)) {
@@ -441,7 +445,8 @@ public class LiveExamEvaluationService {
 		boolean pending = participant.hasPendingRevision();
 		return new SubmissionView(participant.getId(), exam.getId(), participant.getStudentId(),
 				studentName(participant.getStudentId()), participant.getStatus(), McqScoring.plain(scoreOf(participant)), maximum(exam),
-				passedOf(participant), participant.getKind(), participant.getAnswerStoredFileName() != null,
+				passedOf(participant), LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
+				participant.getAnswerStoredFileName() != null,
 				storedFileOf(participant) == null ? null : Boolean.TRUE, evaluatorName,
 				participant.getPublishedAt() != null && !pending, commentOf(participant), originalFileOf(participant),
 				module.getId(), module.getTitleEn(), module.getTitleBn(), exam.getTitleEn(), exam.getTitleBn(),
@@ -450,7 +455,7 @@ public class LiveExamEvaluationService {
 	}
 
 	private LiveExamModule moduleOf(LiveExam exam) {
-		return modules.findById(exam.getModuleId()).orElseThrow(this::notFound);
+		return modules.findById(primaryModuleId(exam)).orElseThrow(this::notFound);
 	}
 
 	/**
@@ -467,7 +472,7 @@ public class LiveExamEvaluationService {
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam is marked.");
 		}
-		requireMarker(exam.getModuleId(), actor);
+		requireMarker(primaryModuleId(exam), actor);
 		sittings.settleParticipant(participantId);
 		if (!ready) {
 			participant.setReadyForReleaseAt(null);
@@ -526,6 +531,11 @@ public class LiveExamEvaluationService {
 	/** The mark a staff reader works on: the correction waiting for release if there is one, else the released or draft mark. */
 	private static Instant markedAt(LiveExamParticipant participant) {
 		return participant.hasPendingRevision() ? participant.getPendingEvaluatedAt() : participant.getEvaluatedAt();
+	}
+
+	/** The exam's package for marking and reading: its first active membership. Throws when it is in none. */
+	private UUID primaryModuleId(LiveExam exam) {
+		return memberships.primaryModuleId(exam.getId()).orElseThrow(this::notFound);
 	}
 
 	private static BigDecimal scoreOf(LiveExamParticipant participant) {
@@ -683,7 +693,7 @@ public class LiveExamEvaluationService {
 	}
 
 	public record SubmissionView(UUID id, UUID examId, UUID studentId, String studentName, String status, BigDecimal score,
-			int maximum, Boolean passed, String kind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
+			int maximum, Boolean passed, String kind, String attemptKind, boolean answerPdf, Boolean evaluatedPdf, String evaluatorName,
 			boolean published, String comment, String evaluatedFileName, UUID moduleId, String moduleTitleEn,
 			String moduleTitleBn, String examTitleEn, String examTitleBn, Instant submittedAt, Instant evaluatedAt,
 			Instant publishedAt, Boolean releasePending, Boolean readyForRelease) {

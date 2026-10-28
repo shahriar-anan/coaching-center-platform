@@ -16,34 +16,89 @@ import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 
+/**
+ * An exam belongs to a package through its membership rows (NR-01). The "by module" queries below join the active
+ * membership, so they list an exam under every package it is in. Until NR-01 every exam had one membership, so the
+ * results are unchanged.
+ */
 public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 
 	Optional<LiveExam> findByIdAndDeletedAtIsNull(UUID id);
 
 	Optional<LiveExam> findByTitleEnAndDeletedAtIsNull(String titleEn);
 
-	Page<LiveExam> findByModuleIdAndDeletedAtIsNull(UUID moduleId, Pageable pageable);
+	@Query(value = """
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""", countQuery = """
+			SELECT count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""")
+	Page<LiveExam> findByModuleIdAndDeletedAtIsNull(@Param("moduleId") UUID moduleId, Pageable pageable);
 
-	Page<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(UUID moduleId, String status, Pageable pageable);
+	@Query(value = """
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = :status AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""", countQuery = """
+			SELECT count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = :status AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""")
+	Page<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(@Param("moduleId") UUID moduleId,
+			@Param("status") String status, Pageable pageable);
 
-	Page<LiveExam> findByModuleIdAndStatusAndExamTypeAndDeletedAtIsNull(UUID moduleId, String status, String examType,
-			Pageable pageable);
+	@Query(value = """
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = :status AND e.examType = :examType AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""", countQuery = """
+			SELECT count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = :status AND e.examType = :examType AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""")
+	Page<LiveExam> findByModuleIdAndStatusAndExamTypeAndDeletedAtIsNull(@Param("moduleId") UUID moduleId,
+			@Param("status") String status, @Param("examType") String examType, Pageable pageable);
 
-	List<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(UUID moduleId, String status);
-
-	/** Rows of module id, exam type and the number of published exams of that type. */
 	@Query("""
-			SELECT e.moduleId, e.examType, count(e) FROM LiveExam e
-			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId IN :moduleIds
-			GROUP BY e.moduleId, e.examType
+			SELECT e FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND e.status = :status AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""")
+	List<LiveExam> findByModuleIdAndStatusAndDeletedAtIsNull(@Param("moduleId") UUID moduleId,
+			@Param("status") String status);
+
+	/** Rows of package id, exam type and the number of published exams of that type. */
+	@Query("""
+			SELECT pm.moduleId, e.examType, count(e) FROM LiveExam e, LiveExamPackageExam pm
+			WHERE pm.examId = e.id AND pm.removedAt IS NULL
+			  AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND pm.moduleId IN :moduleIds
+			GROUP BY pm.moduleId, e.examType
 			""")
 	List<Object[]> countPublishedByModuleAndType(@Param("moduleIds") Collection<UUID> moduleIds);
 
-	/** Rows of module id, exam type and the number of live exams of that type in any status. Staff counts only. */
+	/** Rows of package id, exam type and the number of live exams of that type in any status. Staff counts only. */
 	@Query("""
-			SELECT e.moduleId, e.examType, count(e) FROM LiveExam e
-			WHERE e.deletedAt IS NULL AND e.moduleId IN :moduleIds
-			GROUP BY e.moduleId, e.examType
+			SELECT pm.moduleId, e.examType, count(e) FROM LiveExam e, LiveExamPackageExam pm
+			WHERE pm.examId = e.id AND pm.removedAt IS NULL
+			  AND e.deletedAt IS NULL AND pm.moduleId IN :moduleIds
+			GROUP BY pm.moduleId, e.examType
 			""")
 	List<Object[]> countByModuleAndType(@Param("moduleIds") Collection<UUID> moduleIds);
 
@@ -51,8 +106,9 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			SELECT e FROM LiveExam e
 			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED'
 			  AND EXISTS (
-			    SELECT m FROM LiveExamModule m
-			    WHERE m.id = e.moduleId AND m.deletedAt IS NULL AND m.status = 'PUBLISHED'
+			    SELECT pm FROM LiveExamPackageExam pm, LiveExamModule m
+			    WHERE pm.examId = e.id AND pm.removedAt IS NULL
+			      AND m.id = pm.moduleId AND m.deletedAt IS NULL AND m.status = 'PUBLISHED'
 			      AND m.categoryId NOT IN :hiddenCategoryIds
 			      AND (
 			        EXISTS (
@@ -76,16 +132,19 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	/** {@code examType} is {@link LiveExamTypeFilter#ANY} for every type. */
 	@Query(value = """
 			SELECT e FROM LiveExam e
-			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId = :moduleId
-			  AND (:examType = '' OR e.examType = :examType)
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND (:examType = '' OR e.examType = :examType)
+			  AND EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm
+			    WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			  )
 			  AND (
 			    EXISTS (
 			      SELECT r FROM LiveExamRoster r
-			      WHERE r.moduleId = e.moduleId AND r.studentId = :studentId
+			      WHERE r.moduleId = :moduleId AND r.studentId = :studentId
 			    )
 			    OR EXISTS (
 			      SELECT gm FROM LiveExamGrant gm
-			      WHERE gm.scope = 'MODULE' AND gm.moduleId = e.moduleId AND gm.studentId = :studentId
+			      WHERE gm.scope = 'MODULE' AND gm.moduleId = :moduleId AND gm.studentId = :studentId
 			    )
 			    OR EXISTS (
 			      SELECT ge FROM LiveExamGrant ge
@@ -94,16 +153,19 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			  )
 			""", countQuery = """
 			SELECT count(e) FROM LiveExam e
-			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.moduleId = :moduleId
-			  AND (:examType = '' OR e.examType = :examType)
+			WHERE e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND (:examType = '' OR e.examType = :examType)
+			  AND EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm
+			    WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			  )
 			  AND (
 			    EXISTS (
 			      SELECT r FROM LiveExamRoster r
-			      WHERE r.moduleId = e.moduleId AND r.studentId = :studentId
+			      WHERE r.moduleId = :moduleId AND r.studentId = :studentId
 			    )
 			    OR EXISTS (
 			      SELECT gm FROM LiveExamGrant gm
-			      WHERE gm.scope = 'MODULE' AND gm.moduleId = e.moduleId AND gm.studentId = :studentId
+			      WHERE gm.scope = 'MODULE' AND gm.moduleId = :moduleId AND gm.studentId = :studentId
 			    )
 			    OR EXISTS (
 			      SELECT ge FROM LiveExamGrant ge
@@ -120,7 +182,10 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 
 	@Query("""
 			select e from LiveExam e
-			where e.moduleId = :moduleId and e.deletedAt is null and e.status = 'PUBLISHED' and e.liveAt is not null
+			where e.deletedAt is null and e.status = 'PUBLISHED' and e.liveAt is not null and exists (
+			  select pm from LiveExamPackageExam pm
+			  where pm.examId = e.id and pm.moduleId = :moduleId and pm.removedAt is null
+			)
 			""")
 	List<LiveExam> findDatedPublishedByModuleId(@Param("moduleId") UUID moduleId);
 
@@ -139,12 +204,13 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	boolean answersReleased(@Param("id") UUID id);
 
 	/**
-	 * Published, dated exams in published modules outside hidden categories, starting at or after {@code since}, soonest
+	 * Published, dated exams in published packages outside hidden categories, starting at or after {@code since}, soonest
 	 * first. The caller drops the ones that have already ended.
 	 */
 	@Query("""
-			SELECT e FROM LiveExam e, LiveExamModule m
-			WHERE e.moduleId = m.id AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.liveAt IS NOT NULL
+			SELECT e FROM LiveExam e, LiveExamPackageExam pm, LiveExamModule m
+			WHERE pm.examId = e.id AND pm.removedAt IS NULL AND m.id = pm.moduleId
+			AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.liveAt IS NOT NULL
 			AND e.liveAt >= :since AND m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
 			AND (:anyType = true OR e.examType = :examType)
 			ORDER BY e.liveAt ASC, e.id ASC

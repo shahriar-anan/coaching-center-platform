@@ -118,7 +118,8 @@ class ExamMailIT extends PostgresIntegrationTest {
 		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
 
 		Instant second = first.plus(Duration.ofDays(1));
-		jdbc.update("update live_exams set live_at = ? where id = ?", Timestamp.from(second), fixture.examId);
+		jdbc.update("update live_exams set live_at = ?, ends_at = CAST(? AS timestamptz) + make_interval(mins => duration_minutes)"
+				+ " where id = ?", Timestamp.from(second), Timestamp.from(second), fixture.examId);
 		examMail.onExamPublished(fixture.examId);
 		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(2);
 		examMail.onExamPublished(fixture.examId);
@@ -270,12 +271,19 @@ class ExamMailIT extends PostgresIntegrationTest {
 	void aModulePurchaseMailsTheReceiptAndEachDatedExamOnce() {
 		Instant first = START.plus(Duration.ofHours(4));
 		Fixture fixture = seed("PUBLISHED", first, "First paper", "প্রথম");
+		UUID second = UUID.randomUUID();
 		jdbc.update("""
 				insert into live_exams (
-				    id, module_id, exam_type, title_en, title_bn, description_en, description_bn, rules_en, rules_bn,
-				    paper_language, live_at, duration_minutes, pass_percent, status, finally_saved, created_at, updated_at)
-				values (?, ?, 'MCQ', 'Second paper', 'দ্বিতীয়', 'd', 'd', 'r', 'r', 'BN', ?, 40, 40, 'PUBLISHED', true, now(), now())
-				""", UUID.randomUUID(), fixture.moduleId, Timestamp.from(first.plus(Duration.ofHours(3))));
+				    id, module_id, category_id, exam_type, title_en, title_bn, description_en, description_bn, rules_en, rules_bn,
+				    paper_language, live_at, ends_at, duration_minutes, pass_percent, mode, status, finally_saved, created_at,
+				    updated_at)
+				values (?, ?, (select category_id from live_exam_modules where id = ?), 'MCQ', 'Second paper', 'দ্বিতীয়', 'd', 'd',
+				    'r', 'r', 'BN', CAST(? AS timestamptz), CAST(? AS timestamptz) + make_interval(mins => 40), 40, 40, 'LIVE',
+				    'PUBLISHED', true, now(), now())
+				""", second, fixture.moduleId, fixture.moduleId, Timestamp.from(first.plus(Duration.ofHours(3))),
+				Timestamp.from(first.plus(Duration.ofHours(3))));
+		jdbc.update("insert into live_exam_package_exams (id, module_id, exam_id, position, added_at)"
+				+ " values (?, ?, ?, 1, now())", UUID.randomUUID(), fixture.moduleId, second);
 		exams.publish(fixture.examId);
 		Student buyer = student("ACTIVE");
 		BigDecimal amount = new BigDecimal("2500.00");
@@ -436,10 +444,16 @@ class ExamMailIT extends PostgresIntegrationTest {
 				""", moduleId, categoryId, moduleStatus);
 		jdbc.update("""
 				insert into live_exams (
-				    id, module_id, exam_type, title_en, title_bn, description_en, description_bn, rules_en, rules_bn,
-				    paper_language, live_at, duration_minutes, pass_percent, status, finally_saved, created_at, updated_at)
-				values (?, ?, 'MCQ', ?, ?, 'd', 'd', 'r', 'r', 'BN', ?, 40, 40, 'DRAFT', true, now(), now())
-				""", examId, moduleId, titleEn, titleBn, liveAt == null ? null : Timestamp.from(liveAt));
+				    id, module_id, category_id, exam_type, title_en, title_bn, description_en, description_bn, rules_en, rules_bn,
+				    paper_language, live_at, ends_at, duration_minutes, pass_percent, mode, status, finally_saved, created_at,
+				    updated_at)
+				values (?, ?, (select category_id from live_exam_modules where id = ?), 'MCQ', ?, ?, 'd', 'd', 'r', 'r', 'BN',
+				    CAST(? AS timestamptz), CAST(? AS timestamptz) + make_interval(mins => 40), 40, 40, 'LIVE', 'DRAFT', true,
+				    now(), now())
+				""", examId, moduleId, moduleId, titleEn, titleBn, liveAt == null ? null : Timestamp.from(liveAt),
+				liveAt == null ? null : Timestamp.from(liveAt));
+		jdbc.update("insert into live_exam_package_exams (id, module_id, exam_id, position, added_at)"
+				+ " values (?, ?, ?, 0, now())", UUID.randomUUID(), moduleId, examId);
 		jdbc.update("""
 				insert into live_exam_questions (id, exam_id, stem, marks, position, created_at, updated_at)
 				values (?, ?, 'stem', 1, 1, now(), now())

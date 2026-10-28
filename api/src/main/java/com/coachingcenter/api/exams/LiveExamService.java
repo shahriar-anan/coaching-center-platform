@@ -82,11 +82,19 @@ public class LiveExamService {
 
 	private final StudentNoticeWriter notices;
 
+	private final LiveExamMemberships memberships;
+
+	private final LiveExamQuestionPaperRepository papers;
+
+	private final LiveExamInstructorRepository instructors;
+
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
 			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
 			LiveExamAccess access, LiveExamCatalogVisibility visibility, LocalFileStorage files, ExamMailService examMail,
 			AfterCommit afterCommit, Clock clock, AuditRecorder audit,
-			LiveExamParticipantRepository participants, StudentNoticeWriter notices) {
+			LiveExamParticipantRepository participants, StudentNoticeWriter notices,
+			LiveExamMemberships memberships, LiveExamQuestionPaperRepository papers,
+			LiveExamInstructorRepository instructors) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
@@ -101,6 +109,9 @@ public class LiveExamService {
 		this.audit = audit;
 		this.participants = participants;
 		this.notices = notices;
+		this.memberships = memberships;
+		this.papers = papers;
+		this.instructors = instructors;
 	}
 
 	@Transactional
@@ -114,6 +125,10 @@ public class LiveExamService {
 		rejectMaximumOnMcq(examType, body);
 		LiveExam exam = new LiveExam();
 		exam.setModuleId(module.getId());
+		exam.setCategoryId(module.getCategoryId());
+		exam.setInstructorId(defaultInstructor(module.getId()));
+		exam.setMode(LiveExam.MODE_LIVE);
+		exam.setAnswersChangeable(true);
 		exam.setExamType(examType);
 		exam.setTitleEn(requiredText(body, "titleEn"));
 		exam.setTitleBn(requiredText(body, "titleBn"));
@@ -124,6 +139,8 @@ public class LiveExamService {
 		exam.setPaperLanguage(readPaperLanguage(body));
 		exam.setLiveAt(readOptionalInstant(body, "liveAt"));
 		exam.setDurationMinutes(readDuration(body));
+		exam.setEndsAt(windowEnd(exam));
+		ExamWindow.validate(exam.getMode(), exam.getLiveAt(), exam.getEndsAt(), exam.getDurationMinutes());
 		exam.setPassPercent(readPassPercent(body, false));
 		if (LiveExam.WRITTEN.equals(examType)) {
 			exam.setWrittenMaximum(readMaximum(body, false));
@@ -133,7 +150,9 @@ public class LiveExamService {
 		if (body.has("price")) {
 			exam.setPrice(readPrice(body.get("price")));
 		}
-		return view(exams.save(exam), true);
+		LiveExam saved = exams.save(exam);
+		memberships.attach(module.getId(), saved.getId(), clock.instant());
+		return view(saved, true);
 	}
 
 	@Transactional
@@ -182,6 +201,8 @@ public class LiveExamService {
 		if (body.has("durationMinutes") && !body.get("durationMinutes").isNull()) {
 			exam.setDurationMinutes(readDuration(body));
 		}
+		exam.setEndsAt(windowEnd(exam));
+		ExamWindow.validate(exam.getMode(), exam.getLiveAt(), exam.getEndsAt(), exam.getDurationMinutes());
 		if (body.has("passPercent")) {
 			exam.setPassPercent(readPassPercent(body, true));
 		}
@@ -249,10 +270,15 @@ public class LiveExamService {
 	@Transactional
 	public ExamView copy(UUID id) {
 		LiveExam source = require(id);
-		LiveExamModule module = requireModule(source.getModuleId());
+		LiveExamModule module = requireModule(primaryModuleId(source));
 		visibility.requireOpen(module.getCategoryId());
 		LiveExam copy = new LiveExam();
 		copy.setModuleId(module.getId());
+		copy.setCategoryId(source.getCategoryId());
+		copy.setInstructorId(source.getInstructorId());
+		copy.setMode(source.getMode());
+		copy.setAnswersChangeable(source.isAnswersChangeable());
+		copy.setNegativeMarks(source.getNegativeMarks());
 		copy.setExamType(source.getExamType());
 		String titleEn = source.getTitleEn() + " (copy)";
 		String titleBn = source.getTitleBn() + " (কপি)";
@@ -288,6 +314,10 @@ public class LiveExamService {
 			copy.setQuestionContentType(source.getQuestionContentType());
 		}
 		LiveExam saved = exams.save(copy);
+		if (copy.getQuestionStoredFileName() != null) {
+			saved.setQuestionPaperId(papers.save(paperVersion(saved.getId(), 1, copy)).getId());
+		}
+		memberships.attach(module.getId(), saved.getId(), clock.instant());
 		for (LiveExamQuestion sourceQuestion : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(source.getId())) {
 			LiveExamQuestion question = new LiveExamQuestion();
 			question.setExamId(saved.getId());
@@ -295,6 +325,7 @@ public class LiveExamService {
 			question.setMarks(sourceQuestion.getMarks());
 			question.setExplanation(sourceQuestion.getExplanation());
 			question.setPosition(sourceQuestion.getPosition());
+			question.setMultipleAnswer(sourceQuestion.isMultipleAnswer());
 			LiveExamQuestion savedQuestion = questions.save(question);
 			for (LiveExamOption sourceOption : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(sourceQuestion.getId())) {
 				LiveExamOption option = new LiveExamOption();
@@ -336,6 +367,8 @@ public class LiveExamService {
 		exam.setQuestionByteSize(stored.byteSize());
 		exam.setQuestionContentType("application/pdf");
 		files.commitReplacement(stored.storedFileName(), previous);
+		int version = papers.findTopByExamIdOrderByVersionDesc(exam.getId()).map(paper -> paper.getVersion() + 1).orElse(1);
+		exam.setQuestionPaperId(papers.save(paperVersion(exam.getId(), version, exam)).getId());
 		return view(exam, true);
 	}
 
@@ -388,10 +421,14 @@ public class LiveExamService {
 			}
 			rejectWindowConflict(exam);
 		}
-		visibility.requireOpen(requireModule(exam.getModuleId()).getCategoryId());
+		UUID moduleId = primaryModuleId(exam);
+		visibility.requireOpen(requireModule(moduleId).getCategoryId());
 		exam.setStatus(LiveExam.PUBLISHED);
+		if (exam.getPublishedAt() == null) {
+			exam.setPublishedAt(clock.instant());
+		}
 		UUID examId = exam.getId();
-		notices.published(examId, exams.findActiveStudentsWithAccess(exam.getModuleId(), examId));
+		notices.published(examId, exams.findActiveStudentsWithAccess(moduleId, examId));
 		afterCommit.run(() -> examMail.onExamPublished(examId));
 		return view(exam, true);
 	}
@@ -491,7 +528,7 @@ public class LiveExamService {
 	private void rejectWindowConflict(LiveExam exam) {
 		Instant start = exam.getLiveAt();
 		Instant end = end(exam);
-		for (LiveExam other : exams.findByModuleIdAndStatusAndDeletedAtIsNull(exam.getModuleId(), LiveExam.PUBLISHED)) {
+		for (LiveExam other : exams.findByModuleIdAndStatusAndDeletedAtIsNull(primaryModuleId(exam), LiveExam.PUBLISHED)) {
 			if (other.getId().equals(exam.getId()) || other.getLiveAt() == null) {
 				continue;
 			}
@@ -582,7 +619,7 @@ public class LiveExamService {
 		if (staff) {
 			questionPdf = exam.getQuestionStoredFileName() != null;
 		}
-		return new ExamView(exam.getId(), exam.getModuleId(), exam.getExamType(), exam.getPaperLanguage(),
+		return new ExamView(exam.getId(), memberships.primaryModuleId(exam.getId()).orElse(null), exam.getExamType(), exam.getPaperLanguage(),
 				exam.getTitleEn(), exam.getTitleBn(), exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(),
 				exam.getRulesBn(), format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(),
 				exam.getPassPercent(), maximum(exam), exam.getStatus(), exam.isFinallySaved(), exam.getPrice(),
@@ -628,7 +665,7 @@ public class LiveExamService {
 
 	private RoutineView routineView(LiveExam exam, Map<UUID, LiveExamCategory> categoriesById,
 			LiveExamStudentStatus.Result status) {
-		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(exam.getModuleId()).orElseThrow(this::notFound);
+		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(primaryModuleId(exam)).orElseThrow(this::notFound);
 		return new RoutineView(exam.getId(), module.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
 				module.getTitleEn(), module.getTitleBn(), categoryPath(module.getCategoryId(), categoriesById),
 				format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(), status.status(),
@@ -651,11 +688,39 @@ public class LiveExamService {
 		return path;
 	}
 
+	/** The window end as it is stored. Read it; {@link #windowEnd(LiveExam)} computes it from the start and duration. */
 	private static Instant end(LiveExam exam) {
+		return exam.getEndsAt();
+	}
+
+	/** The window end from the start and duration: {@code liveAt + duration}, or null when there is no start. */
+	private static Instant windowEnd(LiveExam exam) {
 		if (exam.getLiveAt() == null) {
 			return null;
 		}
 		return exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes()));
+	}
+
+	/** The exam's package for access and listing: its first active membership. Throws when it is in none. */
+	private UUID primaryModuleId(LiveExam exam) {
+		return memberships.primaryModuleId(exam.getId()).orElseThrow(this::notFound);
+	}
+
+	private UUID defaultInstructor(UUID moduleId) {
+		return instructors.findById(moduleId).map(LiveExamInstructor::getInstructorId).orElse(null);
+	}
+
+	/** A paper version for the exam's current question PDF. The uploader is not known here, so the version has no author. */
+	private LiveExamQuestionPaper paperVersion(UUID examId, int version, LiveExam exam) {
+		LiveExamQuestionPaper paper = new LiveExamQuestionPaper();
+		paper.setExamId(examId);
+		paper.setVersion(version);
+		paper.setStoredFileName(exam.getQuestionStoredFileName());
+		paper.setOriginalFileName(exam.getQuestionOriginalFileName());
+		paper.setByteSize(exam.getQuestionByteSize());
+		paper.setContentType(exam.getQuestionContentType());
+		paper.setCreatedAt(clock.instant());
+		return paper;
 	}
 
 	private static String format(Instant instant) {
@@ -666,7 +731,7 @@ public class LiveExamService {
 	}
 
 	private boolean visibleModule(LiveExam exam) {
-		return modules.findByIdAndDeletedAtIsNull(exam.getModuleId())
+		return memberships.primaryModuleId(exam.getId()).flatMap(modules::findByIdAndDeletedAtIsNull)
 			.filter(module -> LiveExamModule.PUBLISHED.equals(module.getStatus()))
 			.filter(module -> !visibility.branchHidden(module.getCategoryId()))
 			.isPresent();

@@ -1373,10 +1373,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		jdbc.update("update live_exams set deleted_at = now() where id = ?", removed);
 		UUID draft = UUID.randomUUID();
 		jdbc.update("""
-				insert into live_exams (id, module_id, exam_type, paper_language, title_en, title_bn, description_en,
-				  description_bn, rules_en, rules_bn, live_at, duration_minutes, status, finally_saved, created_at, updated_at)
-				values (?, ?, 'MCQ', 'BN', 'Draft only', 'খসড়া', 'd', 'd', 'r', 'r', now(), 10, 'DRAFT', false, now(), now())
-				""", draft, module);
+				insert into live_exams (id, module_id, category_id, exam_type, paper_language, title_en, title_bn, description_en,
+				  description_bn, rules_en, rules_bn, live_at, ends_at, duration_minutes, mode, status, finally_saved, created_at,
+				  updated_at)
+				values (?, ?, (select category_id from live_exam_modules where id = ?), 'MCQ', 'BN', 'Draft only', 'খসড়া', 'd',
+				  'd', 'r', 'r', now(), now() + make_interval(mins => 10), 10, 'LIVE', 'DRAFT', false, now(), now())
+				""", draft, module, module);
 
 		assertThat(examIds(participation(master, "moduleId", module.toString()))).containsExactly(kept);
 

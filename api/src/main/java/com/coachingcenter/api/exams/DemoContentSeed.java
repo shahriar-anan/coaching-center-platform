@@ -126,12 +126,15 @@ public class DemoContentSeed {
 			VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?) ON CONFLICT DO NOTHING
 			""";
 
+	/** The category comes from the package, and the window end from the start and duration (NR-01, V45 and V46). */
 	private static final String INSERT_EXAM = """
-			INSERT INTO live_exams (id, module_id, exam_type, title_en, title_bn, description_en, description_bn, rules_en,
-			  rules_bn, paper_language, live_at, duration_minutes, pass_percent, written_maximum, question_stored_file_name,
-			  question_original_file_name, question_byte_size, question_content_type, status, finally_saved, price,
-			  answers_released_at, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO live_exams (id, module_id, category_id, exam_type, title_en, title_bn, description_en, description_bn,
+			  rules_en, rules_bn, paper_language, live_at, ends_at, mode, duration_minutes, pass_percent, written_maximum,
+			  question_stored_file_name, question_original_file_name, question_byte_size, question_content_type, status,
+			  finally_saved, price, answers_released_at, published_at, created_at, updated_at)
+			VALUES (?, ?, (SELECT category_id FROM live_exam_modules WHERE id = ?),
+			  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'LIVE',
+			  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			""";
 
 	private static final String INSERT_SITTING = """
@@ -475,11 +478,22 @@ public class DemoContentSeed {
 			byteSize = stored.byteSize();
 			contentType = stored.contentType();
 		}
-		jdbc.update(INSERT_EXAM, spec.id(), spec.module(), spec.type(), spec.titleEn(), spec.titleBn(), spec.descEn(), spec.descBn(),
-				spec.rulesEn(), spec.rulesBn(), "BN", ts(spec.liveAt()), EXAM_MINUTES, PASS_PERCENT,
-				written ? WRITTEN_FULL_MARKS : null, storedName, originalName, byteSize, contentType, spec.draft() ? "DRAFT" : "PUBLISHED",
-				spec.finalSaved(), spec.price(),
-				spec.released() ? ts(now.minus(Duration.ofDays(1))) : null, ts(now), ts(now));
+		Instant windowEnd = spec.liveAt() == null ? null : spec.liveAt().plus(Duration.ofMinutes(EXAM_MINUTES));
+		jdbc.update(INSERT_EXAM, spec.id(), spec.module(), spec.module(), spec.type(), spec.titleEn(), spec.titleBn(),
+				spec.descEn(), spec.descBn(), spec.rulesEn(), spec.rulesBn(), "BN", ts(spec.liveAt()), ts(windowEnd),
+				EXAM_MINUTES, PASS_PERCENT, written ? WRITTEN_FULL_MARKS : null, storedName, originalName, byteSize, contentType,
+				spec.draft() ? "DRAFT" : "PUBLISHED", spec.finalSaved(), spec.price(),
+				spec.released() ? ts(now.minus(Duration.ofDays(1))) : null, spec.draft() ? null : ts(now), ts(now), ts(now));
+		jdbc.update("INSERT INTO live_exam_package_exams (id, module_id, exam_id, position, added_at) VALUES (?, ?, ?, ?, ?)"
+				+ " ON CONFLICT DO NOTHING", demo('1', spec.number()), spec.module(), spec.id(), spec.number(), ts(now));
+		jdbc.update("UPDATE live_exams SET instructor_id = (SELECT instructor_id FROM live_exam_instructors WHERE module_id = ?)"
+				+ " WHERE id = ?", spec.module(), spec.id());
+		if (storedName != null) {
+			jdbc.update("INSERT INTO live_exam_question_papers (id, exam_id, version, stored_file_name, original_file_name,"
+					+ " byte_size, content_type, created_at) VALUES (?, ?, 1, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+					demo('2', spec.number()), spec.id(), storedName, originalName, byteSize, contentType, ts(now));
+			jdbc.update("UPDATE live_exams SET question_paper_id = ? WHERE id = ?", demo('2', spec.number()), spec.id());
+		}
 		int marks = written ? 1 : MCQ_MARKS;
 		List<Question> questions = spec.questions();
 		for (int index = 0; index < questions.size(); index++) {

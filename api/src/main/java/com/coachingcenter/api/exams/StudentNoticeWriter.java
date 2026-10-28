@@ -31,6 +31,12 @@ class StudentNoticeWriter {
 
 	static final String WRITTEN_RESULT = "WRITTEN_RESULT";
 
+	/** An exam's time, duration or paper changed on publish. In-app only (NR-01, P-e). */
+	static final String EXAM_UPDATED = "EXAM_UPDATED";
+
+	/** A written retake was granted on the student's result (NR-01, R14). */
+	static final String RETAKE_AVAILABLE = "RETAKE_AVAILABLE";
+
 	private static final String INSERT = """
 			insert into student_notices (id, user_id, kind, message_key, exam_id, participant_id, created_at)
 			select ?, u.id, ?, ?, ?, ?, ?
@@ -92,6 +98,22 @@ class StudentNoticeWriter {
 		for (UUID studentId : studentIds) {
 			insert(EXAM_PUBLISHED, studentId + ":" + examId, studentId, examId, null);
 		}
+	}
+
+	/**
+	 * Joins the caller's transaction. Called when a publish changes an exam's time, duration or paper, for each student with
+	 * access. The publish instant is in the key, so each publish adds its own notice.
+	 */
+	void examUpdated(UUID examId, Collection<UUID> studentIds) {
+		long publishedAt = clock.instant().toEpochMilli();
+		for (UUID studentId : studentIds) {
+			insert(EXAM_UPDATED, studentId + ":" + examId + ":" + publishedAt, studentId, examId, null);
+		}
+	}
+
+	/** Joins the caller's transaction. Called when a written retake is granted on a student's result (R14). */
+	void retakeAvailable(UUID examId, UUID studentId) {
+		insert(RETAKE_AVAILABLE, studentId + ":" + examId + ":" + clock.instant().toEpochMilli(), studentId, examId, null);
 	}
 
 	/**
