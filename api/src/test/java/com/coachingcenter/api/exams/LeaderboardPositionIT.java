@@ -107,7 +107,7 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:30:00Z"));
 		submit(paper, td)
 			.andExpect(jsonPath("$.position.belowPass").value(true))
-			.andExpect(jsonPath("$.position.rank").isEmpty());
+			.andExpect(jsonPath("$.position.rank").doesNotExist());
 
 		// E starts after the window (06:45) and scores 10, equal to A: an archived score is RELATIVE, and a tie takes
 		// the better rank, so E is 1 of 3. E is not on the board.
@@ -301,7 +301,7 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 
 		// Past the deadline (06:50) and not marked: the attempt is posted but not released, so there is no position.
 		clock.set(Instant.parse("2026-10-20T06:55:00Z"));
-		assertThat(json.readTree(resultBody(exam, studentId)).get("position").isNull()).isTrue();
+		assertThat(absentPosition(resultBody(exam, studentId))).isTrue();
 
 		UUID participant = new JdbcTemplate(dataSource).queryForObject(
 				"select id from live_exam_participants where exam_id = ? and student_id = ?", UUID.class, exam, studentId);
@@ -310,7 +310,7 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 			.param("marks", "6")
 			.header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk());
-		assertThat(json.readTree(resultBody(exam, studentId)).get("position").isNull()).isTrue();
+		assertThat(absentPosition(resultBody(exam, studentId))).isTrue();
 
 		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk());
@@ -319,6 +319,12 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 		assertThat(position.get("rank").asInt()).isEqualTo(1);
 		assertThat(position.get("of").asInt()).isEqualTo(1);
 		assertThat(position.get("belowPass").asBoolean()).isFalse();
+	}
+
+	/** A null position is left out of the JSON, so it is either missing or null. */
+	private boolean absentPosition(String body) throws Exception {
+		JsonNode position = json.readTree(body).path("position");
+		return position.isMissingNode() || position.isNull();
 	}
 
 	private String resultBody(UUID exam, UUID student) throws Exception {
@@ -372,12 +378,7 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 	}
 
 	private static byte[] tinyPdf() {
-		return ""
-				%PDF-1.1
-				1 0 obj<</Type/Catalog>>endobj
-				trailer<</Root 1 0 R>>
-				%%EOF
-				"".getBytes(StandardCharsets.US_ASCII);
+		return "%PDF-1.1\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n".getBytes(StandardCharsets.US_ASCII);
 	}
 
 	private static byte[] compressiblePdf() throws Exception {

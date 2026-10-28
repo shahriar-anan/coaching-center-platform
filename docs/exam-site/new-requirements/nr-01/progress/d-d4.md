@@ -47,3 +47,13 @@ LiveEvaluationIT:
 - `LiveExamStudentStatusTest` keeps the original assertion that a submitted MCQ before its deadline reads `SUBMITTED`. That is an accepted decision (decision 1).
 - The fixture helper that set an exam's instructor from its package was removed (decision 4). `LiveExamService` already inherits the package instructor on creation.
 - Deadline job: `findDueIds` uses each sitting's own deadline (decision 5). The written never-submitted notice test was checked against that rule.
+
+## Late tests (MultiAnswerScoringIT, LeaderboardPositionIT, WrittenRetakeGrantIT, PaperVersionIT, SittingCountsIT, AttemptsIT)
+
+Final results: MultiAnswerScoringIT 5/5, LeaderboardPositionIT 4/4, WrittenRetakeGrantIT 3/3, PaperVersionIT 1/1, SittingCountsIT 2/2, AttemptsIT 9/9 (including the expired-access case, using C's expiry rule with the roster start moved back by SQL). LiveSittingIT 34/34 and LiveEvaluationIT 63/63 were green in the same invocation. Two invocations were needed for the red classes; each later run covered only the classes it changed.
+
+- **MultiAnswerScoringIT, second correct option:** the question API on this branch rejects two correct options, because A's multi-answer authoring was not in it. The test sets the second correct option by SQL. Switch to the API after A's merge (A is now merged).
+- **MultiAnswerScoringIT, legacy payload:** the test sends the array only; the save helper wraps it in nswers.
+- **LeaderboardPositionIT, the fixture was wrong, not the code.** live() saved each answered question in its own bulk call, and each bulk call replaces the whole selection, so each student kept only the last answer. Scores fell below the pass mark and the board was empty. Fixed: one save per student, scores 10, 8, 6 and 4 (4 fails the pass mark of 5). A staff board check before the retake shows the scores the retake is ranked against. With those scores the retake (6) is rank 3 of 3, as the rule says. The code's rank rule matched the decided rule and was not changed.
+- **LeaderboardPositionIT, new cases:** (a) negative marks change the order: same two correct answers, a wrong pick on the third question gives 5.75 and a blank gives 6, so the blank ranks first; (b) a written position is absent before release and appears as BOARD rank 1 of 1 after publish.
+- **LeaderboardPositionIT, JSON:** null fields are left out of the response, so ank: null and position: null are checked as missing or null.
