@@ -14,7 +14,7 @@
 # checksum error after a migration changed). The PostgreSQL user and password come from the main checkout's
 # api\.env and are never printed. Everything taken is released in the finally block.
 param(
-    [Parameter(Mandatory = $true)][ValidateSet("F", "A", "B", "C", "D", "INT")][string]$Agent,
+    [Parameter(Mandatory = $true)][ValidateSet("F", "A", "B", "C", "D", "INT", "W1", "W2", "W3")][string]$Agent,
     [string]$Tests = "",
     [switch]$Full,
     [switch]$ResetDb,
