@@ -39,12 +39,17 @@ public class LiveExamOrderHistoryService {
 				Long.class);
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
 		List<OwnOrderRow> rows = jdbc.query("""
-				select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, o.module_id, o.exam_id, o.payment_channel,
+				select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, coalesce(o.module_id, pk.module_id) as module_id,
+				  o.exam_id, o.payment_channel,
 				  o.created_at, m.title_en as module_title_en, m.title_bn as module_title_bn,
 				  e.title_en as exam_title_en, e.title_bn as exam_title_bn
 				from live_exam_orders o
-				left join live_exam_modules m on m.id = o.module_id
 				left join live_exams e on e.id = o.exam_id
+				left join lateral (select p.module_id from live_exam_package_exams p
+				  join live_exam_modules pm on pm.id = p.module_id and pm.deleted_at is null
+				  where p.exam_id = o.exam_id and p.removed_at is null
+				  order by p.added_at, p.id limit 1) pk on true
+				left join live_exam_modules m on m.id = coalesce(o.module_id, pk.module_id)
 				where o.student_id = :studentId
 				order by o.created_at desc, o.id
 				limit :limit offset :offset

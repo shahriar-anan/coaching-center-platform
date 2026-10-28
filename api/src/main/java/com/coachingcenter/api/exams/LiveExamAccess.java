@@ -18,6 +18,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class LiveExamAccess {
 
+	/** The reason an expired grant is revoked when a new one replaces it. It stays in the table for the record. */
+	static final String RETIRED = "Replaced by a newer grant after it ran out.";
+
 	static final String FREE = "FREE";
 
 	static final String EXAM = "EXAM";
