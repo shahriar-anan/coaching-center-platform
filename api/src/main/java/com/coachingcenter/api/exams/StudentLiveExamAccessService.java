@@ -1,5 +1,8 @@
 package com.coachingcenter.api.exams;
 
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -21,7 +24,8 @@ import com.coachingcenter.api.common.error.ErrorCode;
 /**
  * What a student can sit, and why, for staff. One row per roster membership and one row per purchase grant, so a
  * student with both a roster row and a purchase shows both reasons. An exam purchase row names its one exam. A grant
- * row carries the grant id, which a revoke needs; a roster row carries none.
+ * row carries the grant id, which a revoke needs; a roster row carries none. Each row says when its access ends, and an
+ * exam that is free is not listed (NR-01, C3). An exam's package on its row is the primary one, for display only.
  */
 @Service
 public class StudentLiveExamAccessService {
@@ -38,44 +42,64 @@ public class StudentLiveExamAccessService {
 			SELECT m.id AS module_id, m.title_en AS module_title_en, m.title_bn AS module_title_bn,
 			  'ROSTER' AS via, CAST(NULL AS UUID) AS order_id, CAST(NULL AS VARCHAR) AS tran_id,
 			  CAST(NULL AS UUID) AS exam_id, CAST(NULL AS VARCHAR) AS exam_title_en, CAST(NULL AS VARCHAR) AS exam_title_bn,
-			  CAST(NULL AS UUID) AS grant_id
+			  CAST(NULL AS UUID) AS grant_id, r.created_at AS granted_at
 			FROM live_exam_roster r
 			JOIN live_exam_modules m ON m.id = r.module_id AND m.deleted_at IS NULL
 			WHERE r.student_id = :studentId
 			UNION ALL
 			SELECT m.id, m.title_en, m.title_bn, 'MODULE_PURCHASE', g.order_id, o.tran_id,
-			  CAST(NULL AS UUID), CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), g.id
+			  CAST(NULL AS UUID), CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), g.id, g.created_at
 			FROM live_exam_grants g
 			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
 			JOIN live_exam_orders o ON o.id = g.order_id
 			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.revoked_at IS NULL
 			UNION ALL
-			SELECT m.id, m.title_en, m.title_bn, 'EXAM_PURCHASE', g.order_id, o.tran_id,
-			  e.id, e.title_en, e.title_bn, g.id
+			SELECT pm.id, pm.title_en, pm.title_bn, 'EXAM_PURCHASE', g.order_id, o.tran_id,
+			  e.id, e.title_en, e.title_bn, g.id, g.created_at
 			FROM live_exam_grants g
-			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
 			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
 			JOIN live_exam_orders o ON o.id = g.order_id
-			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.revoked_at IS NULL
+			LEFT JOIN LATERAL (
+			  SELECT m.id, m.title_en, m.title_bn FROM live_exam_package_exams p
+			  JOIN live_exam_modules m ON m.id = p.module_id AND m.deleted_at IS NULL
+			  WHERE p.exam_id = e.id AND p.removed_at IS NULL
+			  ORDER BY p.added_at, p.id LIMIT 1
+			) pm ON TRUE
+			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND NOT e.is_free AND g.revoked_at IS NULL
 			UNION ALL
 			SELECT m.id, m.title_en, m.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
-			  CAST(NULL AS UUID), CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), g.id
+			  CAST(NULL AS UUID), CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), g.id, g.created_at
 			FROM live_exam_grants g
 			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
 			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
 			UNION ALL
-			SELECT m.id, m.title_en, m.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
-			  e.id, e.title_en, e.title_bn, g.id
+			SELECT pm.id, pm.title_en, pm.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
+			  e.id, e.title_en, e.title_bn, g.id, g.created_at
 			FROM live_exam_grants g
-			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
 			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
-			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
+			LEFT JOIN LATERAL (
+			  SELECT m.id, m.title_en, m.title_bn FROM live_exam_package_exams p
+			  JOIN live_exam_modules m ON m.id = p.module_id AND m.deleted_at IS NULL
+			  WHERE p.exam_id = e.id AND p.removed_at IS NULL
+			  ORDER BY p.added_at, p.id LIMIT 1
+			) pm ON TRUE
+			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.source = 'MANUAL' AND NOT e.is_free
+			  AND g.revoked_at IS NULL
 			""";
 
 	private final NamedParameterJdbcTemplate jdbc;
 
-	StudentLiveExamAccessService(JdbcTemplate jdbc) {
+	private final LiveExamAccess access;
+
+	private final LiveExamRepository liveExams;
+
+	private final Clock clock;
+
+	StudentLiveExamAccessService(JdbcTemplate jdbc, LiveExamAccess access, LiveExamRepository liveExams, Clock clock) {
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
+		this.access = access;
+		this.liveExams = liveExams;
+		this.clock = clock;
 	}
 
 	@Transactional(readOnly = true)
@@ -101,9 +125,32 @@ public class StudentLiveExamAccessService {
 					return new AccessRow(rs.getObject("module_id", UUID.class), rs.getString("module_title_en"),
 							rs.getString("module_title_bn"), rs.getString("via"), exams,
 							rs.getObject("order_id", UUID.class), rs.getString("tran_id"),
-							rs.getObject("grant_id", UUID.class));
+							rs.getObject("grant_id", UUID.class), instant(rs.getTimestamp("granted_at")), null, false);
 				});
-		return new PageImpl<>(rows, page, total == null ? 0 : total);
+		Instant now = clock.instant();
+		return new PageImpl<>(rows.stream().map(row -> withExpiry(row, now)).toList(), page, total == null ? 0 : total);
+	}
+
+	/**
+	 * When the row's access ends. An exam row ends with its own window and access days; a package row ends when the package's
+	 * paid exams have all run out.
+	 */
+	private AccessRow withExpiry(AccessRow row, Instant now) {
+		Instant endsAt;
+		if (row.exams().isEmpty()) {
+			endsAt = access.moduleEnd(row.moduleId(), row.grantedAt());
+		}
+		else {
+			endsAt = liveExams.findByIdAndDeletedAtIsNull(row.exams().get(0).id())
+				.map(exam -> AccessWindow.end(exam, row.grantedAt()))
+				.orElse(null);
+		}
+		return new AccessRow(row.moduleId(), row.moduleTitleEn(), row.moduleTitleBn(), row.via(), row.exams(), row.orderId(),
+				row.tranId(), row.grantId(), row.grantedAt(), endsAt, LiveExamAccess.expired(endsAt, now));
+	}
+
+	private static Instant instant(Timestamp value) {
+		return value == null ? null : value.toInstant();
 	}
 
 	private void requireStudent(UUID studentId) {
@@ -117,10 +164,11 @@ public class StudentLiveExamAccessService {
 
 	/**
 	 * {@code exams} names the bought exam for an {@code EXAM_PURCHASE} row, and is empty when the whole module is open.
-	 * {@code grantId} is the grant a revoke takes, and is null for a roster row.
+	 * {@code grantId} is the grant a revoke takes, and is null for a roster row. {@code grantedAt} is when the access began,
+	 * and {@code endsAt} is when it ends (null for lifetime), with {@code expired} true from that moment.
 	 */
 	public record AccessRow(UUID moduleId, String moduleTitleEn, String moduleTitleBn, String via, List<ExamRef> exams,
-			UUID orderId, String tranId, UUID grantId) {
+			UUID orderId, String tranId, UUID grantId, Instant grantedAt, Instant endsAt, boolean expired) {
 	}
 
 	public record ExamRef(UUID id, String titleEn, String titleBn) {

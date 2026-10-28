@@ -102,7 +102,7 @@ Size guide: F about 1 day, A 1.5 days, B 1 day, C 0.75 day, D 1.5 days, integrat
   - It uses the agent's own database, `cc_test_nr01_<agent>`, creating it if missing; `-ResetDb` recreates it after a Flyway checksum error.
   - It loads the PostgreSQL user and password from the main checkout's `api/.env` without printing them, and it always releases the lock.
   - **Never run `mvn` directly, and never run two at once.** Keep each run to the classes of your slice.
-  - **The full suite (`-Full`) is run only once per agent**, at the end, and in the background, because it takes longer than a tool call. `BookOrderIT` and `CoursePurchaseIT` are a known pair that can fail on a reused database (from the earlier deploy records). If only they fail, rerun them alone with `-ResetDb`; if they pass then, report it.
+  - **Agents run tests once per slice** (one invocation: the slice's new classes plus the existing classes it touched), and rerun only failing classes. **Agents do not run `-Full`** (changed 28 October 2026): the orchestrator runs the full suite on `nr01/integration` after each merge and at the end. `BookOrderIT` and `CoursePurchaseIT` are a known pair that can fail on a reused database. If only they fail, rerun them alone with `-ResetDb`; if they pass then, note it.
   - If an agent finds a stale lock (its holder is not running), it tells the orchestrator. It never deletes another agent's lock.
 - **Web.** Agents do not touch `web/`. The one exception: the orchestrator runs `npm run lint`, `npm test` and `npm run build` in `web/` during integration, under the heavy lock, to prove nothing broke.
 

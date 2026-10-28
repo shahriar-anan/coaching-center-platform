@@ -94,7 +94,7 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.scope").value("EXAM"))
 			.andExpect(jsonPath("$.examId").value(exam.toString()))
-			.andExpect(jsonPath("$.moduleId").value(module.toString()));
+			.andExpect(jsonPath("$.moduleId").doesNotExist());
 
 		mockMvc.perform(get("/api/v1/students/" + student + "/live-exam-access").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
