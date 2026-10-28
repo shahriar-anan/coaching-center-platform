@@ -167,14 +167,15 @@ public class LiveExamPublicService {
 	/**
 	 * Dated exams that have not ended, soonest first, in categories outside the hidden branches. An exam joins the catalog
 	 * through its home category, so a standalone exam is listed too (NR-01, B2). Public like the catalog: no questions and
-	 * no PDFs. Practice exams have no date and are not listed.
+	 * no PDFs. Practice exams have no date and are not listed. {@code popularOnly} keeps the popular exams (NR-01, S0.2).
 	 */
 	@Transactional(readOnly = true)
-	public Page<UpcomingExam> upcoming(String examType, Pageable pageable) {
+	public Page<UpcomingExam> upcoming(String examType, boolean popularOnly, Pageable pageable) {
 		Instant now = clock.instant();
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		List<LiveExam> live = new ArrayList<>(exams.findUpcomingInCatalog(now, catalogHidden(hidden),
 				LiveExamTypeFilter.ANY.equals(examType), examType));
+		live.removeIf(exam -> popularOnly && !exam.isPopular());
 		live.sort(START_ORDER);
 		List<LiveExam> slice = page(live, pageable).getContent();
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(

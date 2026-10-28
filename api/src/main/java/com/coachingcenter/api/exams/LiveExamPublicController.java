@@ -91,16 +91,18 @@ public class LiveExamPublicController {
 
 	/**
 	 * Upcoming exams across the catalog. Only {@code upcoming=true} is served; {@code examType} filters the door. Standalone
-	 * exams are included (NR-01, B2).
+	 * exams are included (NR-01, B2). {@code popular} keeps the popular exams (NR-01, S0.2).
 	 */
 	@GetMapping("/api/v1/public/live-exams")
 	public PageResponse<LiveExamPublicService.UpcomingExam> upcoming(
 			@RequestParam(required = false, defaultValue = "false") boolean upcoming,
-			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String examType,
+			@RequestParam(required = false, defaultValue = "false") boolean popular,
+			@PageableDefault(size = 20) Pageable pageable) {
 		if (!upcoming) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 		}
-		Page<LiveExamPublicService.UpcomingExam> page = catalog.upcoming(LiveExamTypeFilter.parse(examType), pageable);
+		Page<LiveExamPublicService.UpcomingExam> page = catalog.upcoming(LiveExamTypeFilter.parse(examType), popular, pageable);
 		UUID student = studentId();
 		if (student != null) {
 			Set<UUID> marked = favourites.examIds(student);
