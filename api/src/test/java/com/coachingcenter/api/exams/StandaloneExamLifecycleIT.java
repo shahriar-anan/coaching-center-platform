@@ -106,8 +106,8 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 		}
 		mockMvc.perform(get("/api/v1/public/live-exams/" + world.mcq())).andExpect(status().isOk());
 		mockMvc.perform(get("/api/v1/public/live-exams/" + world.written())).andExpect(status().isOk());
-		assertThat(ids(contentOf(mockMvc.perform(get("/api/v1/public/live-exams").param("upcoming", "true")
-			.param("size", "1000")))))
+		assertThat(rowsOnEveryPage("/api/v1/public/live-exams", world.s1Token(), "upcoming", "true").stream()
+			.map(row -> UUID.fromString(row.get("id").asText())).toList())
 			.contains(world.mcq(), world.written());
 
 		JsonNode access = bodyOf(mockMvc.perform(get("/api/v1/me/live-exam-access")
@@ -170,9 +170,8 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.rows.content.length()").value(1))
 			.andExpect(jsonPath("$.rows.content[0].attemptNo").value(1));
-		mockMvc.perform(get("/api/v1/live-exam-participation").param("size", "500").header("Authorization", "Bearer " + world.master()))
-			.andExpect(status().isOk())
-			.andExpect(content().string(containsString(world.mcq().toString())));
+		assertThat(rowsOnEveryPage("/api/v1/live-exam-participation", world.master()))
+			.anyMatch(row -> row.toString().contains(world.mcq().toString()));
 		mockMvc.perform(get("/api/v1/students/" + world.s1() + "/live-exam-results").param("size", "500")
 			.header("Authorization", "Bearer " + world.master()))
 			.andExpect(status().isOk())
@@ -236,9 +235,8 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 		JsonNode board = bodyOf(mockMvc.perform(get("/api/v1/live-exams/" + world.written() + "/leaderboard")
 			.header("Authorization", "Bearer " + world.s1Token())));
 		assertThat(board.get("rows")).hasSize(1);
-		mockMvc.perform(get("/api/v1/live-exam-participation").param("size", "500").header("Authorization", "Bearer " + master))
-			.andExpect(status().isOk())
-			.andExpect(content().string(containsString(world.written().toString())));
+		assertThat(rowsOnEveryPage("/api/v1/live-exam-participation", master))
+			.anyMatch(row -> row.toString().contains(world.written().toString()));
 		mockMvc.perform(get("/api/v1/students/" + world.s1() + "/live-exam-results").param("size", "500").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString(world.written().toString())));
@@ -359,6 +357,29 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 
 	private JsonNode bodyOf(ResultActions request) throws Exception {
 		return json.readTree(request.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+	}
+
+	/**
+	 * Every row of a paged list. The server caps a page at 100 rows and the shared test database holds more exams than
+	 * that, so a single page can miss this test's exams. Parameters come in name and value pairs.
+	 */
+	private List<JsonNode> rowsOnEveryPage(String path, String token, String... pairs) throws Exception {
+		List<JsonNode> rows = new ArrayList<>();
+		int page = 0;
+		long pages;
+		do {
+			var request = get(path).param("size", "100").param("page", String.valueOf(page))
+				.header("Authorization", "Bearer " + token);
+			for (int i = 0; i < pairs.length; i += 2) {
+				request.param(pairs[i], pairs[i + 1]);
+			}
+			JsonNode body = bodyOf(mockMvc.perform(request));
+			body.get("content").forEach(rows::add);
+			pages = body.path("totalPages").asLong(1);
+			page++;
+		}
+		while (page < pages);
+		return rows;
 	}
 
 	private static JsonNode rowFor(JsonNode access, UUID exam) {
