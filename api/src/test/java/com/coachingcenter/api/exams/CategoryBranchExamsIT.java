@@ -127,7 +127,8 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 		Instant windowEnd = jdbc.queryForObject("SELECT ends_at FROM live_exams WHERE id = ?", Timestamp.class,
 				DemoContentSeed.demo('e', 62)).toInstant();
 		JsonNode expiring = examAs(PHONE_STUDENT_D, exam(62)).get("access");
-		assertThat(expiring.get("state").asText()).isEqualTo("EXAM");
+		// The review grant is a manual grant, so its state reads MANUAL.
+		assertThat(expiring.get("state").asText()).isEqualTo("MANUAL");
 		assertThat(expiring.get("blockedReason").asText()).isEqualTo("ALREADY_HAS_ACCESS");
 		assertThat(Instant.parse(expiring.get("expiresAt").asText())).isEqualTo(windowEnd.plus(Duration.ofDays(30)));
 
