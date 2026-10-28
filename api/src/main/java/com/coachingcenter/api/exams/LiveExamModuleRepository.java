@@ -196,4 +196,70 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			@Param("categoryId") UUID categoryId, @Param("hiddenCategoryIds") Set<UUID> hiddenCategoryIds,
 			@Param("examType") String examType, Pageable pageable);
 
+	/**
+	 * The public package list (NR-01, B2 and B5): published packages outside hidden branches. An exam type counts through
+	 * membership, so a package holding an exam of that type is listed. Each filter is switched off by its flag.
+	 */
+	@Query(value = """
+			SELECT m FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
+			  AND (:anyCategory = true OR m.categoryId = :categoryId)
+			  AND (:popularOnly = false OR m.popular = true)
+			  AND (lower(m.titleEn) LIKE :pattern OR lower(m.titleBn) LIKE :pattern)
+			  AND (:anyType = true OR EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm, LiveExam e
+			    WHERE pm.moduleId = m.id AND pm.removedAt IS NULL AND e.id = pm.examId
+			      AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType))
+			""", countQuery = """
+			SELECT count(m) FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
+			  AND (:anyCategory = true OR m.categoryId = :categoryId)
+			  AND (:popularOnly = false OR m.popular = true)
+			  AND (lower(m.titleEn) LIKE :pattern OR lower(m.titleBn) LIKE :pattern)
+			  AND (:anyType = true OR EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm, LiveExam e
+			    WHERE pm.moduleId = m.id AND pm.removedAt IS NULL AND e.id = pm.examId
+			      AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType))
+			""")
+	Page<LiveExamModule> findPublishedCatalog(@Param("hidden") Set<UUID> hidden,
+			@Param("anyCategory") boolean anyCategory, @Param("categoryId") UUID categoryId,
+			@Param("popularOnly") boolean popularOnly, @Param("pattern") String pattern,
+			@Param("anyType") boolean anyType, @Param("examType") String examType, Pageable pageable);
+
+	/**
+	 * The student's package list (NR-01, B2 and B5): as {@link #findPublishedCatalog}, but only packages the student holds
+	 * through a roster row or a grant. Exam type counts through membership.
+	 */
+	@Query(value = """
+			SELECT m FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
+			  AND (:anyCategory = true OR m.categoryId = :categoryId)
+			  AND (:popularOnly = false OR m.popular = true)
+			  AND (
+			    EXISTS (SELECT r FROM LiveExamRoster r WHERE r.moduleId = m.id AND r.studentId = :studentId)
+			    OR EXISTS (SELECT g FROM LiveExamGrant g WHERE g.moduleId = m.id AND g.studentId = :studentId)
+			  )
+			  AND (:anyType = true OR EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm, LiveExam e
+			    WHERE pm.moduleId = m.id AND pm.removedAt IS NULL AND e.id = pm.examId
+			      AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType))
+			""", countQuery = """
+			SELECT count(m) FROM LiveExamModule m
+			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
+			  AND (:anyCategory = true OR m.categoryId = :categoryId)
+			  AND (:popularOnly = false OR m.popular = true)
+			  AND (
+			    EXISTS (SELECT r FROM LiveExamRoster r WHERE r.moduleId = m.id AND r.studentId = :studentId)
+			    OR EXISTS (SELECT g FROM LiveExamGrant g WHERE g.moduleId = m.id AND g.studentId = :studentId)
+			  )
+			  AND (:anyType = true OR EXISTS (
+			    SELECT pm FROM LiveExamPackageExam pm, LiveExam e
+			    WHERE pm.moduleId = m.id AND pm.removedAt IS NULL AND e.id = pm.examId
+			      AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType))
+			""")
+	Page<LiveExamModule> findVisibleToStudentCatalog(@Param("studentId") UUID studentId,
+			@Param("hidden") Set<UUID> hidden, @Param("anyCategory") boolean anyCategory,
+			@Param("categoryId") UUID categoryId, @Param("popularOnly") boolean popularOnly,
+			@Param("anyType") boolean anyType, @Param("examType") String examType, Pageable pageable);
+
 }

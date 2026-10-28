@@ -178,16 +178,26 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 
+		// NR-01 E34: an edit to a published package is staged. It stays published, and only the Master Admin publishes it.
 		mockMvc.perform(patch("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"descriptionEn\":\"Edited after publish\"}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"))
-			.andExpect(jsonPath("$.finallySaved").value(false));
+			.andExpect(jsonPath("$.status").value("PUBLISHED"))
+			.andExpect(jsonPath("$.finallySaved").value(true))
+			.andExpect(jsonPath("$.pendingChanges").value(true));
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish")
 			.header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		String master = token(seed("MASTER_ADMIN"));
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.pendingChanges").value(false))
+			.andExpect(jsonPath("$.descriptionEn").value("Edited after publish"));
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + master))
 			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("FINAL_SAVE_REQUIRED"));
+			.andExpect(jsonPath("$.code").value("NO_PENDING_CHANGES"));
 	}
 
 	@Test
