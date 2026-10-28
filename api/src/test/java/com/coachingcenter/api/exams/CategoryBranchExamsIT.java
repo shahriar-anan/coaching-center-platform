@@ -160,7 +160,7 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 		return json.readTree(body).get("content");
 	}
 
-	private JsonNode examAs(String phone, UUID exam) throws Exception {
+	private JsonNode examAs(String phone, String exam) throws Exception {
 		String token = auth.login(phone, PASSWORD, ClientType.WEB, "127.0.0.1", "test").accessToken();
 		String body = mockMvc.perform(get("/api/v1/public/live-exams/" + exam).header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk())
