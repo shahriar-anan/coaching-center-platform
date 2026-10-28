@@ -454,6 +454,48 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.questionPdf").value(true));
 	}
 
+	@Test
+	void discountsAndFreeExamsFollowThePricePermissionOnCreateAndInAStagedEdit() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Discount gate");
+		UUID exam = fx.createExam(master, module, "MCQ", "Gated", NOON, 40, "\"price\":100");
+		fx.question(staff, exam, "Stem", 1);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountPercent\":30}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountEndsAt\":\"2026-11-01T00:00:00Z\"}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"free\":true}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(AuthoringFixture.examBody("MCQ", "Discounted by staff", NOON, 40, "\"discountPercent\":30")))
+			.andExpect(status().isForbidden());
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountPercent\":30}"))
+			.andExpect(status().isOk());
+
+		fx.publishNew(master, exam);
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountPercent\":20}"))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"discountPercent\":20}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.pendingChanges").value(true));
+	}
+
 	private String token(String role) throws Exception {
 		return fx.token(fx.seed(role));
 	}

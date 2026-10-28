@@ -285,7 +285,9 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/live-exams",
 			"GET /api/v1/live-exams/{id}/pending-changes",
 			"DELETE /api/v1/live-exams/{id}/pending-changes",
-			"GET /api/v1/live-exam-pending-changes");
+			"GET /api/v1/live-exam-pending-changes",
+			"GET /api/v1/live-exams/{id}/preview",
+			"GET /api/v1/live-exams/{id}/preview/question-pdf");
 
 	@Autowired
 	private MockMvc mockMvc;

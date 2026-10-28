@@ -41,3 +41,14 @@ Table format of [../../../current-api.md](../../../current-api.md). The orchestr
 | Call | Change |
 |---|---|
 | `GET /api/v1/live-exam-pending-changes` | **New.** `{exams, packages, items:[{kind: EXAM|PACKAGE, id, titleEn, titleBn, updatedAt, updatedBy}]}`, newest first. Master Admin and System Admin. Students get `403`. |
+
+## A6: preview
+
+| Call | Change |
+|---|---|
+| `GET /api/v1/live-exams/{id}/preview` | **New.** Signed-in student. Published exam with `previewEnabled`, in phase `ENDED` or `PRACTICE`, in an open category branch. MCQ: stems, options and `multipleAnswer`, no `correct` and no `explanation`. Written: `{hasPaper}`. Otherwise `404`. No purchase or grant needed. |
+| `GET /api/v1/live-exams/{id}/preview/question-pdf` | **New.** The published paper under the same rule. Inline, `no-store`. |
+
+## A7: answers-released switch
+
+`PUT /api/v1/live-exams/{id}/answers-released` is unchanged: it stores the value and gates nothing (D removes the reads).
