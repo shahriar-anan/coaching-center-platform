@@ -144,10 +144,13 @@ public class StudentOwnAccessService {
 	/**
 	 * {@code state} is {@code NONE}, {@code MODULE}, {@code EXAM}, {@code ROSTER}, {@code BUNDLE}, {@code MANUAL} or
 	 * {@code FREE} (a free exam, open to everyone). {@code blockedReason}
-	 * is null exactly when {@code buyable} is true, and is always written, even when null.
+	 * is null exactly when {@code buyable} is true, and is always written, even when null. {@code expiresAt} is when the
+	 * access the student holds ends (NR-01, S0.3). It is null for lifetime access, a free exam, or no live access, and is
+	 * always written, even when null.
 	 */
 	public record Access(String state, boolean buyable,
-			@JsonInclude(JsonInclude.Include.ALWAYS) String blockedReason) {
+			@JsonInclude(JsonInclude.Include.ALWAYS) String blockedReason,
+			@JsonInclude(JsonInclude.Include.ALWAYS) Instant expiresAt) {
 	}
 
 	/**
@@ -178,12 +181,12 @@ public class StudentOwnAccessService {
 
 		/** Access to the package as a whole: a roster row or a package grant that has not run out. */
 		public Access module(LiveExamModule module) {
-			return access(state(access.moduleState(studentId, module.getId(), now)), module.getPrice());
+			return access(access.moduleState(studentId, module.getId(), now), module.getPrice());
 		}
 
 		/** Any route to the exam, through any package it is in, or a grant on the exam. The price is the exam's own price. */
 		public Access exam(LiveExam exam) {
-			return access(state(access.state(studentId, exam, now)), exam.getPrice());
+			return access(access.state(studentId, exam, now), exam.getPrice());
 		}
 
 		private static String state(AccessState state) {
@@ -191,7 +194,8 @@ public class StudentOwnAccessService {
 		}
 
 		/** Reasons the student cannot fix come before the phone, which they can. */
-		private Access access(String state, BigDecimal price) {
+		private Access access(AccessState found, BigDecimal price) {
+			String state = state(found);
 			String reason = null;
 			if (!NONE.equals(state)) {
 				reason = "ALREADY_HAS_ACCESS";
@@ -205,7 +209,7 @@ public class StudentOwnAccessService {
 			else if (!hasPhone) {
 				reason = "PHONE_REQUIRED";
 			}
-			return new Access(state, reason == null, reason);
+			return new Access(state, reason == null, reason, NONE.equals(state) ? null : found.endsAt());
 		}
 
 	}
