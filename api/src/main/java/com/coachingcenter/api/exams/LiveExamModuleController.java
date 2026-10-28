@@ -38,12 +38,15 @@ public class LiveExamModuleController {
 
 	private final ModuleCoverService covers;
 
+	private final PackageRevisionService revisions;
+
 	public LiveExamModuleController(LiveExamModuleService modules, LiveExamStaffModuleService staff,
-			PermissionChecker permissions, ModuleCoverService covers) {
+			PermissionChecker permissions, ModuleCoverService covers, PackageRevisionService revisions) {
 		this.modules = modules;
 		this.staff = staff;
 		this.permissions = permissions;
 		this.covers = covers;
+		this.revisions = revisions;
 	}
 
 	@PostMapping("/api/v1/live-exam-modules")
@@ -66,17 +69,29 @@ public class LiveExamModuleController {
 		return modules.finalSave(id);
 	}
 
+	/**
+	 * Body {@code {"revisionId"}}. A staged revision is published by the Master Admin only, and a missing revisionId is
+	 * accepted from the Master Admin alone (contracts §7 item 4).
+	 */
 	@PostMapping("/api/v1/live-exam-modules/{id}/publish")
-	public LiveExamModuleService.ModuleView publish(@PathVariable UUID id) {
+	public LiveExamModuleService.ModuleView publish(@PathVariable UUID id, @RequestBody(required = false) JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
-		return modules.publish(id);
+		if (revisions.hasRevision(id)) {
+			require(Permissions.LIVE_EXAM_PUBLISH);
+		}
+		String revisionId = body != null && body.hasNonNull("revisionId") ? body.get("revisionId").asText() : null;
+		return modules.publish(id, revisionId);
 	}
 
-	/** {@code status} and {@code q} apply to the staff read only; a student's list ignores them. */
+	/**
+	 * {@code status} and {@code q} apply to the staff read only; a student's list ignores them. {@code popular} keeps the
+	 * popular packages for a student (NR-01, B5).
+	 */
 	@GetMapping("/api/v1/live-exam-modules")
 	public PageResponse<LiveExamModuleService.ModuleView> list(@RequestParam(required = false) UUID categoryId,
 			@RequestParam(required = false) String examType, @RequestParam(required = false) String status,
-			@RequestParam(required = false) String q, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String q, @RequestParam(required = false, defaultValue = "false") boolean popular,
+			@PageableDefault(size = 20) Pageable pageable) {
 		String type = LiveExamTypeFilter.parse(examType);
 		if (permissions.has(Permissions.EXAM_READ)) {
 			return PageResponse.from(staff.list(categoryId, status, q, pageable));
@@ -85,7 +100,7 @@ public class LiveExamModuleController {
 			return PageResponse.from(staff.listForInstructor(actorId(), pageable));
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
-			return PageResponse.from(modules.list(categoryId, pageable, true, actorId(), type));
+			return PageResponse.from(modules.list(categoryId, pageable, true, actorId(), type, popular));
 		}
 		throw denied();
 	}
