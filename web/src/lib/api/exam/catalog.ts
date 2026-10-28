@@ -243,11 +243,17 @@ export function useMyModules(enabled: boolean) {
   });
 }
 
-/** One grant of the student's own (`GET /api/v1/me/live-exam-access`, API-ACCESS). */
+/**
+ * One grant of the student's own (`GET /api/v1/me/live-exam-access`, API-ACCESS). `endsAt` is null for lifetime access and
+ * `expired` is true once it has run out (NR-01, my exams). Both are additive fields, so older rows read as lifetime and live.
+ */
 export interface OwnModuleGrant {
   moduleId: string;
   via: "ROSTER" | "MODULE" | "MANUAL";
   orderId?: string;
+  grantedAt?: string;
+  endsAt?: string | null;
+  expired?: boolean;
 }
 
 export interface OwnExamGrant {
@@ -255,6 +261,9 @@ export interface OwnExamGrant {
   moduleId: string;
   via: "EXAM" | "MANUAL";
   orderId?: string;
+  grantedAt?: string;
+  endsAt?: string | null;
+  expired?: boolean;
 }
 
 /** Every module and exam the signed-in student owns. No paging. */
@@ -270,6 +279,33 @@ export function useMyLiveExamAccess(enabled: boolean) {
     staleTime: CATALOG_STALE,
     enabled,
     queryFn: ({ signal }) => apiRequest<MyLiveExamAccess>("/api/v1/me/live-exam-access", { signal }),
+  });
+}
+
+/**
+ * The public exam rows for the student's own exams, one read per id, signed in so each row carries its access. The public
+ * read works for an expired grant too, where the signed-in read does not (NR-01, my exams).
+ */
+export function usePublicExamsById(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: [...catalogKeys.publicExam(id), true],
+      staleTime: CATALOG_STALE,
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
+    })),
+  });
+}
+
+/** The public package rows for the student's own packages, one read per id (NR-01, my exams). */
+export function usePublicModulesById(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: [...catalogKeys.publicModule(id), true],
+      staleTime: CATALOG_STALE,
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        apiRequest<PublicModule>(`/api/v1/public/live-exam-modules/${id}`, { signal }),
+    })),
   });
 }
 
