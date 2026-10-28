@@ -67,3 +67,60 @@ Branch check: `GET …/live-exam-categories/{BJS Exam}/exams?branch=true` return
 6. **Popular applies to exams only.** `popular=true` on the upcoming list keeps exams marked popular. It does not include exams in a popular package.
 7. **Web type.** `AccessInfo` in `web/src/lib/api/exam/types.ts` does not have `expiresAt` yet. S2.5 adds it. Per the rules, S0 does not change web code.
 8. **Bangla copy.** I drafted the Bangla for the new seed rows, and it has not been checked. These are the new terms, for Shahriar to confirm: ছাড়ের প্যাকেজ (discount package), জনপ্রিয় প্যাকেজ (popular package), ছাড়ের এমসিকিউ, বিনামূল্যের এমসিকিউ (free MCQ), প্রশ্নপত্রসহ রিটেন (written with question paper), দুই প্যাকেজের এমসিকিউ (two-package MCQ), and the student name তানভীর হাসান.
+
+## Follow-up (Part A of the implementation prompt)
+
+Four decided changes, each in its own commit, then one test run.
+
+| Change | What it does | Commit |
+|---|---|---|
+| F1 | An expired case in the seed: a written paper, e65 "Expired written paper", standalone in the root category. Its window ended ten days before the seed run and it gives seven days of access. Student 4 holds a manual grant on it made thirty days before the run, so the access ended three days ago. Own marker (e65), so an existing dev database gets only this block. Counts: exams 31, grants 7 | `b469c27` |
+| F2 | No endpoint added. `CategoryBranchExamsIT` checks that `GET /api/v1/public/live-exam-modules?popular=true` lists the popular package b8, leaves out the discount package b7, and returns only popular rows | `9d8293b` |
+| F3 | The access object for an expired grant keeps its end date. `state` stays `NONE`, so the holder can buy again, and `expiresAt` is the end of the grant that ran out. Before, it was `null`. Additive: no field removed, and nothing else changes. Covers module access too, since the record is shared | `1284c4d` |
+| F4 | The Bangla list below, for Shahriar to confirm. No Bangla changed in the seed | this commit |
+
+### Test run
+
+One run, through the runner:
+
+    powershell -NoProfile -File docs\exam-site\new-requirements\nr-01\tools\nr01-mvn.ps1 -Agent INT -Tests "CategoryBranchExamsIT,DemoContentSeedIT,StudentAccessIT,AccessExpiryIT"
+
+Exit code 0. Surefire reports, all written in this run:
+
+| Class | Tests | Failures | Errors |
+|---|---|---|---|
+| `CategoryBranchExamsIT` | 6 | 0 | 0 |
+| `DemoContentSeedIT` | 15 | 0 | 0 |
+| `StudentAccessIT` | 2 | 0 | 0 |
+| `AccessExpiryIT` | 13 | 0 | 0 |
+| Total | 36 | 0 | 0 |
+
+The full suite is the orchestrator's check and has not been run here.
+
+### New review account and case: the expired grant
+
+- **Account:** তানভীর হাসান, student 4 (DEMO-STU-004), phone 01711000014, email student4@example.com. Same password as the other demo accounts.
+- **Case:** "Expired written paper" (e65). Log in as student 4 and open e65. The exam shows its access as ended, and the purchase options are open again. The access ended on the date in the access object's `expiresAt`: seven days after the window ended. With the seed run on 27 October 2026, the window ended 17 October and the access ended 24 October.
+- **Still live:** student 4's grant on e62 ("Written with question paper") is unchanged. It expires 30 days after its window.
+- **Dates shift** with the run date, as before.
+- **Existing dev databases** pick up e65 and the grant on the next start with `SEED_DEMO=true`. Staging is still excluded: see item 1 of the S0 review.
+
+### Bangla to confirm
+
+These are the drafted terms in the seed, with the English they stand for. Shahriar can correct any of them later.
+
+| Bangla | English | Where it appears |
+|---|---|---|
+| ছাড়ের প্যাকেজ | discount package | Package b7 title |
+| জনপ্রিয় প্যাকেজ | popular package | Package b8 title |
+| ছাড়ের এমসিকিউ | discount MCQ | Exam e60 title |
+| বিনামূল্যের এমসিকিউ | free MCQ | Exam e61 title |
+| প্রশ্নপত্রসহ রিটেন | written with question paper | Exam e62 title |
+| জনপ্রিয় এমসিকিউ | popular MCQ | Exam e63 title |
+| দুই প্যাকেজের এমসিকিউ | two-package MCQ | Exam e64 title |
+| মেয়াদ শেষ রিটেন | expired written paper | Exam e65 title |
+| তানভীর হাসান | student 4's name | Student 4 account |
+| মেয়াদ | access period, or expiry (as in "মেয়াদ শেষ") | Descriptions of e62 and e65 |
+| অনুমোদন | grant | Description of e65 |
+| উইন্ডো | window (the exam's time window, kept as a loanword) | Description of e62 |
+| অ্যাক্সেস | access | Description of e62 |
