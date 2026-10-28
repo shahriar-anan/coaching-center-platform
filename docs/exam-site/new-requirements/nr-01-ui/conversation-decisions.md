@@ -218,3 +218,33 @@ The staff answer sheet and the staff marked script already carry the diagonal SY
 4. "Both" paper language: the letters and the typeface rule are needed, and the API change is needed.
 5. The staff answer sheet and marked script watermarks need the new design, the same as the question paper.
 6. Access and grants for written exams: the grant form needs checking, and the purchase path for a written exam needs confirming with you (item 10).
+
+## 11. Decisions from the third round (29 October 2026)
+
+Answers to the open questions in sections 8 and 10. Shahriar's wording is kept where it matters.
+
+| # | Question | Decision | Status |
+|---|---|---|---|
+| 11.1 | Multi-answer authoring in MCQ creation | **Included this month.** The MCQ question editor gets a multi-answer option, and an MCQ can have more than one correct option. | Decided |
+| 11.2 | "Both" paper language | **Add the Both option** to the paper language choice, in both the editor and the create dialog. The API change is small, so it is done. | Decided |
+| 11.3 | Rule for answer letters under "Both" | **No rule needed for now.** The letters are not defined; only the option itself is added. Revisit only if the client asks. | Decided (no rule) |
+| 11.4 | When to check the admin grant form | **In the written-flow phase.** Not now. | Decided |
+| 11.5 | Where students get written access from, and whether purchase uses the current checkout | **Still open.** Shahriar said he will answer. | Pending |
+
+### Consequences recorded for the plan
+
+- **API change for "Both".** The paper language check is `BN` or `EN` today (`V30` constraint, and `readPaperLanguage` in `LiveExamService`). It becomes `BN`, `EN` or `BOTH`, through a new Flyway migration. The next free version is `V52`, but it must be checked against the repository before use, because the NR-01 cleanup migration was planned as `V52` too. It is a separate slice, and it is the only API work this UI plan adds.
+- **Multi-answer authoring in the UI.** The question editor needs a multi-answer switch and checkboxes in place of the single radio choice. The API already accepts `multipleAnswer` and several correct options. The MCQ sitting stays as it is this month, and the note on the answer control (section 1) still applies.
+- **Grant form.** It is checked in the written-flow phase, together with the written access path.
+- **Item 11.5 blocks** the student access and purchase work in the written-flow phase. The phase cannot finish that part until it is answered.
+
+### Still to decide, from the earlier sections
+
+- The create dialog's fields and the defaults (section 4).
+- The Bangla terms, which Shahriar will give during implementation.
+- The watermark design: logo choice, the marked-script option (A or B), and the answer-sheet watermark (section 3).
+- The evaluated tab: hidden until marked, or greyed out (section 6).
+
+## 12. Next step
+
+Shahriar chooses the steps and says which step to start. The phase plan is then written into this folder, and that step starts.
