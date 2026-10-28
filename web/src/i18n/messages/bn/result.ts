@@ -34,7 +34,7 @@ const result = {
   },
   access: {
     roster: "সরাসরি ভর্তি",
-    module: "মডিউল কেনা",
+    module: "প্যাকেজ কেনা",
     exam: "পরীক্ষা কেনা",
     manual: "প্রশাসক দিয়েছেন",
   },

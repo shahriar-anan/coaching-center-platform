@@ -5,7 +5,7 @@ import { renderWithProviders } from "../helpers";
 
 describe("AccessBadge (P-2)", () => {
   it.each([
-    ["MODULE", "মডিউল"],
+    ["MODULE", "প্যাকেজ"],
     ["EXAM", "এই পরীক্ষা"],
     ["ROSTER", "রোস্টার"],
     ["MANUAL", "প্রশাসক দিয়েছেন"],

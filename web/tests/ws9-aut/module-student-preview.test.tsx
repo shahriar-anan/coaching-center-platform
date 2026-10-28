@@ -65,7 +65,7 @@ describe("module student preview (the student's view, before publish)", () => {
 
     await waitFor(() => expect(screen.getByText("প্রকাশিত এমসিকিউ")).toBeInTheDocument());
     expect(screen.queryByText("খসড়া রিটেন")).not.toBeInTheDocument();
-    expect(screen.getByText("এই মডিউলে এখনো কোনো রিটেন পরীক্ষা নেই।")).toBeInTheDocument();
+    expect(screen.getByText("এই প্যাকেজে এখনো কোনো রিটেন পরীক্ষা নেই।")).toBeInTheDocument();
     expect(screen.getByText(/প্রকাশ না হওয়া পর্যন্ত লুকানো: .*খসড়া পরীক্ষা/)).toBeInTheDocument();
   });
 

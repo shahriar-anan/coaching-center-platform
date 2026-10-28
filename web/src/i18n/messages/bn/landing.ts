@@ -37,13 +37,13 @@ const landing = {
   batchOpen: "এক্সাম দেখুন",
   batchCallOnly: "ভর্তির জন্য কল করুন",
 
-  numbersModules: "এক্সাম মডিউল",
+  numbersModules: "এক্সাম প্যাকেজ",
   numbersMcq: "এমসিকিউ এক্সাম",
   numbersWritten: "রিটেন এক্সাম",
 
   categoriesTitle: "এক্সাম ক্যাটাগরি",
   categoriesSubtitle: "সেরা ক্যাটাগরির প্রশ্নপত্রের মাধ্যমে আপনার সাফল্যের যাত্রা শুরু করুন এখান থেকেই!",
-  categoryModules: "{count}টি মডিউল",
+  categoryModules: "{count}টি প্যাকেজ",
   categoryFrom: "শুরু {price} থেকে",
   categoryNoPrice: "মূল্য এখনো ঠিক হয়নি",
   categoryExplore: "এক্সপ্লোর করুন",
@@ -55,7 +55,7 @@ const landing = {
   upcomingSubtitle: "সময়মতো বসুন। পরীক্ষা শুরু হওয়ার আগেই অ্যাকাউন্ট থাকা দরকার।",
 
   packagesTitle: "আমাদের প্যাকেজ",
-  packagesSubtitle: "এক মডিউলে একাধিক পরীক্ষা।",
+  packagesSubtitle: "এক প্যাকেজে একাধিক পরীক্ষা।",
   packageDetails: "বিস্তারিত",
   packageMcq: "এমসিকিউ {count}টি",
   packageWritten: "রিটেন {count}টি",

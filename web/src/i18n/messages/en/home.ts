@@ -30,10 +30,10 @@ const home: typeof bn = {
   nowSection: "Live now",
   upcomingSection: "Coming up",
   seeAll: "See all",
-  myModules: "My modules",
+  myModules: "My exams",
   noUpcoming: "No exams coming up.",
   emptyTitle: "You haven't bought any exams yet",
-  emptyBody: "Pick a module from MCQ or Written.",
+  emptyBody: "Pick a package from MCQ or Written.",
   staffPanel: "Admin panel",
   staffNote: "You're logged in with a staff account. You can browse only.",
 };

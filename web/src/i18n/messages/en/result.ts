@@ -34,7 +34,7 @@ const result = {
   },
   access: {
     roster: "Added directly",
-    module: "Module purchase",
+    module: "Package purchase",
     exam: "Exam purchase",
     manual: "Added by the centre",
   },

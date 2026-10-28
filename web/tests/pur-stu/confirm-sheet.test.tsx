@@ -65,9 +65,9 @@ describe("confirm sheet copy (S-005 and the sheet spec)", () => {
     });
     renderWithProviders(<ModulePage door="mcq" moduleId="m-1" />, { user: fixtures.student, locale: "bn" });
 
-    await userEvent.click(await screen.findByRole("button", { name: "পুরো মডিউল কিনুন" }));
+    await userEvent.click(await screen.findByRole("button", { name: "পুরো প্যাকেজ কিনুন" }));
 
-    expect(await screen.findByText("এই মডিউলের বর্তমান ও ভবিষ্যতের সব পরীক্ষা খুলবে।")).toBeInTheDocument();
+    expect(await screen.findByText("এই প্যাকেজের বর্তমান ও ভবিষ্যতের সব পরীক্ষা খুলবে।")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /নিরাপদে পেমেন্ট করুন/ })).toBeInTheDocument();
   });
 });

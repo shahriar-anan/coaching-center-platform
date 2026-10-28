@@ -205,7 +205,7 @@ const common = {
       noPrice: "Price not set yet.",
       accessGranted: "You have access",
       via: {
-        MODULE: "Module",
+        MODULE: "Package",
         EXAM: "This exam",
         ROSTER: "Roster",
         MANUAL: "Given by admin",

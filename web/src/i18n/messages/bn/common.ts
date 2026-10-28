@@ -205,7 +205,7 @@ const common = {
       noPrice: "দাম এখনো নির্ধারণ হয়নি।",
       accessGranted: "অ্যাক্সেস আছে",
       via: {
-        MODULE: "মডিউল",
+        MODULE: "প্যাকেজ",
         EXAM: "এই পরীক্ষা",
         ROSTER: "রোস্টার",
         MANUAL: "প্রশাসক দিয়েছেন",
