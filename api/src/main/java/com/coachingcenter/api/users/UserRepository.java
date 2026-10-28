@@ -43,9 +43,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			left join admin_profiles p on p.user_id = u.id
 			where u.deleted_at is null and u.role = 'INSTRUCTOR'
 			and (:status = '' or u.status = :status)
-			and (:assigned = '' or (:assigned = 'true') = exists (
+			and (:assigned = '' or (:assigned = 'true') = (exists (
 				select 1 from live_exam_instructors i join live_exam_modules m on m.id = i.module_id
-				where i.instructor_id = u.id and m.deleted_at is null))
+				where i.instructor_id = u.id and m.deleted_at is null)
+				or exists (select 1 from live_exams e where e.instructor_id = u.id and e.deleted_at is null)))
 			and (:q = '' or u.phone ilike concat('%', :q, '%') or u.email ilike concat('%', :q, '%')
 				or p.full_name ilike concat('%', :q, '%'))
 			order by lower(p.full_name), u.id
@@ -54,9 +55,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			left join admin_profiles p on p.user_id = u.id
 			where u.deleted_at is null and u.role = 'INSTRUCTOR'
 			and (:status = '' or u.status = :status)
-			and (:assigned = '' or (:assigned = 'true') = exists (
+			and (:assigned = '' or (:assigned = 'true') = (exists (
 				select 1 from live_exam_instructors i join live_exam_modules m on m.id = i.module_id
-				where i.instructor_id = u.id and m.deleted_at is null))
+				where i.instructor_id = u.id and m.deleted_at is null)
+				or exists (select 1 from live_exams e where e.instructor_id = u.id and e.deleted_at is null)))
 			and (:q = '' or u.phone ilike concat('%', :q, '%') or u.email ilike concat('%', :q, '%')
 				or p.full_name ilike concat('%', :q, '%'))
 			""", nativeQuery = true)
