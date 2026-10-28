@@ -5,4 +5,4 @@ A marker is a place where the web can't use an API field yet. The screen shows a
 | Marker | Field or endpoint | Screen and file | Added in | Removed in |
 |---|---|---|---|---|
 
-No markers yet. S0 changes only the API and the demo seed, so the web has nothing to mark.
+No markers. S0 changes only the API and the demo seed. S1, S2 and S3 use every API field the screens need (`pricing`, `packages`, `access.expiresAt`, `popular`, `favourite`, the favourites endpoints, `/me/live-exam-access` with its expiry, and the category `branch` list), so the web has nothing to mark.
