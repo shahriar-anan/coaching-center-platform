@@ -132,6 +132,37 @@ class PackageInstructorIT extends PostgresIntegrationTest {
 		assertThat(modulesOf(master, token + " Three")).as("I3 still holds E4").hasSize(1);
 	}
 
+	/** The plain DELETE (applyToExams defaults to true) clears only the exams held by the default instructor. */
+	@Test
+	void aPlainDefaultDeleteClearsOnlyTheExamsHeldByTheDefaultInstructor() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		String token = "Clear" + UUID.randomUUID().toString().substring(0, 8);
+		UUID i1 = instructor(token + " One");
+		UUID i2 = instructor(token + " Two");
+		UUID module = fx.module(staff, token + " package");
+		UUID e1 = fx.createExam(staff, module, "MCQ", "E1 " + token, NOON, 40, null);
+		UUID e2 = fx.createExam(staff, module, "MCQ", "E2 " + token, NOON, 40, null);
+		mockMvc.perform(post("/api/v1/live-exams/" + e1 + "/instructor").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1, null)))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/live-exams/" + e2 + "/instructor").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i2, null)))
+			.andExpect(status().isCreated());
+		// The package default is I1 too. Set without applyToExams, so E2 keeps I2.
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1, false)))
+			.andExpect(status().isCreated());
+		assertThat(defaultOf(module)).isEqualTo(i1);
+
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+
+		assertThat(defaultOf(module)).as("the package default is cleared").isNull();
+		assertThat(instructorOf(e1)).as("E1 held the default instructor, so it is cleared").isNull();
+		assertThat(instructorOf(e2)).as("E2 held another instructor, so it keeps I2").isEqualTo(i2);
+	}
+
 	private UUID instructor(String name) {
 		UUID id = fx.seed("INSTRUCTOR");
 		fx.jdbc().update("update admin_profiles set full_name = ? where user_id = ?", name, id);
