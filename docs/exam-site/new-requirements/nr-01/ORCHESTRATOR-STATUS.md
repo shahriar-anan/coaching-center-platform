@@ -89,3 +89,8 @@ To cut runs, agents test **once per slice**, in one invocation (the slice's new 
   - Rulings given: package and exam discount fields and the free toggle are Master Admin only (EXAM_PRICE). Both A and B were told.
   - D owes: `MultiAnswerScoringIT`, `LeaderboardPositionIT` green. Rank rule given to D: rank = 1 + count of board rows with a strictly higher score; ties share the better rank; below the pass mark means no rank.
   - A state: A1 to A5 committed (`a74b0bc` is A3+A4, `346c1a2` is A5); A6 awaiting its test rerun; A7 is a note only.
+- 28 Oct, about 22:30: **NR-01 API part complete on `nr01/integration`.**
+  - Final full API suite on a fresh database: 115 classes, 561 tests, 0 failures, 0 errors, 0 skipped.
+  - Website, untouched: `npm run lint` 0 errors (2 old warnings), `npm test` 116 files and 700 tests pass, `npm run build` passes.
+  - All four workstreams merged (F, C, B, A, D). Docs done: `current-api.md`, `decisions.md`, the NR-01 record.
+  - Open, for Shahriar: nothing is merged into `demo/client-review` and nothing is deployed. The NR-01 demo seed, the `V52` cleanup migration and the UI plan are follow-ups (see the Record in `NR-01-exam-segment.md`).
