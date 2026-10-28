@@ -185,17 +185,17 @@ const catalog: typeof bn = {
     empty: "Nothing popular yet.",
   },
   favourite: {
-    label: "Favourite",
+    label: "Wish List",
     failed: "Could not save. Try again.",
   },
   favourites: {
-    title: "Favourites",
+    title: "Wish List",
     tabExams: "Exams",
     tabPackages: "Packages",
-    emptyExams: "No favourite exams yet",
-    emptyExamsBody: "Tap the star on an exam to keep it here.",
-    emptyPackages: "No favourite packages yet",
-    emptyPackagesBody: "Tap the star on a package to keep it here.",
+    emptyExams: "No exams in your Wish List yet",
+    emptyExamsBody: "Tap the star on an exam to add it to your Wish List.",
+    emptyPackages: "No packages in your Wish List yet",
+    emptyPackagesBody: "Tap the star on a package to add it to your Wish List.",
   },
   myExams: {
     title: "My exams",

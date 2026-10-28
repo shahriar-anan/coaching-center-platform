@@ -23,26 +23,28 @@ export function ExamRow({
   meta,
   summary,
   right,
+  favourite,
 }: {
   href: string;
   title: string;
   meta?: ReactNode;
   summary?: string | null;
   right: ReactNode;
+  /** The Wish List button. It sits outside the link, because a button cannot live inside a link. */
+  favourite?: ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      prefetch
-      className="group flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent"
-    >
-      <span className="min-w-0 flex-1">
-        {meta ? <span className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-meta text-muted">{meta}</span> : null}
-        <span className="line-clamp-1 block text-card-title font-bold group-hover:text-text-accent">{title}</span>
-        {summary ? <span className="mt-1 line-clamp-2 block text-body leading-relaxed text-muted">{summary}</span> : null}
-      </span>
-      <span className="shrink-0 text-end">{right}</span>
-    </Link>
+    <div className="group flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent">
+      <Link href={href} prefetch className="flex min-h-11 min-w-0 flex-1 items-center gap-3">
+        <span className="min-w-0 flex-1">
+          {meta ? <span className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-meta text-muted">{meta}</span> : null}
+          <span className="line-clamp-1 block text-card-title font-bold group-hover:text-text-accent">{title}</span>
+          {summary ? <span className="mt-1 line-clamp-2 block text-body leading-relaxed text-muted">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 text-end">{right}</span>
+      </Link>
+      {favourite ? <span className="shrink-0">{favourite}</span> : null}
+    </div>
   );
 }
 

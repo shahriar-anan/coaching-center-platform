@@ -47,6 +47,7 @@ import {
   type Door,
 } from "./catalog-helpers";
 import { ExamRow } from "./exam-row";
+import { FavouriteButton } from "./favourite-button";
 import { IncludedList } from "./included-list";
 import { ExamStatusPill, TypePill } from "./status-pill";
 
@@ -315,6 +316,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                           <span className="block max-w-28 text-end text-meta text-muted">{t("catalog.priceNotSet")}</span>
                         )
                       }
+                      favourite={<FavouriteButton kind="exam" id={exam.id} initial={exam.favourite} next={examPath(exam.id)} />}
                     />
                   </li>
                 );

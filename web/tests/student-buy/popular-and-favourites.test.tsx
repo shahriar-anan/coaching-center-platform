@@ -85,15 +85,15 @@ describe("the popular marker on an exam row (S3.2)", () => {
   });
 });
 
-describe("the Favourites page (S3.4)", () => {
+describe("the Wish List page (S3.4)", () => {
   it("has an empty state for each tab", async () => {
     mockApi({ "GET /api/v1/me/favourites": { exams: [], packages: [] } });
     renderWithProviders(<FavouritesPage />, { user: fixtures.student, locale: "en" });
 
-    expect(await screen.findByText("No favourite exams yet")).toBeInTheDocument();
+    expect(await screen.findByText("No exams in your Wish List yet")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: /Packages/ }));
-    expect(await screen.findByText("No favourite packages yet")).toBeInTheDocument();
-    expect(screen.queryByText("No favourite exams yet")).not.toBeInTheDocument();
+    expect(await screen.findByText("No packages in your Wish List yet")).toBeInTheDocument();
+    expect(screen.queryByText("No exams in your Wish List yet")).not.toBeInTheDocument();
   });
 
   it("lists the favourite exams and packages on their own tabs", async () => {

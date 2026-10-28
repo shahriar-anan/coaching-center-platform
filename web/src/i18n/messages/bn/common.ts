@@ -16,7 +16,7 @@ const common = {
     mcq: "এমসিকিউ",
     written: "রিটেন",
     routine: "রুটিন",
-    favourites: "পছন্দের তালিকা",
+    favourites: "ইচ্ছার তালিকা",
     studentMain: "শিক্ষার্থী মেনু",
     login: "লগইন",
     signUp: "সাইন-আপ",

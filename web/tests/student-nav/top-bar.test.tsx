@@ -37,14 +37,14 @@ describe("student top bar (S1.1)", () => {
     expect(screen.queryByRole("navigation", { name: TOP_BAR })).not.toBeInTheDocument();
   });
 
-  it("puts Favourites in the account menu between My account and Notices (S1.2)", async () => {
+  it("puts Wish List in the account menu between My account and Notices (S1.2)", async () => {
     renderShell("/", fixtures.student);
     await userEvent.click(await screen.findByRole("button", { name: /Menu for/ }));
     const items = await screen.findAllByRole("menuitem");
     const names = items.map((item) => item.textContent);
-    expect(names.indexOf("Favourites")).toBe(names.indexOf("My account") + 1);
-    expect(names.indexOf("Notices")).toBe(names.indexOf("Favourites") + 1);
+    expect(names.indexOf("Wish List")).toBe(names.indexOf("My account") + 1);
+    expect(names.indexOf("Notices")).toBe(names.indexOf("Wish List") + 1);
     expect(names).toContain("Routine");
-    expect(items[names.indexOf("Favourites")]).toHaveAttribute("href", "/favourites");
+    expect(items[names.indexOf("Wish List")]).toHaveAttribute("href", "/favourites");
   });
 });

@@ -16,7 +16,7 @@ const common = {
     mcq: "MCQ",
     written: "Written",
     routine: "Routine",
-    favourites: "Favourites",
+    favourites: "Wish List",
     studentMain: "Student menu",
     login: "Log in",
     signUp: "Sign up",

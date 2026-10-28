@@ -13,7 +13,7 @@ describe("the favourite toggle (S3.3)", () => {
       locale: "en",
     });
 
-    const mark = screen.getByRole("button", { name: "Favourite" });
+    const mark = screen.getByRole("button", { name: "Wish List" });
     expect(mark).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(mark);
     expect(mark).toHaveAttribute("aria-pressed", "true");
@@ -24,7 +24,7 @@ describe("the favourite toggle (S3.3)", () => {
     const { calls } = mockApi({ "DELETE /api/v1/me/favourites/packages/m1": {} });
     renderWithProviders(<FavouriteButton kind="package" id="m1" initial next="/mcq/m/m1" />, { user: fixtures.student, locale: "en" });
 
-    const mark = screen.getByRole("button", { name: "Favourite" });
+    const mark = screen.getByRole("button", { name: "Wish List" });
     expect(mark).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(mark);
     expect(mark).toHaveAttribute("aria-pressed", "false");
@@ -38,7 +38,7 @@ describe("the favourite toggle (S3.3)", () => {
       locale: "en",
     });
 
-    const mark = screen.getByRole("button", { name: "Favourite" });
+    const mark = screen.getByRole("button", { name: "Wish List" });
     await userEvent.click(mark);
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save. Try again.");
     expect(mark).toHaveAttribute("aria-pressed", "false");
@@ -48,7 +48,7 @@ describe("the favourite toggle (S3.3)", () => {
     const { calls } = mockApi({});
     renderWithProviders(<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" />, { locale: "en" });
 
-    const link = screen.getByRole("link", { name: "Favourite" });
+    const link = screen.getByRole("link", { name: "Wish List" });
     expect(link).toHaveAttribute("href", `/login?next=${encodeURIComponent("/exam/e1")}`);
     expect(calls).toHaveLength(0);
   });
@@ -58,8 +58,8 @@ describe("the favourite toggle (S3.3)", () => {
       user: fixtures.masterAdmin,
       locale: "en",
     });
-    expect(screen.queryByRole("button", { name: "Favourite" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Favourite" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Wish List" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Wish List" })).not.toBeInTheDocument();
   });
 
   it("builds the favourite URL for each kind", () => {
