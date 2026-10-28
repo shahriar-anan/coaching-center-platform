@@ -14,3 +14,11 @@ Table format of [../../../current-api.md](../../../current-api.md). The orchestr
 | `POST /api/v1/live-exams/{id}/question-pdf` | Changed. The paper version records the acting user. |
 | `DELETE /api/v1/live-exams/{id}` | Changed. Also removes the exam's active memberships and drops any pending revision. |
 | `GET /api/v1/live-exams/{id}`, lists | Changed. `ExamView` gains `mode`, `phase`, `categoryId`, `packages`, `instructor` (staff), `negativeMarks`, `answersChangeable`, `previewEnabled`, `popular`, `accessDays`, `pricing`, `pendingChanges` (staff), and for students `access`, `attempts`, `myStatusDetail`. Questions carry `multipleAnswer`. `moduleId` is the primary package and may be null. |
+
+## A2: questions
+
+| Call | Change |
+|---|---|
+| `POST /api/v1/live-exams/{id}/questions` | Changed. Accepts `multipleAnswer`. Key rules by `multipleAnswer`. `409 QUESTION_STRUCTURE_LOCKED` once any participant row exists. |
+| `PATCH /api/v1/live-exams/{id}/questions/{questionId}` | Changed. `multipleAnswer`. `409 QUESTION_STRUCTURE_LOCKED` when the option count changes after a start. Option ids kept when the count is unchanged. |
+| `DELETE /api/v1/live-exams/{id}/questions/{questionId}` | Changed. `409 QUESTION_STRUCTURE_LOCKED` once any participant row exists. |

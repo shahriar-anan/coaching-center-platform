@@ -288,12 +288,14 @@ public class LiveExamService {
 	@Transactional
 	public QuestionView addQuestion(UUID examId, JsonNode body) {
 		LiveExam exam = requireMcq(examId);
+		requireStructureOpen(exam.getId());
 		markDraft(exam);
 		LiveExamQuestion question = new LiveExamQuestion();
 		question.setExamId(exam.getId());
-		applyQuestion(question, body, nextQuestionPosition(exam.getId()));
+		boolean multiple = readMultipleAnswer(body, false);
+		applyQuestion(question, body, nextQuestionPosition(exam.getId()), multiple);
 		questions.save(question);
-		List<LiveExamOption> saved = replaceOptions(question.getId(), body.get("options"));
+		List<LiveExamOption> saved = replaceOptions(question.getId(), body.get("options"), multiple);
 		return questionView(question, saved);
 	}
 
@@ -303,15 +305,20 @@ public class LiveExamService {
 		markDraft(exam);
 		LiveExamQuestion question = questions.findByIdAndExamIdAndDeletedAtIsNull(questionId, examId)
 			.orElseThrow(this::notFound);
+		if (optionCountChanges(question.getId(), body.get("options"))) {
+			requireStructureOpen(exam.getId());
+		}
 		int position = body.has("position") && !body.get("position").isNull() ? body.get("position").asInt()
 				: question.getPosition();
-		applyQuestion(question, body, position);
-		return questionView(question, replaceOptions(question.getId(), body.get("options")));
+		boolean multiple = readMultipleAnswer(body, question.isMultipleAnswer());
+		applyQuestion(question, body, position, multiple);
+		return questionView(question, replaceOptions(question.getId(), body.get("options"), multiple));
 	}
 
 	@Transactional
 	public void deleteQuestion(UUID examId, UUID questionId) {
 		LiveExam exam = requireMcq(examId);
+		requireStructureOpen(exam.getId());
 		markDraft(exam);
 		LiveExamQuestion question = questions.findByIdAndExamIdAndDeletedAtIsNull(questionId, examId)
 			.orElseThrow(this::notFound);
@@ -642,7 +649,7 @@ public class LiveExamService {
 		}
 	}
 
-	private void applyQuestion(LiveExamQuestion question, JsonNode body, int position) {
+	private void applyQuestion(LiveExamQuestion question, JsonNode body, int position, boolean multiple) {
 		question.setStem(requiredText(body, "stem"));
 		question.setMarks(readMarks(body));
 		if (body.has("explanation") && !body.get("explanation").isNull() && !body.get("explanation").asText().isBlank()) {
@@ -652,38 +659,81 @@ public class LiveExamService {
 			question.setExplanation(null);
 		}
 		question.setPosition(position);
+		question.setMultipleAnswer(multiple);
 	}
 
-	private List<LiveExamOption> replaceOptions(UUID questionId, JsonNode node) {
+	/** The body's {@code multipleAnswer}, or the question's current setting when the body does not say (C14). */
+	private static boolean readMultipleAnswer(JsonNode body, boolean current) {
+		JsonNode node = body.get("multipleAnswer");
+		if (node == null || node.isNull()) {
+			return current;
+		}
+		if (!node.isBoolean()) {
+			throw validationFailed();
+		}
+		return node.booleanValue();
+	}
+
+	/**
+	 * Replaces a question's options. A single-answer question has exactly one correct option, a multi-answer one at least
+	 * one, and every question has at least two options. When the count stays the same the rows are updated in place, so an
+	 * answer already given still points at its option (R16, answers keep their ids).
+	 */
+	private List<LiveExamOption> replaceOptions(UUID questionId, JsonNode node, boolean multiple) {
 		if (node == null || !node.isArray() || node.size() < 2) {
 			throw validationFailed();
 		}
 		int correct = 0;
+		List<String> texts = new ArrayList<>();
 		for (JsonNode option : node) {
 			if (option.has("correct") && option.get("correct").asBoolean()) {
 				correct++;
 			}
-		}
-		if (correct != 1) {
-			throw validationFailed();
-		}
-		options.deleteAll(options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId));
-		options.flush();
-		List<LiveExamOption> saved = new ArrayList<>();
-		int position = 0;
-		for (JsonNode option : node) {
 			String text = option.has("text") ? option.get("text").asText().trim() : "";
 			if (text.isBlank()) {
 				throw validationFailed();
 			}
+			texts.add(text);
+		}
+		if (multiple ? correct < 1 : correct != 1) {
+			throw validationFailed();
+		}
+		List<LiveExamOption> current = options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId);
+		List<LiveExamOption> saved = new ArrayList<>();
+		if (current.size() == node.size()) {
+			for (int position = 0; position < node.size(); position++) {
+				LiveExamOption row = current.get(position);
+				row.setOptionText(texts.get(position));
+				row.setCorrect(node.get(position).has("correct") && node.get(position).get("correct").asBoolean());
+				row.setPosition(position);
+				saved.add(row);
+			}
+			return saved;
+		}
+		options.deleteAll(current);
+		options.flush();
+		for (int position = 0; position < node.size(); position++) {
 			LiveExamOption row = new LiveExamOption();
 			row.setQuestionId(questionId);
-			row.setOptionText(text);
-			row.setCorrect(option.has("correct") && option.get("correct").asBoolean());
-			row.setPosition(position++);
+			row.setOptionText(texts.get(position));
+			row.setCorrect(node.get(position).has("correct") && node.get(position).get("correct").asBoolean());
+			row.setPosition(position);
 			saved.add(options.save(row));
 		}
 		return saved;
+	}
+
+	/** Once anyone has started the exam, its questions and options cannot be added or removed (R16). */
+	private void requireStructureOpen(UUID examId) {
+		if (participants.existsByExamId(examId)) {
+			throw new ApiException(ErrorCode.QUESTION_STRUCTURE_LOCKED, HttpStatus.CONFLICT,
+					"A student has started this exam, so its questions and options can no longer be added or removed.");
+		}
+	}
+
+	private boolean optionCountChanges(UUID questionId, JsonNode node) {
+		return node != null && node.isArray()
+				&& node.size() != options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId).size();
 	}
 
 	private int nextQuestionPosition(UUID examId) {
