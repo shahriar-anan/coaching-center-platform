@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
@@ -25,6 +25,16 @@ const TABS: TabItem[] = [
   { href: "/results", key: "results", icon: Trophy },
   { href: "/notices", key: "notices", icon: Bell },
   { href: "/account", key: "account", icon: CircleUserRound },
+];
+
+/** The student's top bar (S1.1, plan Q2). The bottom bar takes over below the large breakpoint. */
+const TOP_LINKS: { href: string; key: "home" | "mcq" | "written" | "myExams" | "results" | "routine" }[] = [
+  { href: "/", key: "home" },
+  { href: "/mcq", key: "mcq" },
+  { href: "/written", key: "written" },
+  { href: "/my-modules", key: "myExams" },
+  { href: "/results", key: "results" },
+  { href: "/routine", key: "routine" },
 ];
 
 /** Routes where the paper is on screen: no tab bar, so it never covers the questions. */
@@ -106,8 +116,9 @@ function UserMenu() {
         >
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
+          <MenuLink href="/favourites" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
-          <MenuLink href="/routine" icon={CalendarDays} label={t("catalog.routine.title")} />
+          <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />
           {user.role !== "STUDENT" ? (
             <MenuLink href={staffHome} icon={ListChecks} label={t("common.nav.adminPanel")} external />
           ) : null}
@@ -164,7 +175,7 @@ function TabBar() {
   return (
     <nav
       aria-label={t("common.nav.tabs")}
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       <ul className="mx-auto grid h-14 max-w-[760px] grid-cols-5">
         {TABS.map((tab) => {
@@ -196,6 +207,36 @@ function TabBar() {
                 {tab.key === "notices" && unreadCount > 0 ? (
                   <>{" "}<span className="sr-only">{t("common.unreadNotices", { count: formatNumber(unreadCount, locale) })}</span></>
                 ) : null}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/** The student's top bar, from desktop width up (S1.1). Visitors and staff never see it. */
+function StudentLinks() {
+  const { t } = useLocale();
+  const pathname = usePathname() ?? "/";
+  return (
+    <nav aria-label={t("common.nav.studentMain")} className="hidden min-w-0 flex-1 justify-center lg:flex">
+      <ul className="flex items-center gap-1 text-label font-semibold">
+        {TOP_LINKS.map((link) => {
+          const active = isActive(pathname, link.href);
+          return (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                prefetch
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-11 items-center whitespace-nowrap rounded-control px-3 hover:bg-bg hover:text-text",
+                  active ? "text-text" : "text-muted",
+                )}
+              >
+                {t(`common.nav.${link.key}`)}
               </Link>
             </li>
           );
@@ -246,8 +287,11 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const signedIn = session.status === "authenticated";
   const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
-  const wide = pathname === "/" && !(signedIn && session.user.role === "STUDENT");
+  const student = signedIn && session.user.role === "STUDENT";
+  const wide = pathname === "/" && !student;
   const column = wide ? "max-w-6xl" : "max-w-[760px]";
+  // The top bar needs the wider header from large width up; the content column stays 760 px.
+  const headerColumn = student ? "max-w-[760px] lg:max-w-6xl" : column;
 
   return (
     <div
@@ -264,9 +308,10 @@ export function StudentShell({ children }: { children: ReactNode }) {
       </a>
       <OfflineBanner />
       <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
-        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", column)}>
+        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", headerColumn)}>
           <Logo compact />
           {wide ? <WideNav /> : null}
+          {student ? <StudentLinks /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             <span className="flex items-center gap-1.5 max-[399px]:hidden sm:gap-2">
@@ -284,7 +329,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
           "mx-auto w-full flex-1",
           // The wide landing page sets its own gutters and column per section.
           !wide && "max-w-[760px] px-4 pt-6 pb-10",
-          showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-10",
+          showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10",
         )}
       >
         {children}
