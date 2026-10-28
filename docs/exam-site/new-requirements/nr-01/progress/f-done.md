@@ -1,6 +1,6 @@
 # F done: hand-over from stage 1 (agent F)
 
-Branch `nr01/f-foundation`, commits `ef17b52` (F1–F2), `000aaf0` (F3), and the F4 and F5 commits listed at the end. Slice notes: [f-f1.md](f-f1.md), [f-f2.md](f-f2.md), [f-f3.md](f-f3.md), [f-f4.md](f-f4.md).
+Branch `nr01/f-foundation`, commits `ef17b52` (F1–F2), `000aaf0` (F3), `cfa4a53` (F4), `a79d324` (F5). Slice notes: [f-f1.md](f-f1.md), [f-f2.md](f-f2.md), [f-f3.md](f-f3.md), [f-f4.md](f-f4.md).
 
 ## 1. Full suite (the final run)
 
