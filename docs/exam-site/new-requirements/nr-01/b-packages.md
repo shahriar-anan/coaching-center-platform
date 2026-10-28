@@ -4,6 +4,8 @@
 
 Branch `nr01/b-packages`. Worktree `F:\cc-wt\nr01-b`. Test database `cc_test_nr01_b`. The files you own are in [README.md](README.md#ownership).
 
+**First, in B1:** replace the `primaryModuleId` reads in your files (public listing and upcoming) per [contracts.md §8](contracts.md#8-several-packages-per-exam-how-each-primary-package-read-resolves). Use `LiveExamMemberships.attach` for adding. Do not write membership rows another way.
+
 ## B1: Package membership
 
 - **`POST /live-exam-modules/{id}/exams/{examId}`** adds an existing exam.

@@ -25,7 +25,9 @@ Branch `nr01/a-authoring`. Worktree `F:\cc-wt\nr01-a`. Test database `cc_test_nr
   - publish's `EXAM_WINDOW_ENDED`. An ended exam can be published, because archived participants can still sit it.
 - **`popular` is not accepted here**; B owns it.
 - **Delete** (`LiveExamRemoval`): today's guards stay (`EXAM_HAS_PARTICIPANTS`, `EXAM_HAS_PURCHASES`). Deleting also removes the exam's active memberships (`removed_at`) and any pending revision.
-- **Copy** (`POST /live-exams/{id}/copy`) copies the new fields and the memberships, but no dates, price or `popular`.
+- **Copy** (`POST /live-exams/{id}/copy`) copies the new fields and **every** active membership (F copied only the primary one), but no dates, price or `popular`.
+- **Paper author:** pass the acting user into the paper-version create, so `live_exam_question_papers.created_by` is set (F left it null).
+- **Before A1's own work**, replace the `primaryModuleId` reads in your files per [contracts.md §8](contracts.md#8-several-packages-per-exam-how-each-primary-package-read-resolves).
 - **`ExamView`** gains every field in [contracts.md §6](contracts.md#exam-fields-examview-gains-these-a-assembles-them-values-come-from-the-helpers-and-from-d-and-c). For the student fields (`access`, `attempts`, `sitting`, `myStatus`, `retakeAvailable`), call the D and C helpers already used today (`LiveExamStudentStatus`, `LiveExamAccess.state`). Do not reimplement their rules.
 
 **Tests:** update `LiveExamIT`, removing the lock assertions and adding the new ones. New `ExamWindowAuthoringIT`:

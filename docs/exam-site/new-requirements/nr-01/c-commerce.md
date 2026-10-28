@@ -4,6 +4,8 @@
 
 Branch `nr01/c-commerce`. Worktree `F:\cc-wt\nr01-c`. Test database `cc_test_nr01_c`. The files you own are in [README.md](README.md#ownership). **Merge first in stage 2:** everyone's tests rely on access.
 
+**First, in C1:** replace the `primaryModuleId` reads and `hasExam` calls in your files per [contracts.md §8](contracts.md#8-several-packages-per-exam-how-each-primary-package-read-resolves) (exam orders and grants carry no package). The order and grant `getModuleId()` reads listed in `progress/f-done.md` §3a are yours to keep or null-guard.
+
 ## C1: Access with free exams and expiry
 
 Inside `LiveExamAccess` (keep the frozen signatures):

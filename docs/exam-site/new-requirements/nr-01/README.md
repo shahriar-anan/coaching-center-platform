@@ -121,7 +121,13 @@ Each production file has one owner in stage 2. An agent may **read** any file. T
 | **Shared, append-only** | `AuditLogIT.API_OPERATIONS`: it must equal the implemented routes, or the full suite fails. Each agent adds **its own** new and changed operations, in a block marked with its letter. The orchestrator resolves merge conflicts there. |
 
 **Tests:**
-- Each agent owns the existing `*IT` classes its file names. New `*IT` classes are named in each workstream file.
+- Each agent owns the existing `*IT` classes its file names. The full list, with owners, is in `progress/f-done.md` §4. Settled by the orchestrator:
+  - `ExamQuestionIT`, `LiveExamArchiveIT`: A.
+  - `ModuleCoverIT`, `PublicAccessIT`: B.
+  - `ExamAccessModeIT`, `LiveExamPaymentRecheckTest`: C.
+  - `ExamMailIT`, `SystemStatusIT`, `AuditLogIT`, `DemoContentSeedIT`, `ApiExceptionHandlerTest`: orchestrator. If your change breaks one, report it with the failure.
+  - `ExamAnalyticsIT`, `ExamResultsIT`, `ExamModuleIT`, `ExamTreeIT`: the legacy course exam engine, with no live-exam code. Nobody changes them; they must simply stay green.
+  - F's new tests (`Nr01MigrationIT`, `McqRescorerIT`, `StudentNoticeWriterNr01IT`, the helper unit tests) are frozen like F's code. New `*IT` classes are named in each workstream file.
 - An existing test that breaks because of a **decided** behaviour change is updated by the owner of that behaviour. It is never deleted just to go green.
 - If an agent's change breaks a test it doesn't own, the agent tells the orchestrator which test failed and why.
 

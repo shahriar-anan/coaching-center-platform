@@ -196,6 +196,28 @@ record Impact(int papersToRescore, boolean notifiesStudents, int studentsToNotif
 
 F wires `LiveExamService`, `LiveExamSittingService` and the evaluation service only as far as needed to compile and keep the current tests green ([f-foundation.md](f-foundation.md) F4). Stage 2 replaces that wiring.
 
+**Also built by F, and frozen like the rest** (from `progress/f-done.md`, folded in by the orchestrator on 28 October 2026):
+
+```java
+/** An exam's packages. Every read of "the exam's package" goes through here; nobody reads LiveExam.getModuleId(). */
+@Component class LiveExamMemberships {
+  Optional<UUID> primaryModuleId(UUID examId);   // the active package the exam joined first (added_at, then id)
+  UUID requirePrimaryModuleId(UUID examId);      // same, or 404
+  List<UUID> activeModuleIds(UUID examId);       // all active packages, primary first
+  void attach(UUID moduleId, UUID examId, Instant now); // joins at the end of the package
+}
+// LiveExamAccess takes a Clock; AccessState.NONE exists. hasExam(…) is @Deprecated: stage 2 owners replace their
+// calls with canSit / state / hasEver, and the orchestrator deletes it in integration.
+// McqScoring.plain(BigDecimal): prints whole marks as integers (12, not 12.00). Use it in every view.
+// LiveExamParticipant.legacyKind(kind): the §7 item 7 mapping. Use it wherever `kind` is written.
+```
+
+Other F facts stage 2 relies on:
+- Entities without `deleted_at` do not extend `BaseEntity`.
+- "By module" queries on `LiveExamRepository` keep their names and now join the active membership.
+- `ExamView.moduleId` is the primary package.
+- `ApiException` details that are a `List<FieldErrorDetail>` are written to `fieldErrors` (orchestrator, `ApiExceptionHandler`), so `ExamPricing.validate` and any stage 2 hand validation produce `fieldErrors`.
+
 ## 5. Error codes and permissions (added by F)
 
 **New `ErrorCode` values** (HTTP status in brackets):
@@ -323,10 +345,24 @@ The web is not changed in this plan, so the API must keep these:
    - `LIVE` → `kind: "LIVE"`;
    - `ARCHIVED`, `RETAKE` and `PRACTICE` → `kind: "RETAKE"`.
 
-   New fields and staff rows use `attemptKind` only.
+   **Existing** staff rows keep the legacy `kind` too, because the current staff web reads it, and add `attemptKind`. Only **new** routes and rows carry `attemptKind` alone.
 8. **Student status, legacy field.** The web has a fixed `myStatus` set, and an unknown value would break its status pill. `myStatus` keeps today's nine values, and the new detail goes in `myStatusDetail`:
    - `ARCHIVED_OPEN` → `myStatus: "MISSED"`, `retakeAvailable: true` for MCQ (the web then offers its later-attempt button);
    - `PRACTICE_OPEN` → `"OPEN"`;
    - `EXPIRED` → `"MISSED"`, `retakeAvailable: false`.
 9. **The current web's later-attempt flow.** `POST /retake` by a student with **no** attempt on an MCQ exam whose window has ended behaves as `take` (it creates the `ARCHIVED` first attempt). Without this, the current website's later-attempt button would break.
 10. **Free exams add no recipients.** The bulk "students with access" queries used for publish, reminder and update notices and mail stay based on grants and roster rows. A free exam does not message every student.
+
+## 8. Several packages per exam: how each "primary package" read resolves
+
+F left 37 call sites reading `LiveExamMemberships.primaryModuleId` (listed in `progress/f-done.md` §3b). That is correct while each exam has one package; B makes it wrong. **Each owner replaces the reads in its own files, in its first slice, with the rule below.** Never pick "the first package" where a rule needs "any package".
+
+| Purpose of the read | Rule | Owner |
+|---|---|---|
+| Who marks, reads or evaluates (`requireMarker`, `requireReader`, `readerOf`, instructor scope in results) | `live_exams.instructor_id`. Packages are not consulted. | D |
+| Student access (sit, read, buy) | `LiveExamAccess` only: exam grant, or package grant or roster row through **any** active membership, or one removed after the grant start. | C |
+| Recipients of publish, reminder and update notices or mail (`findActiveStudentsWithAccess`, `ExamMailQueue`, `StudentReminderJob`) | The union over **all** active memberships, plus exam grants. Deduplicate. No free-exam fan-out (§7 item 10). | The service's owner (A for publish and update, D for the reminder). `ExamMailQueue` is orchestrator-owned: ask. |
+| Public and student visibility of an exam (`visibleModule`, public lists, upcoming) | Published, and its **home category** branch is visible. Packages do not hide an exam, except that a package listing shows only its own members. | B (A's `visibleModule` in `ExamView` follows the same rule) |
+| An exam order or exam grant's package (`publishedModule`, the grant view) | None: `module_id` null for `EXAM` scope. | C |
+| Display only (`ExamView.moduleId`, routine row, history row module title, copy source) | Primary package (joined first). It may be null for a standalone exam; views send null. | Whoever owns the view |
+| Window clash | Removed (D17). | A |

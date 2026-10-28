@@ -32,7 +32,7 @@ Extend `DemoContentSeed` so the staging review shows every NR-01 case, insert-on
 - a **published exam with pending staged changes**, so the badge shows;
 - **favourites** for the demo student.
 
-Update `DemoContentSeedIT` to match.
+Update `DemoContentSeedIT` to match. Also update the staging cleanup script `api/.cursor/progress/ui-delivery/demo-cleanup.sql`. F added the new tables in dependency order; add any rows the new seed cases create. Then delete the deprecated `LiveExamAccess.hasExam`, once no caller is left.
 
 ## 4. Cleanup migration (only if step 1.4 found no reads)
 

@@ -41,9 +41,20 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	public ResponseEntity<ApiError> apiException(ApiException exception, HttpServletRequest request) {
-		ApiError error = new ApiError(exception.code().name(), exception.getMessage(), null, Instant.now(),
-				RequestIds.current(request), exception.orderId(), exception.tranId(), exception.details());
+		// A service that validates a body by hand passes its field errors as the details; they belong in fieldErrors.
+		List<FieldErrorDetail> fieldErrors = fieldErrors(exception.details());
+		Object details = fieldErrors == null ? exception.details() : null;
+		ApiError error = new ApiError(exception.code().name(), exception.getMessage(), fieldErrors, Instant.now(),
+				RequestIds.current(request), exception.orderId(), exception.tranId(), details);
 		return ResponseEntity.status(exception.status()).body(error);
+	}
+
+	private static List<FieldErrorDetail> fieldErrors(Object details) {
+		if (!(details instanceof List<?> list) || list.isEmpty()
+				|| !list.stream().allMatch(FieldErrorDetail.class::isInstance)) {
+			return null;
+		}
+		return list.stream().map(FieldErrorDetail.class::cast).toList();
 	}
 
 	/** A file over the multipart cap (100 MB) is refused before any service sees it: same code as the service's own limit. */

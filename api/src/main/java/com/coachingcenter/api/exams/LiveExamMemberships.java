@@ -25,10 +25,13 @@ class LiveExamMemberships {
 		this.rows = rows;
 	}
 
-	/** The first active package the exam is in, by position, or empty when it is in none. */
+	/**
+	 * The package the exam joined first among those it is in now, or empty when it is in none. Position orders exams
+	 * inside one package, so it cannot rank one exam's packages against each other.
+	 */
 	Optional<UUID> primaryModuleId(UUID examId) {
 		return rows.findActiveByExamId(examId).stream()
-			.sorted(Comparator.comparingInt(LiveExamPackageExam::getPosition).thenComparing(LiveExamPackageExam::getId))
+			.sorted(Comparator.comparing(LiveExamPackageExam::getAddedAt).thenComparing(LiveExamPackageExam::getId))
 			.map(LiveExamPackageExam::getModuleId)
 			.findFirst();
 	}
@@ -39,10 +42,10 @@ class LiveExamMemberships {
 				HttpStatus.NOT_FOUND, "Resource not found."));
 	}
 
-	/** The packages the exam is in now, in position order. */
+	/** The packages the exam is in now, oldest membership first (the primary package first). */
 	List<UUID> activeModuleIds(UUID examId) {
 		return rows.findActiveByExamId(examId).stream()
-			.sorted(Comparator.comparingInt(LiveExamPackageExam::getPosition).thenComparing(LiveExamPackageExam::getId))
+			.sorted(Comparator.comparing(LiveExamPackageExam::getAddedAt).thenComparing(LiveExamPackageExam::getId))
 			.map(LiveExamPackageExam::getModuleId)
 			.toList();
 	}

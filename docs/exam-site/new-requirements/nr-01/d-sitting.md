@@ -4,6 +4,8 @@
 
 Branch `nr01/d-sitting`. Worktree `F:\cc-wt\nr01-d`. Test database `cc_test_nr01_d`. The files you own are in [README.md](README.md#ownership).
 
+**First, in D1:** replace the `primaryModuleId` reads and `hasExam` calls in your files (evaluation, results, reminder job) per [contracts.md §8](contracts.md#8-several-packages-per-exam-how-each-primary-package-read-resolves). Also move the legacy `question_*` reads listed in `progress/f-done.md` §3c to the participant's paper version; that is D6's rule, done early.
+
 ## D1: First attempt (take)
 
 **`POST /live-exams/{id}/take`**:
