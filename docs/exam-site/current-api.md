@@ -260,3 +260,61 @@ Flyway: V42 (pending correction columns), V43 (`ready_for_release_at`).
 | `GET /api/v1/live-exam-participation` rows | Staff | `readyForRelease`: the count of papers flagged ready. `correctionsWaiting`: the count of corrections to released results that wait for release (2026-10-27). The `draftsAwaitingPublish` count includes a correction waiting for release, and `published` does not (fixed 2026-10-27). |
 | `POST /api/v1/live-exams/{id}/archive` | Master Admin only (`EXAM_DELETE`) | Archives an exam (2026-10-27). Status `ARCHIVED`, from `V44__live_exam_archive.sql` (the status check now allows it). Returns the exam view. An archived exam is off every student read (those read `PUBLISHED`), keeps its posted results, and staff still read it with `status` `ARCHIVED`. Archiving twice is harmless. Audit: `LIVE_EXAM_ARCHIVE`. |
 | `PATCH /api/v1/live-exams/{id}`, `POST /live-exams/{id}/final-save`, `POST /live-exams/{id}/publish` on an archived exam | Staff | `409 EXAM_ARCHIVED` ("An archived exam cannot be changed."). Not yet guarded: the question routes, the question PDF upload and copy. Tests: `LiveExamArchiveIT`. |
+
+## Added 2026-10-28 (NR-01, the exam segment; plan `new-requirements/nr-01/`)
+
+**Read this section first where it disagrees with the rows above.** NR-01 changes the sitting, scoring, editing and catalog rules. The rows it replaces are listed under "Superseded" at the end. Per-agent detail is in `new-requirements/nr-01/api-changes/` (a.md authoring, b.md catalog, c.md commerce, d.md sitting). Flyway `V45` to `V51`. The website was not changed: every response keeps its old fields and the old vocabularies below stay (contracts section 7).
+
+### Model
+
+- **Exam home.** An exam belongs to a **category** (`live_exams.category_id`, required). A package (`live_exam_modules`) is a bundle of exams through `live_exam_package_exams`. An exam may be in several packages or none. `live_exams.module_id` is history only; nothing reads it. The API paths still say `live-exam-modules`; the screens say "package" (R1).
+- **Window and duration are separate.** `liveAt` to `endAt` is the live window (`ends_at`, at least as long as the duration). A sitting's deadline is its own start plus `durationMinutes`; the window end never caps it. `mode` is `LIVE` or `PRACTICE` (no window, open from publish).
+- **Attempts.** The first attempt is `LIVE` (started inside the window), `ARCHIVED` (after it) or `PRACTICE`. Later attempts are `RETAKE`. The kind is set at start and never changes. MCQ retakes are unlimited. A written exam allows one retake, only with a grant (`live_exam_retake_grants`).
+- **Scoring.** Questions may have several correct options (`multipleAnswer`). Full marks need an exact match. A non-empty wrong selection loses `negativeMarks`; a blank scores 0. Scores are decimals and may be negative. Per exam: `answersChangeable`, `negativeMarks`, `passPercent`.
+- **Results at submit.** An MCQ result, the key and the explanations come back as soon as the paper is submitted, with a `position`. A written result still waits for release.
+- **Positions.** `{type: CURRENT | RELATIVE | BOARD, rank, of, belowPass}`. CURRENT: a live attempt during the window. BOARD: a live attempt after the window, or a practice first attempt. RELATIVE: an archived attempt or a retake, ranked as if on the board. `rank` is 1 plus the number of board rows with a strictly higher score; ties share the better rank; below the pass mark there is no rank.
+- **Leaderboard.** Board attempts only (`LIVE`, or `PRACTICE` first attempts), at or above the pass mark, highest score first, earliest submit breaking ties. Students see only their own position until the window ends.
+- **No edit lock.** Staff may edit an exam or a package at any time. On a **published** one the edit is **staged** in a revision (`live_exam_revisions`, `live_exam_module_revisions`): students and the sitting keep reading the published rows, and staff read the working copy with `pendingChanges: true`. The Master Admin reads the change list (`GET …/pending-changes`) and publishes it with the `revisionId`. Publishing re-scores submitted MCQ papers when scoring changed, writes `live_exam_change_log`, and sends an `EXAM_UPDATED` notice (no mail) when the time, duration, written paper or MCQ question content changed.
+- **Questions and options can be added or removed only until the first sitting** (`QUESTION_STRUCTURE_LOCKED`). Wording, key, marks and explanations stay editable.
+- **Paper versions.** Each written question PDF is a version (`live_exam_question_papers`). A participant and their evaluator always read the version that participant sat.
+- **Access.** A student can sit an exam through an exam grant; through a roster row or grant on a **published** package the exam is in; through a bundle or manual grant; or because the exam is free (signed-in students). An archived, draft or deleted package gives no access through it. Removing an exam from a package keeps it for anyone who held the package before the removal. Access ends at the later of the grant start and the window end, plus `accessDays` (never for lifetime, free, or an undated exam). Expiry stops new attempts and the paper; results stay readable.
+- **Commerce.** `discountPercent` (1 to 99) with an optional `discountEndsAt`, on exams and packages. The charged amount is the effective price. Discounts, prices and the free toggle need `EXAM_PRICE` (Master Admin). An order records `listPrice` and `discountPercent`.
+- **Instructor.** One instructor per **exam** (`live_exams.instructor_id`). A package keeps a default instructor that new exams inherit.
+- **Popular and favourites.** `popular` on exams and packages (Master Admin). Students favourite exams and packages without buying.
+- **Preview.** With `previewEnabled`, a signed-in student can read the questions (no key, no explanation) once the window has ended, or at any time for a practice exam.
+- **Mail.** The exam-time and hour-before emails reach holders of any published package the exam is in, plus exam grant holders, so an exam in no package is mailed too.
+
+### Legacy fields kept for the current website
+
+- `kind` stays `LIVE | RETAKE` (`ARCHIVED`, `RETAKE` and `PRACTICE` map to `RETAKE`); `attemptKind` has the full value. Existing staff rows keep `kind` and add `attemptKind`.
+- `myStatus` keeps its nine values; `myStatusDetail` adds `ARCHIVED_OPEN`, `PRACTICE_OPEN` and `EXPIRED`.
+- `PUT /answers` still accepts `{questionId, optionId}`.
+- `POST /retake` with no earlier attempt on an MCQ exam whose window has ended acts as `take`.
+- `POST /live-exams/{id}/publish` without a `revisionId` is accepted from the Master Admin and logged at warn.
+- `price` stays at the top level of every row; `pricing` is the new object.
+
+### New and changed routes
+
+The authoritative tables are in `new-requirements/nr-01/api-changes/`. Summary:
+
+| Area | Routes |
+|---|---|
+| Authoring | New: `POST /live-exams` (standalone), `GET` and `DELETE /live-exams/{id}/pending-changes`, `GET /live-exam-pending-changes`, `GET /live-exams/{id}/preview` and `/preview/question-pdf`, `PUT /live-exams/{id}/popular`. Changed: create, `PATCH`, questions, `question-pdf`, `copy`, `publish`, `DELETE`. |
+| Packages and catalog | New: `POST` and `DELETE /live-exam-modules/{id}/exams/{examId}`, `PATCH …/exams/order`, `GET` and `DELETE …/pending-changes`, `PUT …/popular`, `GET /live-exams` (staff list), `GET /public/live-exam-categories/{id}/exams`, `GET /me/favourites`, `PUT` and `DELETE /me/favourites/exams/{id}` and `/packages/{id}`. Changed: package `PATCH`, `publish` and `DELETE`, the category trees, and the public package, exam and upcoming reads. A package's exam list is sorted by date, soonest first with undated last, and by membership order among equal dates. |
+| Commerce | Changed: `POST /live-exam-orders` (no package for an exam order, effective price, `EXAM_NOT_FOR_SALE`), the order lists (`listPrice`, `discountPercent`), `POST /live-exam-grants` (exam grant without a package), the access lists (`endsAt`, `expired`, `grantedAt`). |
+| Sitting and marking | New: `PUT /live-exams/{id}/answers/{questionId}`, `GET /live-exams/{id}/attempts`, `POST` and `DELETE /live-exams/{id}/retake-grants`, `POST` and `DELETE /live-exams/{id}/instructor`, `GET /live-exam-participants/{id}/question-pdf`. Changed: `take`, `retake`, `answers`, `submit`, `result`, `leaderboard`, results, participation, the submission feeds, the package instructor routes (`applyToExams`, default true). |
+
+### New error codes
+
+`EXAM_WINDOW_INVALID` (400), `QUESTION_STRUCTURE_LOCKED`, `ANSWER_LOCKED`, `ATTEMPT_IN_PROGRESS`, `ACCESS_EXPIRED`, `PENDING_CHANGES_STALE`, `NO_PENDING_CHANGES`, `EXAM_ALREADY_IN_PACKAGE` (all 409 unless stated).
+
+### Superseded by NR-01
+
+- The live window equals the duration, and the take deadline is the shared window end. Now: separate, and the deadline is the sitting's own start plus the duration.
+- One later MCQ attempt only for a student who never took the live sitting; no written later attempt. Now: unlimited MCQ retakes, one granted written retake.
+- MCQ review only after the sitting ends; the MCQ leaderboard opens five minutes after the window. Now: the result and key at submit; the board opens at the window end.
+- `EXAM_WINDOW_CONFLICT` (five-minute gap) and `EXAM_WINDOW_ENDED` on publish: no longer raised.
+- `CONTENT_LOCKED` after `liveAt`: no longer raised. Any edit returning an exam to draft: replaced by staged edits.
+- The no-submit zero stays on the live board: replaced by the pass-mark filter on the board.
+- The answers-released switch: stores a value and gates nothing.
+- One instructor per package: now per exam, with a package default.

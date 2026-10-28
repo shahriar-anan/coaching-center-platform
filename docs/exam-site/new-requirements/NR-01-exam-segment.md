@@ -196,3 +196,33 @@ Defaults the plan takes. Shahriar can change any of them:
 Written after the decisions are agreed.
 
 ## Record
+
+## Record (API part)
+
+**Done 28 October 2026**, on branch `nr01/integration`, not yet merged into `demo/client-review` and not deployed. The UI is not done: it comes in a separate plan, with its inputs listed in `nr-01/web-impact.md` and `nr-01/web-impact/`.
+
+- Plan and agents: `nr-01/`. F built the schema (`V45`–`V51`), entities and rule helpers. A (authoring and staged edits), B (packages and catalog), C (commerce and access) and D (sitting, scoring, results and marking) built on it. Merge order F, C, B, A, D.
+- Tests: the full API suite ran 560 tests with one failure (the instructor directory), which is fixed. The final full run is recorded in `nr-01/ORCHESTRATOR-STATUS.md`.
+- The API reference is `current-api.md` (section "Added 2026-10-28"); the rules are in `decisions.md` ("NR-01").
+
+**Rulings made during the build (not in the questions above):**
+
+- An archived, draft or deleted package gives no access through it; other routes still count and results stay readable.
+- Package and exam discounts, prices and the free setting are Master Admin only.
+- A package's exam list for students is sorted by date (soonest first, undated last), with membership order only between equal dates.
+- The "exam updated" notice fires for a change to the time, duration, written paper, or MCQ question content.
+- An MCQ answer cannot be changed after the paper is submitted (the key is visible from then on).
+- A score below the pass mark, and a no-submit zero, are not on the leaderboard.
+- Package-level assignment of an instructor sets every member exam (`applyToExams`, default true).
+- The instructor directory counts both a package default instructor and the exams assigned to the person.
+
+**Found and fixed during integration:** the exam reminder emails reached nobody for an exam in no package, because the mail code found its recipients through a single "first package". They now come from every published package the exam is in plus exam grants. The deprecated access method is removed.
+
+**Follow-ups (not done):**
+
+- Demo data for the client review (the NR-01 cases) is not seeded yet. It belongs with the UI plan, since it is for the client to look at. `DemoContentSeed` only gained the columns the new schema requires.
+- The package announcements that go to "everyone with a grant on the package" (`AnnouncementService`) no longer reach exam buyers, because an exam purchase carries no package. Decide whether to include them.
+- `MultiAnswerScoringIT` creates its second correct option with SQL; it can use the question API now that the authoring work is merged.
+- The cleanup migration that drops `live_exams.module_id` and the old `question_*` columns was not written, because the demo seed still writes `module_id`. Do it with the seed.
+- The staging cleanup script `api/.cursor/progress/ui-delivery/demo-cleanup.sql` covers the new tables (F). Re-check it when the NR-01 seed cases are added.
+- The website still shows the old words and flows. The compatibility rules (contracts section 7) can be retired when the UI moves to `attemptKind` and `myStatusDetail`.

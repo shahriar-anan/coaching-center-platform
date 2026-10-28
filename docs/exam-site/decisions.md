@@ -14,19 +14,19 @@ Shahriar agreed these on 2026-10-23. They override the client brief and the Phas
 - Admin and instructor screens stay basic. They come after a student can sit an exam the API already holds.
 
 ## Exam rules that stay
-
+ **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
 - Server clock controls the live window. Take exam during the window uses the shared end.
 - An exam lasts at least 2 minutes (`durationMinutes` is 2 or more on create and update).
 - Publishing an exam needs the English and Bangla descriptions and rules. An exam can be saved without them, but it cannot be published until they are filled in (decided by the client, 2026-10-26).
-- Only the Master Admin publishes an exam. A System Admin edits the exam but cannot publish it (decided 2026-10-26).
-- Inside one module, the later live window starts at least five minutes after the earlier end. Another module may use the same clock time. A null `liveAt` is not a window and is left out of that check. Publishing an exam that has a start runs the check against every other published exam in the module that has a start. Setting or clearing `liveAt` returns the exam to draft, so the new time is live only after the next publish accepts it.
+- Only the Master Admin publishes an exam. A System Admin edits the exam but cannot publish it (decided 2026-10-26). **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
+- Inside one module, the later live window starts at least five minutes after the earlier end. Another module may use the same clock time. A null `liveAt` is not a window and is left out of that check. Publishing an exam that has a start runs the check against every other published exam in the module that has a start. Setting or clearing `liveAt` returns the exam to draft, so the new time is live only after the next publish accepts it. **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
 - An MCQ has one later attempt, and only when the student never tapped Take exam during the window. It uses a personal timer and stays off the live leaderboard. A student who sat the live MCQ cannot start it. A written exam has no later attempt. `POST /api/v1/live-exams/{id}/retake` rejects a written exam.
-- A published exam may have a null `liveAt`. That row stays on the module exam list with a blank date and time. Take exam, the later MCQ attempt, the personal routine, and the leaderboard stay closed until `liveAt` is set and the server clock is inside the window. `durationMinutes` stays required.
-- A wrong MCQ option adds nothing. There is no negative-mark field until the client asks for one.
-- MCQ answers can change until the deadline. The deadline posts the saved answers without a student submit call. A blank paper scores zero. The score is returned as soon as the paper posts. The chosen option, the correct option, and the explanation wait until the sitting ends.
-- The MCQ leaderboard opens five minutes after the live window, live participants only, highest score first, ties share a rank.
+- A published exam may have a null `liveAt`. That row stays on the module exam list with a blank date and time. Take exam, the later MCQ attempt, the personal routine, and the leaderboard stay closed until `liveAt` is set and the server clock is inside the window. `durationMinutes` stays required. **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
+- A wrong MCQ option adds nothing. There is no negative-mark field until the client asks for one. **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
+- MCQ answers can change until the deadline. The deadline posts the saved answers without a student submit call. A blank paper scores zero. The score is returned as soon as the paper posts. The chosen option, the correct option, and the explanation wait until the sitting ends. **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
+- The MCQ leaderboard opens five minutes after the live window, live participants only, highest score first, ties share a rank. **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
 - A written answer is one PDF, `%PDF` checked, 80 MB ceiling, compressed, latest file only. No stored PDF at the deadline is failed to submit and scores zero. That no-submit zero stays on the live board. It is not an instructor mark.
-- MCQ questions stay stems and options. The written question stays one PDF.
+- MCQ questions stay stems and options. The written question stays one PDF. **Superseded by NR-01 (28 October 2026); see the NR-01 section below.
 - One instructor per module. A System Admin does not evaluate and does not publish.
 
 ## Written results
@@ -144,3 +144,18 @@ These came from the admin panel audit (`reports/ui-audit/fix-plan-C.md`, section
 - The System Admin does not grant access by hand, does not release MCQ answers, and does not send announcements. Roster grants stay with the Master Admin.
 - The System Admin suspends and restores students. Instructor status stays with the Master Admin.
 - An instructor does not open a module or exam page. The question paper is read-only inside the evaluation screen, with no download. The Master Admin publishes the result.
+
+## NR-01: the exam segment (decided 28 October 2026)
+
+Shahriar agreed these after the client approved the design. The full record, with the question each answers, is `new-requirements/NR-01-exam-segment.md`. They replace the lines marked **Superseded by NR-01** above. The API is built (plan `new-requirements/nr-01/`); the web changes come in a later plan.
+
+- **Structure.** An exam belongs to a category. A package (the site's word for a module) bundles exams; one exam may be in several packages or in none. The instructor is set on the exam, and a package holds a default that new exams inherit.
+- **Live window and duration are separate.** The window must be at least as long as the duration. A sitting ends at its own start plus the duration, with no cap at the window end. A first attempt started inside the window is live; after it, archived. The kind is fixed at start. A practice exam has no window and its leaderboard uses each student's first attempt.
+- **Attempts.** MCQ retakes are unlimited. A written exam has one retake, granted by the Master Admin or a System Admin from the student's result, with an optional reason and an audit entry. A retake is marked and released like any paper, sits beside the first result, and is never on the leaderboard.
+- **MCQ scoring.** An exam may hold questions with several correct options. A question scores only on an exact match. A wrong, non-empty selection loses the exam's negative mark; a blank scores 0; a total can go below zero. Each exam chooses whether answers can be changed; when not, a single-answer question is final at its first choice and a multi-answer question when the student confirms it.
+- **Results at submit.** An MCQ student sees the score, the correct options and the explanations as soon as the paper is submitted, with a position: the current board position for a live attempt, or the rank the score would have taken for an archived attempt or retake. The client accepts that this lets a student pass the key to others. Written results are still released by the Master Admin.
+- **Leaderboard.** Live attempts only, at or above the pass mark, ties sharing the better rank. During the live window students see only their own position. A score below the pass mark shows "below the pass mark" and no rank.
+- **Editing at any time.** There is no lock, because the client's windows run twelve to sixteen hours and a fix may be needed during one. Editing a published exam or package is staged: students keep the published version until the Master Admin reads the field-by-field change list and publishes it. Publishing re-scores submitted MCQ papers when the answer key, marks or scoring changed. Questions and options cannot be added or removed after the first student has started. The written question PDF may be replaced; a student and their evaluator always see the paper that student sat.
+- **Price and access.** Percent discounts with an optional end date, on exams and packages. A free exam can be sat by any signed-in student. Access is set per exam as a number of days counted from the window end (or from the grant if that is later), or for life. Expiry stops new attempts; results stay readable. Prices, discounts and the free setting are Master Admin only.
+- **Withdrawing.** An archived (withdrawn) package gives no access through it. A student who has the exam another way keeps it. Removing an exam from a package keeps it for anyone who held the package before.
+- **Also decided.** Popular exams and packages (Master Admin) and student favourites; a preview of the questions after the window (or any time for practice) when an exam allows it; no coupons; old-site data is not imported; "Module" is renamed "Package" on screens only, and the "Archive" button becomes "Withdraw".

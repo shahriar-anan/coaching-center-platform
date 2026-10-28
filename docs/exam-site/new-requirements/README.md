@@ -18,7 +18,7 @@ One requirement at a time unless Shahriar says otherwise. Do not start NR-n+1 wh
 
 | ID | Requirement | Status | File |
 |---|---|---|---|
-| NR-01 | Exam segment: sidebar **Exams** page grouped by module; old-site rules (price, discount, free); live window separate from duration; archived participants with a relative position; editing after the window with a change summary on publish | agreed; API plan written ([nr-01/](nr-01/README.md)); UI plan later | [NR-01-exam-segment.md](NR-01-exam-segment.md) |
+| NR-01 | Exam segment: sidebar **Exams** page grouped by module; old-site rules (price, discount, free); live window separate from duration; archived participants with a relative position; editing after the window with a change summary on publish | API done 28 October 2026 on `nr01/integration` (see the Record in the file); UI plan next | [NR-01-exam-segment.md](NR-01-exam-segment.md) |
 
 Add new rows at the bottom. Never renumber. A dropped requirement stays in the table with status `dropped` and a reason.
 
