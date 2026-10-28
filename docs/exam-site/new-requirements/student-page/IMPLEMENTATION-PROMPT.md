@@ -36,10 +36,10 @@ You are finishing S0 of the student page overhaul for the coaching-center exam s
 - If a name or pattern is unclear, read the existing code first. If still unclear, stop and ask.
 - Search before reading. Don't read whole files over 500 lines.
 
-**When done:** update `S0-review.md` with a "Follow-up" section (what changed, commit hashes, test results with counts, the new review account and case for the expired row, and the Bangla list). Push `ui/nr01-ui`. Stop and report in five lines.
+**When done:** update `S0-review.md` with a "Follow-up" section (what changed, commit hashes, test results with counts, the new review account and case for the expired row, and the Bangla list). Do not push. Commit only; the orchestrator merges. Stop and report in five lines.
 
 ---
 
 ## Part B: S1 onward (paste later, after Shahriar's go on S0)
 
-Not yet. Part B will be written after S0 is accepted. It will follow `plan.md` section 4 (S1 navigation, S2 browsing and purchase, S3 popular and favourites), with one worker per step and a review note and push at the end of each step.
+Not yet. Part B will be written after S0 is accepted. Standing rule for every part: workers commit only, never push. The orchestrator merges. It will follow `plan.md` section 4 (S1 navigation, S2 browsing and purchase, S3 popular and favourites), with one worker per step and a review note and push at the end of each step.
