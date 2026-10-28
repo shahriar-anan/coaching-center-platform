@@ -1,12 +1,15 @@
 package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import javax.sql.DataSource;
@@ -105,7 +108,8 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student))
 			.andExpect(status().isNotFound());
 		mark(module, studentId);
-		assertThat(withoutAccess(publicExam(student, exam))).isEqualTo(json.readTree(anonymousExam));
+		// The package price changed above, so the exam's moduleOnly flag changed too: compare with a fresh anonymous read.
+		assertThat(withoutAccess(publicExam(student, exam))).isEqualTo(json.readTree(publicExam(null, exam)));
 		assertAccess(json.readTree(publicExam(student, exam)), "ROSTER", false, "ALREADY_HAS_ACCESS");
 		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
@@ -383,10 +387,94 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		}
 	}
 
+	/** A signed-in student's row differs from a visitor's only by {@code access} and {@code favourite} (NR-01, B6). */
 	private JsonNode withoutAccess(String body) {
 		ObjectNode node = (ObjectNode) json.readTree(body);
 		node.remove("access");
+		node.remove("favourite");
 		return node;
+	}
+
+	/** A standalone exam, published, is listed under its home category, in the tree and in the upcoming list (NR-01, B2). */
+	@Test
+	void aStandaloneExamIsListedUnderItsCategoryAndInTheTree() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID category = createCategory(staff, "Standalone shelf");
+		UUID holder = createModule(staff, category, "Standalone holder");
+		UUID exam = createExam(staff, holder, "BN", "2099-01-01T10:00:00+06:00", "Standalone stem", true);
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + holder + "/exams/" + exam).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNoContent());
+
+		assertThat(categoryExamIds(category)).containsExactly(exam);
+		JsonNode node = find(categories(null), category);
+		assertThat(ids(node.get("exams"))).containsExactly(exam);
+		assertThat(ids(node.get("modules"))).isEmpty();
+		JsonNode body = json.readTree(publicExam(null, exam));
+		assertThat(body.hasNonNull("moduleId")).isFalse();
+		assertThat(body.get("categoryId").asText()).isEqualTo(category.toString());
+		assertThat(ids(upcomingExams())).contains(exam);
+	}
+
+	/** An exam in two packages of one category is listed once there, with both packages (NR-01, B2 and R21). */
+	@Test
+	void anExamInTwoPackagesIsListedOnceInTheCategory() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		UUID category = createCategory(staff, "Twice shelf");
+		UUID first = createModule(staff, category, "First holder");
+		finalSave(staff, first);
+		publishModule(staff, first);
+		UUID exam = createExam(staff, first, "BN", "2099-02-01T10:00:00+06:00", "Twice stem", true);
+		UUID second = createModule(staff, category, "Second holder");
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + second + "/exams/" + exam).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		finalSave(staff, second);
+		publishModule(staff, second);
+
+		assertThat(categoryExamIds(category)).containsExactly(exam);
+		JsonNode row = find(categories(null), category).get("exams").get(0);
+		assertThat(row.get("packages")).hasSize(2);
+		assertThat(ids(json.readTree(mockMvc.perform(get("/api/v1/public/live-exam-modules/" + first + "/exams"))
+			.andReturn().getResponse().getContentAsString()).get("content"))).containsExactly(exam);
+		assertThat(ids(json.readTree(mockMvc.perform(get("/api/v1/public/live-exam-modules/" + second + "/exams"))
+			.andReturn().getResponse().getContentAsString()).get("content"))).containsExactly(exam);
+	}
+
+	/** An archived branch hides the standalone exams it holds, as it hides its packages (NR-01, B2). */
+	@Test
+	void aHiddenBranchHidesItsStandaloneExamsToo() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID category = createCategory(staff, "Hidden standalone shelf");
+		UUID holder = createModule(staff, category, "Hidden standalone holder");
+		UUID exam = createExam(staff, holder, "BN", "2099-03-01T10:00:00+06:00", "Hidden standalone stem", true);
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + holder + "/exams/" + exam).header("Authorization", "Bearer " + staff))
+			.andExpect(status().isNoContent());
+		assertThat(categoryExamIds(category)).containsExactly(exam);
+
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + category + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		assertThat(categoryExamIds(category)).isEmpty();
+		assertThat(find(categories(null), category)).isNull();
+		mockMvc.perform(get("/api/v1/public/live-exams/" + exam)).andExpect(status().isNotFound());
+		assertThat(ids(upcomingExams())).doesNotContain(exam);
+	}
+
+	private List<UUID> categoryExamIds(UUID category) throws Exception {
+		return ids(json.readTree(mockMvc.perform(get("/api/v1/public/live-exam-categories/" + category + "/exams")
+			.param("size", "100")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("content"));
+	}
+
+	private JsonNode upcomingExams() throws Exception {
+		return json.readTree(mockMvc.perform(get("/api/v1/public/live-exams").param("upcoming", "true").param("size", "1000"))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("content");
+	}
+
+	private static List<UUID> ids(JsonNode nodes) {
+		List<UUID> ids = new ArrayList<>();
+		for (JsonNode node : nodes) {
+			ids.add(UUID.fromString(node.get("id").asText()));
+		}
+		return ids;
 	}
 
 	private static void assertAccess(JsonNode body, String state, boolean buyable, String blockedReason) {

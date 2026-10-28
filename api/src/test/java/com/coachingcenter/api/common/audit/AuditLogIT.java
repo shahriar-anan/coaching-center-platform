@@ -288,7 +288,22 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"DELETE /api/v1/instructors/{id}",
 			"POST /api/v1/announcements",
 			"GET /api/v1/announcements",
-			"GET /api/v1/system-status");
+			"GET /api/v1/system-status",
+			// B: packages and catalog (NR-01)
+			"POST /api/v1/live-exam-modules/{id}/exams/{examId}",
+			"DELETE /api/v1/live-exam-modules/{id}/exams/{examId}",
+			"PATCH /api/v1/live-exam-modules/{id}/exams/order",
+			"GET /api/v1/live-exam-modules/{id}/pending-changes",
+			"DELETE /api/v1/live-exam-modules/{id}/pending-changes",
+			"PUT /api/v1/live-exams/{id}/popular",
+			"PUT /api/v1/live-exam-modules/{id}/popular",
+			"GET /api/v1/live-exams",
+			"GET /api/v1/public/live-exam-categories/{id}/exams",
+			"GET /api/v1/me/favourites",
+			"PUT /api/v1/me/favourites/exams/{id}",
+			"DELETE /api/v1/me/favourites/exams/{id}",
+			"PUT /api/v1/me/favourites/packages/{id}",
+			"DELETE /api/v1/me/favourites/packages/{id}");
 
 	@Autowired
 	private MockMvc mockMvc;

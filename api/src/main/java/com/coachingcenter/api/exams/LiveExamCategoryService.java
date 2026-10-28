@@ -29,20 +29,36 @@ public class LiveExamCategoryService {
 
 	private final AuditRecorder audit;
 
+	private final LiveExamRepository exams;
+
+	private final LiveExamPackageExamRepository memberships;
+
 	public LiveExamCategoryService(LiveExamCategoryRepository categories, LiveExamModuleRepository modules,
-			LiveExamCatalogVisibility visibility, AuditRecorder audit) {
+			LiveExamCatalogVisibility visibility, AuditRecorder audit, LiveExamRepository exams,
+			LiveExamPackageExamRepository memberships) {
 		this.categories = categories;
 		this.modules = modules;
 		this.visibility = visibility;
 		this.audit = audit;
+		this.exams = exams;
+		this.memberships = memberships;
 	}
 
+	/** Each category holds its packages and the exams whose home it is; an exam in several packages is listed once (NR-01, B2). */
 	@Transactional(readOnly = true)
 	public List<TreeNode> tree() {
+		Map<UUID, LiveExamModule> moduleById = new HashMap<>();
 		Map<UUID, List<ModuleSummary>> modulesByCategory = new HashMap<>();
 		for (LiveExamModule module : modules.findByDeletedAtIsNull()) {
+			moduleById.put(module.getId(), module);
 			modulesByCategory.computeIfAbsent(module.getCategoryId(), ignored -> new ArrayList<>())
 				.add(summary(module));
+		}
+		Map<UUID, List<LiveExamModuleService.PackageRef>> packagesByExam = packagesByExam(moduleById);
+		Map<UUID, List<ExamSummary>> examsByCategory = new HashMap<>();
+		for (LiveExam exam : exams.findByDeletedAtIsNull()) {
+			examsByCategory.computeIfAbsent(exam.getCategoryId(), ignored -> new ArrayList<>())
+				.add(examSummary(exam, packagesByExam.getOrDefault(exam.getId(), List.of())));
 		}
 		Map<UUID, TreeNode> nodes = new HashMap<>();
 		List<TreeNode> roots = new ArrayList<>();
@@ -50,9 +66,11 @@ public class LiveExamCategoryService {
 			List<ModuleSummary> placed = new ArrayList<>(
 					modulesByCategory.getOrDefault(category.getId(), List.of()));
 			placed.sort(Comparator.comparingInt(ModuleSummary::position).thenComparing(ModuleSummary::id));
+			List<ExamSummary> placedExams = new ArrayList<>(examsByCategory.getOrDefault(category.getId(), List.of()));
+			placedExams.sort(Comparator.comparing(ExamSummary::titleEn).thenComparing(ExamSummary::id));
 			TreeNode node = new TreeNode(category.getId(), category.getParentId(), category.getTitleEn(),
 					category.getTitleBn(), category.getPosition(), category.getArchivedAt() != null, new ArrayList<>(),
-					placed);
+					placed, placedExams);
 			nodes.put(category.getId(), node);
 		}
 		for (TreeNode node : nodes.values()) {
@@ -229,6 +247,24 @@ public class LiveExamCategoryService {
 				category.getPosition(), category.getArchivedAt() != null);
 	}
 
+	/** Every package of each exam, from the memberships not removed. A package that is deleted is left out. */
+	private Map<UUID, List<LiveExamModuleService.PackageRef>> packagesByExam(Map<UUID, LiveExamModule> moduleById) {
+		Map<UUID, List<LiveExamModuleService.PackageRef>> byExam = new HashMap<>();
+		for (LiveExamPackageExam link : memberships.findByRemovedAtIsNull()) {
+			LiveExamModule module = moduleById.get(link.getModuleId());
+			if (module != null) {
+				byExam.computeIfAbsent(link.getExamId(), ignored -> new ArrayList<>())
+					.add(new LiveExamModuleService.PackageRef(module.getId(), module.getTitleEn(), module.getTitleBn()));
+			}
+		}
+		return byExam;
+	}
+
+	private static ExamSummary examSummary(LiveExam exam, List<LiveExamModuleService.PackageRef> packages) {
+		return new ExamSummary(exam.getId(), exam.getCategoryId(), exam.getTitleEn(), exam.getTitleBn(), exam.getExamType(),
+				exam.getMode(), exam.getStatus(), exam.isPopular(), packages);
+	}
+
 	private static ModuleSummary summary(LiveExamModule module) {
 		return new ModuleSummary(module.getId(), module.getCategoryId(), module.getTitleEn(), module.getTitleBn(),
 				module.getStatus(), module.getPosition());
@@ -248,8 +284,13 @@ public class LiveExamCategoryService {
 	public record ModuleSummary(UUID id, UUID categoryId, String titleEn, String titleBn, String status, int position) {
 	}
 
+	/** An exam in a category's list: its home category, and every package it is in. */
+	public record ExamSummary(UUID id, UUID categoryId, String titleEn, String titleBn, String examType, String mode,
+			String status, boolean popular, List<LiveExamModuleService.PackageRef> packages) {
+	}
+
 	public record TreeNode(UUID id, UUID parentId, String titleEn, String titleBn, int position, boolean archived,
-			List<TreeNode> children, List<ModuleSummary> modules) {
+			List<TreeNode> children, List<ModuleSummary> modules, List<ExamSummary> exams) {
 	}
 
 }

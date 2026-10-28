@@ -82,3 +82,5 @@ To cut runs, agents test **once per slice**, in one invocation (the slice's new 
     - `AnnouncementService.TO_MODULE` matches grants by `g.module_id`. An exam grant now has no package, so an exam buyer no longer receives package announcements. This is a small behaviour change; decide in integration whether to include exam buyers through the memberships.
     - Deleting a package keeps its buyers' exam grants (R5). That is intended.
   - Next merge: D, then B, then A.
+- 28 Oct, about 20:25: **full suite after C's merge** was 98 of 100 classes green. The two failures were the known pair (`BookOrderIT`, `CoursePurchaseIT`, 409 on a reused database). Rerun on a fresh database (`-ResetDb`): both pass. C's merge is confirmed.
+- 28 Oct: **ruling, archived package.** An archived or deleted package gives no access through it; other routes still count and results stay readable. Implemented in `LiveExamAccess` on integration (`a16beae`). Contract §8 is about an exam's visibility, not access through a package.
