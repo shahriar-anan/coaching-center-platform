@@ -51,6 +51,14 @@ public class LiveExamController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(exams.create(moduleId, body));
 	}
 
+	/** A standalone exam: it sits in a category and in no package until it is added to one (R2). */
+	@PostMapping("/api/v1/live-exams")
+	public ResponseEntity<LiveExamService.ExamView> createStandalone(@RequestBody JsonNode body) {
+		require(Permissions.EXAM_MANAGE);
+		requirePricePermission(body);
+		return ResponseEntity.status(HttpStatus.CREATED).body(exams.create(null, body));
+	}
+
 	@GetMapping("/api/v1/live-exam-modules/{moduleId}/exams")
 	public PageResponse<LiveExamService.ExamView> list(@PathVariable UUID moduleId,
 			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
@@ -79,14 +87,14 @@ public class LiveExamController {
 	public LiveExamService.ExamView update(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
 		requirePricePermission(body);
-		return exams.update(id, body);
+		return exams.update(id, body, actorId());
 	}
 
 	/** A draft copy of this exam in the same module, with the title suffixed and no date or price. */
 	@PostMapping("/api/v1/live-exams/{id}/copy")
 	public ResponseEntity<LiveExamService.ExamView> copy(@PathVariable UUID id) {
 		require(Permissions.EXAM_MANAGE);
-		return ResponseEntity.status(HttpStatus.CREATED).body(exams.copy(id));
+		return ResponseEntity.status(HttpStatus.CREATED).body(exams.copy(id, actorId()));
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/final-save")
@@ -96,9 +104,11 @@ public class LiveExamController {
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/publish")
-	public LiveExamService.ExamView publish(@PathVariable UUID id) {
+	public LiveExamService.ExamView publish(@PathVariable UUID id,
+			@RequestBody(required = false) JsonNode body) {
 		require(Permissions.EXAM_PUBLISH);
-		return exams.publish(id);
+		String revisionId = body != null && body.hasNonNull("revisionId") ? body.get("revisionId").asText() : null;
+		return exams.publish(id, revisionId, actorId());
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/archive")
@@ -117,27 +127,27 @@ public class LiveExamController {
 	@DeleteMapping("/api/v1/live-exams/{id}/questions/{questionId}")
 	public ResponseEntity<Void> deleteQuestion(@PathVariable UUID id, @PathVariable UUID questionId) {
 		require(Permissions.EXAM_MANAGE);
-		exams.deleteQuestion(id, questionId);
+		exams.deleteQuestion(id, questionId, actorId());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/questions")
 	public ResponseEntity<LiveExamService.QuestionView> addQuestion(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
-		return ResponseEntity.status(HttpStatus.CREATED).body(exams.addQuestion(id, body));
+		return ResponseEntity.status(HttpStatus.CREATED).body(exams.addQuestion(id, body, actorId()));
 	}
 
 	@PatchMapping("/api/v1/live-exams/{id}/questions/{questionId}")
 	public LiveExamService.QuestionView updateQuestion(@PathVariable UUID id, @PathVariable UUID questionId,
 			@RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
-		return exams.updateQuestion(id, questionId, body);
+		return exams.updateQuestion(id, questionId, body, actorId());
 	}
 
 	@PostMapping(value = "/api/v1/live-exams/{id}/question-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public LiveExamService.ExamView uploadQuestionPdf(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
 		require(Permissions.EXAM_MANAGE);
-		return exams.uploadQuestionPdf(id, file);
+		return exams.uploadQuestionPdf(id, file, actorId());
 	}
 
 	private void require(String permission) {
@@ -147,7 +157,9 @@ public class LiveExamController {
 	}
 
 	private void requirePricePermission(JsonNode body) {
-		if (body.has("price") && !permissions.has(Permissions.EXAM_PRICE)) {
+		boolean commercial = body.has("price") || body.has("free") || body.has("discountPercent")
+				|| body.has("discountEndsAt") || body.has("accessDays");
+		if (commercial && !permissions.has(Permissions.EXAM_PRICE)) {
 			throw denied();
 		}
 	}

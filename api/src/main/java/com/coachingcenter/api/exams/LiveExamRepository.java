@@ -238,6 +238,31 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""")
 	List<UUID> findActiveStudentsWithAccess(@Param("moduleId") UUID moduleId, @Param("examId") UUID examId);
 
+	/**
+	 * The students a notice about this exam reaches: a roster row or a package grant on any package the exam is in now, or a
+	 * grant on the exam itself, revoked grants left out. A free exam adds nobody (contracts section 7, item 10).
+	 */
+	@Query("""
+			select u.id from User u
+			where u.deletedAt is null and u.role = 'STUDENT' and u.status = 'ACTIVE'
+			  and (
+			    exists (
+			      select r from LiveExamRoster r, LiveExamPackageExam pm
+			      where pm.examId = :examId and pm.removedAt is null and r.moduleId = pm.moduleId and r.studentId = u.id
+			    )
+			    or exists (
+			      select gm from LiveExamGrant gm, LiveExamPackageExam pm
+			      where pm.examId = :examId and pm.removedAt is null and gm.scope = 'MODULE' and gm.moduleId = pm.moduleId
+			        and gm.studentId = u.id and gm.revokedAt is null
+			    )
+			    or exists (
+			      select ge from LiveExamGrant ge
+			      where ge.scope = 'EXAM' and ge.examId = :examId and ge.studentId = u.id and ge.revokedAt is null
+			    )
+			  )
+			""")
+	List<UUID> findActiveStudentsWithAccessToExam(@Param("examId") UUID examId);
+
 	/** Published exams whose home category is {@code categoryId} (NR-01, B2). */
 	List<LiveExam> findByCategoryIdAndStatusAndDeletedAtIsNull(UUID categoryId, String status);
 
