@@ -33,7 +33,9 @@ import org.springframework.web.multipart.MultipartFile;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.error.FieldErrorDetail;
 import com.coachingcenter.api.files.LocalFileStorage;
+import com.coachingcenter.api.users.AdminProfileRepository;
 
 import tools.jackson.databind.JsonNode;
 
@@ -41,8 +43,6 @@ import tools.jackson.databind.JsonNode;
 public class LiveExamService {
 
 	static final ZoneId DHAKA = ZoneId.of("Asia/Dhaka");
-
-	private static final Duration GAP = Duration.ofMinutes(5);
 
 	private static final UUID NO_HIDDEN_CATEGORY = new UUID(0L, 0L);
 
@@ -53,6 +53,9 @@ public class LiveExamService {
 
 	/** The shortest exam, in minutes. Set by the client rule that an exam is at least two minutes. */
 	private static final int MIN_DURATION_MINUTES = 2;
+
+	/** The largest negative mark per wrong answer that fits {@code NUMERIC(5,2)}. */
+	private static final BigDecimal MAX_NEGATIVE_MARKS = new BigDecimal("999.99");
 
 	private final LiveExamRepository exams;
 
@@ -88,13 +91,18 @@ public class LiveExamService {
 
 	private final LiveExamInstructorRepository instructors;
 
+	private final AdminProfileRepository adminProfiles;
+
+	private final LiveExamRevisionRepository revisions;
+
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
 			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
 			LiveExamAccess access, LiveExamCatalogVisibility visibility, LocalFileStorage files, ExamMailService examMail,
 			AfterCommit afterCommit, Clock clock, AuditRecorder audit,
 			LiveExamParticipantRepository participants, StudentNoticeWriter notices,
 			LiveExamMemberships memberships, LiveExamQuestionPaperRepository papers,
-			LiveExamInstructorRepository instructors) {
+			LiveExamInstructorRepository instructors, AdminProfileRepository adminProfiles,
+			LiveExamRevisionRepository revisions) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
@@ -112,111 +120,169 @@ public class LiveExamService {
 		this.memberships = memberships;
 		this.papers = papers;
 		this.instructors = instructors;
+		this.adminProfiles = adminProfiles;
+		this.revisions = revisions;
 	}
 
+	/**
+	 * A new draft exam. With a {@code moduleId} it is created inside that package: the category comes from the package,
+	 * the exam joins it, and it takes the package's default instructor. With none it is a standalone exam in the
+	 * {@code categoryId} of the body (R2).
+	 */
 	@Transactional
 	public ExamView create(UUID moduleId, JsonNode body) {
-		LiveExamModule module = requireModule(moduleId);
-		visibility.requireOpen(module.getCategoryId());
+		LiveExamModule module = moduleId == null ? null : requireModule(moduleId);
+		UUID categoryId = module != null ? module.getCategoryId() : readId(body, "categoryId");
+		visibility.requireOpen(categoryId);
 		String examType = requiredText(body, "examType");
 		if (!LiveExam.MCQ.equals(examType) && !LiveExam.WRITTEN.equals(examType)) {
 			throw validationFailed();
 		}
-		rejectMaximumOnMcq(examType, body);
 		LiveExam exam = new LiveExam();
-		exam.setModuleId(module.getId());
-		exam.setCategoryId(module.getCategoryId());
-		exam.setInstructorId(defaultInstructor(module.getId()));
+		exam.setCategoryId(categoryId);
+		if (module != null) {
+			exam.setModuleId(module.getId());
+			exam.setInstructorId(defaultInstructor(module.getId()));
+		}
 		exam.setMode(LiveExam.MODE_LIVE);
 		exam.setAnswersChangeable(true);
 		exam.setExamType(examType);
-		exam.setTitleEn(requiredText(body, "titleEn"));
-		exam.setTitleBn(requiredText(body, "titleBn"));
-		exam.setDescriptionEn(requiredText(body, "descriptionEn"));
-		exam.setDescriptionBn(requiredText(body, "descriptionBn"));
-		exam.setRulesEn(requiredText(body, "rulesEn"));
-		exam.setRulesBn(requiredText(body, "rulesBn"));
-		exam.setPaperLanguage(readPaperLanguage(body));
-		exam.setLiveAt(readOptionalInstant(body, "liveAt"));
-		exam.setDurationMinutes(readDuration(body));
-		exam.setEndsAt(windowEnd(exam));
-		ExamWindow.validate(exam.getMode(), exam.getLiveAt(), exam.getEndsAt(), exam.getDurationMinutes());
-		exam.setPassPercent(readPassPercent(body, false));
-		if (LiveExam.WRITTEN.equals(examType)) {
-			exam.setWrittenMaximum(readMaximum(body, false));
-		}
 		exam.setStatus(LiveExam.DRAFT);
 		exam.setFinallySaved(false);
-		if (body.has("price")) {
-			exam.setPrice(readPrice(body.get("price")));
-		}
+		applyEdit(exam, body, true);
 		LiveExam saved = exams.save(exam);
-		memberships.attach(module.getId(), saved.getId(), clock.instant());
+		if (module != null) {
+			memberships.attach(module.getId(), saved.getId(), clock.instant());
+		}
 		return view(saved, true);
 	}
 
 	@Transactional
 	public ExamView update(UUID id, JsonNode body) {
 		LiveExam exam = requireEditable(id);
-		boolean schedule = body.has("liveAt") || body.has("durationMinutes");
-		boolean scoring = body.has("passPercent")
-				|| (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum"));
-		boolean locked = exam.getLiveAt() != null && !clock.instant().isBefore(exam.getLiveAt());
-		if (body.has("paperLanguage") && !body.get("paperLanguage").isNull()) {
-			if (locked) {
-				throw lockedContent();
-			}
+		applyEdit(exam, body, false);
+		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			exam.setFinallySaved(false);
+		}
+		return view(exam, true);
+	}
+
+	/**
+	 * Applies the fields of a create or update body to {@code exam} and checks the result as a whole: the window against
+	 * the duration, and the price against the discount and the free flag. There is no lock (E27, E30): the schedule, the
+	 * scoring and the text can change at any time. {@code popular} is not read here; it has its own route.
+	 */
+	private void applyEdit(LiveExam exam, JsonNode body, boolean create) {
+		rejectMaximumOnMcq(exam.getExamType(), body);
+		applyText(exam, body, create);
+		if (create || (body.has("paperLanguage") && !body.get("paperLanguage").isNull())) {
 			exam.setPaperLanguage(readPaperLanguage(body));
 		}
-		if (locked && (schedule || scoring)) {
-			throw lockedContent();
+		if (body.has("mode") && !body.get("mode").isNull()) {
+			applyMode(exam, readMode(body), create);
 		}
-		rejectMaximumOnMcq(exam.getExamType(), body);
-		if (body.has("titleEn") && !body.get("titleEn").isNull()) {
-			exam.setTitleEn(requiredText(body, "titleEn"));
-		}
-		if (body.has("titleBn") && !body.get("titleBn").isNull()) {
-			exam.setTitleBn(requiredText(body, "titleBn"));
-		}
-		if (body.has("descriptionEn") && !body.get("descriptionEn").isNull()) {
-			exam.setDescriptionEn(requiredText(body, "descriptionEn"));
-		}
-		if (body.has("descriptionBn") && !body.get("descriptionBn").isNull()) {
-			exam.setDescriptionBn(requiredText(body, "descriptionBn"));
-		}
-		if (body.has("rulesEn") && !body.get("rulesEn").isNull()) {
-			exam.setRulesEn(requiredText(body, "rulesEn"));
-		}
-		if (body.has("rulesBn") && !body.get("rulesBn").isNull()) {
-			exam.setRulesBn(requiredText(body, "rulesBn"));
-		}
-		if (body.has("liveAt")) {
-			if (body.get("liveAt").isNull()) {
-				exam.setLiveAt(null);
-			}
-			else {
-				exam.setLiveAt(readInstant(body, "liveAt"));
-			}
-		}
-		if (body.has("durationMinutes") && !body.get("durationMinutes").isNull()) {
-			exam.setDurationMinutes(readDuration(body));
-		}
-		exam.setEndsAt(windowEnd(exam));
-		ExamWindow.validate(exam.getMode(), exam.getLiveAt(), exam.getEndsAt(), exam.getDurationMinutes());
-		if (body.has("passPercent")) {
-			exam.setPassPercent(readPassPercent(body, true));
+		applySchedule(exam, body, create);
+		if (create || body.has("passPercent")) {
+			exam.setPassPercent(readPassPercent(body, !create));
 		}
 		if (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum")) {
-			exam.setWrittenMaximum(readMaximum(body, true));
+			exam.setWrittenMaximum(readMaximum(body, !create));
 		}
 		if (body.has("price")) {
 			exam.setPrice(readPrice(body.get("price")));
 		}
-		if (!locked) {
-			exam.setStatus(LiveExam.DRAFT);
-			exam.setFinallySaved(false);
+		if (body.has("free")) {
+			exam.setFree(readBoolean(body, "free"));
 		}
-		return view(exam, true);
+		if (body.has("discountPercent")) {
+			exam.setDiscountPercent(readOptionalInt(body, "discountPercent"));
+		}
+		if (body.has("discountEndsAt")) {
+			exam.setDiscountEndsAt(readOptionalInstant(body, "discountEndsAt"));
+		}
+		if (body.has("accessDays")) {
+			Integer days = readOptionalInt(body, "accessDays");
+			if (days != null && days <= 0) {
+				throw validationFailed();
+			}
+			exam.setAccessDays(days);
+		}
+		ExamPricing.validate(exam.getPrice(), exam.isFree(), exam.getDiscountPercent(), exam.getDiscountEndsAt());
+		if (body.has("negativeMarks")) {
+			exam.setNegativeMarks(readNegativeMarks(body.get("negativeMarks")));
+		}
+		if (body.has("answersChangeable")) {
+			exam.setAnswersChangeable(readBoolean(body, "answersChangeable"));
+		}
+		if (body.has("previewEnabled")) {
+			exam.setPreviewEnabled(readBoolean(body, "previewEnabled"));
+		}
+	}
+
+	private static void applyText(LiveExam exam, JsonNode body, boolean create) {
+		for (String field : List.of("titleEn", "titleBn", "descriptionEn", "descriptionBn", "rulesEn", "rulesBn")) {
+			if (!create && (!body.has(field) || body.get(field).isNull())) {
+				continue;
+			}
+			String value = requiredText(body, field);
+			switch (field) {
+				case "titleEn" -> exam.setTitleEn(value);
+				case "titleBn" -> exam.setTitleBn(value);
+				case "descriptionEn" -> exam.setDescriptionEn(value);
+				case "descriptionBn" -> exam.setDescriptionBn(value);
+				case "rulesEn" -> exam.setRulesEn(value);
+				default -> exam.setRulesBn(value);
+			}
+		}
+	}
+
+	/** The mode can change only while the exam is a draft that nobody has started. */
+	private void applyMode(LiveExam exam, String mode, boolean create) {
+		if (mode.equals(exam.getMode())) {
+			return;
+		}
+		if (!create && (!LiveExam.DRAFT.equals(exam.getStatus()) || participants.existsByExamId(exam.getId()))) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+					List.of(new FieldErrorDetail("mode", "The mode can change only on a draft that nobody has started.")));
+		}
+		exam.setMode(mode);
+		if (LiveExam.MODE_PRACTICE.equals(mode)) {
+			exam.setLiveAt(null);
+			exam.setEndsAt(null);
+		}
+	}
+
+	/**
+	 * The window and the duration. A request that sets {@code liveAt} without {@code endAt} gets the window
+	 * {@code liveAt + duration}, which is what the current web sends. A duration change on a window that was exactly one
+	 * duration long moves the end with it, for the same reason.
+	 */
+	private void applySchedule(LiveExam exam, JsonNode body, boolean create) {
+		Instant previousStart = exam.getLiveAt();
+		Instant previousEnd = exam.getEndsAt();
+		int previousDuration = exam.getDurationMinutes();
+		boolean startSent = body.has("liveAt");
+		boolean endSent = body.has("endAt");
+		if (startSent) {
+			exam.setLiveAt(readOptionalInstant(body, "liveAt"));
+		}
+		if (endSent) {
+			exam.setEndsAt(readOptionalInstant(body, "endAt"));
+		}
+		if (create || (body.has("durationMinutes") && !body.get("durationMinutes").isNull())) {
+			exam.setDurationMinutes(readDuration(body));
+		}
+		if (!endSent && !LiveExam.MODE_PRACTICE.equals(exam.getMode())) {
+			boolean oneDurationLong = previousStart != null && previousEnd != null
+					&& previousEnd.equals(previousStart.plus(Duration.ofMinutes(previousDuration)));
+			if (exam.getLiveAt() == null) {
+				exam.setEndsAt(null);
+			}
+			else if (startSent || oneDurationLong || exam.getEndsAt() == null) {
+				exam.setEndsAt(windowEnd(exam));
+			}
+		}
+		ExamWindow.validate(exam.getMode(), exam.getLiveAt(), exam.getEndsAt(), exam.getDurationMinutes());
 	}
 
 	@Transactional
@@ -264,21 +330,38 @@ public class LiveExamService {
 	}
 
 	/**
-	 * A draft copy in the same module: texts, settings and content (MCQ questions with their options, or the question
-	 * PDF as a new stored file). The date and the price stay empty, so the copy is not scheduled or sold by accident.
+	 * A draft copy of the exam: texts, settings and content (MCQ questions with their options, or the question PDF as a
+	 * new stored file), in the same category and in every package the source is in. The dates, the price and the popular
+	 * flag stay empty, so the copy is not scheduled or sold by accident.
 	 */
 	@Transactional
-	public ExamView copy(UUID id) {
+	public ExamView copy(UUID id, UUID actorId) {
 		LiveExam source = require(id);
-		LiveExamModule module = requireModule(primaryModuleId(source));
-		visibility.requireOpen(module.getCategoryId());
+		visibility.requireOpen(source.getCategoryId());
+		List<UUID> packageIds = memberships.activeModuleIds(source.getId());
+		List<LiveExamModule> targets = new ArrayList<>();
+		for (UUID packageId : packageIds) {
+			if (!packageId.equals(packageIds.get(0))) {
+				modules.findByIdAndDeletedAtIsNull(packageId)
+					.filter(found -> !LiveExamModule.ARCHIVED.equals(found.getStatus()))
+					.ifPresent(targets::add);
+			}
+			else {
+				targets.add(requireModule(packageId));
+			}
+		}
 		LiveExam copy = new LiveExam();
-		copy.setModuleId(module.getId());
+		if (!targets.isEmpty()) {
+			copy.setModuleId(targets.get(0).getId());
+		}
 		copy.setCategoryId(source.getCategoryId());
 		copy.setInstructorId(source.getInstructorId());
 		copy.setMode(source.getMode());
 		copy.setAnswersChangeable(source.isAnswersChangeable());
 		copy.setNegativeMarks(source.getNegativeMarks());
+		copy.setPreviewEnabled(source.isPreviewEnabled());
+		copy.setFree(source.isFree());
+		copy.setAccessDays(source.getAccessDays());
 		copy.setExamType(source.getExamType());
 		String titleEn = source.getTitleEn() + " (copy)";
 		String titleBn = source.getTitleBn() + " (কপি)";
@@ -298,26 +381,32 @@ public class LiveExamService {
 		copy.setWrittenMaximum(source.getWrittenMaximum());
 		copy.setStatus(LiveExam.DRAFT);
 		copy.setFinallySaved(false);
-		if (source.getQuestionStoredFileName() != null) {
+		LiveExamQuestionPaper sourcePaper = source.getQuestionPaperId() == null ? null
+				: papers.findById(source.getQuestionPaperId()).orElse(null);
+		if (sourcePaper != null) {
 			byte[] bytes;
 			try {
-				bytes = java.nio.file.Files.readAllBytes(files.resolve(source.getQuestionStoredFileName()));
+				bytes = java.nio.file.Files.readAllBytes(files.resolve(sourcePaper.getStoredFileName()));
 			}
 			catch (IOException exception) {
 				throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 			}
-			LocalFileStorage.StoredFile stored = files.save(source.getQuestionOriginalFileName(),
-					source.getQuestionContentType(), new java.io.ByteArrayInputStream(bytes), bytes.length);
+			LocalFileStorage.StoredFile stored = files.save(sourcePaper.getOriginalFileName(), sourcePaper.getContentType(),
+					new java.io.ByteArrayInputStream(bytes), bytes.length);
+			files.commitReplacement(stored.storedFileName(), null);
 			copy.setQuestionStoredFileName(stored.storedFileName());
 			copy.setQuestionOriginalFileName(stored.originalFileName());
 			copy.setQuestionByteSize(stored.byteSize());
-			copy.setQuestionContentType(source.getQuestionContentType());
+			copy.setQuestionContentType(sourcePaper.getContentType());
 		}
 		LiveExam saved = exams.save(copy);
 		if (copy.getQuestionStoredFileName() != null) {
-			saved.setQuestionPaperId(papers.save(paperVersion(saved.getId(), 1, copy)).getId());
+			saved.setQuestionPaperId(papers.save(paperVersion(saved.getId(), 1, copy, actorId)).getId());
 		}
-		memberships.attach(module.getId(), saved.getId(), clock.instant());
+		Instant now = clock.instant();
+		for (LiveExamModule target : targets) {
+			memberships.attach(target.getId(), saved.getId(), now);
+		}
 		for (LiveExamQuestion sourceQuestion : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(source.getId())) {
 			LiveExamQuestion question = new LiveExamQuestion();
 			question.setExamId(saved.getId());
@@ -339,8 +428,12 @@ public class LiveExamService {
 		return view(saved, true);
 	}
 
+	/**
+	 * Stores the PDF as the next paper version. The earlier versions and their files stay: a student who sat one of them
+	 * and the evaluator who marks it still read that version (E29).
+	 */
 	@Transactional
-	public ExamView uploadQuestionPdf(UUID examId, MultipartFile file) {
+	public ExamView uploadQuestionPdf(UUID examId, MultipartFile file, UUID actorId) {
 		LiveExam exam = require(examId);
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam has a question PDF.");
@@ -359,16 +452,16 @@ public class LiveExamService {
 		if (bytes.length < 5 || bytes[0] != '%' || bytes[1] != 'P' || bytes[2] != 'D' || bytes[3] != 'F') {
 			throw validationFailed();
 		}
-		String previous = exam.getQuestionStoredFileName();
 		LocalFileStorage.StoredFile stored = files.save(file.getOriginalFilename(), "application/pdf",
 				new java.io.ByteArrayInputStream(bytes), bytes.length);
+		// No earlier file is replaced; the call only removes this one if the transaction rolls back.
+		files.commitReplacement(stored.storedFileName(), null);
 		exam.setQuestionStoredFileName(stored.storedFileName());
 		exam.setQuestionOriginalFileName(stored.originalFileName());
 		exam.setQuestionByteSize(stored.byteSize());
 		exam.setQuestionContentType("application/pdf");
-		files.commitReplacement(stored.storedFileName(), previous);
 		int version = papers.findTopByExamIdOrderByVersionDesc(exam.getId()).map(paper -> paper.getVersion() + 1).orElse(1);
-		exam.setQuestionPaperId(papers.save(paperVersion(exam.getId(), version, exam)).getId());
+		exam.setQuestionPaperId(papers.save(paperVersion(exam.getId(), version, exam, actorId)).getId());
 		return view(exam, true);
 	}
 
@@ -415,21 +508,18 @@ public class LiveExamService {
 			throw new ApiException(ErrorCode.WRITTEN_PAPER_REQUIRED, HttpStatus.CONFLICT,
 					"A written exam needs a maximum and a question PDF.");
 		}
-		if (exam.getLiveAt() != null) {
-			if (!clock.instant().isBefore(end(exam))) {
-				throw new ApiException(ErrorCode.EXAM_WINDOW_ENDED, HttpStatus.CONFLICT, "The exam window has already ended.");
-			}
-			rejectWindowConflict(exam);
-		}
-		UUID moduleId = primaryModuleId(exam);
-		visibility.requireOpen(requireModule(moduleId).getCategoryId());
+		// An ended window is fine: archived participants can still sit the exam (D20). Windows may overlap (D17).
+		visibility.requireOpen(exam.getCategoryId());
 		exam.setStatus(LiveExam.PUBLISHED);
 		if (exam.getPublishedAt() == null) {
 			exam.setPublishedAt(clock.instant());
 		}
 		UUID examId = exam.getId();
-		notices.published(examId, exams.findActiveStudentsWithAccess(moduleId, examId));
-		afterCommit.run(() -> examMail.onExamPublished(examId));
+		notices.published(examId, exams.findActiveStudentsWithAccessToExam(examId));
+		// The mail queue finds recipients through the exam's first package, so a standalone exam sends no mail yet.
+		if (memberships.primaryModuleId(examId).isPresent()) {
+			afterCommit.run(() -> examMail.onExamPublished(examId));
+		}
 		return view(exam, true);
 	}
 
@@ -453,9 +543,8 @@ public class LiveExamService {
 		if (!student) {
 			return page.map(exam -> view(exam, true));
 		}
-		Map<UUID, LiveExamParticipant> mine = participantsByExam(studentId,
-				page.getContent().stream().map(LiveExam::getId).toList());
-		return page.map(exam -> studentView(exam, mine.get(exam.getId())));
+		Map<UUID, Mine> mine = mineByExam(studentId, page.getContent().stream().map(LiveExam::getId).toList());
+		return page.map(exam -> studentView(exam, mine.get(exam.getId()), studentId));
 	}
 
 	@Transactional(readOnly = true)
@@ -484,9 +573,10 @@ public class LiveExamService {
 		int to = Math.min(from + size, open.size());
 		List<RoutineView> content = new ArrayList<>();
 		List<LiveExam> shown = open.subList(from, to);
-		Map<UUID, LiveExamParticipant> mine = participantsByExam(studentId, shown.stream().map(LiveExam::getId).toList());
+		Map<UUID, Mine> mine = mineByExam(studentId, shown.stream().map(LiveExam::getId).toList());
 		for (LiveExam exam : shown) {
-			content.add(routineView(exam, byId, LiveExamStudentStatus.of(exam, mine.get(exam.getId()), now)));
+			Mine own = mine.get(exam.getId());
+			content.add(routineView(exam, byId, LiveExamStudentStatus.of(exam, own == null ? null : own.latest(), now)));
 		}
 		return new PageImpl<>(content, PageRequest.of(page, size), open.size());
 	}
@@ -494,68 +584,62 @@ public class LiveExamService {
 	@Transactional(readOnly = true)
 	public ExamView get(UUID id, boolean staff, UUID studentId) {
 		LiveExam exam = require(id);
-		if (!staff && (!LiveExam.PUBLISHED.equals(exam.getStatus()) || !visibleModule(exam)
-				|| !access.hasExam(studentId, exam))) {
+		if (!staff && (!LiveExam.PUBLISHED.equals(exam.getStatus()) || !visibleToStudents(exam)
+				|| !access.state(studentId, exam, clock.instant()).granted())) {
 			throw notFound();
 		}
 		if (staff) {
 			return view(exam, true);
 		}
-		return studentView(exam, participantsByExam(studentId, List.of(exam.getId())).get(exam.getId()));
+		return studentView(exam, mineByExam(studentId, List.of(exam.getId())).get(exam.getId()), studentId);
 	}
 
-	private ExamView studentView(LiveExam exam, LiveExamParticipant participant) {
+	/** The published exam as one student sees it: their access, their attempts, and their status on the latest one. */
+	private ExamView studentView(LiveExam exam, Mine mine, UUID studentId) {
 		ExamView plain = view(exam, false);
-		LiveExamStudentStatus.Result status = LiveExamStudentStatus.of(exam, participant, clock.instant());
+		Instant now = clock.instant();
+		LiveExamStudentStatus.Result status = LiveExamStudentStatus.of(exam, mine == null ? null : mine.latest(), now);
+		AccessState state = access.state(studentId, exam, now);
+		AccessView accessView = new AccessView(state.granted(), state.source(),
+				state.endsAt() == null ? null : state.endsAt().toString(), state.expired());
 		return new ExamView(plain.id(), plain.moduleId(), plain.examType(), plain.paperLanguage(), plain.titleEn(),
 				plain.titleBn(), plain.descriptionEn(), plain.descriptionBn(), plain.rulesEn(), plain.rulesBn(),
 				plain.liveAt(), plain.endAt(), plain.durationMinutes(), plain.passPercent(), plain.maximum(),
 				plain.status(), plain.finallySaved(), plain.price(), plain.questionPdf(), plain.questions(),
-				status.status(), status.retakeAvailable(), null);
+				status.status(), status.retakeAvailable(), null, plain.mode(), plain.phase(), plain.categoryId(),
+				plain.packages(), null, plain.negativeMarks(), plain.answersChangeable(), plain.previewEnabled(),
+				plain.popular(), plain.accessDays(), plain.pricing(), null, accessView,
+				mine == null ? 0 : mine.attempts(), status.status());
 	}
 
-	private Map<UUID, LiveExamParticipant> participantsByExam(UUID studentId, List<UUID> examIds) {
-		Map<UUID, LiveExamParticipant> byExam = new HashMap<>();
+	/** One student's attempts at one exam: the latest, and how many there are. */
+	private record Mine(LiveExamParticipant latest, int attempts) {
+	}
+
+	private Map<UUID, Mine> mineByExam(UUID studentId, List<UUID> examIds) {
+		Map<UUID, Mine> byExam = new HashMap<>();
 		if (!examIds.isEmpty()) {
 			for (LiveExamParticipant participant : participants.findByStudentIdAndExamIdInAndDeletedAtIsNull(studentId,
 					examIds)) {
-				byExam.put(participant.getExamId(), participant);
+				Mine known = byExam.get(participant.getExamId());
+				if (known == null) {
+					byExam.put(participant.getExamId(), new Mine(participant, 1));
+				}
+				else {
+					LiveExamParticipant latest = participant.getAttemptNo() > known.latest().getAttemptNo() ? participant
+							: known.latest();
+					byExam.put(participant.getExamId(), new Mine(latest, known.attempts() + 1));
+				}
 			}
 		}
 		return byExam;
 	}
 
-	private void rejectWindowConflict(LiveExam exam) {
-		Instant start = exam.getLiveAt();
-		Instant end = end(exam);
-		for (LiveExam other : exams.findByModuleIdAndStatusAndDeletedAtIsNull(primaryModuleId(exam), LiveExam.PUBLISHED)) {
-			if (other.getId().equals(exam.getId()) || other.getLiveAt() == null) {
-				continue;
-			}
-			Instant otherStart = other.getLiveAt();
-			Instant otherEnd = end(other);
-			boolean thisFirst = !start.isAfter(otherStart);
-			Instant earlierEnd = thisFirst ? end : otherEnd;
-			Instant laterStart = thisFirst ? otherStart : start;
-			if (laterStart.isBefore(earlierEnd.plus(GAP))) {
-				throw new ApiException(ErrorCode.EXAM_WINDOW_CONFLICT, HttpStatus.CONFLICT,
-						"This window conflicts with " + other.getTitleEn() + " (" + format(other.getLiveAt()) + " to "
-								+ format(otherEnd) + ").",
-								new WindowClash(other.getId(), other.getTitleEn(), other.getTitleBn(), otherStart, otherEnd));
-			}
-		}
-	}
-
-	/** The exam that a new window clashes with, so the editor can name it and link to it. */
-	public record WindowClash(UUID id, String titleEn, String titleBn, Instant liveAt, Instant endAt) {
-	}
-
+	/** An unfinished exam is a draft: only a first save of a published one changes nothing, and a draft takes the edit. */
 	private void markDraft(LiveExam exam) {
-		if (exam.getLiveAt() != null && !clock.instant().isBefore(exam.getLiveAt())) {
-			throw lockedContent();
+		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			exam.setFinallySaved(false);
 		}
-		exam.setStatus(LiveExam.DRAFT);
-		exam.setFinallySaved(false);
 	}
 
 	private void applyQuestion(LiveExamQuestion question, JsonNode body, int position) {
@@ -619,12 +703,34 @@ public class LiveExamService {
 		if (staff) {
 			questionPdf = exam.getQuestionStoredFileName() != null;
 		}
-		return new ExamView(exam.getId(), memberships.primaryModuleId(exam.getId()).orElse(null), exam.getExamType(), exam.getPaperLanguage(),
-				exam.getTitleEn(), exam.getTitleBn(), exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(),
-				exam.getRulesBn(), format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(),
-				exam.getPassPercent(), maximum(exam), exam.getStatus(), exam.isFinallySaved(), exam.getPrice(),
-				questionPdf, questionViews, null, null,
-				staff && exam.getAnswersReleasedAt() != null ? exam.getAnswersReleasedAt().toString() : null);
+		Instant now = clock.instant();
+		return new ExamView(exam.getId(), memberships.primaryModuleId(exam.getId()).orElse(null), exam.getExamType(),
+				exam.getPaperLanguage(), exam.getTitleEn(), exam.getTitleBn(), exam.getDescriptionEn(),
+				exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(), format(exam.getLiveAt()),
+				format(end(exam)), exam.getDurationMinutes(), exam.getPassPercent(), maximum(exam), exam.getStatus(),
+				exam.isFinallySaved(), exam.getPrice(), questionPdf, questionViews, null, null,
+				staff && exam.getAnswersReleasedAt() != null ? exam.getAnswersReleasedAt().toString() : null,
+				exam.getMode(), ExamWindow.phase(exam, now), exam.getCategoryId(), packagesOf(exam.getId()),
+				staff ? instructorOf(exam) : null, exam.getNegativeMarks(), exam.isAnswersChangeable(),
+				exam.isPreviewEnabled(), exam.isPopular(), exam.getAccessDays(), ExamPricing.view(exam, now, false),
+				staff ? revisions.findByExamId(exam.getId()).isPresent() : null, null, null, null);
+	}
+
+	private List<PackageRef> packagesOf(UUID examId) {
+		List<PackageRef> refs = new ArrayList<>();
+		for (UUID moduleId : memberships.activeModuleIds(examId)) {
+			modules.findByIdAndDeletedAtIsNull(moduleId)
+				.ifPresent(module -> refs.add(new PackageRef(module.getId(), module.getTitleEn(), module.getTitleBn())));
+		}
+		return refs;
+	}
+
+	private InstructorRef instructorOf(LiveExam exam) {
+		if (exam.getInstructorId() == null) {
+			return null;
+		}
+		String name = adminProfiles.findById(exam.getInstructorId()).map(profile -> profile.getFullName()).orElse(null);
+		return new InstructorRef(exam.getInstructorId(), name);
 	}
 
 	private List<QuestionView> loadQuestions(UUID examId) {
@@ -649,7 +755,7 @@ public class LiveExamService {
 			optionViews.add(new OptionView(option.getId(), option.getOptionText(), option.isCorrect(), option.getPosition()));
 		}
 		return new QuestionView(question.getId(), question.getStem(), question.getMarks(), question.getExplanation(),
-				question.getPosition(), optionViews);
+				question.getPosition(), optionViews, question.isMultipleAnswer());
 	}
 
 	private int maximum(LiveExam exam) {
@@ -665,11 +771,13 @@ public class LiveExamService {
 
 	private RoutineView routineView(LiveExam exam, Map<UUID, LiveExamCategory> categoriesById,
 			LiveExamStudentStatus.Result status) {
-		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(primaryModuleId(exam)).orElseThrow(this::notFound);
-		return new RoutineView(exam.getId(), module.getId(), exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
-				module.getTitleEn(), module.getTitleBn(), categoryPath(module.getCategoryId(), categoriesById),
-				format(exam.getLiveAt()), format(end(exam)), exam.getDurationMinutes(), status.status(),
-				status.retakeAvailable());
+		// The package is shown for display only: the one the exam joined first, or none for a standalone exam.
+		LiveExamModule module = memberships.primaryModuleId(exam.getId()).flatMap(modules::findByIdAndDeletedAtIsNull)
+			.orElse(null);
+		return new RoutineView(exam.getId(), module == null ? null : module.getId(), exam.getExamType(), exam.getTitleEn(),
+				exam.getTitleBn(), module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(),
+				categoryPath(exam.getCategoryId(), categoriesById), format(exam.getLiveAt()), format(end(exam)),
+				exam.getDurationMinutes(), status.status(), status.retakeAvailable());
 	}
 
 	private static List<CategoryName> categoryPath(UUID categoryId, Map<UUID, LiveExamCategory> categoriesById) {
@@ -701,17 +809,12 @@ public class LiveExamService {
 		return exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes()));
 	}
 
-	/** The exam's package for access and listing: its first active membership. Throws when it is in none. */
-	private UUID primaryModuleId(LiveExam exam) {
-		return memberships.primaryModuleId(exam.getId()).orElseThrow(this::notFound);
-	}
-
 	private UUID defaultInstructor(UUID moduleId) {
 		return instructors.findById(moduleId).map(LiveExamInstructor::getInstructorId).orElse(null);
 	}
 
-	/** A paper version for the exam's current question PDF. The uploader is not known here, so the version has no author. */
-	private LiveExamQuestionPaper paperVersion(UUID examId, int version, LiveExam exam) {
+	/** A paper version for the exam's current question PDF, written by {@code actorId}. */
+	private LiveExamQuestionPaper paperVersion(UUID examId, int version, LiveExam exam, UUID actorId) {
 		LiveExamQuestionPaper paper = new LiveExamQuestionPaper();
 		paper.setExamId(examId);
 		paper.setVersion(version);
@@ -720,6 +823,7 @@ public class LiveExamService {
 		paper.setByteSize(exam.getQuestionByteSize());
 		paper.setContentType(exam.getQuestionContentType());
 		paper.setCreatedAt(clock.instant());
+		paper.setCreatedBy(actorId);
 		return paper;
 	}
 
@@ -730,11 +834,9 @@ public class LiveExamService {
 		return DHAKA_TIME.format(instant.atZone(DHAKA));
 	}
 
-	private boolean visibleModule(LiveExam exam) {
-		return memberships.primaryModuleId(exam.getId()).flatMap(modules::findByIdAndDeletedAtIsNull)
-			.filter(module -> LiveExamModule.PUBLISHED.equals(module.getStatus()))
-			.filter(module -> !visibility.branchHidden(module.getCategoryId()))
-			.isPresent();
+	/** Students see a published exam whose home category branch is open. A package never hides an exam (contracts section 8). */
+	private boolean visibleToStudents(LiveExam exam) {
+		return !visibility.branchHidden(exam.getCategoryId());
 	}
 
 	private LiveExam requireMcq(UUID examId) {
@@ -868,6 +970,69 @@ public class LiveExamService {
 		return price.setScale(2, RoundingMode.UNNECESSARY);
 	}
 
+	/** Zero or more marks taken off a wrong answer, to two decimals. Null (or zero) means no negative marking. */
+	private static BigDecimal readNegativeMarks(JsonNode node) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		BigDecimal value;
+		if (node.isNumber()) {
+			value = node.decimalValue();
+		}
+		else {
+			try {
+				value = new BigDecimal(node.asText().trim());
+			}
+			catch (NumberFormatException exception) {
+				throw validationFailed();
+			}
+		}
+		if (value.signum() < 0 || value.compareTo(MAX_NEGATIVE_MARKS) > 0 || value.stripTrailingZeros().scale() > 2) {
+			throw validationFailed();
+		}
+		return value.setScale(2, RoundingMode.UNNECESSARY);
+	}
+
+	private static boolean readBoolean(JsonNode body, String field) {
+		JsonNode node = body.get(field);
+		if (node == null || !node.isBoolean()) {
+			throw validationFailed();
+		}
+		return node.booleanValue();
+	}
+
+	private static Integer readOptionalInt(JsonNode body, String field) {
+		JsonNode node = body.get(field);
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		if (!node.isIntegralNumber()) {
+			throw validationFailed();
+		}
+		return node.intValue();
+	}
+
+	private static String readMode(JsonNode body) {
+		String mode = requiredText(body, "mode");
+		if (!LiveExam.MODE_LIVE.equals(mode) && !LiveExam.MODE_PRACTICE.equals(mode)) {
+			throw validationFailed();
+		}
+		return mode;
+	}
+
+	private static UUID readId(JsonNode body, String field) {
+		JsonNode node = body == null ? null : body.get(field);
+		if (node == null || node.isNull()) {
+			throw validationFailed();
+		}
+		try {
+			return UUID.fromString(node.asText().trim());
+		}
+		catch (IllegalArgumentException exception) {
+			throw validationFailed();
+		}
+	}
+
 	private static int readMarks(JsonNode body) {
 		JsonNode node = body.get("marks");
 		if (node == null || !node.isIntegralNumber() || node.intValue() <= 0) {
@@ -892,11 +1057,6 @@ public class LiveExamService {
 		return node.asText().trim();
 	}
 
-	private static ApiException lockedContent() {
-		return new ApiException(ErrorCode.CONTENT_LOCKED, HttpStatus.CONFLICT,
-				"The question paper and the schedule are locked.");
-	}
-
 	private static ApiException validationFailed() {
 		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 	}
@@ -913,14 +1073,33 @@ public class LiveExamService {
 	public record CategoryName(UUID id, String titleEn, String titleBn) {
 	}
 
+	public record PackageRef(UUID id, String titleEn, String titleBn) {
+	}
+
+	public record InstructorRef(UUID id, String name) {
+	}
+
+	/**
+	 * The exam as staff or a student reads it. {@code moduleId} is the first package the exam joined, for display; it is
+	 * null for a standalone exam. {@code pendingChanges}, {@code instructor} are staff only; {@code access},
+	 * {@code attempts} and {@code myStatusDetail} are student only.
+	 */
 	public record ExamView(UUID id, UUID moduleId, String examType, String paperLanguage, String titleEn, String titleBn,
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt, String endAt,
 			int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved, BigDecimal price,
 			Boolean questionPdf, List<QuestionView> questions, String myStatus,
-			Boolean retakeAvailable, String answersReleasedAt) {
+			Boolean retakeAvailable, String answersReleasedAt, String mode, String phase, UUID categoryId,
+			List<PackageRef> packages, InstructorRef instructor, BigDecimal negativeMarks, boolean answersChangeable,
+			boolean previewEnabled, boolean popular, Integer accessDays, PriceView pricing, Boolean pendingChanges,
+			AccessView access, Integer attempts, String myStatusDetail) {
 	}
 
-	public record QuestionView(UUID id, String stem, int marks, String explanation, int position, List<OptionView> options) {
+	/** A student's access to one exam. {@code endsAt} is an ISO-8601 instant, null when access never ends. */
+	public record AccessView(boolean granted, String source, String endsAt, boolean expired) {
+	}
+
+	public record QuestionView(UUID id, String stem, int marks, String explanation, int position, List<OptionView> options,
+			boolean multipleAnswer) {
 	}
 
 	public record OptionView(UUID id, String text, boolean correct, int position) {
