@@ -14,7 +14,6 @@ import java.util.UUID;
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -155,7 +154,6 @@ class PackageMembershipIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 	}
 
-	@Disabled("needs A: visibility by home category, re-enable after A merges")
 	@Test
 	void aStudentWhoHeldThePackageBeforeARemovalKeepsTheExamAndALaterHolderDoesNot() throws Exception {
 		String system = fx.token(fx.seed("SYSTEM_ADMIN"));

@@ -195,8 +195,9 @@ public class LiveExamPublicService {
 	}
 
 	/**
-	 * The exams of one package, in membership order (NR-01, B2). Only exams whose home branch is visible are listed, and a
-	 * package shows only its own members.
+	 * The exams of one package, soonest first with undated exams last, and in membership order among equal dates (NR-01,
+	 * B2). This list is the routine, so the date decides the order. Only exams whose home branch is visible are listed, and
+	 * a package shows only its own members.
 	 */
 	@Transactional(readOnly = true)
 	public Page<PublicExam> exams(UUID moduleId, String examType, boolean popularOnly, Pageable pageable,
@@ -217,6 +218,8 @@ public class LiveExamPublicService {
 				visible.add(exam);
 			}
 		}
+		// The sort is stable, so equal dates keep the membership order they were collected in.
+		visible.sort(Comparator.comparing(LiveExam::getLiveAt, Comparator.nullsLast(Comparator.naturalOrder())));
 		Page<LiveExam> slice = page(visible, pageable);
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
 				slice.getContent().stream().map(LiveExam::getId).toList(), hidden);

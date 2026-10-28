@@ -224,19 +224,22 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 			.content("{\"paperLanguage\":\"EN\"}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.paperLanguage").value("EN"))
-			.andExpect(jsonPath("$.status").value("DRAFT"))
-			.andExpect(jsonPath("$.finallySaved").value(false));
-		mockMvc.perform(get("/api/v1/public/live-exams/" + future)).andExpect(status().isNotFound());
+			.andExpect(jsonPath("$.status").value("PUBLISHED"))
+			.andExpect(jsonPath("$.pendingChanges").value(true));
+		// NR-01 E31: the edit is staged. Students keep the published paper language until the Master Admin publishes.
+		mockMvc.perform(get("/api/v1/public/live-exams/" + future))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.paperLanguage").value("BN"));
 
+		// NR-01 E27: no edit lock, so a draft whose window already started can still be edited.
 		UUID past = createBareExam(staff, module, "BN", "2020-01-01T10:00:00+06:00");
 		mockMvc.perform(patch("/api/v1/live-exams/" + past).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"paperLanguage\":\"EN\"}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("CONTENT_LOCKED"));
+			.andExpect(status().isOk());
 		mockMvc.perform(get("/api/v1/live-exams/" + past).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.paperLanguage").value("BN"));
+			.andExpect(jsonPath("$.paperLanguage").value("EN"));
 	}
 
 	@Test

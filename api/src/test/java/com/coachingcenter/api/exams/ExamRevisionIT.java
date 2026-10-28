@@ -427,7 +427,6 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 
 	/** Packages stage their own revisions (B's package revision). Enabled once B's package staging is on the integration branch. */
 	@Test
-	@org.junit.jupiter.api.Disabled("needs B")
 	void aStagedPackageAppearsOnTheChangesWaitingBadge() throws Exception {
 		String staff = fx.staff();
 		UUID module = fx.module(staff, "Badge package");
