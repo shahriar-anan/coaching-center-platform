@@ -93,7 +93,7 @@ public class LiveExamService {
 
 	private final AdminProfileRepository adminProfiles;
 
-	private final LiveExamRevisionRepository revisions;
+	private final LiveExamRevisionService staging;
 
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
 			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
@@ -102,7 +102,7 @@ public class LiveExamService {
 			LiveExamParticipantRepository participants, StudentNoticeWriter notices,
 			LiveExamMemberships memberships, LiveExamQuestionPaperRepository papers,
 			LiveExamInstructorRepository instructors, AdminProfileRepository adminProfiles,
-			LiveExamRevisionRepository revisions) {
+			LiveExamRevisionService staging) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
@@ -121,7 +121,7 @@ public class LiveExamService {
 		this.papers = papers;
 		this.instructors = instructors;
 		this.adminProfiles = adminProfiles;
-		this.revisions = revisions;
+		this.staging = staging;
 	}
 
 	/**
@@ -157,13 +157,23 @@ public class LiveExamService {
 		return view(saved, true);
 	}
 
+	/**
+	 * Edits an exam's settings. A published exam takes the edit as a staged revision (E31): the rows and the students' view
+	 * stay as they are until the Master Admin publishes. A draft takes the edit directly.
+	 */
 	@Transactional
-	public ExamView update(UUID id, JsonNode body) {
+	public ExamView update(UUID id, JsonNode body, UUID actorId) {
 		LiveExam exam = requireEditable(id);
-		applyEdit(exam, body, false);
-		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
-			exam.setFinallySaved(false);
+		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			ExamState working = staging.working(exam);
+			LiveExam probe = settingsOf(exam, working);
+			applyEdit(probe, body, false);
+			working.readSettingsFrom(probe);
+			staging.stage(exam, working, actorId);
+			return view(exam, true);
 		}
+		applyEdit(exam, body, false);
+		exam.setFinallySaved(false);
 		return view(exam, true);
 	}
 
@@ -286,9 +296,12 @@ public class LiveExamService {
 	}
 
 	@Transactional
-	public QuestionView addQuestion(UUID examId, JsonNode body) {
+	public QuestionView addQuestion(UUID examId, JsonNode body, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
 		requireStructureOpen(exam.getId());
+		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			return stagedAddQuestion(exam, body, actorId);
+		}
 		markDraft(exam);
 		LiveExamQuestion question = new LiveExamQuestion();
 		question.setExamId(exam.getId());
@@ -300,8 +313,11 @@ public class LiveExamService {
 	}
 
 	@Transactional
-	public QuestionView updateQuestion(UUID examId, UUID questionId, JsonNode body) {
+	public QuestionView updateQuestion(UUID examId, UUID questionId, JsonNode body, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
+		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			return stagedUpdateQuestion(exam, questionId, body, actorId);
+		}
 		markDraft(exam);
 		LiveExamQuestion question = questions.findByIdAndExamIdAndDeletedAtIsNull(questionId, examId)
 			.orElseThrow(this::notFound);
@@ -316,9 +332,13 @@ public class LiveExamService {
 	}
 
 	@Transactional
-	public void deleteQuestion(UUID examId, UUID questionId) {
+	public void deleteQuestion(UUID examId, UUID questionId, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
 		requireStructureOpen(exam.getId());
+		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			stagedDeleteQuestion(exam, questionId, actorId);
+			return;
+		}
 		markDraft(exam);
 		LiveExamQuestion question = questions.findByIdAndExamIdAndDeletedAtIsNull(questionId, examId)
 			.orElseThrow(this::notFound);
@@ -337,14 +357,15 @@ public class LiveExamService {
 	}
 
 	/**
-	 * A draft copy of the exam: texts, settings and content (MCQ questions with their options, or the question PDF as a
-	 * new stored file), in the same category and in every package the source is in. The dates, the price and the popular
-	 * flag stay empty, so the copy is not scheduled or sold by accident.
+	 * A draft copy of the exam, taken from its working copy: the staged revision when one waits, else the published rows. It
+	 * carries the texts, settings and questions, in the same category and in every package the source is in. The dates, the
+	 * price, the discount and the popular flag stay empty, so the copy is not scheduled or sold by accident.
 	 */
 	@Transactional
 	public ExamView copy(UUID id, UUID actorId) {
 		LiveExam source = require(id);
 		visibility.requireOpen(source.getCategoryId());
+		ExamState working = staging.working(source);
 		List<UUID> packageIds = memberships.activeModuleIds(source.getId());
 		List<LiveExamModule> targets = new ArrayList<>();
 		for (UUID packageId : packageIds) {
@@ -363,33 +384,33 @@ public class LiveExamService {
 		}
 		copy.setCategoryId(source.getCategoryId());
 		copy.setInstructorId(source.getInstructorId());
-		copy.setMode(source.getMode());
-		copy.setAnswersChangeable(source.isAnswersChangeable());
-		copy.setNegativeMarks(source.getNegativeMarks());
-		copy.setPreviewEnabled(source.isPreviewEnabled());
-		copy.setFree(source.isFree());
-		copy.setAccessDays(source.getAccessDays());
+		copy.setMode(working.mode);
+		copy.setAnswersChangeable(working.answersChangeable);
+		copy.setNegativeMarks(working.negativeMarks);
+		copy.setPreviewEnabled(working.previewEnabled);
+		copy.setFree(working.free);
+		copy.setAccessDays(working.accessDays);
 		copy.setExamType(source.getExamType());
-		String titleEn = source.getTitleEn() + " (copy)";
-		String titleBn = source.getTitleBn() + " (কপি)";
+		String titleEn = working.titleEn + " (copy)";
+		String titleBn = working.titleBn + " (কপি)";
 		if (titleEn.length() > MAX_TITLE_LENGTH || titleBn.length() > MAX_TITLE_LENGTH) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
 					"The title is too long to copy. Shorten the title to fit 500 characters with the copy suffix, then copy again.");
 		}
 		copy.setTitleEn(titleEn);
 		copy.setTitleBn(titleBn);
-		copy.setDescriptionEn(source.getDescriptionEn());
-		copy.setDescriptionBn(source.getDescriptionBn());
-		copy.setRulesEn(source.getRulesEn());
-		copy.setRulesBn(source.getRulesBn());
-		copy.setPaperLanguage(source.getPaperLanguage());
-		copy.setDurationMinutes(source.getDurationMinutes());
-		copy.setPassPercent(source.getPassPercent());
-		copy.setWrittenMaximum(source.getWrittenMaximum());
+		copy.setDescriptionEn(working.descriptionEn);
+		copy.setDescriptionBn(working.descriptionBn);
+		copy.setRulesEn(working.rulesEn);
+		copy.setRulesBn(working.rulesBn);
+		copy.setPaperLanguage(working.paperLanguage);
+		copy.setDurationMinutes(working.durationMinutes);
+		copy.setPassPercent(working.passPercent);
+		copy.setWrittenMaximum(working.writtenMaximum);
 		copy.setStatus(LiveExam.DRAFT);
 		copy.setFinallySaved(false);
-		LiveExamQuestionPaper sourcePaper = source.getQuestionPaperId() == null ? null
-				: papers.findById(source.getQuestionPaperId()).orElse(null);
+		LiveExamQuestionPaper sourcePaper = working.paperId == null ? null
+				: papers.findById(working.paperId).orElse(null);
 		if (sourcePaper != null) {
 			byte[] bytes;
 			try {
@@ -414,21 +435,21 @@ public class LiveExamService {
 		for (LiveExamModule target : targets) {
 			memberships.attach(target.getId(), saved.getId(), now);
 		}
-		for (LiveExamQuestion sourceQuestion : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(source.getId())) {
+		for (ExamState.QuestionState sourceQuestion : working.questions) {
 			LiveExamQuestion question = new LiveExamQuestion();
 			question.setExamId(saved.getId());
-			question.setStem(sourceQuestion.getStem());
-			question.setMarks(sourceQuestion.getMarks());
-			question.setExplanation(sourceQuestion.getExplanation());
-			question.setPosition(sourceQuestion.getPosition());
-			question.setMultipleAnswer(sourceQuestion.isMultipleAnswer());
+			question.setStem(sourceQuestion.stem);
+			question.setMarks(sourceQuestion.marks);
+			question.setExplanation(sourceQuestion.explanation);
+			question.setPosition(sourceQuestion.position);
+			question.setMultipleAnswer(sourceQuestion.multipleAnswer);
 			LiveExamQuestion savedQuestion = questions.save(question);
-			for (LiveExamOption sourceOption : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(sourceQuestion.getId())) {
+			for (ExamState.OptionState sourceOption : sourceQuestion.options) {
 				LiveExamOption option = new LiveExamOption();
 				option.setQuestionId(savedQuestion.getId());
-				option.setOptionText(sourceOption.getOptionText());
-				option.setCorrect(sourceOption.isCorrect());
-				option.setPosition(sourceOption.getPosition());
+				option.setOptionText(sourceOption.text);
+				option.setCorrect(sourceOption.correct);
+				option.setPosition(sourceOption.position);
 				options.save(option);
 			}
 		}
@@ -463,6 +484,19 @@ public class LiveExamService {
 				new java.io.ByteArrayInputStream(bytes), bytes.length);
 		// No earlier file is replaced; the call only removes this one if the transaction rolls back.
 		files.commitReplacement(stored.storedFileName(), null);
+		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			// The new version waits in the revision; students keep the published paper until the publish (E29).
+			LiveExam probe = new LiveExam();
+			probe.setQuestionStoredFileName(stored.storedFileName());
+			probe.setQuestionOriginalFileName(stored.originalFileName());
+			probe.setQuestionByteSize(stored.byteSize());
+			probe.setQuestionContentType("application/pdf");
+			int version = papers.findTopByExamIdOrderByVersionDesc(exam.getId()).map(paper -> paper.getVersion() + 1).orElse(1);
+			ExamState working = staging.working(exam);
+			working.paperId = papers.save(paperVersion(exam.getId(), version, probe, actorId)).getId();
+			staging.stage(exam, working, actorId);
+			return view(exam, true);
+		}
 		exam.setQuestionStoredFileName(stored.storedFileName());
 		exam.setQuestionOriginalFileName(stored.originalFileName());
 		exam.setQuestionByteSize(stored.byteSize());
@@ -490,9 +524,31 @@ public class LiveExamService {
 		return view(exam, true);
 	}
 
+	/** Publishes without a revision id: the compatibility path (contracts section 7, item 4). */
 	@Transactional
 	public ExamView publish(UUID id) {
-		LiveExam exam = requireEditable(id);
+		return publish(id, null, null);
+	}
+
+	/**
+	 * Publishes an exam. A published exam with a waiting revision publishes the revision (E31); the row lock is taken first, so
+	 * a sitting cannot start or post halfway through. Without a revision, a published exam is published again as before
+	 * (compatibility rule 4). {@code revisionId} must name the waiting revision when one is sent.
+	 */
+	@Transactional
+	public ExamView publish(UUID id, String revisionId, UUID actorId) {
+		LiveExam exam = exams.lockById(id).orElseThrow(this::notFound);
+		if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
+			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT, "An archived exam cannot be changed.");
+		}
+		if (LiveExam.PUBLISHED.equals(exam.getStatus()) && staging.hasRevision(exam.getId())) {
+			staging.publish(exam, revisionId, actorId);
+			return view(exam, true);
+		}
+		if (revisionId != null) {
+			throw new ApiException(ErrorCode.PENDING_CHANGES_STALE, HttpStatus.CONFLICT,
+					"There are no staged changes to publish. Read the exam again.");
+		}
 		if (!exam.isFinallySaved()) {
 			throw new ApiException(ErrorCode.FINAL_SAVE_REQUIRED, HttpStatus.CONFLICT, "Publish requires a final save.");
 		}
@@ -736,6 +792,104 @@ public class LiveExamService {
 				&& node.size() != options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId).size();
 	}
 
+	/** A question added to a published exam: it goes into the staged revision, with ids the publish will give rows. */
+	private QuestionView stagedAddQuestion(LiveExam exam, JsonNode body, UUID actorId) {
+		QuestionInput input = QuestionInput.parse(body);
+		boolean multiple = input.multiple(false);
+		input.requireKey(multiple);
+		ExamState working = staging.working(exam);
+		ExamState.QuestionState question = new ExamState.QuestionState();
+		question.id = UUID.randomUUID();
+		question.position = input.position() != null ? input.position() : nextStagedPosition(working);
+		applyInput(question, input, multiple);
+		working.questions.add(question);
+		staging.stage(exam, working, actorId);
+		return stagedQuestionView(question);
+	}
+
+	/** A question edit on a published exam: the option count is locked after a start, as for a draft (R16). */
+	private QuestionView stagedUpdateQuestion(LiveExam exam, UUID questionId, JsonNode body, UUID actorId) {
+		ExamState working = staging.working(exam);
+		ExamState.QuestionState question = working.question(questionId);
+		if (question == null) {
+			throw notFound();
+		}
+		QuestionInput input = QuestionInput.parse(body);
+		boolean multiple = input.multiple(question.multipleAnswer);
+		input.requireKey(multiple);
+		if (input.options().size() != question.options.size()) {
+			requireStructureOpen(exam.getId());
+		}
+		if (input.position() != null) {
+			question.position = input.position();
+		}
+		applyInput(question, input, multiple);
+		staging.stage(exam, working, actorId);
+		return stagedQuestionView(question);
+	}
+
+	private void stagedDeleteQuestion(LiveExam exam, UUID questionId, UUID actorId) {
+		ExamState working = staging.working(exam);
+		if (working.question(questionId) == null) {
+			throw notFound();
+		}
+		working.questions.removeIf(question -> questionId.equals(question.id));
+		working.questions.sort(java.util.Comparator.comparingInt(question -> question.position));
+		int position = 0;
+		for (ExamState.QuestionState question : working.questions) {
+			question.position = position++;
+		}
+		staging.stage(exam, working, actorId);
+	}
+
+	/**
+	 * Writes a question's wording, marks, key and explanation into the staged state. The option count decides the ids: the
+	 * same count keeps every option id (so an answer still points at it); a new count gets fresh ids.
+	 */
+	private static void applyInput(ExamState.QuestionState question, QuestionInput input, boolean multiple) {
+		question.stem = input.stem();
+		question.marks = input.marks();
+		if (input.explanationSent()) {
+			question.explanation = input.explanation();
+		}
+		question.multipleAnswer = multiple;
+		if (question.options.size() == input.options().size()) {
+			for (int index = 0; index < input.options().size(); index++) {
+				ExamState.OptionState option = question.options.get(index);
+				option.text = input.options().get(index).text();
+				option.correct = input.options().get(index).correct();
+				option.position = index;
+			}
+			return;
+		}
+		question.options = new ArrayList<>();
+		for (int index = 0; index < input.options().size(); index++) {
+			ExamState.OptionState option = new ExamState.OptionState();
+			option.id = UUID.randomUUID();
+			option.text = input.options().get(index).text();
+			option.correct = input.options().get(index).correct();
+			option.position = index;
+			question.options.add(option);
+		}
+	}
+
+	private static int nextStagedPosition(ExamState working) {
+		int max = -1;
+		for (ExamState.QuestionState question : working.questions) {
+			max = Math.max(max, question.position);
+		}
+		return max + 1;
+	}
+
+	private static QuestionView stagedQuestionView(ExamState.QuestionState question) {
+		List<OptionView> optionViews = new ArrayList<>();
+		for (ExamState.OptionState option : question.options) {
+			optionViews.add(new OptionView(option.id, option.text, option.correct, option.position));
+		}
+		return new QuestionView(question.id, question.stem, question.marks, question.explanation, question.position,
+				optionViews, question.multipleAnswer);
+	}
+
 	private int nextQuestionPosition(UUID examId) {
 		int max = -1;
 		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId)) {
@@ -744,26 +898,69 @@ public class LiveExamService {
 		return max + 1;
 	}
 
+	/**
+	 * The exam as staff or a public reader sees it. Staff see the working copy: the staged revision applied to the published
+	 * rows, when one is waiting (E31). Students and the public never see a revision.
+	 */
 	private ExamView view(LiveExam exam, boolean staff) {
+		ExamState working = staff ? staging.staged(exam).orElse(null) : null;
+		LiveExam shown = working == null ? exam : settingsOf(exam, working);
 		List<QuestionView> questionViews = null;
 		if (staff && LiveExam.MCQ.equals(exam.getExamType())) {
-			questionViews = loadQuestions(exam.getId());
+			questionViews = working == null ? loadQuestions(exam.getId()) : stagedQuestionViews(working);
 		}
 		Boolean questionPdf = null;
 		if (staff) {
-			questionPdf = exam.getQuestionStoredFileName() != null;
+			questionPdf = working == null ? exam.getQuestionStoredFileName() != null : working.paperId != null;
 		}
+		int maximum = working == null ? maximum(exam) : stagedMaximum(exam, working);
 		Instant now = clock.instant();
-		return new ExamView(exam.getId(), memberships.primaryModuleId(exam.getId()).orElse(null), exam.getExamType(),
-				exam.getPaperLanguage(), exam.getTitleEn(), exam.getTitleBn(), exam.getDescriptionEn(),
-				exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(), format(exam.getLiveAt()),
-				format(end(exam)), exam.getDurationMinutes(), exam.getPassPercent(), maximum(exam), exam.getStatus(),
-				exam.isFinallySaved(), exam.getPrice(), questionPdf, questionViews, null, null,
+		return new ExamView(exam.getId(), memberships.primaryModuleId(exam.getId()).orElse(null), shown.getExamType(),
+				shown.getPaperLanguage(), shown.getTitleEn(), shown.getTitleBn(), shown.getDescriptionEn(),
+				shown.getDescriptionBn(), shown.getRulesEn(), shown.getRulesBn(), format(shown.getLiveAt()),
+				format(end(shown)), shown.getDurationMinutes(), shown.getPassPercent(), maximum, exam.getStatus(),
+				exam.isFinallySaved(), shown.getPrice(), questionPdf, questionViews, null, null,
 				staff && exam.getAnswersReleasedAt() != null ? exam.getAnswersReleasedAt().toString() : null,
-				exam.getMode(), ExamWindow.phase(exam, now), exam.getCategoryId(), packagesOf(exam.getId()),
-				staff ? instructorOf(exam) : null, exam.getNegativeMarks(), exam.isAnswersChangeable(),
-				exam.isPreviewEnabled(), exam.isPopular(), exam.getAccessDays(), ExamPricing.view(exam, now, false),
-				staff ? revisions.findByExamId(exam.getId()).isPresent() : null, null, null, null);
+				shown.getMode(), ExamWindow.phase(shown, now), shown.getCategoryId(), packagesOf(exam.getId()),
+				staff ? instructorOf(shown) : null, shown.getNegativeMarks(), shown.isAnswersChangeable(),
+				shown.isPreviewEnabled(), exam.isPopular(), shown.getAccessDays(), ExamPricing.view(shown, now, false),
+				staff ? working != null : null, null, null, null);
+	}
+
+	/**
+	 * A transient copy of the row that carries the staged settings, for reads only. It is never saved: the row keeps its id
+	 * and status, and the settings come from the revision.
+	 */
+	private static LiveExam settingsOf(LiveExam row, ExamState working) {
+		LiveExam shown = new LiveExam();
+		shown.setExamType(row.getExamType());
+		shown.setStatus(row.getStatus());
+		shown.setCategoryId(row.getCategoryId());
+		shown.setInstructorId(row.getInstructorId());
+		shown.setPopular(row.isPopular());
+		working.applySettingsTo(shown);
+		return shown;
+	}
+
+	private List<QuestionView> stagedQuestionViews(ExamState working) {
+		List<QuestionView> views = new ArrayList<>();
+		for (ExamState.QuestionState question : working.questions) {
+			List<OptionView> optionViews = new ArrayList<>();
+			for (ExamState.OptionState option : question.options) {
+				optionViews.add(new OptionView(option.id, option.text, option.correct, option.position));
+			}
+			views.add(new QuestionView(question.id, question.stem, question.marks, question.explanation, question.position,
+					optionViews, question.multipleAnswer));
+		}
+		return views;
+	}
+
+	/** The maximum of the working copy: the written maximum for a written exam, else the sum of the question marks. */
+	private static int stagedMaximum(LiveExam row, ExamState working) {
+		if (LiveExam.WRITTEN.equals(row.getExamType())) {
+			return working.writtenMaximum == null ? 0 : working.writtenMaximum;
+		}
+		return working.questions.stream().mapToInt(question -> question.marks).sum();
 	}
 
 	private List<PackageRef> packagesOf(UUID examId) {

@@ -159,13 +159,13 @@ class ExamQuestionMultiAnswerIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.stem").value("Reworded"))
 			.andExpect(jsonPath("$.marks").value(3))
 			.andExpect(jsonPath("$.multipleAnswer").value(true))
-			.andExpect(jsonPath("$.id").value(kept.toString()));
-		assertThat(fx.jdbc().queryForObject(
-				"select count(*) from live_exam_options where question_id = ? and deleted_at is null", Integer.class, kept))
-			.isEqualTo(3);
-		assertThat(fx.jdbc().queryForObject(
-				"select count(*) from live_exam_options where question_id = ? and correct = true and deleted_at is null",
-				Integer.class, kept)).isEqualTo(2);
+			.andExpect(jsonPath("$.id").value(kept.toString()))
+			.andExpect(jsonPath("$.options", org.hamcrest.Matchers.hasSize(3)))
+			.andExpect(jsonPath("$.options[1].correct").value(true))
+			.andExpect(jsonPath("$.options[2].correct").value(true));
+		// The exam is published, so the edit is staged (E31): the published rows keep their wording until publish.
+		assertThat(fx.jdbc().queryForObject("select stem from live_exam_questions where id = ?", String.class, kept))
+			.isEqualTo("Keep");
 
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk());

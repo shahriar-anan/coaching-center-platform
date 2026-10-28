@@ -1694,11 +1694,14 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"liveAt\":\"2026-10-20T12:45:00+06:00\"}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("DRAFT"));
+			// E27: an edit to a published exam never changes its status; the window waits in the staged revision.
+			.andExpect(jsonPath("$.status").value("PUBLISHED"));
+		// The undated exam stays published (E27), so it still sits on the routine, last; the staged window is not in it yet.
 		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.content.length()").value(1))
-			.andExpect(jsonPath("$.content[0].id").value(dated.toString()));
+			.andExpect(jsonPath("$.content.length()").value(2))
+			.andExpect(jsonPath("$.content[0].id").value(dated.toString()))
+			.andExpect(jsonPath("$.content[1].id").value(undated.toString()));
 		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + undated + "/publish").header("Authorization", "Bearer " + masterToken()))

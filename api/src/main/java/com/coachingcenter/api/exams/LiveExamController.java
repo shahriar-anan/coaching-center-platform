@@ -87,7 +87,7 @@ public class LiveExamController {
 	public LiveExamService.ExamView update(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
 		requirePricePermission(body);
-		return exams.update(id, body);
+		return exams.update(id, body, actorId());
 	}
 
 	/** A draft copy of this exam in the same module, with the title suffixed and no date or price. */
@@ -104,9 +104,11 @@ public class LiveExamController {
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/publish")
-	public LiveExamService.ExamView publish(@PathVariable UUID id) {
+	public LiveExamService.ExamView publish(@PathVariable UUID id,
+			@RequestBody(required = false) JsonNode body) {
 		require(Permissions.EXAM_PUBLISH);
-		return exams.publish(id);
+		String revisionId = body != null && body.hasNonNull("revisionId") ? body.get("revisionId").asText() : null;
+		return exams.publish(id, revisionId, actorId());
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/archive")
@@ -125,21 +127,21 @@ public class LiveExamController {
 	@DeleteMapping("/api/v1/live-exams/{id}/questions/{questionId}")
 	public ResponseEntity<Void> deleteQuestion(@PathVariable UUID id, @PathVariable UUID questionId) {
 		require(Permissions.EXAM_MANAGE);
-		exams.deleteQuestion(id, questionId);
+		exams.deleteQuestion(id, questionId, actorId());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/api/v1/live-exams/{id}/questions")
 	public ResponseEntity<LiveExamService.QuestionView> addQuestion(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
-		return ResponseEntity.status(HttpStatus.CREATED).body(exams.addQuestion(id, body));
+		return ResponseEntity.status(HttpStatus.CREATED).body(exams.addQuestion(id, body, actorId()));
 	}
 
 	@PatchMapping("/api/v1/live-exams/{id}/questions/{questionId}")
 	public LiveExamService.QuestionView updateQuestion(@PathVariable UUID id, @PathVariable UUID questionId,
 			@RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
-		return exams.updateQuestion(id, questionId, body);
+		return exams.updateQuestion(id, questionId, body, actorId());
 	}
 
 	@PostMapping(value = "/api/v1/live-exams/{id}/question-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

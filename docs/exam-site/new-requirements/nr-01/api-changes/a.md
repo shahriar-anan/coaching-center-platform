@@ -22,3 +22,16 @@ Table format of [../../../current-api.md](../../../current-api.md). The orchestr
 | `POST /api/v1/live-exams/{id}/questions` | Changed. Accepts `multipleAnswer`. Key rules by `multipleAnswer`. `409 QUESTION_STRUCTURE_LOCKED` once any participant row exists. |
 | `PATCH /api/v1/live-exams/{id}/questions/{questionId}` | Changed. `multipleAnswer`. `409 QUESTION_STRUCTURE_LOCKED` when the option count changes after a start. Option ids kept when the count is unchanged. |
 | `DELETE /api/v1/live-exams/{id}/questions/{questionId}` | Changed. `409 QUESTION_STRUCTURE_LOCKED` once any participant row exists. |
+
+## A3 and A4: staged edits and paper versions
+
+| Call | Change |
+|---|---|
+| `GET /api/v1/live-exams/{id}`, staff | Changed. Returns the working copy (the staged revision applied to the rows), with `pendingChanges: true` when a revision waits. Students read the published rows only. |
+| `PATCH /api/v1/live-exams/{id}` | Changed. On a published exam the edit is staged; the status stays `PUBLISHED`. |
+| `POST /api/v1/live-exams/{id}/questions`, `PATCH` and `DELETE` on questions | Changed. On a published exam the change is staged. A count change after a start is `409 QUESTION_STRUCTURE_LOCKED`. |
+| `POST /api/v1/live-exams/{id}/question-pdf` | Changed. On a published exam the new version is staged; the published paper does not move until publish. |
+| `GET /api/v1/live-exams/{id}/pending-changes` | **New.** The change list: `revisionId`, `fields`, `questions`, `paper`, `packageExams`, `impact`. `404` when nothing is staged. Master Admin and System Admin. |
+| `DELETE /api/v1/live-exams/{id}/pending-changes` | **New.** Discards the revision (`204`). Audit `LIVE_EXAM_REVISION_DISCARD`. |
+| `POST /api/v1/live-exams/{id}/publish` | Changed. Optional body `{revisionId}`. A stale id gives `409 PENDING_CHANGES_STALE`. Without a body the compatibility path publishes the current revision (logged at warn). |
+| `POST /api/v1/live-exams/{id}/copy` | Changed. Copies the working copy, all memberships, no dates, price, discount or `popular`. |

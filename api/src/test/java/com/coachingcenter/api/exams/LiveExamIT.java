@@ -229,13 +229,14 @@ class LiveExamIT extends PostgresIntegrationTest {
 		assertThat(view.get("questions").get(0).get("position").asInt()).isZero();
 		assertThat(view.get("questions").get(1).get("id").asText()).isEqualTo(third.toString());
 		assertThat(view.get("questions").get(1).get("position").asInt()).isEqualTo(1);
+		// The delete is staged (E31): the rows keep the question and no audit row is written until the publish.
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 		assertThat(jdbc.queryForObject(
 				"select count(*) from live_exam_options where question_id = ? and deleted_at is null", Integer.class, second))
-			.isZero();
+			.isEqualTo(2);
 		assertThat(jdbc.queryForObject(
 				"select count(*) from audit_log where action = 'LIVE_EXAM_QUESTION_DELETE' and entity_id = ?",
-				Integer.class, exam)).isEqualTo(1);
+				Integer.class, exam)).isZero();
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isNotFound());
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + UUID.randomUUID())
