@@ -315,7 +315,8 @@ public class DemoContentSeed {
 		boolean base = exists("live_exams", spec(exams, 1).id());
 		boolean topUp = exists("live_exam_modules", MODULE_DRAFT_READY);
 		boolean review = exists("live_exam_modules", MODULE_SALE);
-		if (base && topUp && review) {
+		boolean expired = exists("live_exams", demo('e', 65));
+		if (base && topUp && review && expired) {
 			return;
 		}
 		String hash = passwords.encode(password);
@@ -335,6 +336,9 @@ public class DemoContentSeed {
 		}
 		if (!review) {
 			reviewCases(hash, now);
+		}
+		if (!expired) {
+			expiredCase(now);
 		}
 	}
 
@@ -419,6 +423,22 @@ public class DemoContentSeed {
 				INSERT INTO live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)
 				VALUES (?, ?, 'EXAM', NULL, ?, NULL, ?, 'MANUAL') ON CONFLICT (id) DO NOTHING
 				""", demo('d', 20), STUDENT_D, demo('e', 62), ts(now));
+	}
+
+	/**
+	 * The expired case (NR-01 follow-up F1), added once: a written paper whose window ended ten days ago, with seven days of access,
+	 * and student D's manual grant made thirty days ago. The access ended three days ago, so the exam reads as expired for D.
+	 */
+	private void expiredCase(Instant now) {
+		Schedule s = Schedule.at(now);
+		exam(written(65, null, "Expired written paper", "মেয়াদ শেষ রিটেন",
+				"A written paper whose access has ended. Student 4 holds a grant on it that has expired.",
+				"মেয়াদ শেষ হওয়া একটি রিটেন পরীক্ষা। এর জন্য তানভীর হাসানের অনুমোদনের মেয়াদ শেষ হয়েছে।", s.at23(-10), "300.00"), now);
+		jdbc.update("UPDATE live_exams SET access_days = 7 WHERE id = ?", demo('e', 65));
+		jdbc.update("""
+				INSERT INTO live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)
+				VALUES (?, ?, 'EXAM', NULL, ?, NULL, ?, 'MANUAL') ON CONFLICT (id) DO NOTHING
+				""", demo('d', 21), STUDENT_D, demo('e', 65), ts(now.minus(Duration.ofDays(30))));
 	}
 
 	/** An exam in one more package. Its membership id is the exam's number plus 100, so it cannot clash with the first one. */

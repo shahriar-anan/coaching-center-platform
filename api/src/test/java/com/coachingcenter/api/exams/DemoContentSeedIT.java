@@ -241,7 +241,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(orderCount("CANCELLED")).isEqualTo(1);
 		assertThat(orderCount("INITIATED")).isEqualTo(3);
 		// Only a paid order carries a grant.
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(6);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(7);
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_grants g JOIN live_exam_orders o ON o.id = g.order_id
 				WHERE g.id::text LIKE ? AND o.status <> 'SUCCEEDED'
@@ -442,7 +442,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	private void assertCatalog() {
 		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(6);
 		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(8);
-		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(30);
+		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(31);
 		// Sixteen MCQ exams of ten questions (fourteen published, two drafts), four options each.
 		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(160);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_options WHERE question_id::text LIKE ?", Integer.class,
@@ -450,7 +450,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(8);
 		assertThat(count("users", DEMO_STUDENT)).isEqualTo(4);
 		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(11);
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(6);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(7);
 	}
 
 	/** Published exams only: the draft exams are counted by their own test. */
