@@ -35,7 +35,7 @@ describe("staff home per role", () => {
     renderWithProviders(<StaffHomePage />, { user: fixtures.systemAdmin });
 
     expect(await screen.findByText("পেমেন্ট অপেক্ষমাণ")).toBeInTheDocument();
-    expect(screen.queryByText("আপনাকে এখনো কোনো মডিউল দেওয়া হয়নি")).not.toBeInTheDocument();
+    expect(screen.queryByText("আপনাকে এখনো কোনো প্যাকেজ দেওয়া হয়নি")).not.toBeInTheDocument();
   });
 
   it("Instructor sees only assigned modules, and the empty sentence when there are none", async () => {
@@ -45,7 +45,7 @@ describe("staff home per role", () => {
     });
     renderWithProviders(<StaffHomePage />, { user: fixtures.instructor });
 
-    expect(await screen.findByText("আপনাকে এখনো কোনো মডিউল দেওয়া হয়নি")).toBeInTheDocument();
+    expect(await screen.findByText("আপনাকে এখনো কোনো প্যাকেজ দেওয়া হয়নি")).toBeInTheDocument();
     expect(screen.queryByText("পেমেন্ট অপেক্ষমাণ")).not.toBeInTheDocument();
   });
 });

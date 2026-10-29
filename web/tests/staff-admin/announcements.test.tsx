@@ -35,7 +35,7 @@ describe("announcements page", () => {
     await user.selectOptions(screen.getByLabelText("কাদের জন্য"), "MODULE");
     await user.click(screen.getByRole("button", { name: "ঘোষণা পাঠান" }));
 
-    expect(await screen.findByText("একটি মডিউল বাছুন।")).toBeInTheDocument();
+    expect(await screen.findByText("একটি প্যাকেজ বাছুন।")).toBeInTheDocument();
   });
 
   it("names the audience in the confirm dialog, then sends one announcement", async () => {

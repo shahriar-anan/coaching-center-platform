@@ -5,7 +5,7 @@ const staffResults = {
   title: "পরীক্ষার ফলাফল",
   openLeaderboard: "মেধাতালিকা",
   summary: {
-    participants: "ফলাফল ও মূল্যায়নকারী",
+    participants: "অংশগ্রহণকারী",
     submitted: "জমা দেওয়া হয়েছে",
     failed: "জমা হয়নি",
     average: "গড় নম্বর",

@@ -67,7 +67,7 @@ describe("instructor home as a marking dashboard (U1)", () => {
       "GET /api/v1/live-exam-submissions": serveFeed([]),
     });
     renderWithProviders(<InstructorHome />, { user: fixtures.instructor });
-    expect(await screen.findByText("আপনাকে এখনো কোনো মডিউল দেওয়া হয়নি")).toBeInTheDocument();
-    expect(screen.getByText("আরও মডিউলে মূল্যায়ন করতে মাস্টার অ্যাডমিনের সাথে যোগাযোগ করুন।")).toBeInTheDocument();
+    expect(await screen.findByText("আপনাকে এখনো কোনো প্যাকেজ দেওয়া হয়নি")).toBeInTheDocument();
+    expect(screen.getByText("আরও প্যাকেজে মূল্যায়ন করতে মাস্টার অ্যাডমিনের সাথে যোগাযোগ করুন।")).toBeInTheDocument();
   });
 });
