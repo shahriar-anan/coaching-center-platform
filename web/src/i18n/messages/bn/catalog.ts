@@ -14,6 +14,7 @@ const catalog = {
   countMcq: "{n}টি এমসিকিউ",
   countWritten: "{n}টি রিটেন",
   countModules: "{n}টি প্যাকেজ",
+  countExams: "{n}টি পরীক্ষা",
   countCategories: "{n}টি ক্যাটাগরি",
   tabCategories: "ক্যাটাগরি",
   notice: {

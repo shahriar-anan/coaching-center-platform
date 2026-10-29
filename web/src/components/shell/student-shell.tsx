@@ -27,11 +27,12 @@ const TABS: TabItem[] = [
   { href: "/account", key: "account", icon: CircleUserRound },
 ];
 
-/** The student's top bar (S1.1, plan Q2). The bottom bar takes over below the large breakpoint. */
-const TOP_LINKS: { href: string; key: "home" | "mcq" | "written" | "myExams" | "results" | "routine" }[] = [
+/**
+ * The student's top bar (S1.1, plan Q2). The bottom bar takes over below the large breakpoint. MCQ and Written are reached
+ * from Home, so they are not in the bar (Phase 4, A2). Their routes stay.
+ */
+const TOP_LINKS: { href: string; key: "home" | "myExams" | "results" | "routine" }[] = [
   { href: "/", key: "home" },
-  { href: "/mcq", key: "mcq" },
-  { href: "/written", key: "written" },
   { href: "/my-modules", key: "myExams" },
   { href: "/results", key: "results" },
   { href: "/routine", key: "routine" },

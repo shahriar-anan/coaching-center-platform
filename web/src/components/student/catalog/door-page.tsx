@@ -13,6 +13,7 @@ import { DoorDiscovery } from "./door-discovery";
 import { CategoryExams, ComingSoonCard } from "./category-exams";
 import {
   categoryPath,
+  countBranchExams,
   countModules,
   doorLabelKey,
   doorPath,
@@ -21,15 +22,20 @@ import {
   type Door,
 } from "./catalog-helpers";
 
+/**
+ * The counts on a category card, in one line: subcategories, then exams, then packages. A zero part is left out. A card
+ * with nothing at all says "Coming soon" (Phase 4, A4).
+ */
 function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
   const { t, locale } = useLocale();
   const modules = countModules(node);
-  const subtitle =
-    modules === 0
-      ? t("catalog.comingSoon")
-      : node.children?.length
-        ? t("catalog.countCategories", { n: formatNumber(node.children.length, locale) })
-        : t("catalog.countModules", { n: formatNumber(modules, locale) });
+  const exams = countBranchExams(node);
+  const parts = [
+    node.children?.length ? t("catalog.countCategories", { n: formatNumber(node.children.length, locale) }) : null,
+    exams > 0 ? t("catalog.countExams", { n: formatNumber(exams, locale) }) : null,
+    modules > 0 ? t("catalog.countModules", { n: formatNumber(modules, locale) }) : null,
+  ].filter((part): part is string => part !== null);
+  const subtitle = parts.length ? parts.join(" · ") : t("catalog.comingSoon");
   return (
     <Card href={categoryPath(door, node.id)}>
       <p className="text-card-title font-bold">{pickTitle(node, locale)}</p>

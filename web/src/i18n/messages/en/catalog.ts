@@ -16,6 +16,7 @@ const catalog: typeof bn = {
   countMcq: "{n} MCQ",
   countWritten: "{n} written",
   countModules: "{n} packages",
+  countExams: "{n} exams",
   countCategories: "{n} categories",
   tabCategories: "Categories",
   notice: {

@@ -129,6 +129,8 @@ export interface CategoryNode extends Titled {
   position: number;
   children: CategoryNode[];
   modules: PublicModule[];
+  /** The category's own exams, published only (Phase 4, A4). Not the subcategories' exams. */
+  exams?: CategoryExam[];
 }
 
 /** `GET /api/v1/public/live-exams/{id}` and the module exam list. */

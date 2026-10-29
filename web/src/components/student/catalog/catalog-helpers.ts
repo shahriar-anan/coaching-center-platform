@@ -55,6 +55,11 @@ export function countModules(node: CategoryNode): number {
   return (node.modules ?? []).length + (node.children ?? []).reduce((n, c) => n + countModules(c), 0);
 }
 
+/** The exams of a category and of every category under it (Phase 4, A4). A leaf counts its own exams. */
+export function countBranchExams(node: CategoryNode): number {
+  return (node.exams ?? []).length + (node.children ?? []).reduce((n, c) => n + countBranchExams(c), 0);
+}
+
 export function moduleTypeCount(module: PublicModule, type: ExamType): number | null {
   const value = type === "MCQ" ? module.mcqCount : module.writtenCount;
   return typeof value === "number" ? value : null;
