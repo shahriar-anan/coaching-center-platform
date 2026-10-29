@@ -21,6 +21,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Pill } from "@/components/ui/pill";
+import { Switch } from "@/components/ui/switch";
 import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
 
 const STATUS_TONE = { ACTIVE: "ok", PENDING_ACTIVATION: "warn", INACTIVE: "muted" } as const;
@@ -38,11 +39,13 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
   });
   const assign = useAssignInstructor(moduleId);
   const [error, setError] = useState<string | null>(null);
+  // On by default: the exams in this package that had the old default take the new one (applyToExams).
+  const [applyToExams, setApplyToExams] = useState(true);
 
   async function choose(row: InstructorRow) {
     setError(null);
     try {
-      await assign.mutateAsync(row.id);
+      await assign.mutateAsync({ instructorId: row.id, applyToExams });
       toast({ title: t("staffCatalog.instructor.assigned"), tone: "ok" });
       onOpenChange(false);
     } catch (e) {
@@ -59,6 +62,10 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
       className="sm:max-w-2xl"
     >
       <div className="grid gap-3">
+        <div className="grid gap-1">
+          <Switch id="instructor-apply-exams" checked={applyToExams} onCheckedChange={setApplyToExams} label={t("staffCatalog.instructor.applyToExams")} />
+          <p className="text-meta text-muted">{t("staffCatalog.instructor.applyToExamsHint")}</p>
+        </div>
         <SearchInput value={params.q} onChange={(q) => setParams({ q, page: 0 })} placeholder={t("staffCatalog.instructor.searchPlaceholder")} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Select aria-label={t("staffCatalog.instructor.filterStatus")} value={params.status} onChange={(e) => setParams({ status: e.target.value, page: 0 })}>
@@ -174,7 +181,7 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
         tone="danger"
         onConfirm={async () => {
           try {
-            await unassign.mutateAsync();
+            await unassign.mutateAsync(true);
             toast({ title: t("staffCatalog.instructor.removed"), tone: "ok" });
           } catch (e) {
             throw new Error(t(catalogErrorKey(e)));

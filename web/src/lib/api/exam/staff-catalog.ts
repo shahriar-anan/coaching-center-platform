@@ -567,32 +567,62 @@ export function usePublishPendingChanges(kind: ChangeKind, id: string) {
   });
 }
 
-/** Adds an exam to a package. An exam already in it is refused with `EXAM_ALREADY_IN_PACKAGE`. */
-export function useAddExamToPackage(moduleId: string) {
+/** The three package membership calls. Add and remove name the exam in the path; reorder sends the whole order (NR-01). */
+export type MembershipAction = { kind: "add" | "remove"; examId: string } | { kind: "reorder"; examIds: string[] };
+
+export function membershipRequest(moduleId: string, action: MembershipAction): { method: "POST" | "DELETE" | "PATCH"; path: string; body?: { examIds: string[] } } {
+  if (action.kind === "reorder") {
+    return { method: "PATCH", path: `/api/v1/live-exam-modules/${moduleId}/exams/order`, body: { examIds: action.examIds } };
+  }
+  return {
+    method: action.kind === "add" ? "POST" : "DELETE",
+    path: `/api/v1/live-exam-modules/${moduleId}/exams/${action.examId}`,
+  };
+}
+
+/** Sends one membership call and refreshes the package. */
+function useMembership(moduleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (examId: string) =>
-      apiRequest<unknown>(`/api/v1/live-exam-modules/${moduleId}/exams/${examId}`, { method: "POST", body: {} }),
+    mutationFn: (action: MembershipAction) => {
+      const request = membershipRequest(moduleId, action);
+      return apiRequest<unknown>(request.path, { method: request.method, body: request.body ?? {} });
+    },
     onSuccess: () => refreshChanged(queryClient, "package", moduleId),
   });
 }
 
-export function useRemoveExamFromPackage(moduleId: string) {
-  const queryClient = useQueryClient();
+/** Adds an exam to a package. An exam already in it is refused with `EXAM_ALREADY_IN_PACKAGE`. */
+export function useAddExamToPackage(moduleId: string) {
+  const membership = useMembership(moduleId);
   return useMutation({
-    mutationFn: (examId: string) =>
-      apiRequest<void>(`/api/v1/live-exam-modules/${moduleId}/exams/${examId}`, { method: "DELETE" }),
-    onSuccess: () => refreshChanged(queryClient, "package", moduleId),
+    mutationFn: (examId: string) => membership.mutateAsync({ kind: "add", examId }),
+  });
+}
+
+export function useRemoveExamFromPackage(moduleId: string) {
+  const membership = useMembership(moduleId);
+  return useMutation({
+    mutationFn: (examId: string) => membership.mutateAsync({ kind: "remove", examId }),
   });
 }
 
 /** Sets the new order of a package's exams. `examIds` lists every exam of the package, in that order. */
 export function useReorderPackageExams(moduleId: string) {
-  const queryClient = useQueryClient();
+  const membership = useMembership(moduleId);
   return useMutation({
-    mutationFn: (examIds: string[]) =>
-      apiRequest<unknown>(`/api/v1/live-exam-modules/${moduleId}/exams/order`, { method: "PATCH", body: { examIds } }),
-    onSuccess: () => refreshChanged(queryClient, "package", moduleId),
+    mutationFn: (examIds: string[]) => membership.mutateAsync({ kind: "reorder", examIds }),
+  });
+}
+
+/** Exams matching a search, for "Add existing exam". Nothing is searched below two characters. */
+export function useExamSearch(q: string) {
+  const term = q.trim();
+  return useQuery({
+    queryKey: ["staffCatalog", "examSearch", term],
+    queryFn: () => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exams?${new URLSearchParams({ q: term, size: "20" })}`),
+    enabled: term.length >= 2,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -840,13 +870,14 @@ export function useInstructorDirectory(params: InstructorListParams) {
   });
 }
 
+/** The package's default instructor. With `applyToExams` the exams that held the old one take the new one (NR-01). */
 export function useAssignInstructor(moduleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (instructorId: string) =>
+    mutationFn: ({ instructorId, applyToExams }: { instructorId: string; applyToExams: boolean }) =>
       apiRequest<unknown>(`/api/v1/live-exam-modules/${moduleId}/instructor`, {
         method: "POST",
-        body: { instructorId },
+        body: { instructorId, applyToExams },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(moduleId) });
@@ -855,10 +886,12 @@ export function useAssignInstructor(moduleId: string) {
   });
 }
 
+/** Clears the package default. With `applyToExams` (the server's default) the exams that held it are cleared too. */
 export function useUnassignInstructor(moduleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => apiRequest<void>(`/api/v1/live-exam-modules/${moduleId}/instructor`, { method: "DELETE" }),
+    mutationFn: (applyToExams: boolean) =>
+      apiRequest<void>(`/api/v1/live-exam-modules/${moduleId}/instructor?applyToExams=${applyToExams}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(moduleId) });
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "instructors"] });
