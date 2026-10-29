@@ -356,7 +356,8 @@ export function StudentShell({ children }: { children: ReactNode }) {
           showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10",
         )}
       >
-        {children}
+        {/* Lists and cards sit in a centred 768 px column; the sitting paper keeps the full frame. */}
+        {roomy && !SITTING_PATH.test(pathname) ? <div className="mx-auto w-full max-w-3xl">{children}</div> : children}
       </main>
       {footer !== "none" ? <SiteFooter variant={footer} width={wide ? "max-w-6xl" : "max-w-5xl"} /> : null}
       {showTabs ? <TabBar /> : null}
