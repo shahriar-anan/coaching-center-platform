@@ -281,10 +281,21 @@ export function useCheckoutEnabled() {
   });
 }
 
+/**
+ * How often an exam page re-reads its exam while the exam has not ended. The phase changes when the window ends, and the
+ * page must notice without a reload. Once the phase is ENDED or PRACTICE nothing else can change, so polling stops.
+ */
+const EXAM_PHASE_POLL = 30_000;
+
+export function examPhasePoll(phase: string | undefined): number | false {
+  return phase === "ENDED" || phase === "PRACTICE" ? false : EXAM_PHASE_POLL;
+}
+
 export function usePublicExam(id: string, signedIn = false) {
-  return useQuery({
+  return useQuery<PublicExam>({
     queryKey: [...catalogKeys.publicExam(id), signedIn],
     staleTime: CATALOG_STALE,
+    refetchInterval: (query) => examPhasePoll(query.state.data?.phase),
     queryFn: ({ signal }) => apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
   });
 }
