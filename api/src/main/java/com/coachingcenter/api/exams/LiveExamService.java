@@ -602,12 +602,15 @@ public class LiveExamService {
 				|| visibility.branchHidden(module.getCategoryId()))) {
 			return Page.empty(ordered);
 		}
-		Page<LiveExam> page = student
-				? exams.findAccessibleToStudent(moduleId, studentId, examType, ordered)
-				: exams.findByModuleIdAndDeletedAtIsNull(moduleId, ordered);
 		if (!student) {
-			return page.map(exam -> view(exam, true));
+			// The staff list keeps the package's own order (membership position) unless the caller asked for a sort.
+			Page<LiveExam> staff = pageable.getSort().isSorted()
+					? exams.findByModuleIdAndDeletedAtIsNull(moduleId, ordered)
+					: exams.findStaffByModuleIdInPackageOrder(moduleId,
+							PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
+			return staff.map(exam -> view(exam, true));
 		}
+		Page<LiveExam> page = exams.findAccessibleToStudent(moduleId, studentId, examType, ordered);
 		Map<UUID, Mine> mine = mineByExam(studentId, page.getContent().stream().map(LiveExam::getId).toList());
 		return page.map(exam -> studentView(exam, mine.get(exam.getId()), studentId));
 	}
