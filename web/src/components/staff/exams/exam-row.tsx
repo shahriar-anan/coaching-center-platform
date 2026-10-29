@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -76,8 +77,13 @@ export function ExamRow({
       </p>
       <div className="flex items-center gap-2">
         <StatusPill status={exam.status} />
-        <Button href={`/staff/exams/${exam.id}`} variant="secondary" className="min-h-11">
+        <Button
+          href={`/staff/exams/${exam.id}`}
+          variant="secondary"
+          className="min-h-11 gap-1.5 px-3 text-meta font-semibold hover:border-accent hover:text-accent sm:min-h-9"
+        >
           {t("staffExams.row.open")}
+          <ArrowRight aria-hidden="true" className="size-3.5" />
         </Button>
       </div>
       {items.length > 0 ? <RowMenu items={items} label={t("staffExams.row.menu")} /> : null}
