@@ -28,6 +28,24 @@ const notices = {
   readMore: "Read more",
   readLess: "Show less",
   markedRead: "Notice marked as read.",
+  tabs: {
+    label: "Notice sections",
+    RESULTS: "Results",
+    EXAMS: "Exams",
+    ANNOUNCEMENTS: "Announcements",
+  },
+  markTab: "Mark this tab as read",
+  markRead: "Mark as read",
+  viewResult: "View result",
+  openExamAction: "Open exam",
+  myExams: "My exams",
+  viewPayment: "View payment",
+  startsAt: "Starts {time}",
+  emptyTab: {
+    RESULTS: "No results yet.",
+    EXAMS: "No exam notices yet.",
+    ANNOUNCEMENTS: "No announcements yet.",
+  },
 } satisfies MessageTree;
 
 export default notices;

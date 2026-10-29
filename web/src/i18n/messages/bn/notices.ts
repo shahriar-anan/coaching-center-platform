@@ -28,6 +28,24 @@ const notices = {
   readMore: "আরও দেখুন",
   readLess: "কম দেখুন",
   markedRead: "নোটিশটি পড়া হয়েছে।",
+  tabs: {
+    label: "নোটিশের বিভাগ",
+    RESULTS: "ফলাফল",
+    EXAMS: "পরীক্ষা",
+    ANNOUNCEMENTS: "ঘোষণা",
+  },
+  markTab: "এই ট্যাবের সব পড়া হয়েছে",
+  markRead: "পড়া হয়েছে",
+  viewResult: "ফলাফল দেখুন",
+  openExamAction: "পরীক্ষা খুলুন",
+  myExams: "আমার পরীক্ষা",
+  viewPayment: "পেমেন্ট দেখুন",
+  startsAt: "শুরু {time}",
+  emptyTab: {
+    RESULTS: "এখনো কোনো ফলাফল নেই।",
+    EXAMS: "পরীক্ষার কোনো নোটিশ এখনো নেই।",
+    ANNOUNCEMENTS: "এখনো কোনো ঘোষণা নেই।",
+  },
 } satisfies MessageTree;
 
 export default notices;
