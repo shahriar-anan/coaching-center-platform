@@ -1,0 +1,2 @@
+# Shell scripts run under bash (Git Bash and the VPS); a CR breaks them.
+*.sh text eol=lf
