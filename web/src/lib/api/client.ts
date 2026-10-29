@@ -79,37 +79,65 @@ async function rawFetch(path: string, options: RequestOptions = {}): Promise<Res
   return response;
 }
 
-async function refreshAccessToken(): Promise<boolean> {
-  const response = await rawFetch("/api/v1/auth/refresh", {
-    method: "POST",
-    body: {},
-    skipAuthRetry: true,
-  });
-  if (!response.ok) {
-    setAccessToken(null);
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Trades the refresh cookie for a new access token. The API rotates the cookie
+ * on every use and ends the session when a used one comes back, so requests
+ * that fail together share this one call.
+ */
+function refreshAccessToken(): Promise<boolean> {
+  refreshInFlight ??= (async () => {
+    try {
+      const response = await rawFetch("/api/v1/auth/refresh", {
+        method: "POST",
+        body: {},
+        skipAuthRetry: true,
+      });
+      if (!response.ok) {
+        setAccessToken(null);
+        return false;
+      }
+      const data = (await response.json()) as { accessToken: string };
+      setAccessToken(data.accessToken);
+      return true;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+/**
+ * After a 401, whether to send the request again. A request that went out with
+ * a token another request has since replaced only retries; otherwise it waits
+ * for the shared refresh.
+ */
+async function recoverFrom401(sentToken: string | null): Promise<boolean> {
+  const current = getAccessToken();
+  if (!current) {
     return false;
   }
-  const data = (await response.json()) as { accessToken: string };
-  setAccessToken(data.accessToken);
-  return true;
+  if (current !== sentToken) {
+    return true;
+  }
+  return refreshAccessToken();
 }
 
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  const sentToken = getAccessToken();
   let response = await rawFetch(path, options);
 
   if (
     response.status === 401 &&
     !options.skipAuthRetry &&
     !isAuthRoute(path) &&
-    getAccessToken()
+    (await recoverFrom401(sentToken))
   ) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      response = await rawFetch(path, { ...options, skipAuthRetry: true });
-    }
+    response = await rawFetch(path, { ...options, skipAuthRetry: true });
   }
 
   if (response.status === 401) {
@@ -135,12 +163,10 @@ export async function apiRequest<T>(
 
 /** Fetches an authorized file, such as a question or answer PDF, as a `Blob`. */
 export async function apiBlob(path: string, options: { signal?: AbortSignal } = {}): Promise<Blob> {
+  const sentToken = getAccessToken();
   let response = await rawFetch(path, { signal: options.signal });
-  if (response.status === 401 && getAccessToken()) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      response = await rawFetch(path, { signal: options.signal });
-    }
+  if (response.status === 401 && (await recoverFrom401(sentToken))) {
+    response = await rawFetch(path, { signal: options.signal });
   }
   if (response.status === 401) {
     setAccessToken(null);
@@ -213,12 +239,10 @@ export async function apiUpload<T>(
   formData: FormData,
   options: UploadOptions = {},
 ): Promise<T> {
+  const sentToken = getAccessToken();
   let result = await sendUpload(path, formData, options);
-  if (result.status === 401 && getAccessToken()) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      result = await sendUpload(path, formData, options);
-    }
+  if (result.status === 401 && (await recoverFrom401(sentToken))) {
+    result = await sendUpload(path, formData, options);
   }
   recordServerDate(result.date);
   if (result.status === 401) {
