@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 /* Self-hosted fonts (WS9 F8): the same families, weights and subsets as before, from web/src/app/fonts. */
+/* Kalpurush is the Bangla face of the old site (it sets it for all text); the file is the one the old site loads. */
+@font-face {
+  font-family: "Kalpurush";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/kalpurush-bengali.woff2") format("woff2");
+}
 @font-face {
   font-family: "Hind Siliguri";
   font-style: normal;
@@ -193,8 +201,8 @@
 
 /* Font families. The faces are self-hosted above, so builds never fetch fonts. */
 :root {
-  --font-hind: "Hind Siliguri";
-  --font-bengali: "Noto Sans Bengali";
+  --font-hind: "Kalpurush";
+  --font-bengali: "Kalpurush";
   --font-inter: "Inter";
 }
 
