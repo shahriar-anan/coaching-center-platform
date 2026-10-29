@@ -72,7 +72,7 @@ function Tool({
       disabled={disabled}
       onClick={onPress}
       className={cn(
-        "grid min-h-11 min-w-11 place-items-center rounded-control border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "grid min-h-11 min-w-11 shrink-0 place-items-center rounded-control border transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-8 sm:min-w-8",
         pressed ? "border-action bg-action text-on-action" : "border-transparent text-text hover:bg-field",
       )}
     >
@@ -210,99 +210,99 @@ export function RichTextEditor({
         <div
           role="toolbar"
           aria-label={t("common.richText.toolbar")}
-          className="flex flex-wrap items-center gap-1 border-b border-border-control bg-card px-2 py-1.5"
+          className="flex flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-border-control bg-card px-2 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <Tool
             label={t("common.richText.heading2")}
-            icon={<Heading2 aria-hidden="true" className="size-5" />}
+            icon={<Heading2 aria-hidden="true" className="size-4" />}
             pressed={on?.heading2}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
           />
           <Tool
             label={t("common.richText.heading3")}
-            icon={<Heading3 aria-hidden="true" className="size-5" />}
+            icon={<Heading3 aria-hidden="true" className="size-4" />}
             pressed={on?.heading3}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
           />
-          <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
           <Tool
             label={t("common.richText.bold")}
-            icon={<Bold aria-hidden="true" className="size-5" />}
+            icon={<Bold aria-hidden="true" className="size-4" />}
             pressed={on?.bold}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleBold().run()}
           />
           <Tool
             label={t("common.richText.italic")}
-            icon={<Italic aria-hidden="true" className="size-5" />}
+            icon={<Italic aria-hidden="true" className="size-4" />}
             pressed={on?.italic}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleItalic().run()}
           />
           <Tool
             label={t("common.richText.underline")}
-            icon={<Underline aria-hidden="true" className="size-5" />}
+            icon={<Underline aria-hidden="true" className="size-4" />}
             pressed={on?.underline}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleUnderline().run()}
           />
-          <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
           <Tool
             label={t("common.richText.bulletList")}
-            icon={<List aria-hidden="true" className="size-5" />}
+            icon={<List aria-hidden="true" className="size-4" />}
             pressed={on?.bulletList}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleBulletList().run()}
           />
           <Tool
             label={t("common.richText.orderedList")}
-            icon={<ListOrdered aria-hidden="true" className="size-5" />}
+            icon={<ListOrdered aria-hidden="true" className="size-4" />}
             pressed={on?.orderedList}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().toggleOrderedList().run()}
           />
-          <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
           <Tool
             label={t("common.richText.alignLeft")}
-            icon={<TextAlignStart aria-hidden="true" className="size-5" />}
+            icon={<TextAlignStart aria-hidden="true" className="size-4" />}
             pressed={on?.alignLeft}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().setTextAlign("left").run()}
           />
           <Tool
             label={t("common.richText.alignCenter")}
-            icon={<TextAlignCenter aria-hidden="true" className="size-5" />}
+            icon={<TextAlignCenter aria-hidden="true" className="size-4" />}
             pressed={on?.alignCenter}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().setTextAlign("center").run()}
           />
           <Tool
             label={t("common.richText.alignRight")}
-            icon={<TextAlignEnd aria-hidden="true" className="size-5" />}
+            icon={<TextAlignEnd aria-hidden="true" className="size-4" />}
             pressed={on?.alignRight}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().setTextAlign("right").run()}
           />
           <Tool
             label={t("common.richText.alignJustify")}
-            icon={<TextAlignJustify aria-hidden="true" className="size-5" />}
+            icon={<TextAlignJustify aria-hidden="true" className="size-4" />}
             pressed={on?.alignJustify}
             disabled={off || disabled}
             onPress={() => editor?.chain().focus().setTextAlign("justify").run()}
           />
-          <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
           <Tool
             label={t("common.richText.link")}
-            icon={<Link2 aria-hidden="true" className="size-5" />}
+            icon={<Link2 aria-hidden="true" className="size-4" />}
             pressed={on?.link}
             disabled={off || disabled}
             onPress={openLink}
           />
           <Tool
             label={t("common.richText.clearFormatting")}
-            icon={<RemoveFormatting aria-hidden="true" className="size-5" />}
+            icon={<RemoveFormatting aria-hidden="true" className="size-4" />}
             disabled={off || disabled}
             onPress={clearFormatting}
           />
