@@ -121,6 +121,16 @@ Tests: none run for this release; the code is the commit that was already live, 
 
 Rollback: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-apibase-20261029-185640` back as `/opt/coaching-web`, start it (this brings the bug back).
 
+## Website update, 30 October 2026: one token refresh at a time
+
+Web only. Commit `98339d7` (code change `625a83f`), same build env as the fix above. Requests that fail with 401 together now share one refresh call, and a 401 for a token another request already replaced only retries, so the rotated refresh cookie is never presented twice (the API ends the session when it is). Build `mKW1dHZUm-U4-WJcFIQUp`, package SHA-256 `e3b1c9ad9231c0fb846b28fa3c4fe80285faa1b01dfc9cebf3247ebe4b4797e6`, Linux `sharp` copied from the running release. Swapped in at 19:11 UTC; previous release `/opt/coaching-web.before-refresh-20261029-191125`.
+
+Checks: staged API base `""` and only Linux native modules; up in about 1 s, admin `/login` and student `/` 200; live admin bundle over HTTPS has API base `""` and the shared refresh; `/api/v1/auth/refresh` on the admin host reaches the API.
+
+Tests before the release: typecheck clean; 159 files and 1048 tests pass, including `tests/ws0/token-refresh.test.ts` (4 of its 5 cases fail on the previous client). Lint: 3 errors, all in files this change does not touch (`staff/enrolments/page.tsx`, `student-shell.tsx`).
+
+Rollback: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-refresh-20261029-191125` back, start it.
+
 ## Not checked
 
 - A real browser session on either host (layout, redirects after sign-in, the basic-auth prompt in each browser).
