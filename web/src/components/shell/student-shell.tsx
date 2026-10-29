@@ -9,7 +9,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
-import { SiteFooter } from "@/components/shell/site-footer";
+import { SiteFooter, type FooterVariant } from "@/components/shell/site-footer";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { NoticeBell } from "@/components/student/notice-bell";
 import { formatNumber } from "@/lib/format";
@@ -40,8 +40,23 @@ const TOP_LINKS: { href: string; key: "home" | "myExams" | "results" | "routine"
 ];
 
 /** Routes where the paper is on screen: no tab bar, so it never covers the questions. */
+const SITTING_PATH = /^\/exam\/[^/]+\/sit(\/|$)/;
+
+/** Sign-in and sign-up pages on the student host: copyright and legal links only. */
+const SIGN_IN_PATH = /^\/(login|register|set-phone|activate|code|forgot-password|reset-password)(\/|$)/;
+
 function hidesTabBar(pathname: string): boolean {
-  return /^\/exam\/[^/]+\/sit(\/|$)/.test(pathname);
+  return SITTING_PATH.test(pathname);
+}
+
+/**
+ * Which footer a route shows: none on the exam sitting page (a timed paper, no exits), minimal on
+ * sign-in pages, full everywhere else on the student host. The staff and admin hosts have no footer.
+ */
+export function footerVariant(pathname: string): FooterVariant {
+  if (SITTING_PATH.test(pathname)) return "none";
+  if (SIGN_IN_PATH.test(pathname)) return "minimal";
+  return "full";
 }
 
 /** The tab bar is 3.5 rem plus the safe area. A sticky action bar sits above it (WS9 FN-2). */
@@ -295,6 +310,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const column = wide ? "max-w-6xl" : "max-w-[760px]";
   // The top bar needs the wider header from large width up; the content column stays 760 px.
   const headerColumn = student ? "max-w-[760px] lg:max-w-6xl" : column;
+  const footer = footerVariant(pathname);
 
   return (
     <div
@@ -337,7 +353,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
       >
         {children}
       </main>
-      <SiteFooter variant="full" width={column} />
+      {footer !== "none" ? <SiteFooter variant={footer} width={column} /> : null}
       {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>

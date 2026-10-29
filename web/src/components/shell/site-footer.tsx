@@ -6,6 +6,9 @@ import { useLocale } from "@/i18n/locale-context";
 import { Logo } from "@/components/shell/logo";
 import { cn } from "@/components/ui/cn";
 
+/** Which footer a page shows. `none` renders nothing; the route decides it (see `footerVariant`). */
+export type FooterVariant = "full" | "minimal" | "none";
+
 /** The old site's footer links, as copied. The Google Play address is the one the old site uses. */
 const APP_STORE_URL = "https://apps.apple.com/us/app/apple-store/id375380948";
 const GOOGLE_PLAY_URL = "https://expo.dev/accounts/abtahi-tajwar/projects/symamlaw-mobile/builds/a0368e73-baf4-4021-8bc6-e59fc962afaa";
@@ -28,7 +31,7 @@ const APP_BUTTON =
  * copyright). `minimal` shows only the copyright and the legal links (sign-in and sign-up pages).
  * The caller decides the variant from the route; `width` is the content column of the page.
  */
-export function SiteFooter({ variant, width }: { variant: "full" | "minimal"; width: string }) {
+export function SiteFooter({ variant, width }: { variant: Exclude<FooterVariant, "none">; width: string }) {
   const { t } = useLocale();
   const legalLinks = [
     { href: "/terms", label: t("common.footer.terms") },
