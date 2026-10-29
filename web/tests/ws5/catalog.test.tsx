@@ -192,7 +192,7 @@ describe("instructor (Master Admin)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "শিক্ষক দিন" }));
     await userEvent.click((await screen.findAllByRole("button", { name: "বেছে নিন" }))[0]);
-    expect(await screen.findByText("এই মডিউলে আগেই একজন শিক্ষক দেওয়া আছে। আগে তাকে সরান।")).toBeInTheDocument();
+    expect(await screen.findByText("এই প্যাকেজে আগেই একজন শিক্ষক দেওয়া আছে। আগে তাকে সরান।")).toBeInTheDocument();
   });
 });
 

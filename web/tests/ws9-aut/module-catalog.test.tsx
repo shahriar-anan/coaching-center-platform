@@ -138,7 +138,7 @@ describe("module setup steps (U4)", () => {
 
     expect(screen.getAllByText("এটি শুধু মাস্টার অ্যাডমিন ঠিক করেন।", { exact: false })[0]).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "শিক্ষক" })).not.toBeInTheDocument();
-    expect(screen.getByText("মডিউলটি এখনো প্রকাশ হয়নি, তাই শিক্ষার্থীরা এখনো দেখতে বা কিনতে পারবেন না।")).toBeInTheDocument();
+    expect(screen.getByText("প্যাকেজটি এখনো প্রকাশ হয়নি, তাই শিক্ষার্থীরা এখনো দেখতে বা কিনতে পারবেন না।")).toBeInTheDocument();
   });
 
   it("Master Admin sees the teacher's name and that students can see and buy the module", () => {
@@ -149,7 +149,7 @@ describe("module setup steps (U4)", () => {
     );
 
     expect(screen.getByText("ফারিহা রহমান")).toBeInTheDocument();
-    expect(screen.getByText("শিক্ষার্থীরা এখন মডিউলটি দেখতে ও কিনতে পারবেন।")).toBeInTheDocument();
+    expect(screen.getByText("শিক্ষার্থীরা এখন প্যাকেজটি দেখতে ও কিনতে পারবেন।")).toBeInTheDocument();
   });
 });
 

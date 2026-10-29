@@ -127,4 +127,34 @@ describe("date and time input (Dhaka time, typed, 12-hour clock with AM or PM)",
     expect(screen.queryByRole("group", { name: "ক্যালেন্ডার" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ক্যালেন্ডার থেকে বেছে নিন" })).toHaveFocus();
   });
+
+  describe("date only (a discount end)", () => {
+    it("asks for no time, and sends the last second of the typed day in Dhaka time", async () => {
+      const onChange = vi.fn();
+      renderWithProviders(<DateTimeInput value={null} onChange={onChange} dateOnly />, { user: fixtures.masterAdmin });
+
+      expect(screen.queryByPlaceholderText("ঘণ্টা:মিনিট")).not.toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: "পিএম" })).not.toBeInTheDocument();
+
+      await userEvent.type(dateField(), "30/11/2026");
+
+      // 11:59:59 PM in Dhaka (UTC+6) is 17:59:59 UTC.
+      expect(onChange).toHaveBeenLastCalledWith("2026-11-30T17:59:59.000Z");
+    });
+
+    it("clears the value when the date is cleared, and the calendar has no time columns", async () => {
+      const onChange = vi.fn();
+      renderWithProviders(<DateTimeInput value="2026-11-30T17:59:59.000Z" onChange={onChange} dateOnly />, {
+        user: fixtures.masterAdmin,
+      });
+
+      expect(dateField()).toHaveValue("30/11/2026");
+      await openCalendar();
+      expect(screen.queryByRole("group", { name: "ঘণ্টা বেছে নিন" })).not.toBeInTheDocument();
+      await userEvent.keyboard("{Escape}");
+
+      await userEvent.clear(dateField());
+      expect(onChange).toHaveBeenLastCalledWith(null);
+    });
+  });
 });

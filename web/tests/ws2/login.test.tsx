@@ -76,7 +76,7 @@ describe("login", () => {
     await userEvent.type(screen.getByLabelText(/ইমেইল বা ফোন/), "teacher@example.com");
     await userEvent.type(screen.getByLabelText(/পাসওয়ার্ড/, { selector: "input" }), "password1");
     await userEvent.click(screen.getByRole("button", { name: "লগইন করুন" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("অ্যাডমিন ও শিক্ষকেরা অ্যাডমিন প্যানেলে লগইন করুন");
+    expect(await screen.findByRole("alert")).toHaveTextContent("অ্যাডমিন ও শিক্ষকেরা অ্যাডমিন প্যানেলে লগইন করেন");
   });
 
   it("keeps Google disabled with the coming-soon label until it is configured", () => {
