@@ -61,7 +61,7 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
         return;
       }
       // The result page reads these details to show the title, amount and the way back.
-      remember(result.tranId, { scope: "BUNDLE", examId: null, moduleId: null, door: null, title: t("purchase.bundleTitle", { count: ids.length }), amount: result.amount });
+      remember(result.tranId, { scope: "BUNDLE", examId: null, moduleId: null, door: null, title: t("purchase.bundleTitle", { count: ids.length }), amount: result.amount, orderId: result.orderId });
       window.location.assign(result.redirectUrl);
     } catch (caught) {
       setError(

@@ -76,7 +76,6 @@ const purchase: typeof bn = {
     amountPaid: "Amount paid",
     viewPayment: "View payment",
     downloadReceipt: "Download receipt",
-    receipts: "View receipts",
     failedHelp: "Need help? Call {phone}.",
     pendingWhat: "This usually takes under a minute. If you leave this page, access still appears in My exams once payment is confirmed.",
     notFoundTitle: "We couldn't find this payment",

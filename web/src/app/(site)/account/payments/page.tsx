@@ -5,18 +5,16 @@ import { Suspense, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { RequireStudent } from "@/lib/auth/guards";
-import { apiBlob, apiRequest } from "@/lib/api/client";
 import {
+  downloadReceiptPdf,
   isNotDeployed,
-  receiptPdfPath,
-
   useMyOrder,
   useMyOrders,
   useMyOrderSummary,
   type MyOrder,
   type PaymentStatus,
 } from "@/lib/api/exam/account";
-import { useCancelOrder, useStartOrder } from "@/lib/api/exam/purchase";
+import { useCancelOrder, useResumeOrder } from "@/lib/api/exam/purchase";
 import { useMyLiveExamAccess } from "@/lib/api/exam/catalog";
 import { useListParams } from "@/lib/url/list-params";
 import { formatDate, formatDateTime, formatMoney, formatNumber, pickTitle } from "@/lib/format";
@@ -125,7 +123,7 @@ function AccessLine({ orderId }: { orderId: string }) {
 function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void }) {
   const { t, locale } = useLocale();
   const { toast } = useToast();
-  const start = useStartOrder();
+  const resume = useResumeOrder();
   const cancel = useCancelOrder();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -135,13 +133,7 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
   async function downloadPdf() {
     setBusy(true);
     try {
-      const blob = await apiBlob(receiptPdfPath(order.orderId));
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${order.receiptNo ?? order.orderId}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
+      await downloadReceiptPdf(order.orderId, order.receiptNo ?? order.orderId);
     } catch {
       toast({ title: t("account.payments.detail.pdfFailed"), tone: "danger" });
     } finally {
@@ -149,25 +141,14 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
     }
   }
 
-  // Continue payment re-posts the order's target. The API reuses the open order, so no new order is made (plan 5, P-continue).
+  // Continue payment posts the order's target again. The API reuses the open order, so no new order is made (plan 5, P-continue).
   async function continuePayment() {
     setBusy(true);
     try {
-      const target = order.scope === "EXAM"
-        ? { examId: order.examId }
-        : order.scope === "BUNDLE"
-          ? { examIds: (await apiRequest<{ examIds: string[] }>(`/api/v1/live-exam-orders/${order.orderId}`)).examIds }
-          : { moduleId: order.moduleId };
-      const next = await start.mutateAsync(target as Parameters<typeof start.mutateAsync>[0]);
-      if (!next.redirectUrl) {
-        toast({ title: t("common.states.errorBody"), tone: "danger" });
-        return;
-      }
-      window.location.assign(next.redirectUrl);
+      await resume(order);
     } catch {
-      toast({ title: t("common.states.errorBody"), tone: "danger" });
-    } finally {
       setBusy(false);
+      toast({ title: t("common.states.errorBody"), tone: "danger" });
     }
   }
 

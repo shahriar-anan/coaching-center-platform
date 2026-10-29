@@ -62,6 +62,8 @@ export interface OrderMemo {
   title: string;
   /** The amount the student agreed to pay, shown on the success page. */
   amount?: number;
+  /** The order, so the success page can link to its payment and its receipt (Phase 4, S4.6). */
+  orderId?: string;
 }
 
 export function remember(tranId: string, memo: OrderMemo) {
@@ -167,6 +169,7 @@ export function PurchaseSheet({
         door: item.door ?? examMeta?.door ?? null,
         title: item.title,
         amount: item.price,
+        orderId: order.orderId,
       });
       setLeaving(true);
       window.location.assign(order.redirectUrl);

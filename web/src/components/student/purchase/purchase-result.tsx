@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api/errors";
 import { usePaymentStatus, useInvalidateCatalog, type PaymentState } from "@/lib/api/exam/purchase";
+import { downloadReceiptPdf } from "@/lib/api/exam/account";
 import { useSession } from "@/lib/auth/session-context";
 import { ORDER_MEMO_PREFIX, type OrderMemo } from "./purchase-sheet";
 import { useLocale } from "@/i18n/locale-context";
@@ -17,9 +18,34 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import { examPath, modulePath } from "@/components/student/catalog/catalog-helpers";
 
 const WAIT_MS = 60_000;
+
+/** Saves the receipt of the paid order (P4). A failed download says so in a toast. */
+function ReceiptButton({ orderId }: { orderId: string }) {
+  const { t } = useLocale();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function download() {
+    setBusy(true);
+    try {
+      await downloadReceiptPdf(orderId, orderId);
+    } catch {
+      toast({ title: t("account.payments.detail.pdfFailed"), tone: "danger" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Button variant="secondary" loading={busy} onClick={() => void download()}>
+      {t("purchase.result.downloadReceipt")}
+    </Button>
+  );
+}
 
 function readMemo(tranId: string): OrderMemo | null {
   try {
@@ -217,7 +243,10 @@ export function PurchaseResult() {
             {goModule ? <Button href={goModule}>{t("purchase.result.goModule")}</Button> : null}
             {goExam ? <Button variant={goModule ? "secondary" : "primary"} href={goExam}>{t("purchase.result.goExam")}</Button> : null}
             {!goModule && !goExam ? <Button href="/my-modules">{t("purchase.result.goMine")}</Button> : null}
-            <Button variant="ghost" href="/account/payments">{t("purchase.result.receipts")}</Button>
+            {memo?.orderId ? <ReceiptButton orderId={memo.orderId} /> : null}
+            <Button variant="ghost" href={memo?.orderId ? `/account/payments?order=${encodeURIComponent(memo.orderId)}` : "/account/payments"}>
+              {t("purchase.result.viewPayment")}
+            </Button>
           </>
         }
       />
