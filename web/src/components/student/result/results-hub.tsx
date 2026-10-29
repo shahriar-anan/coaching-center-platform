@@ -15,7 +15,9 @@ import { useLocale } from "@/i18n/locale-context";
 import { apiRequest } from "@/lib/api/client";
 import { sittingKeys, useModuleExams, useMyModules, type HubExam, type ReviewedResult } from "@/lib/api/exam/sitting";
 import { formatDate, formatNumber, pickTitle } from "@/lib/format";
+import { Button } from "@/components/ui/button";
 import { ExamStatusPill } from "@/components/student/catalog/status-pill";
+import { TypeFilter, filterByType, typeLabelKey, useTypeFilterParam } from "@/components/student/catalog/type-filter";
 import type { MyStatus } from "@/lib/api/exam/catalog";
 import { isMissing } from "@/lib/api/missing";
 
@@ -37,6 +39,7 @@ export function ResultsHub() {
   const { t, locale } = useLocale();
   const n = (value: number) => formatNumber(value, locale);
   const [tab, setTab] = useState<Tab>("results");
+  const [type, setType] = useTypeFilterParam();
   const modules = useMyModules();
   const moduleList = useMemo(() => modules.data?.content ?? [], [modules.data]);
   const moduleIds = useMemo(() => moduleList.map((module) => module.id), [moduleList]);
@@ -57,9 +60,11 @@ export function ResultsHub() {
         .sort(newestFirst),
     [examQueries],
   );
-  const resultRows = exams.filter((exam) => RESULT_STATUSES.has(exam.myStatus));
-  const markingRows = exams.filter((exam) => MARKING_STATUSES.has(exam.myStatus));
-  const otherRows = exams.filter((exam) => OTHER_STATUSES.has(exam.myStatus));
+  // The MCQ and Written filter (Phase 4, A3) narrows every tab, the summary and the badges together.
+  const typed = filterByType(exams, type, (exam) => exam.examType);
+  const resultRows = typed.filter((exam) => RESULT_STATUSES.has(exam.myStatus));
+  const markingRows = typed.filter((exam) => MARKING_STATUSES.has(exam.myStatus));
+  const otherRows = typed.filter((exam) => OTHER_STATUSES.has(exam.myStatus));
   const visible = tab === "results" ? resultRows : tab === "marking" ? markingRows : otherRows;
 
   // Marks and pass for each result row, used by the Passed count and the result tab.
@@ -117,13 +122,22 @@ export function ResultsHub() {
         value={tab}
         onChange={(value) => setTab(value as Tab)}
       />
+      <div>
+        <TypeFilter value={type} onChange={setType} />
+      </div>
 
       {visible.length === 0 ? (
         <EmptyState
-          title={tab === "results" ? t("result.hub.empty") : tab === "marking" ? t("result.hub.emptyMarking") : t("result.hub.emptyOther")}
-          body={tab === "results" ? t("result.hub.emptyBody") : undefined}
+          title={
+            type
+              ? t("result.hub.emptyOfType", { type: t(typeLabelKey(type)) })
+              : tab === "results" ? t("result.hub.empty") : tab === "marking" ? t("result.hub.emptyMarking") : t("result.hub.emptyOther")
+          }
+          body={!type && tab === "results" ? t("result.hub.emptyBody") : undefined}
           action={
-            tab === "results" ? (
+            type ? (
+              <Button variant="secondary" onClick={() => setType(null)}>{t("catalog.typeFilter.showAll")}</Button>
+            ) : tab === "results" ? (
               <Link href="/routine" className="text-accent underline underline-offset-4">
                 {t("result.hub.emptyAction")}
               </Link>

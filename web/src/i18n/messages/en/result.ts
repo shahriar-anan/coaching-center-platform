@@ -67,6 +67,7 @@ const result = {
     tabMarking: "Being marked",
     tabOther: "Other",
     emptyOther: "No other exams yet.",
+    emptyOfType: "No {type} results here yet.",
     empty: "No results yet",
     emptyBody: "Your results will appear here after you sit an exam.",
     emptyAction: "See the exam schedule",

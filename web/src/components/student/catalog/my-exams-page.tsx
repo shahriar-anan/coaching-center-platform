@@ -24,6 +24,7 @@ import { accessSourceKey } from "@/components/student/result/access-source";
 import { doorPath, examPath, modulePath } from "./catalog-helpers";
 import { accessEnd, orderedRows, type AccessEnd } from "./my-exams-rows";
 import { TypePill } from "./status-pill";
+import { TypeFilter, filterByType, typeLabelKey, useTypeFilterParam } from "./type-filter";
 
 type Tab = "exams" | "packages";
 
@@ -100,6 +101,7 @@ function PackageRow({ grant, pkg, pending }: { grant: OwnModuleGrant; pkg: Publi
 export function MyExamsPage() {
   const { t } = useLocale();
   const [tab, setTab] = useState<Tab>("exams");
+  const [type, setType] = useTypeFilterParam();
   const access = useMyLiveExamAccess(true);
   const grants = access.data;
   const examGrants = grants?.exams ?? [];
@@ -140,35 +142,51 @@ export function MyExamsPage() {
     })),
   );
 
+  // The type filter applies to the exam tab only: a package holds both types, so the control hides on the Packages tab.
+  const typedExamRows = filterByType(examRows, type, (row) => row.exam?.examType);
+
   return (
     <>
       <PageHeader title={t("catalog.myExams.title")} breadcrumbs={crumbs} />
       <Tabs
         ariaLabel={t("catalog.myExams.title")}
         tabs={[
-          { value: "exams", label: t("catalog.myExams.tabExams"), badge: examGrants.length },
+          { value: "exams", label: t("catalog.myExams.tabExams"), badge: typedExamRows.length },
           { value: "packages", label: t("catalog.myExams.tabPackages"), badge: packageGrants.length },
         ]}
         value={tab}
         onChange={(value) => setTab(value as Tab)}
       />
+      {tab === "exams" ? (
+        <div className="mt-3">
+          <TypeFilter value={type} onChange={setType} />
+        </div>
+      ) : null}
 
       <div className="mt-4" role="tabpanel">
         {tab === "exams" ? (
-          examRows.length === 0 ? (
+          typedExamRows.length === 0 ? (
             <EmptyState
-              title={t("catalog.myExams.emptyExams")}
-              body={t("catalog.myExams.emptyExamsBody")}
+              title={
+                type
+                  ? t("catalog.myExams.emptyExamsOfType", { type: t(typeLabelKey(type)) })
+                  : t("catalog.myExams.emptyExams")
+              }
+              body={type ? undefined : t("catalog.myExams.emptyExamsBody")}
               action={
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button variant="secondary" href={doorPath("mcq")}>{t("catalog.myModules.openMcq")}</Button>
-                  <Button variant="secondary" href={doorPath("written")}>{t("catalog.myModules.openWritten")}</Button>
-                </div>
+                type ? (
+                  <Button variant="secondary" onClick={() => setType(null)}>{t("catalog.typeFilter.showAll")}</Button>
+                ) : (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="secondary" href={doorPath("mcq")}>{t("catalog.myModules.openMcq")}</Button>
+                    <Button variant="secondary" href={doorPath("written")}>{t("catalog.myModules.openWritten")}</Button>
+                  </div>
+                )
               }
             />
           ) : (
             <ul className="grid gap-3">
-              {examRows.map((row) => (
+              {typedExamRows.map((row) => (
                 <ExamRow key={row.examId} grant={row} exam={row.exam} pending={row.pending} />
               ))}
             </ul>
