@@ -108,6 +108,7 @@ export function RichTextEditor({
   const labelId = useId();
   // The last HTML this field sent or was given. A different value from outside replaces the text.
   const sent = useRef(value);
+  const emitted = useRef<string[]>([]);
   const latestChange = useRef(onChange);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -127,15 +128,20 @@ export function RichTextEditor({
     onUpdate: ({ editor: current }) => {
       const html = current.getHTML();
       sent.current = html;
+      // Remember what was sent: its echo can arrive a render late, after the next key (see the effect below).
+      emitted.current = [...emitted.current.slice(-49), html];
       latestChange.current(html);
     },
   });
 
   useEffect(() => {
-    if (!editor || value === sent.current) {
+    // A value this field sent itself is an echo, not an outside change, even when it is one key behind the text. Applying
+    // such a stale echo reset the editor to older text and dropped characters typed in quick succession.
+    if (!editor || value === sent.current || emitted.current.includes(value)) {
       return;
     }
     sent.current = value;
+    emitted.current = [];
     editor.commands.setContent(htmlFromStored(value), { emitUpdate: false });
   }, [editor, value]);
 

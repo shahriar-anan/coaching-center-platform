@@ -5,7 +5,7 @@ import { LocalizedRichText } from "@/components/staff/catalog/localized-rich-tex
 import { richTextValue, type SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
 
 /** The description and the rules: one rich text box each, with an English / বাংলা switch (plan 7.2, section 2). */
-export function ExamTextFields({ form, set, errors }: SectionFieldsProps) {
+export function ExamTextFields({ form, set, errors, saved, saving, onSave }: SectionFieldsProps) {
   const { t } = useLocale();
   return (
     <>
@@ -20,6 +20,10 @@ export function ExamTextFields({ form, set, errors }: SectionFieldsProps) {
         }
         errorEn={errors.descriptionEn}
         errorBn={errors.descriptionBn}
+        savedEn={saved.descriptionEn}
+        savedBn={saved.descriptionBn}
+        onSave={onSave}
+        saving={saving}
       />
       <LocalizedRichText
         title={t("staffCatalog.richText.rulesTitle")}
@@ -32,6 +36,10 @@ export function ExamTextFields({ form, set, errors }: SectionFieldsProps) {
         }
         errorEn={errors.rulesEn}
         errorBn={errors.rulesBn}
+        savedEn={saved.rulesEn}
+        savedBn={saved.rulesBn}
+        onSave={onSave}
+        saving={saving}
       />
     </>
   );

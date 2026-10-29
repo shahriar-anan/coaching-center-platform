@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { LocalizedRichText } from "@/components/staff/catalog/localized-rich-text";
 import { fixtures, renderWithProviders } from "../helpers";
@@ -59,6 +60,68 @@ describe("localized rich text", () => {
     await userEvent.keyboard("x");
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith("bn", expect.stringContaining("x")));
+  });
+
+  it("opens as a preview when there is saved text, and Edit opens the editor with Save off", async () => {
+    render({ savedEn: "<p>Hello</p>", savedBn: "", onSave: vi.fn() });
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(await screen.findByRole("textbox", { name: "Description (English)" })).toBeInTheDocument();
+    expect(screen.getByText("English saved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("goes back to the preview after a save, and after Cancel", async () => {
+    function Harness() {
+      const [value, setValue] = useState("<p>Hello</p>");
+      const [saved, setSaved] = useState("<p>Hello</p>");
+      return (
+        <LocalizedRichText
+          title="Description"
+          valueEn={value}
+          valueBn=""
+          savedEn={saved}
+          savedBn=""
+          onChange={(language, html) => (language === "en" ? setValue(html) : undefined)}
+          onSave={() => setSaved(value)}
+        />
+      );
+    }
+    renderWithProviders(<Harness />, { user: fixtures.masterAdmin, locale: "en" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.click(await screen.findByRole("textbox", { name: "Description (English)" }));
+    await userEvent.keyboard("more");
+    expect(await screen.findByText("English: unsaved changes")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(screen.getByText(/more/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.click(await screen.findByRole("textbox", { name: "Description (English)" }));
+    await userEvent.keyboard("zzz");
+    expect(await screen.findByText("English: unsaved changes")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(screen.queryByText(/zzz/)).not.toBeInTheDocument();
+    expect(screen.getByText(/more/)).toBeInTheDocument();
+  });
+
+  it("names the language with unsaved changes and saves on request", async () => {
+    const onSave = vi.fn();
+    render({ valueBn: "<p>নতুন</p>", savedEn: "<p>Hello</p>", savedBn: "", onSave });
+
+    expect(screen.getByText("English saved. বাংলা has unsaved changes")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "বাংলা" }));
+    expect(screen.getByText("বাংলা: unsaved changes")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 
   it("moves to the language that has an error and shows it", async () => {

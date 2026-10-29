@@ -366,6 +366,11 @@ const staffCatalog = {
     descriptionTitle: "বিবরণ",
     rulesTitle: "নিয়মাবলি",
     editorLabel: "{title} ({language})",
+    save: "সেভ করুন",
+    edit: "এডিট করুন",
+    saved: "{language} সেভ হয়েছে",
+    dirty: "{language}: পরিবর্তন সেভ হয়নি",
+    otherDirty: "{language} সেভ হয়েছে। {other}-এ সেভ না-করা পরিবর্তন আছে",
   },
   examMeta: {
     end: "শেষ",

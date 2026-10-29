@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
@@ -56,6 +56,7 @@ export function ExamMetaForm({
   const role = useRole();
   const save = useSaveExam(exam.id);
   const context: ExamFormContext = { written: exam.examType === "WRITTEN", canSetPrice: role.canEditPrice };
+  const formRef = useRef<HTMLFormElement>(null);
   const [form, setForm] = useState<ExamFormState>(() => examFormState(exam));
   const [saved, setSaved] = useState<ExamFormState>(() => examFormState(exam));
   const [errors, setErrors] = useState<ExamFormErrors>({});
@@ -112,7 +113,17 @@ export function ExamMetaForm({
     }
   }
 
-  const fields: SectionFieldsProps = { exam, form, set, errors, disabled: !canEdit, context };
+  const fields: SectionFieldsProps = {
+    exam,
+    form,
+    set,
+    errors,
+    disabled: !canEdit,
+    context,
+    saved,
+    saving: save.isPending,
+    onSave: () => formRef.current?.requestSubmit(),
+  };
   const priceLocked = section === "price" && !context.canSetPrice;
   // The section's one footer row: its status on the left, its Save on the right.
   const footer = canEdit && !priceLocked ? (
@@ -130,7 +141,7 @@ export function ExamMetaForm({
   ) : null;
 
   return (
-    <form id={`exam-${section}-form`} onSubmit={onSubmit} noValidate className="grid gap-4">
+    <form ref={formRef} id={`exam-${section}-form`} onSubmit={onSubmit} noValidate className="grid gap-4">
       <fieldset disabled={!canEdit} className="grid gap-4">
         {section === "details" ? <ExamDetailsFields {...fields} /> : null}
         {section === "text" ? <ExamTextFields {...fields} /> : null}

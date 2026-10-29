@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { RichTextView } from "@/components/ui/rich-text-view";
@@ -128,6 +129,25 @@ describe("rich text editor toolbar", () => {
 
     // The editor reports on the next update, which can lag under load.
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining("<strong>Read</strong>")));
+  });
+
+  it("keeps every character when the parent feeds the value back, even when the keys come fast", async () => {
+    // The echo of one key can arrive after the next key; applying it used to reset the text and drop characters.
+    function Controlled() {
+      const [value, setValue] = useState("");
+      return (
+        <>
+          <RichTextEditor value={value} onChange={setValue} label="Rules" />
+          <output data-testid="out">{value}</output>
+        </>
+      );
+    }
+    renderWithProviders(<Controlled />, { user: fixtures.masterAdmin });
+
+    await userEvent.click(await screen.findByRole("textbox"));
+    await userEvent.keyboard("Read all rules");
+
+    await waitFor(() => expect(screen.getByTestId("out")).toHaveTextContent("<p>Read all rules</p>"));
   });
 
   it("makes a bulleted list from the paragraph", async () => {

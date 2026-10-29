@@ -299,6 +299,12 @@ export type SectionFieldsProps = {
   errors: ExamFormErrors;
   disabled: boolean;
   context: ExamFormContext;
+  /** The values as last saved, so a field can show whether it has unsaved changes. */
+  saved: ExamFormState;
+  /** True while the section is being saved. */
+  saving: boolean;
+  /** Saves the section from inside a field group, the same as the section's own Save button. */
+  onSave: () => void;
 };
 
 /**

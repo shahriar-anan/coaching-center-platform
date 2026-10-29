@@ -362,6 +362,11 @@ const staffCatalog = {
     descriptionTitle: "Description",
     rulesTitle: "Rules",
     editorLabel: "{title} ({language})",
+    save: "Save",
+    edit: "Edit",
+    saved: "{language} saved",
+    dirty: "{language}: unsaved changes",
+    otherDirty: "{language} saved. {other} has unsaved changes",
   },
   examMeta: {
     end: "End",
