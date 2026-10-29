@@ -220,11 +220,19 @@ describe("MCQ editor", () => {
 });
 
 describe("after the start", () => {
-  it("locks the meta form and says so", () => {
-    renderWithProviders(<ExamMetaForm exam={mcqExam} locked section="details" />, { user: fixtures.masterAdmin });
-    expect(screen.getByText("পরীক্ষা শুরু হয়ে গেছে, তাই এখন আর কিছু বদলানো যাবে না।")).toBeInTheDocument();
-    const form = screen.getByLabelText(/বাংলা নাম/);
-    expect(form).toBeDisabled();
+  it("does not lock the details by date: after the start the form stays editable (no date lock, D27)", () => {
+    const started: StaffExam = {
+      ...mcqExam,
+      status: "PUBLISHED",
+      liveAt: "2026-10-01T04:00:00Z",
+      endAt: "2026-10-01T05:00:00Z",
+    };
+    renderWithProviders(
+      <ExamMetaForm exam={started} canEdit section="details" onDirtyChange={() => undefined} />,
+      { user: fixtures.masterAdmin },
+    );
+    expect(screen.queryByText(/শুরু হয়ে গেছে/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/বাংলা নাম/)).toBeEnabled();
   });
 });
 

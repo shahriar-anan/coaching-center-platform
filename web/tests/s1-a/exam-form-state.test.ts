@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   examBodyFor,
+  richTextValue,
   examFormErrors,
   examFormState,
   examChecklist,
@@ -195,5 +196,29 @@ describe("publish checklist", () => {
   it("never publishes a published exam directly: its changes go through the change list", () => {
     const published = exam({ status: "PUBLISHED" });
     expect(examPublishable(published, examChecklist(published, t))).toBe(false);
+  });
+});
+
+describe("rich text value from the editor", () => {
+  it("keeps an empty document as an empty value, so a clean section stays clean", () => {
+    expect(richTextValue("<p></p>", "")).toBe("");
+    expect(richTextValue("<p></p>", "<p>Old</p>")).toBe("");
+  });
+
+  it("keeps a plain text row as it was stored when the editor only re-shapes it into paragraphs", () => {
+    expect(richTextValue("<p>Line one</p><p>Line two &amp; more</p>", "Line one\nLine two & more")).toBe(
+      "Line one\nLine two & more",
+    );
+  });
+
+  it("takes a real change from the editor", () => {
+    expect(richTextValue("<p><strong>Bold</strong></p>", "Line one")).toBe("<p><strong>Bold</strong></p>");
+  });
+
+  it("refuses a price with three decimal places, and accepts two", () => {
+    expect(examFormErrors({ ...examFormState(exam()), price: "10.505" }, "price", mcq).price).toBe(
+      "staffCatalog.examMeta.priceInvalid",
+    );
+    expect(examFormErrors({ ...examFormState(exam()), price: "10.50" }, "price", mcq)).toEqual({});
   });
 });

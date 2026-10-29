@@ -104,13 +104,14 @@ describe("module exams table (U6, G13)", () => {
 
   it("lists dated exams first, undated last, with the readiness of each", async () => {
     mockApi({
-      [`GET /api/v1/live-exam-modules/${moduleId}/exams`]: { content: [undated, empty, dated], page: 0, size: 20, totalElements: 3, totalPages: 1 },
+      // The server orders package exams by start, dated first and undated last (liveAt, nulls last).
+      [`GET /api/v1/live-exam-modules/${moduleId}/exams`]: { content: [dated, undated, empty], page: 0, size: 20, totalElements: 3, totalPages: 1 },
     });
     renderWithProviders(<ModuleExams moduleId={moduleId} />, { user: fixtures.masterAdmin });
 
     const rows = await screen.findAllByRole("row");
     const names = rows.slice(1).map((row) => within(row).getAllByRole("link")[0].textContent);
-    // Undated exams keep the server's order after the dated one.
+    // The client keeps the server's order: it does not sort the rows again (the Exams tab is the server's list).
     expect(names).toEqual(["সিআরপিসি", "সিপিসি", "খসড়া"]);
     expect(screen.getAllByText("প্রশ্ন নেই")[0]).toBeInTheDocument();
     expect(screen.getAllByText("প্রশ্নপত্র আছে")[0]).toBeInTheDocument();

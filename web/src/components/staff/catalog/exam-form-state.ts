@@ -166,8 +166,9 @@ export function examFormErrors(form: ExamFormState, section: ExamSection, contex
         errors.discountPercent = "staffCatalog.examMeta.freeNoPrice";
       }
     } else if (form.price.trim() !== "") {
+      // A price is above zero, with at most two decimal places (the same rule as the API and the package price).
       const price = parseNumber(form.price);
-      if (price === null || price <= 0) {
+      if (price === null || price <= 0 || !/^\d+(\.\d{1,2})?$/.test(form.price.trim())) {
         errors.price = "staffCatalog.examMeta.priceInvalid";
       }
     }
@@ -292,3 +293,29 @@ export type SectionFieldsProps = {
   disabled: boolean;
   context: ExamFormContext;
 };
+
+/**
+ * The HTML a plain text row opens as: one paragraph per line (the editor's own reading of it, plan 7.6). Only the
+ * characters the HTML serializer escapes in text are escaped here.
+ */
+function plainAsHtml(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => `<p>${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
+    .join("");
+}
+
+/**
+ * The value to keep for what the rich text editor reports. On mount the editor reports the stored value in its own
+ * shape: an empty document as "<p></p>", and a plain text row as one paragraph per line. Neither is a change, so the
+ * stored value is kept, and the section stays clean until someone types.
+ */
+export function richTextValue(reported: string, previous: string): string {
+  if (reported.replace(/<\/?p>|<br\s*\/?>|\s/g, "") === "") {
+    return "";
+  }
+  if (previous !== "" && !previous.includes("<") && reported === plainAsHtml(previous)) {
+    return previous;
+  }
+  return reported;
+}

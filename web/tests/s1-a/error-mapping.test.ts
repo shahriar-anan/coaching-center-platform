@@ -3,7 +3,10 @@ import { ApiError } from "@/lib/api/errors";
 import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
 
 function apiError(code: string, fieldErrors?: { field: string; message: string }[]) {
-  return new ApiError({ code, message: "server text", requestId: "req-1", fieldErrors }, 409);
+  return new ApiError(
+    { code, message: "server text", requestId: "req-1", timestamp: "2026-10-29T06:00:00Z", fieldErrors },
+    409,
+  );
 }
 
 describe("catalog error mapping", () => {

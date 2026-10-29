@@ -279,6 +279,22 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
       },
     },
     {
+      key: "content",
+      header: t("staffCatalog.moduleExams.columns.content"),
+      cell: (exam) => {
+        // Readiness: an MCQ exam needs questions, a written one needs its question paper (U6).
+        if (exam.examType === "MCQ") {
+          const count = exam.questions?.length ?? 0;
+          return count > 0 ? (
+            t("staffCatalog.moduleExams.questionCount", { n: formatNumber(count) })
+          ) : (
+            <span className="text-warn">{t("staffCatalog.moduleExams.noQuestions")}</span>
+          );
+        }
+        return exam.questionPdf ? t("staffCatalog.moduleExams.pdfPresent") : <span className="text-warn">{t("staffCatalog.moduleExams.noPaper")}</span>;
+      },
+    },
+    {
       key: "status",
       header: t("staffCatalog.moduleExams.columns.status"),
       cell: (exam) => <StatusPill status={exam.status} />,

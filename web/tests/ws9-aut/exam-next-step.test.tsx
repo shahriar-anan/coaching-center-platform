@@ -64,7 +64,9 @@ describe("next step after an exam is created (decided 2026-10-27: another exam, 
       `/staff/modules/${moduleId}?tab=exams&new=1`,
     );
     expect(screen.getByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).toHaveAttribute("href", `/staff/modules/${moduleId}?tab=instructor`);
-    expect(screen.getByRole("button", { name: "সব পরিবর্তন সংরক্ষণ করুন" })).toBeInTheDocument();
+    // A clean draft has no unsaved edits, so the header offers its next step: the final save (plan 7.2 header table).
+    expect(screen.getByRole("button", { name: "চূড়ান্ত করুন" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "সব পরিবর্তন সংরক্ষণ করুন" })).not.toBeInTheDocument();
   });
 
   it("tells a System Admin that only the Master Admin assigns the instructor", async () => {

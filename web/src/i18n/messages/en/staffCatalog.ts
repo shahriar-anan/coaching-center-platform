@@ -506,7 +506,7 @@ const staffCatalog = {
     archiveBody: "Students will no longer see this exam. Results already posted stay readable. An archived exam cannot be changed.",
     archiveConfirm: "Withdraw",
     archived: "Exam withdrawn.",
-    archivedNotice: "This exam is archived. Students cannot see it. Posted results stay readable. It cannot be changed.",
+    archivedNotice: "This exam is withdrawn. Students cannot see it. Posted results stay readable. It cannot be changed.",
     noTeacherWarning: "No teacher is assigned to this module. Assign one before written answers are marked.",
     noTeacherInfo: "No teacher is assigned to this module yet. The Master Admin assigns one.",
     assignTeacher: "Assign a teacher",
