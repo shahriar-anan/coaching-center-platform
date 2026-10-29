@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { controlBase, controlBorder } from "@/components/ui/control";
 import { useLocale } from "@/i18n/locale-context";
-import { TimeClock } from "@/components/ui/time-clock";
 import { useFormat } from "@/lib/format/use-format";
-import { dhakaParts, fromDhakaParts } from "@/lib/format";
+import { dhakaParts, fromDhakaParts, toBengaliDigits } from "@/lib/format";
 
 type Period = "AM" | "PM";
 
@@ -15,8 +15,17 @@ type Draft = { date: string; time: string; period: Period };
 
 type DateError = "incomplete" | "invalidDate" | "invalidTime";
 
+/** The month shown in the calendar. `month` is 0 to 11. */
+type Month = { year: number; month: number };
+
 const EMPTY: Draft = { date: "", time: "", period: "AM" };
 const pad = (n: number) => String(n).padStart(2, "0");
+/** One row of a scroll column: a 44 px touch target and a 4 px gap. */
+const ROW = 48;
+const HOURS = Array.from({ length: 12 }, (_, i) => pad(i + 1));
+const MINUTES = Array.from({ length: 60 }, (_, i) => pad(i));
+const secondaryButton =
+  "min-h-11 rounded-control border border-border-control bg-field px-4 text-body font-medium text-text transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-60";
 
 /** The draft fields for an instant, in Dhaka time, with the time on a 12-hour clock. An empty value gives empty fields. */
 function draftFor(iso: string | null): Draft {
@@ -31,17 +40,30 @@ function draftFor(iso: string | null): Draft {
   };
 }
 
-/** The hour (0 to 23, as typed) and the minute of a typed time, or nulls while it is empty or not a time yet. */
-function clockParts(text: string): { hour: number | null; minute: number | null } {
-  const match = /^(\d{1,2})[:.](\d{2})/.exec(text.trim());
+/** The day, month (0 to 11) and year of a typed dd/mm/yyyy date, or null while it is not one. */
+function typedDate(text: string): { day: number; month: number; year: number } | null {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text.trim());
   if (!match) {
-    return { hour: null, minute: null };
+    return null;
   }
-  return { hour: Number(match[1]), minute: Number(match[2]) };
+  return { day: Number(match[1]), month: Number(match[2]) - 1, year: Number(match[3]) };
 }
 
-function isEmpty(draft: Draft): boolean {
-  return !draft.date.trim() && !draft.time.trim();
+/** The month the calendar opens on: the typed date's month, or this month in Dhaka. */
+function monthFor(draft: Draft): Month {
+  const date = typedDate(draft.date);
+  if (date && date.month >= 0 && date.month <= 11) {
+    return { year: date.year, month: date.month };
+  }
+  const now = dhakaParts(Date.now());
+  return { year: now.year, month: now.month };
+}
+
+/** The day numbers of a month in calendar order, with `null` for the blank cells before the first day (weeks start on Sunday). */
+function calendarDays({ year, month }: Month): (number | null)[] {
+  const first = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const count = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return [...Array.from({ length: first }, () => null), ...Array.from({ length: count }, (_, i) => i + 1)];
 }
 
 /**
@@ -75,6 +97,10 @@ function parseTime(text: string, fallback: Period): { hour24: number; minute: nu
   return null;
 }
 
+function isEmpty(draft: Draft): boolean {
+  return !draft.date.trim() && !draft.time.trim();
+}
+
 /** The instant for a complete, real draft in Dhaka time, or why it is not one yet. */
 function instantFor(draft: Draft): { iso: string | null; error: DateError | null } {
   if (isEmpty(draft)) {
@@ -84,29 +110,70 @@ function instantFor(draft: Draft): { iso: string | null; error: DateError | null
     return { iso: null, error: "incomplete" };
   }
   // A short entry is still being typed, so it is not an error yet.
-  const date = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(draft.date.trim());
+  const date = typedDate(draft.date);
   if (!date) {
     return { iso: null, error: draft.date.trim().length >= 10 ? "invalidDate" : "incomplete" };
   }
-  const day = Number(date[1]);
-  const month = Number(date[2]);
-  const year = Number(date[3]);
-  const probe = new Date(Date.UTC(year, month - 1, day));
-  if (month < 1 || month > 12 || probe.getUTCDate() !== day) {
+  const { day, month, year } = date;
+  const probe = new Date(Date.UTC(year, month, day));
+  if (month < 0 || month > 11 || probe.getUTCDate() !== day) {
     return { iso: null, error: "invalidDate" };
   }
   const time = parseTime(draft.time, draft.period);
   if (!time) {
     return { iso: null, error: draft.time.trim().length >= 5 ? "invalidTime" : "incomplete" };
   }
-  const iso = fromDhakaParts({ year, month: month - 1, day, hour: time.hour24, minute: time.minute }).toISOString();
+  const iso = fromDhakaParts({ year, month, day, hour: time.hour24, minute: time.minute }).toISOString();
   return { iso, error: null };
+}
+
+/** One scroll column of the picker. It opens scrolled so the chosen row is near the top. */
+function TimeColumn({
+  label,
+  options,
+  selected,
+  onPick,
+}: {
+  label: string;
+  options: { value: string; text: string }[];
+  selected: string | null;
+  onPick: (value: string) => void;
+}) {
+  const list = useRef<HTMLDivElement>(null);
+  const [first] = useState(() => Math.max(0, options.findIndex((option) => option.value === selected) - 2));
+  useEffect(() => {
+    if (list.current) {
+      list.current.scrollTop = first * ROW;
+    }
+  }, [first]);
+  return (
+    <div ref={list} role="group" aria-label={label} className="grid max-h-60 content-start gap-1 overflow-y-auto pe-1">
+      {options.map((option) => {
+        const chosen = option.value === selected;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={chosen}
+            onClick={() => onPick(option.value)}
+            className={cn(
+              "min-h-11 rounded-control border px-2 text-body font-medium transition-colors",
+              chosen ? "border-action bg-action text-on-action" : "border-transparent text-text hover:bg-field",
+            )}
+          >
+            {option.text}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
  * A date and time in Asia/Dhaka: the date as dd/mm/yyyy, the time typed as hh:mm on a
- * 12-hour clock, and AM or PM. The value and `onChange` use ISO UTC, so the API always
- * gets an instant. A cleared form gives `null`. A partly typed form keeps the last
+ * 12-hour clock, and AM or PM. A calendar and three scroll columns (hour, minute, AM or PM)
+ * open from a button beside the typed fields. The value and `onChange` use ISO UTC, so the API
+ * always gets an instant. A cleared form gives `null`. A partly typed form keeps the last
  * complete value until it is complete.
  */
 export function DateTimeInput({
@@ -128,11 +195,15 @@ export function DateTimeInput({
   "aria-describedby"?: string;
   className?: string;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { formatDateTime } = useFormat();
   const [draft, setDraft] = useState<Draft>(() => draftFor(value));
   const [error, setError] = useState<string | null>(null);
-  const [clockOpen, setClockOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [view, setView] = useState<Month>(() => monthFor(draft));
+  const panelId = useId();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   // The value this control last sent. A different value from outside (a save or a reset) replaces the draft.
   const sent = useRef<string | null>(value);
 
@@ -143,6 +214,30 @@ export function DateTimeInput({
       setError(null);
     }
   }, [value]);
+
+  useEffect(() => {
+    if (!panelOpen) {
+      return;
+    }
+    // A press outside the picker closes it. Escape closes it and returns focus to the button.
+    const onPress = (event: Event) => {
+      if (!wrapRef.current?.contains(event.target as Node)) {
+        setPanelOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPanelOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPress);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPress);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [panelOpen]);
 
   function update(next: Draft) {
     // A typed AM or PM, or a 24-hour time, sets the AM or PM button too.
@@ -163,9 +258,65 @@ export function DateTimeInput({
   }
 
   const complete = instantFor(draft).iso;
-  // The clock face shows the hour on a 12-hour clock; the typed time keeps the 24-hour value.
-  const clock = clockParts(draft.time);
-  const clockHour = clock.hour === null ? null : clock.hour % 12 || 12;
+  // The typed time on a 12-hour clock, or null while it is not a time yet. The columns follow it.
+  const typed = parseTime(draft.time, draft.period);
+  const selectedDate = typedDate(draft.date);
+  const selectedDay = selectedDate && selectedDate.year === view.year && selectedDate.month === view.month ? selectedDate.day : null;
+
+  // Digits follow the interface language: Bangla digits in Bangla.
+  const digits = (text: string) => (locale === "bn" ? toBengaliDigits(text) : text);
+  const tag = locale === "bn" ? "bn-BD" : "en-GB";
+  const monthTitle = new Intl.DateTimeFormat(tag, { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(view.year, view.month, 1)),
+  );
+  const dayName = new Intl.DateTimeFormat(tag, { weekday: "short", timeZone: "UTC" });
+  // 7 January 2024 was a Sunday.
+  const weekdays = Array.from({ length: 7 }, (_, i) => dayName.format(new Date(Date.UTC(2024, 0, 7 + i))));
+
+  function togglePanel() {
+    if (!panelOpen) {
+      setView(monthFor(draft));
+    }
+    setPanelOpen((open) => !open);
+  }
+
+  function shiftMonth(delta: number) {
+    setView((current) => {
+      const next = new Date(Date.UTC(current.year, current.month + delta, 1));
+      return { year: next.getUTCFullYear(), month: next.getUTCMonth() };
+    });
+  }
+
+  function pickDay(day: number) {
+    update({ ...draft, date: `${pad(day)}/${pad(view.month + 1)}/${view.year}` });
+  }
+
+  // A column pick keeps the other two parts: the minute when the hour is picked, the hour when the minute is.
+  function pickHour(hour: string) {
+    update({ ...draft, time: `${hour}:${pad(typed?.minute ?? 0)}` });
+  }
+
+  function pickMinute(minute: string) {
+    update({ ...draft, time: `${pad(typed ? (typed.hour24 % 12) || 12 : 12)}:${minute}` });
+  }
+
+  // The chosen period wins over a 24-hour time or a typed marker, so the time is written on a 12-hour clock.
+  function pickPeriod(period: Period) {
+    update({ ...draft, period, time: typed ? `${pad((typed.hour24 % 12) || 12)}:${pad(typed.minute)}` : draft.time });
+  }
+
+  function chooseNow() {
+    const now = draftFor(new Date().toISOString());
+    update(now);
+    setView(monthFor(now));
+  }
+
+  const hourOptions = HOURS.map((hour) => ({ value: hour, text: digits(hour) }));
+  const minuteOptions = MINUTES.map((minute) => ({ value: minute, text: digits(minute) }));
+  const periodOptions = [
+    { value: "AM", text: t("common.dateTime.am") },
+    { value: "PM", text: t("common.dateTime.pm") },
+  ];
 
   return (
     <div className={cn("grid gap-2", className)}>
@@ -214,7 +365,7 @@ export function DateTimeInput({
                   role="radio"
                   aria-checked={selected}
                   disabled={disabled}
-                  onClick={() => update({ ...draft, period })}
+                  onClick={() => pickPeriod(period)}
                   className={cn(
                     "min-h-11 min-w-16 rounded-control border px-4 text-body font-medium transition-colors",
                     selected ? "border-action bg-action text-on-action" : "border-border-control bg-field text-text hover:border-muted",
@@ -228,23 +379,108 @@ export function DateTimeInput({
           </div>
         </div>
       </div>
-      <div className="grid gap-3">
+      <div ref={wrapRef} className="relative w-fit">
         <button
+          ref={triggerRef}
           type="button"
-          aria-expanded={clockOpen}
+          aria-expanded={panelOpen}
+          aria-controls={panelId}
           disabled={disabled}
-          onClick={() => setClockOpen((open) => !open)}
+          onClick={togglePanel}
           className="min-h-11 justify-self-start rounded-control px-1 text-meta font-medium text-action underline-offset-2 hover:underline"
         >
-          {t(clockOpen ? "common.dateTime.hideClock" : "common.dateTime.pickOnClock")}
+          {t(panelOpen ? "common.dateTime.hideCalendar" : "common.dateTime.pickOnCalendar")}
         </button>
-        {clockOpen ? (
-          <TimeClock
-            hour={clockHour}
-            minute={clock.minute}
-            onHour={(hour) => update({ ...draft, time: `${pad(hour)}:${pad(clock.minute ?? 0)}` })}
-            onMinute={(minute) => update({ ...draft, time: `${pad(clockHour ?? 12)}:${pad(minute)}` })}
-          />
+        {panelOpen ? (
+          <div
+            id={panelId}
+            className="absolute start-0 top-full z-30 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-card border border-border bg-card p-4 shadow-lg"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                aria-label={t("common.dateTime.previousMonth")}
+                onClick={() => shiftMonth(-1)}
+                className="grid min-h-11 min-w-11 place-items-center rounded-control text-text hover:bg-field"
+              >
+                <ChevronLeft aria-hidden="true" className="size-5" />
+              </button>
+              <p className="text-label font-semibold text-text">{monthTitle}</p>
+              <button
+                type="button"
+                aria-label={t("common.dateTime.nextMonth")}
+                onClick={() => shiftMonth(1)}
+                className="grid min-h-11 min-w-11 place-items-center rounded-control text-text hover:bg-field"
+              >
+                <ChevronRight aria-hidden="true" className="size-5" />
+              </button>
+            </div>
+            <div role="group" aria-label={t("common.dateTime.calendar")} className="grid grid-cols-7 gap-1">
+              {weekdays.map((name) => (
+                <span key={name} aria-hidden="true" className="grid place-items-center text-pill text-muted">
+                  {name}
+                </span>
+              ))}
+              {calendarDays(view).map((day, index) =>
+                day === null ? (
+                  <span key={`blank-${index}`} aria-hidden="true" />
+                ) : (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={selectedDay === day}
+                    onClick={() => pickDay(day)}
+                    className={cn(
+                      "min-h-11 rounded-control text-body font-medium transition-colors",
+                      selectedDay === day ? "bg-action text-on-action" : "text-text hover:bg-field",
+                    )}
+                  >
+                    {digits(String(day))}
+                  </button>
+                ),
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <TimeColumn
+                label={t("common.dateTime.chooseHour")}
+                options={hourOptions}
+                selected={typed ? pad((typed.hour24 % 12) || 12) : null}
+                onPick={pickHour}
+              />
+              <TimeColumn
+                label={t("common.dateTime.chooseMinute")}
+                options={minuteOptions}
+                selected={typed ? pad(typed.minute) : null}
+                onPick={pickMinute}
+              />
+              <TimeColumn
+                label={t("common.dateTime.period")}
+                options={periodOptions}
+                selected={draft.period}
+                onPick={(period) => pickPeriod(period === "PM" ? "PM" : "AM")}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-2">
+                <button type="button" disabled={disabled} onClick={chooseNow} className={secondaryButton}>
+                  {t("common.dateTime.now")}
+                </button>
+                <button type="button" disabled={disabled} onClick={() => update(EMPTY)} className={secondaryButton}>
+                  {t("common.dateTime.clear")}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPanelOpen(false);
+                  triggerRef.current?.focus();
+                }}
+                className="min-h-11 rounded-control bg-action px-4 text-body font-medium text-on-action transition-colors hover:opacity-90"
+              >
+                {t("common.dateTime.done")}
+              </button>
+            </div>
+          </div>
         ) : null}
       </div>
       {error ? (
