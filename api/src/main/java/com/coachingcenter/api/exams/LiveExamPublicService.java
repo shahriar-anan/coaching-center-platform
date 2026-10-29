@@ -372,14 +372,14 @@ public class LiveExamPublicService {
 				exam.getPaperLanguage(), format(exam.getLiveAt()), format(exam.getEndsAt()), exam.getDurationMinutes(),
 				exam.getPrice(), viewer == null ? null : viewer.exam(exam), exam.getCategoryId(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly(exam, packages)),
-				packageRefs(packages), null);
+				packageRefs(packages), null, ExamCoverService.coverPath(exam));
 	}
 
 	private CategoryExam categoryExam(LiveExam exam, Instant now, List<LiveExamModule> packages) {
 		return new CategoryExam(exam.getId(), exam.getCategoryId(), exam.getExamType(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.getTitleEn(), exam.getTitleBn(), format(exam.getLiveAt()),
 				format(exam.getEndsAt()), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly(exam, packages)),
-				packageRefs(packages), null);
+				packageRefs(packages), null, ExamCoverService.coverPath(exam));
 	}
 
 	private UpcomingExam upcomingRow(LiveExam exam, Instant now, List<LiveExamModule> packages) {
@@ -390,7 +390,7 @@ public class LiveExamPublicService {
 				module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(), exam.getLiveAt(),
 				exam.getEndsAt(), exam.getPrice(), moduleOnly, exam.getCategoryId(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly),
-				packageRefs(packages), null);
+				packageRefs(packages), null, ExamCoverService.coverPath(exam));
 	}
 
 	private Map<UUID, Counts> counts(List<UUID> moduleIds) {
@@ -507,11 +507,11 @@ public class LiveExamPublicService {
 	/** An exam in its category's list: the public row shape without the descriptions and rules. */
 	public record CategoryExam(UUID id, UUID categoryId, String examType, String mode, String phase, String titleEn,
 			String titleBn, String liveAt, String endAt, boolean popular, PriceView pricing,
-			List<LiveExamModuleService.PackageRef> packages, Boolean favourite) {
+			List<LiveExamModuleService.PackageRef> packages, Boolean favourite, String coverUrl) {
 
 		public CategoryExam withFavourite(boolean marked) {
 			return new CategoryExam(id, categoryId, examType, mode, phase, titleEn, titleBn, liveAt, endAt, popular,
-					pricing, packages, marked);
+					pricing, packages, marked, coverUrl);
 		}
 
 	}
@@ -520,11 +520,11 @@ public class LiveExamPublicService {
 	public record UpcomingExam(UUID id, String examType, String titleEn, String titleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price, boolean moduleOnly,
 			UUID categoryId, String mode, String phase, boolean popular, PriceView pricing,
-			List<LiveExamModuleService.PackageRef> packages, Boolean favourite) {
+			List<LiveExamModuleService.PackageRef> packages, Boolean favourite, String coverUrl) {
 
 		public UpcomingExam withFavourite(boolean marked) {
 			return new UpcomingExam(id, examType, titleEn, titleBn, moduleId, moduleTitleEn, moduleTitleBn, liveAt, endAt,
-					price, moduleOnly, categoryId, mode, phase, popular, pricing, packages, marked);
+					price, moduleOnly, categoryId, mode, phase, popular, pricing, packages, marked, coverUrl);
 		}
 
 	}
@@ -544,12 +544,12 @@ public class LiveExamPublicService {
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String paperLanguage,
 			String liveAt, String endAt, int durationMinutes, BigDecimal price,
 			StudentOwnAccessService.Access access, UUID categoryId, String mode, String phase, boolean popular,
-			PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite) {
+			PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite, String coverUrl) {
 
 		public PublicExam withFavourite(boolean marked) {
 			return new PublicExam(id, moduleId, examType, titleEn, titleBn, descriptionEn, descriptionBn, rulesEn, rulesBn,
 					paperLanguage, liveAt, endAt, durationMinutes, price, access, categoryId, mode, phase, popular, pricing,
-					packages, marked);
+					packages, marked, coverUrl);
 		}
 
 	}

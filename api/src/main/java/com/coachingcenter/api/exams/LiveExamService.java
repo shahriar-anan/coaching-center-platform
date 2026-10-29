@@ -669,7 +669,7 @@ public class LiveExamService {
 				status.status(), status.retakeAvailable(), null, plain.mode(), plain.phase(), plain.categoryId(),
 				plain.packages(), null, plain.negativeMarks(), plain.answersChangeable(), plain.previewEnabled(),
 				plain.popular(), plain.accessDays(), plain.pricing(), null, accessView,
-				mine == null ? 0 : mine.attempts(), status.status());
+				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl());
 	}
 
 	/** One student's attempts at one exam: the latest, and how many there are. */
@@ -921,7 +921,7 @@ public class LiveExamService {
 				shown.getMode(), ExamWindow.phase(shown, now), shown.getCategoryId(), packagesOf(exam.getId()),
 				staff ? instructorOf(shown) : null, shown.getNegativeMarks(), shown.isAnswersChangeable(),
 				shown.isPreviewEnabled(), exam.isPopular(), shown.getAccessDays(), ExamPricing.view(shown, now, false),
-				staff ? working != null : null, null, null, null);
+				staff ? working != null : null, null, null, null, ExamCoverService.coverPath(exam));
 	}
 
 	/**
@@ -1335,7 +1335,7 @@ public class LiveExamService {
 			Boolean retakeAvailable, String answersReleasedAt, String mode, String phase, UUID categoryId,
 			List<PackageRef> packages, InstructorRef instructor, BigDecimal negativeMarks, boolean answersChangeable,
 			boolean previewEnabled, boolean popular, Integer accessDays, PriceView pricing, Boolean pendingChanges,
-			AccessView access, Integer attempts, String myStatusDetail) {
+			AccessView access, Integer attempts, String myStatusDetail, String coverUrl) {
 	}
 
 	/** A student's access to one exam. {@code endsAt} is an ISO-8601 instant, null when access never ends. */
