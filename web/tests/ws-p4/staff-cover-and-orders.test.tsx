@@ -1,10 +1,11 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import PaymentsPage from "@/app/(staff)/staff/payments/page";
 import { ExamCoverUploader } from "@/components/staff/catalog/exam-cover-uploader";
 import { PaymentsTable } from "@/components/staff/ops/payments-table";
 import type { StaffOrderRow } from "@/lib/api/exam/staff-ops";
-import { mockApi, renderWithProviders } from "../helpers";
+import { fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
 
 const exam = { id: "e1", moduleId: "m1", titleEn: "CRPC paper", titleBn: "সিআরপিসি", coverUrl: null };
 
@@ -70,21 +71,50 @@ const orderRow = (overrides: Partial<StaffOrderRow> = {}): StaffOrderRow => ({
 });
 
 describe("staff order list columns (Phase 4, S4.7)", () => {
-  it("shows the paid time and the receipt number of each paid order", () => {
+  it("has six columns, and the Date cell carries the paid time and the receipt number of a paid order", () => {
     renderWithProviders(<PaymentsTable rows={[orderRow()]} />, { locale: "en" });
 
-    expect(screen.getByRole("columnheader", { name: "Paid on" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Receipt number" })).toBeInTheDocument();
-    expect(screen.getAllByText("RCPT-2026-000123").length).toBeGreaterThan(0);
+    const table = screen.getByRole("table");
+    const headers = within(table).getAllByRole("columnheader");
+    expect(headers).toHaveLength(6);
+    expect(within(table).getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Paid on" })).not.toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Receipt number" })).not.toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Phone" })).not.toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Method" })).not.toBeInTheDocument();
+    expect(within(table).getByText("RCPT-2026-000123")).toBeInTheDocument();
   });
 
-  it("shows a dash for an order not paid yet", () => {
-    renderWithProviders(
-      <PaymentsTable rows={[orderRow({ status: "INITIATED", paidAt: null, receiptNo: null })]} />,
-      { locale: "en" },
-    );
+  it("shows the Paid line only for a paid order", () => {
+    const pending = orderRow({
+      orderId: "o2",
+      tranId: "TRAN-PENDING-2",
+      status: "INITIATED",
+      paidAt: null,
+      receiptNo: null,
+    });
+    renderWithProviders(<PaymentsTable rows={[orderRow(), pending]} />, { locale: "en" });
 
-    expect(screen.queryByText("RCPT-2026-000123")).not.toBeInTheDocument();
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByText(/^Paid /)).toHaveLength(1);
+    expect(within(table).getByText(/^Paid /)).toHaveTextContent(/^Paid \S/);
+    expect(within(table).getAllByText("RCPT-2026-000123")).toHaveLength(1);
+  });
+});
+
+describe("staff payments status tabs", () => {
+  it("sets the status URL param when a status tab is pressed", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/v1/live-exam-orders": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
+    });
+    renderWithProviders(<PaymentsPage />, { user: fixtures.systemAdmin, locale: "en", route: "/staff/payments" });
+
+    const all = screen.getByRole("button", { name: "All" });
+    expect(all).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Paid" }));
+
+    expect(routerState.replace).toHaveBeenLastCalledWith("/staff/payments?status=SUCCEEDED", { scroll: false });
   });
 });

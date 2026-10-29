@@ -134,12 +134,12 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
       router.replace(`/exam/${examId}/submitted`);
       return null;
     }
-    const watermark = user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName;
+    const studentLine = user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName;
     return (
       <WrittenSitting
         exam={data}
         deadlineAt={sitting.deadlineAt}
-        watermark={watermark}
+        studentLine={studentLine}
         onSubmitted={() => router.replace(`/exam/${examId}/submitted`)}
         onClosed={(hasScript) => router.replace(`/exam/${examId}/result?notice=${hasScript ? "timeUpScript" : "timeUpNoScript"}`)}
       />

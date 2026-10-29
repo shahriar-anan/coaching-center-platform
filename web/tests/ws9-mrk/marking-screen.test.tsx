@@ -17,7 +17,7 @@ function resolved<T>(value: T): Promise<T> {
   return promise;
 }
 
-const views = { answerId: "a1", studentName: "রহিম উদ্দিন", examId: "e1", examTitle: "রচনা পত্র" };
+const views = { answerId: "a1", studentName: "রহিম উদ্দিন", examId: "e1", examTitle: "রচনা পত্র", marked: false, markedAt: null };
 
 describe("question paper while marking (G8)", () => {
   it("shows the answer tab first, and asks the server for the question paper only when its tab is opened", async () => {

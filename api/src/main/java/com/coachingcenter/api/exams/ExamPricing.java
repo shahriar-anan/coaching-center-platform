@@ -45,6 +45,17 @@ final class ExamPricing {
 	}
 
 	/**
+	 * A discount end that is set or changed must not be in the past. An end that is unchanged may stay, even after it has
+	 * run out, so saving something else on an old discount is not refused.
+	 */
+	static void requireNotPast(Instant next, Instant previous, Instant now) {
+		if (next != null && !next.equals(previous) && next.isBefore(now)) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+					List.of(new FieldErrorDetail("discountEndsAt", "The discount end cannot be in the past.")));
+		}
+	}
+
+	/**
 	 * Rejects a price that no order could carry: a free item with a price or a discount, a price that is not positive, a
 	 * discount outside 1 to 99, or a discount end with no discount.
 	 */

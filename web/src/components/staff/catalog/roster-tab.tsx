@@ -52,7 +52,7 @@ function PasteBox({ moduleId }: { moduleId: string }) {
   }
 
   return (
-    <section aria-labelledby="roster-paste-heading" className="grid gap-3 rounded-card border border-border bg-card p-4">
+    <section aria-labelledby="roster-paste-heading" className="grid gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
       <h3 id="roster-paste-heading" className="text-card-title font-semibold">
         {t("staffCatalog.roster.pasteHeading")}
       </h3>
@@ -157,7 +157,7 @@ export function RosterTab({ moduleId }: { moduleId: string }) {
         </h3>
         <SearchInput value={addQuery} onChange={setAddQuery} placeholder={t("staffCatalog.roster.addPlaceholder")} />
         {addQuery.trim().length >= 2 && hits.data && hits.data.length > 0 ? (
-          <ul className="grid divide-y divide-border rounded-card border border-border bg-card">
+          <ul className="grid divide-y divide-border rounded-card border border-border bg-card shadow-[var(--card-shadow)]">
             {hits.data.map((hit) => (
               <li key={hit.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
                 <span>

@@ -11,7 +11,8 @@ type CardProps = {
   children: ReactNode;
 };
 
-const surface = "block rounded-card border border-border bg-card text-text";
+// The shadow is a token: the admin light theme sets it, the student site has none.
+const surface = "block rounded-card border border-border bg-card text-text shadow-[var(--card-shadow)]";
 
 /** A white card with a 16 px radius. With `href` it becomes a link card with a chevron. */
 export function Card({ href, as: Tag = "div", padding = "md", className, children }: CardProps) {

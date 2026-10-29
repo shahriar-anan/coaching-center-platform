@@ -108,13 +108,17 @@ public class LiveExamOrderHistoryService {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 		}
 		List<String[]> names = jdbc.query("""
-				select sp.full_name, u.phone from users u
+				select sp.full_name, u.phone, u.email from users u
 				left join student_profiles sp on sp.user_id = u.id
 				where u.id = :studentId
 				""", new MapSqlParameterSource("studentId", studentId),
-				(rs, number) -> new String[] { rs.getString("full_name"), rs.getString("phone") });
-		String[] who = names.isEmpty() ? new String[2] : names.get(0);
-		return new Receipt(rows.get(0), who[0], who[1]);
+				(rs, number) -> new String[] { rs.getString("full_name"), rs.getString("phone"), rs.getString("email") });
+		String[] who = names.isEmpty() ? new String[3] : names.get(0);
+		OwnOrderRow order = rows.get(0);
+		String receiptEmail = order.receiptEmail() == null || order.receiptEmail().isBlank() ? who[2] : order.receiptEmail();
+		String method = jdbc.queryForObject("select method from live_exam_orders where id = :orderId",
+				new MapSqlParameterSource("orderId", orderId), String.class);
+		return new Receipt(order, who[0], who[1], receiptEmail, method, receiptItems(order));
 	}
 
 	/**
@@ -164,6 +168,38 @@ public class LiveExamOrderHistoryService {
 		return sql.toString();
 	}
 
+	/**
+	 * The rows of the receipt's item table. A module or an exam is one row; a bundle is one row per exam in the bundle, with
+	 * no price, because the order keeps one price for the whole bundle.
+	 */
+	private List<ReceiptItem> receiptItems(OwnOrderRow order) {
+		if (LiveExamOrder.MODULE.equals(order.scope())) {
+			return List.of(new ReceiptItem(order.moduleTitleEn(), "Package", null, listPriceOrAmount(order)));
+		}
+		if (LiveExamOrder.EXAM.equals(order.scope())) {
+			return List.of(new ReceiptItem(order.examTitleEn(), "Exam", accessDays(order.examId()), listPriceOrAmount(order)));
+		}
+		return jdbc.query("""
+				select e.title_en, e.access_days from live_exam_order_exams x
+				join live_exams e on e.id = x.exam_id
+				where x.order_id = :orderId
+				order by e.title_en, e.id
+				""", new MapSqlParameterSource("orderId", order.orderId()),
+				(rs, number) -> new ReceiptItem(rs.getString("title_en"), "Exam", rs.getObject("access_days", Integer.class),
+						null));
+	}
+
+	/** The exam's access days after its window, or null for a lifetime item. */
+	private Integer accessDays(UUID examId) {
+		List<Integer> days = jdbc.queryForList("select access_days from live_exams where id = :examId",
+				new MapSqlParameterSource("examId", examId), Integer.class);
+		return days.isEmpty() ? null : days.get(0);
+	}
+
+	private static BigDecimal listPriceOrAmount(OwnOrderRow order) {
+		return order.listPrice() == null ? order.amount() : order.listPrice();
+	}
+
 	private static String storedStatus(String word) {
 		String stored = word == null ? null : STORED_STATUS.get(word.trim().toUpperCase(Locale.ROOT));
 		if (stored == null) {
@@ -210,8 +246,19 @@ public class LiveExamOrderHistoryService {
 			String receiptNo, String receiptEmail) {
 	}
 
-	/** A paid order with the student's name and phone, as the receipt prints them. Either may be null. */
-	public record Receipt(OwnOrderRow order, String studentName, String studentPhone) {
+	/**
+	 * A paid order for the receipt PDF (P4 layout). The name, phone and email may be null. {@code receiptEmail} is the address
+	 * the receipt went to, else the account email. {@code method} is the stored payment method (SSLCOMMERZ for every order).
+	 */
+	public record Receipt(OwnOrderRow order, String studentName, String studentPhone, String receiptEmail, String method,
+			List<ReceiptItem> items) {
+	}
+
+	/**
+	 * One row of the receipt's item table. {@code accessDays} is null for a lifetime item; {@code listPrice} is null for a
+	 * bundle's exam rows, whose price is the order total.
+	 */
+	public record ReceiptItem(String titleEn, String type, Integer accessDays, BigDecimal listPrice) {
 	}
 
 }

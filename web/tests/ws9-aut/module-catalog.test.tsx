@@ -104,13 +104,14 @@ describe("module exams table (U6, G13)", () => {
 
   it("lists dated exams first, undated last, with the readiness of each", async () => {
     mockApi({
-      [`GET /api/v1/live-exam-modules/${moduleId}/exams`]: { content: [undated, empty, dated], page: 0, size: 20, totalElements: 3, totalPages: 1 },
+      // The server orders package exams by start, dated first and undated last (liveAt, nulls last).
+      [`GET /api/v1/live-exam-modules/${moduleId}/exams`]: { content: [dated, undated, empty], page: 0, size: 20, totalElements: 3, totalPages: 1 },
     });
     renderWithProviders(<ModuleExams moduleId={moduleId} />, { user: fixtures.masterAdmin });
 
     const rows = await screen.findAllByRole("row");
     const names = rows.slice(1).map((row) => within(row).getAllByRole("link")[0].textContent);
-    // Undated exams keep the server's order after the dated one.
+    // The client keeps the server's order: it does not sort the rows again (the Exams tab is the server's list).
     expect(names).toEqual(["সিআরপিসি", "সিপিসি", "খসড়া"]);
     expect(screen.getAllByText("প্রশ্ন নেই")[0]).toBeInTheDocument();
     expect(screen.getAllByText("প্রশ্নপত্র আছে")[0]).toBeInTheDocument();
@@ -137,7 +138,7 @@ describe("module setup steps (U4)", () => {
 
     expect(screen.getAllByText("এটি শুধু মাস্টার অ্যাডমিন ঠিক করেন।", { exact: false })[0]).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "শিক্ষক" })).not.toBeInTheDocument();
-    expect(screen.getByText("মডিউলটি এখনো প্রকাশ হয়নি, তাই শিক্ষার্থীরা এখনো দেখতে বা কিনতে পারবেন না।")).toBeInTheDocument();
+    expect(screen.getByText("প্যাকেজটি এখনো প্রকাশ হয়নি, তাই শিক্ষার্থীরা এখনো দেখতে বা কিনতে পারবেন না।")).toBeInTheDocument();
   });
 
   it("Master Admin sees the teacher's name and that students can see and buy the module", () => {
@@ -148,7 +149,7 @@ describe("module setup steps (U4)", () => {
     );
 
     expect(screen.getByText("ফারিহা রহমান")).toBeInTheDocument();
-    expect(screen.getByText("শিক্ষার্থীরা এখন মডিউলটি দেখতে ও কিনতে পারবেন।")).toBeInTheDocument();
+    expect(screen.getByText("শিক্ষার্থীরা এখন প্যাকেজটি দেখতে ও কিনতে পারবেন।")).toBeInTheDocument();
   });
 });
 

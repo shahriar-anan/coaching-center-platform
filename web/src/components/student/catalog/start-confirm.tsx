@@ -8,6 +8,7 @@ import { serverNow } from "@/lib/time/clock";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { RichTextView } from "@/components/ui/rich-text-view";
 import { examPath } from "./catalog-helpers";
 
 /** The LMS pre-start screen before WS4's sitting takes the exam. */
@@ -62,7 +63,7 @@ export function StartConfirm({
         {exam.rules ? (
           <div className="rounded-control bg-bg p-3 text-meta">
             <p className="mb-1 font-semibold">{t("catalog.exam.rules")}</p>
-            <p className="whitespace-pre-line text-muted">{exam.rules}</p>
+            <RichTextView value={exam.rules} />
           </div>
         ) : null}
         <Button fullWidth loading={going} onClick={start}>

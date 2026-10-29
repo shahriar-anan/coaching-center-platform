@@ -32,6 +32,9 @@ public class ExamState {
 
 	public String paperLanguage;
 
+	/** The category of the exam (NR-01 UI Step 1 fix). Null only in a state staged before the field existed. */
+	public UUID categoryId;
+
 	public String mode;
 
 	public String liveAt;
@@ -81,6 +84,7 @@ public class ExamState {
 		rulesEn = exam.getRulesEn();
 		rulesBn = exam.getRulesBn();
 		paperLanguage = exam.getPaperLanguage();
+		categoryId = exam.getCategoryId();
 		mode = exam.getMode();
 		liveAt = text(exam.getLiveAt());
 		endsAt = text(exam.getEndsAt());
@@ -106,6 +110,9 @@ public class ExamState {
 		exam.setRulesEn(rulesEn);
 		exam.setRulesBn(rulesBn);
 		exam.setPaperLanguage(paperLanguage);
+		if (categoryId != null) {
+			exam.setCategoryId(categoryId);
+		}
 		exam.setMode(mode);
 		exam.setLiveAt(instant(liveAt));
 		exam.setEndsAt(instant(endsAt));

@@ -45,7 +45,7 @@ export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolea
   return (
     <div className="grid gap-4">
       {exam.questionPdf ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
           <div>
             <p className="font-medium">{t("staffCatalog.written.fileName")}</p>
             <p className="text-meta text-muted">{t("staffCatalog.written.uploadedNote")}</p>
@@ -82,7 +82,6 @@ export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolea
         {viewing ? (
           <PdfViewer
             load={() => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`)}
-            watermark={t("staffCatalog.written.staffWatermark")}
             allowDownload={false}
             fileName={exam.titleBn}
           />

@@ -19,6 +19,8 @@ export type SittingQuestion = {
   id: string;
   stem: string;
   marks: number;
+  /** True when more than one option is correct (API: `multipleAnswer`). Absent or false is single-answer. */
+  multipleAnswer?: boolean | null;
   /** Null until the deadline has passed. */
   explanation: string | null;
   options: SittingOption[];
@@ -36,7 +38,8 @@ export type StudentExam = {
   id: string;
   moduleId: string;
   examType: "MCQ" | "WRITTEN";
-  paperLanguage: "BN" | "EN";
+  /** BN, EN, BOTH, or null when the exam has no paper language. Null and BOTH show no language and follow the interface. */
+  paperLanguage: "BN" | "EN" | "BOTH" | null;
   titleEn: string;
   titleBn: string | null;
   descriptionEn: string | null;
@@ -55,6 +58,8 @@ export type StudentExam = {
   questions: SittingQuestion[] | null;
   myStatus: string;
   retakeAvailable: boolean | null;
+  /** False when an answer, once saved (or confirmed, for a multi-answer question), cannot change (API: `answersChangeable`). Absent means it can. */
+  answersChangeable?: boolean | null;
   /** The student's own sitting, or null when there is none (API: `sitting`). */
   sitting: SittingBlock | null;
   /** True once the student's written script is stored on the server (API: `answerStored`). */
@@ -88,6 +93,19 @@ export type ReviewedResult = {
   questions: SittingQuestion[] | null;
   comment: string | null;
   evaluatedPdf: boolean | null;
+  /** Where the attempt stands on the merit list, for the position line (API: `position`). Null when there is none. */
+  position?: SittingPosition | null;
+};
+
+/**
+ * CURRENT: a live attempt during the window. BOARD: a live attempt after it, or a practice first attempt.
+ * RELATIVE: an archived attempt or a later attempt, ranked as if on the board. `belowPass` means no rank.
+ */
+export type SittingPosition = {
+  type: "CURRENT" | "BOARD" | "RELATIVE";
+  rank: number;
+  of: number;
+  belowPass: boolean;
 };
 
 export type LeaderboardRow = {
@@ -137,8 +155,23 @@ export function useRetakeExam(examId: string) {
 /** Replaces the whole selection. The caller decides when to send; this only sends. */
 export function useSaveAnswers(examId: string) {
   return useMutation({
-    mutationFn: (answers: { questionId: string; optionId: string }[]) =>
+    mutationFn: (answers: { questionId: string; optionIds: string[] }[]) =>
       apiRequest<void>(`/api/v1/live-exams/${examId}/answers`, { method: "PUT", body: { answers } }),
+    retry: false,
+  });
+}
+
+/**
+ * Confirms one multi-answer question on an exam whose answers cannot change: the selection becomes
+ * final. Only sent after the student presses Confirm.
+ */
+export function useConfirmAnswer(examId: string) {
+  return useMutation({
+    mutationFn: ({ questionId, optionIds }: { questionId: string; optionIds: string[] }) =>
+      apiRequest<void>(`/api/v1/live-exams/${examId}/answers/${questionId}`, {
+        method: "PUT",
+        body: { optionIds, confirm: true },
+      }),
     retry: false,
   });
 }

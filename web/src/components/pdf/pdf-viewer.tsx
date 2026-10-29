@@ -6,7 +6,7 @@ import type { PdfViewerProps } from "@/components/pdf/pdf-viewer-impl";
 
 /**
  * The PDF viewer, loaded on demand so `pdfjs-dist` stays out of the first
- * bundle. Props: `load`, `watermark?`, `allowDownload?`, `fileName?`.
+ * bundle. Props: `load`, `studentLine?`, `allowDownload?`, `fileName?`, `label?`.
  */
 export const PdfViewer = dynamic<PdfViewerProps>(
   () => import("@/components/pdf/pdf-viewer-impl").then((m) => m.PdfViewerImpl),

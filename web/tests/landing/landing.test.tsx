@@ -136,8 +136,8 @@ describe("LandingPage", () => {
     expect(await screen.findByRole("heading", { name: bn.packagesTitle })).toBeInTheDocument();
     // The two doors sit under the exam categories heading in the hero.
     expect(screen.getByRole("heading", { name: bn.categoriesTitle })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /এমসিকিউ.*দ্রুত অনুশীলন/ })).toHaveAttribute("href", "/mcq");
-    expect(screen.getByRole("link", { name: /রিটেন.*লিখিত পরীক্ষা/ })).toHaveAttribute("href", "/written");
+    expect(screen.getByRole("link", { name: /MCQ.*দ্রুত অনুশীলন/ })).toHaveAttribute("href", "/mcq");
+    expect(screen.getByRole("link", { name: /Written.*লিখিত পরীক্ষা/ })).toHaveAttribute("href", "/written");
     expect(screen.queryByText("খালি ক্যাটাগরি")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("heading", { name: bn.upcomingTitle })).not.toBeInTheDocument());
   });

@@ -220,7 +220,7 @@ const catalog: typeof bn = {
     emptyPackagesBody: "Tap the star on a package to add it to your Wish List.",
   },
   myExams: {
-    title: "My exams",
+    title: "My orders",
     tabExams: "Exams",
     tabPackages: "Packages",
     accessUntil: "Access until {date}",

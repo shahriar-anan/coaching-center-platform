@@ -43,7 +43,7 @@ describe("the deadline passes during a written upload (ST-6)", () => {
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderWithProviders(
-      <WrittenSitting exam={exam} deadlineAt={deadlineAt} watermark="নাঈম" onClosed={onClosed} onSubmitted={() => undefined} />,
+      <WrittenSitting exam={exam} deadlineAt={deadlineAt} studentLine="নাঈম"onClosed={onClosed} onSubmitted={() => undefined} />,
       { locale: "bn" },
     );
 

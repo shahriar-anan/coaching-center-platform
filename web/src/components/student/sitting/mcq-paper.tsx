@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  useConfirmAnswer,
   useSaveAnswers,
   useSubmitExam,
   type PostedResult,
@@ -11,7 +12,7 @@ import { ApiError } from "@/lib/api/errors";
 import { useLocale } from "@/i18n/locale-context";
 import { formatClock, formatNumber } from "@/lib/format";
 import { useServerNow } from "@/lib/time/clock";
-import { McqQuestion, type OptionLabels, type PaperLanguage } from "./mcq-question";
+import { McqQuestion, resolvePaperLanguage, type OptionLabels, type PaperLanguage } from "./mcq-question";
 import { PaperTextSizeControl, usePaperTextSize } from "./paper-text-size";
 import {
   backupKey as makeBackupKey,
@@ -20,7 +21,8 @@ import {
   nextRetryDelay,
   readBackup,
   SAVE_DEBOUNCE_MS,
-  toAnswerList,
+  answerErrorKey,
+  answerPayload,
   toggleFlag,
   toggleOption,
   writeBackup,
@@ -33,6 +35,8 @@ const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
 
 /** Errors after which another save can never succeed, so the paper stops retrying. */
 const CLOSED_CODES = new Set(["DEADLINE_PASSED", "SITTING_NOT_OPEN"]);
+
+const NO_OPTIONS: string[] = [];
 
 type SaveState = "saved" | "saving" | "failed" | "offline" | "idle";
 
@@ -52,7 +56,13 @@ type Props = {
 export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClosed, onSubmitted }: Props) {
   const { t, locale } = useLocale();
   const questions = exam.questions ?? [];
-  const paperLanguage: PaperLanguage = exam.paperLanguage === "EN" ? "EN" : "BN";
+  const paperLanguage: PaperLanguage = resolvePaperLanguage(exam.paperLanguage, locale);
+  // Where answers cannot change, a saved single answer and a confirmed multi-answer question are final.
+  const changeable = exam.answersChangeable !== false;
+  const multiAnswer = useMemo(
+    () => new Set((exam.questions ?? []).filter((question) => question.multipleAnswer === true).map((question) => question.id)),
+    [exam.questions],
+  );
   const letters = paperLanguage === "BN" ? LETTERS_BN : LETTERS_EN;
   const n = (value: number) => formatNumber(value, locale);
   const bKey = makeBackupKey(exam.id, studentId, startedAt);
@@ -60,9 +70,9 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
   const serverSelection = useMemo<Selection>(() => {
     const selection: Selection = {};
     for (const question of questions) {
-      const picked = question.options.find((option) => option.selected === true);
-      if (picked) {
-        selection[question.id] = picked.id;
+      const picked = question.options.filter((option) => option.selected === true).map((option) => option.id);
+      if (picked.length > 0) {
+        selection[question.id] = picked;
       }
     }
     return selection;
@@ -77,6 +87,9 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
       yourAnswer: t("result.review.yourAnswer"),
       correct: t("result.review.correct"),
       explanation: t("result.review.explanation"),
+      selectAll: t("sitting.paper.selectAll"),
+      confirm: t("sitting.paper.confirm"),
+      final: t("sitting.paper.final"),
     }),
     [t],
   );
@@ -94,6 +107,15 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
   const [submitError, setSubmitError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [closed, setClosed] = useState(false);
+  // Answers that can no longer change on this exam: saved singles, and multi-answer questions confirmed.
+  const [lockedIds, setLockedIds] = useState<Set<string>>(() =>
+    changeable ? new Set<string>() : new Set(Object.keys(serverSelection)),
+  );
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [answerNotice, setAnswerNotice] = useState<"sitting.paper.answerLocked" | "sitting.paper.confirmFailed" | null>(null);
+  const lockedRef = useRef(lockedIds);
+  const rulesRef = useRef({ multiAnswer, changeable });
+  const { mutateAsync: confirmRemote } = useConfirmAnswer(exam.id);
 
   const now = useServerNow(1000);
   const remainingMs = Math.max(0, new Date(deadlineAt).getTime() - now);
@@ -115,7 +137,8 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
   useEffect(() => {
     saveRef.current = saveMutation.mutateAsync;
     onClosedRef.current = onClosed;
-  }, [saveMutation.mutateAsync, onClosed]);
+    rulesRef.current = { multiAnswer, changeable };
+  }, [saveMutation.mutateAsync, onClosed, multiAnswer, changeable]);
 
   const pump = useCallback((): Promise<void> => {
     if (runningRef.current) {
@@ -131,13 +154,21 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
         const snapshot = selectionRef.current;
         setSaveState("saving");
         try {
-          await saveRef.current(toAnswerList(snapshot));
+          await saveRef.current(answerPayload(snapshot, rulesRef.current.multiAnswer, rulesRef.current.changeable));
           attemptRef.current = 0;
           setSaveState("saved");
         } catch (error) {
           if (error instanceof ApiError && CLOSED_CODES.has(error.code)) {
             closedRef.current = true;
             setClosed(true);
+            return;
+          }
+          const lockedKey = error instanceof ApiError ? answerErrorKey(error.code) : null;
+          if (lockedKey) {
+            // The server refused a change to an answer that is final. A retry cannot succeed, so the student is told instead.
+            dirtyRef.current = false;
+            setAnswerNotice(lockedKey);
+            setSaveState("failed");
             return;
           }
           // Keep the latest selection and try again after the backoff.
@@ -208,16 +239,51 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
 
   const pick = useCallback(
     (questionId: string, optionId: string) => {
-      if (!editable) {
+      if (!editable || lockedRef.current.has(questionId)) {
         return;
       }
-      const next = toggleOption(selectionRef.current, questionId, optionId);
+      const multi = multiAnswer.has(questionId);
+      const next = toggleOption(selectionRef.current, questionId, optionId, multi);
+      // An answer that cannot change locks when it is first saved: a single answer at once, a multi-answer one when confirmed.
+      if (!changeable && !multi && next[questionId]) {
+        lockedRef.current.add(questionId);
+        setLockedIds(new Set(lockedRef.current));
+      }
       selectionRef.current = next;
       setSelection(next);
       writeBackup(bKey, { selection: next, flagged: flaggedRef.current, savedAt: Date.now() });
       scheduleSave();
     },
-    [bKey, editable, scheduleSave],
+    [bKey, changeable, editable, multiAnswer, scheduleSave],
+  );
+
+  // A multi-answer question on an exam where answers cannot change is saved only when the student confirms it.
+  const confirmAnswer = useCallback(
+    async (questionId: string) => {
+      const optionIds = selectionRef.current[questionId] ?? [];
+      if (!editable || optionIds.length === 0 || lockedRef.current.has(questionId)) {
+        return;
+      }
+      setConfirmingId(questionId);
+      setAnswerNotice(null);
+      try {
+        await confirmRemote({ questionId, optionIds: [...optionIds] });
+        lockedRef.current.add(questionId);
+        setLockedIds(new Set(lockedRef.current));
+      } catch (error) {
+        if (answerErrorKey(error instanceof ApiError ? error.code : undefined)) {
+          // Already final on the server, so show it as locked.
+          lockedRef.current.add(questionId);
+          setLockedIds(new Set(lockedRef.current));
+          setAnswerNotice("sitting.paper.answerLocked");
+        } else {
+          setAnswerNotice("sitting.paper.confirmFailed");
+        }
+      } finally {
+        setConfirmingId(null);
+      }
+    },
+    [confirmRemote, editable],
   );
 
   const flag = useCallback(
@@ -382,13 +448,20 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
       ) : (
         <div className="flex flex-col gap-3">
           <PaperTextSizeControl size={textSize} className="justify-end" />
+          {answerNotice ? (
+            <p role="alert" className="text-body font-semibold text-danger">
+              {t(answerNotice)}
+            </p>
+          ) : null}
           <div className="flex flex-col gap-3" style={textSize.style}>
           {questions.map((question, index) => (
             <McqQuestion
               key={question.id}
               question={question}
               index={index + 1}
-              selectedOptionId={selection[question.id]}
+              selectedOptionIds={selection[question.id] ?? NO_OPTIONS}
+              locked={lockedIds.has(question.id)}
+              confirming={confirmingId === question.id}
               flagged={flagged.includes(question.id)}
               paperLanguage={paperLanguage}
               editable={editable}
@@ -398,6 +471,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
               letters={letters}
               onPick={pick}
               onFlag={flag}
+              onConfirm={changeable ? undefined : confirmAnswer}
             />
           ))}
           <p className="text-center text-body text-muted">{t("sitting.paper.end")}</p>
@@ -407,9 +481,9 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
 
       {/* Submit: the primary action, fixed to the bottom on phones. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto flex max-w-[760px] items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <p className="text-body text-muted">
-            {result ? t("sitting.score.canChange") : t("sitting.submit.counts", { answered: n(answeredCount), unanswered: n(Math.max(0, unanswered)) })}
+            {result ? t("sitting.score.final") : t("sitting.submit.counts", { answered: n(answeredCount), unanswered: n(Math.max(0, unanswered)) })}
           </p>
           <button
             type="button"
@@ -427,6 +501,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
           answered={answeredCount}
           unanswered={Math.max(0, unanswered)}
           flaggedNumbers={flaggedNumbers.map((value) => n(value)).join(", ")}
+          note={changeable ? t("sitting.submit.note") : t("sitting.paper.finalAnswers")}
           busy={submitting}
           failed={submitError}
           onCancel={() => setConfirmOpen(false)}
@@ -485,13 +560,14 @@ function ScoreCard({
         {t("sitting.score.value", { score: n(result.score ?? 0), maximum: n(result.maximum) })}
         {result.passed !== null ? ` · ${result.passed ? t("sitting.score.passed") : t("sitting.score.failed")}` : ""}
       </p>
-      <p className="mt-2 text-body text-muted">{t("sitting.score.canChange")}</p>
+      <p className="mt-2 text-body text-muted">{t("sitting.score.final")}</p>
     </section>
   );
 }
 
 function SubmitDialog({
   answered,
+  note,
   unanswered,
   flaggedNumbers,
   busy,
@@ -504,6 +580,7 @@ function SubmitDialog({
   answered: number;
   unanswered: number;
   flaggedNumbers: string;
+  note: string;
   busy: boolean;
   failed: boolean;
   onCancel: () => void;
@@ -537,7 +614,7 @@ function SubmitDialog({
           {t("sitting.submit.counts", { answered: n(answered), unanswered: n(unanswered) })}
         </p>
         {flaggedNumbers ? <p className="mt-2 text-body text-muted">{t("sitting.submit.flagged", { numbers: flaggedNumbers })}</p> : null}
-        <p className="mt-2 text-body text-muted">{t("sitting.submit.note")}</p>
+        <p className="mt-2 text-body text-muted">{note}</p>
         {failed ? (
           <p role="alert" className="mt-3 text-body text-danger">
             {t("sitting.submit.failed")}

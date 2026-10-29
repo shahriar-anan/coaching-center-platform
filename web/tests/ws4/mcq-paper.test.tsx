@@ -75,11 +75,11 @@ describe("MCQ paper", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
     const puts = calls.filter((c) => c.method === "PUT");
     expect(puts.length).toBeLessThanOrEqual(2);
-    const last = puts[puts.length - 1].body as { answers: { questionId: string; optionId: string }[] };
+    const last = puts[puts.length - 1].body as { answers: { questionId: string; optionIds: string[] }[] };
     expect(last.answers).toEqual(
       expect.arrayContaining([
-        { questionId: "q1", optionId: "q1-b" },
-        { questionId: "q2", optionId: "q2-b" },
+        { questionId: "q1", optionIds: ["q1-b"] },
+        { questionId: "q2", optionIds: ["q2-b"] },
       ]),
     );
     expect(last.answers).toHaveLength(2);

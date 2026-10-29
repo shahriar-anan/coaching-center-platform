@@ -49,7 +49,7 @@ export function hasFilters(filters: PaymentFilters): boolean {
 export type PaymentAction = "downloadPdf" | "printReceipt" | "open" | "continue" | "cancel" | "buyAgain";
 
 export function actionsFor(status: PaymentStatus): PaymentAction[] {
-  if (status === "PAID") return ["downloadPdf", "printReceipt", "open"];
+  if (status === "PAID") return ["downloadPdf", "open"];
   if (status === "PENDING") return ["continue", "cancel"];
   return ["buyAgain"];
 }

@@ -54,7 +54,7 @@ describe("payment filters and actions (Phase 4, S4.6)", () => {
   });
 
   it("gives each status its own actions", () => {
-    expect(actionsFor("PAID")).toEqual(["downloadPdf", "printReceipt", "open"]);
+    expect(actionsFor("PAID")).toEqual(["downloadPdf", "open"]);
     expect(actionsFor("PENDING")).toEqual(["continue", "cancel"]);
     expect(actionsFor("FAILED")).toEqual(["buyAgain"]);
     expect(actionsFor("CANCELLED")).toEqual(["buyAgain"]);
@@ -88,11 +88,8 @@ describe("payment history page (S4.6)", () => {
 
     await screen.findByRole("heading", { name: "Order details" });
     const section = document.body;
-    expect(within(section).getByRole("button", { name: "Download PDF" })).toBeInTheDocument();
-    expect(within(section).getByRole("link", { name: "Print receipt" })).toHaveAttribute(
-      "href",
-      "/account/payments/receipt?order=o1",
-    );
+    expect(within(section).getByRole("button", { name: "Download receipt" })).toBeInTheDocument();
+    expect(within(section).queryByRole("link", { name: "Print receipt" })).not.toBeInTheDocument();
     expect(within(section).queryByRole("button", { name: "Cancel order" })).not.toBeInTheDocument();
     expect(screen.getAllByText("RCPT-2026-000123").length).toBeGreaterThan(0);
   });
@@ -109,7 +106,7 @@ describe("payment history page (S4.6)", () => {
     const panel = document.body;
     expect(within(panel).getByRole("button", { name: "Continue payment" })).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: "Cancel order" })).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Download PDF" })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Download receipt" })).not.toBeInTheDocument();
   });
 
   it("labels a bundle as a whole package, not as an exam", async () => {

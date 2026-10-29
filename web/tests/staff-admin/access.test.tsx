@@ -94,7 +94,7 @@ describe("StudentAccessSection", () => {
     await user.click(screen.getByRole("button", { name: "হাতে অ্যাক্সেস দিন" }));
     await user.click(screen.getByRole("button", { name: "অ্যাক্সেস দিন" }));
 
-    expect(await screen.findByText("একটি মডিউল বাছুন।")).toBeInTheDocument();
+    expect(await screen.findByText("একটি প্যাকেজ বাছুন।")).toBeInTheDocument();
     expect(screen.getByText("কারণ লিখতে হবে।")).toBeInTheDocument();
     expect(calls.some((call) => call.method === "POST")).toBe(false);
   });
@@ -112,11 +112,11 @@ describe("StudentAccessSection", () => {
 
     await screen.findAllByText("হাতে দেওয়া");
     await user.click(screen.getByRole("button", { name: "হাতে অ্যাক্সেস দিন" }));
-    await user.selectOptions(screen.getByLabelText(/^মডিউল/), modules.content[0].id);
+    await user.selectOptions(screen.getByLabelText(/^প্যাকেজ/), modules.content[0].id);
     await user.type(screen.getByLabelText(/^কারণ/), "ভর্তির জন্য");
     await user.click(screen.getByRole("button", { name: "অ্যাক্সেস দিন" }));
 
-    expect(await screen.findByText("এই শিক্ষার্থীর এই মডিউল বা পরীক্ষায় অ্যাক্সেস আগে থেকেই আছে।")).toBeInTheDocument();
+    expect(await screen.findByText("এই শিক্ষার্থীর এই প্যাকেজ বা পরীক্ষায় অ্যাক্সেস আগে থেকেই আছে।")).toBeInTheDocument();
   });
 
   it("shows the error state when the list cannot load", async () => {

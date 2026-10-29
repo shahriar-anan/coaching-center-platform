@@ -1,345 +1,152 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
-import { useSaveExam, type ExamInput, type StaffExam } from "@/lib/api/exam/staff-catalog";
-import type { PaperLanguage } from "@/lib/api/exam/types";
+import { useSaveExam, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import { Button } from "@/components/ui/button";
-import { DateTimeInput } from "@/components/ui/date-time-input";
-import { Field } from "@/components/ui/field";
-import { NumberInput } from "@/components/ui/number-input";
-import { Select } from "@/components/ui/select";
-import { cn } from "@/components/ui/cn";
-import { ruleLines } from "@/components/student/catalog/lms-blocks";
-import { Textarea } from "@/components/ui/textarea";
-import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
-import { parsePrice } from "@/components/staff/catalog/module-details";
-import { catalogErrorKey, clashExamFor, fieldErrorFor, type ClashExam } from "@/components/staff/catalog/errors";
+import { catalogErrorKey, clashExamFor, fieldErrorFor, isApiError, type ClashExam } from "@/components/staff/catalog/errors";
+import {
+  SECTION_KEYS,
+  examBodyFor,
+  examFormErrors,
+  examFormState,
+  sectionDirty,
+  type ExamFormContext,
+  type ExamFormErrors,
+  type ExamFormState,
+  type ExamSection,
+  type SectionFieldsProps,
+} from "@/components/staff/catalog/exam-form-state";
+import { ExamDetailsFields } from "@/components/staff/catalog/exam-details-fields";
+import { ExamTextFields } from "@/components/staff/catalog/exam-text-fields";
+import { ExamScheduleFields } from "@/components/staff/catalog/exam-schedule-fields";
+import { ExamPriceFields } from "@/components/staff/catalog/exam-price-fields";
 
-/** The three editable parts of an exam. Each saves on its own button and sends only its own fields. */
-export type ExamSection = "details" | "schedule" | "price";
+export type { ExamSection } from "@/components/staff/catalog/exam-form-state";
 
-type FormState = {
-  titleEn: string;
-  titleBn: string;
-  descriptionEn: string;
-  descriptionBn: string;
-  rulesEn: string;
-  rulesBn: string;
-  paperLanguage: PaperLanguage;
-  durationMinutes: string;
-  passPercent: string;
-  maximum: string;
-  price: string;
-  dated: boolean;
-  liveAt: string | null;
-};
-
-type Errors = Partial<Record<keyof FormState, string>>;
-
-const SECTION_FIELDS: Record<ExamSection, (keyof FormState)[]> = {
-  details: ["titleEn", "titleBn", "descriptionEn", "descriptionBn", "rulesEn", "rulesBn", "paperLanguage"],
-  schedule: ["durationMinutes", "passPercent", "maximum", "dated", "liveAt"],
-  price: ["price"],
-};
-
-function initialState(exam: StaffExam): FormState {
-  return {
-    titleEn: exam.titleEn,
-    titleBn: exam.titleBn,
-    descriptionEn: exam.descriptionEn ?? "",
-    descriptionBn: exam.descriptionBn ?? "",
-    rulesEn: exam.rulesEn ?? "",
-    rulesBn: exam.rulesBn ?? "",
-    paperLanguage: exam.paperLanguage,
-    durationMinutes: String(exam.durationMinutes),
-    passPercent: exam.passPercent == null ? "" : String(exam.passPercent),
-    maximum: String(exam.maximum),
-    price: exam.price == null ? "" : String(exam.price),
-    dated: exam.liveAt !== null,
-    liveAt: exam.liveAt,
-  };
-}
-
-function pick(state: FormState, keys: (keyof FormState)[]): Partial<FormState> {
-  return Object.fromEntries(keys.map((key) => [key, state[key]])) as Partial<FormState>;
+/** Copies the fields of one section from the saved exam into a form state. The other sections are left as they are. */
+function mergeSection(base: ExamFormState, from: ExamFormState, section: ExamSection): ExamFormState {
+  return { ...base, ...Object.fromEntries(SECTION_KEYS[section].map((key) => [key, from[key]])) };
 }
 
 /**
- * One section of the exam editor. Times are typed in Asia/Dhaka; the end is computed
- * from the duration and shown, never asked. Once the start has passed every section
- * is read-only and says so.
+ * One section of the exam page. It has its own form and its own Save button, and it sends only its own fields. The
+ * client never locks a section by date: the API takes the edit and stages it when the exam is published. An archived
+ * exam, or a role that cannot author, gets the section read-only.
  */
-export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locked: boolean; section: ExamSection }) {
+export function ExamMetaForm({
+  exam,
+  section,
+  canEdit,
+  onDirtyChange,
+}: {
+  exam: StaffExam;
+  section: ExamSection;
+  canEdit: boolean;
+  /** Reports whether this section has unsaved changes. Optional: the form works without it. */
+  onDirtyChange?: (section: ExamSection, dirty: boolean) => void;
+}) {
   const { t } = useLocale();
-  const { formatDateTime, formatMoney } = useFormat();
   const { toast } = useToast();
   const role = useRole();
   const save = useSaveExam(exam.id);
-  // Only Master Admin sets the price. System Admin sees it as text and never sends the field (the API would refuse it).
-  const canSetPrice = role.canEditPrice;
-  const [form, setForm] = useState<FormState>(() => initialState(exam));
-  const [baseline, setBaseline] = useState<FormState>(() => initialState(exam));
-  const [errors, setErrors] = useState<Errors>({});
+  const context: ExamFormContext = { written: exam.examType === "WRITTEN", canSetPrice: role.canEditPrice };
+  const formRef = useRef<HTMLFormElement>(null);
+  const [form, setForm] = useState<ExamFormState>(() => examFormState(exam));
+  const [saved, setSaved] = useState<ExamFormState>(() => examFormState(exam));
+  const [errors, setErrors] = useState<ExamFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [clash, setClash] = useState<ClashExam | null>(null);
-  const dirty = JSON.stringify(pick(form, SECTION_FIELDS[section])) !== JSON.stringify(pick(baseline, SECTION_FIELDS[section]));
+  const dirty = sectionDirty(form, saved, section);
   useUnsavedChangesGuard(dirty);
-  const isWritten = exam.examType === "WRITTEN";
+  useEffect(() => {
+    onDirtyChange?.(section, dirty);
+  }, [section, dirty, onDirtyChange]);
 
-  const endLabel = useMemo(() => {
-    if (!form.dated || !form.liveAt) {
-      return null;
-    }
-    const minutes = Number(form.durationMinutes);
-    if (!Number.isFinite(minutes) || minutes <= 0) {
-      return null;
-    }
-    return formatDateTime(new Date(new Date(form.liveAt).getTime() + minutes * 60_000));
-  }, [form.dated, form.liveAt, form.durationMinutes, formatDateTime]);
-
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+  const set = useCallback(<K extends keyof ExamFormState>(key: K, value: ExamFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  function validate(): ExamInput | null {
-    const next: Errors = {};
-    if (section === "details") {
-      if (!form.titleEn.trim()) {
-        next.titleEn = t("staffCatalog.examMeta.titleEnRequired");
-      }
-      if (!form.titleBn.trim()) {
-        next.titleBn = t("staffCatalog.examMeta.titleBnRequired");
-      }
-    }
-    if (section === "schedule") {
-      const duration = Number(form.durationMinutes);
-      if (!Number.isInteger(duration) || duration < 2) {
-        next.durationMinutes = t("staffCatalog.examMeta.durationInvalid");
-      }
-      if (form.passPercent !== "") {
-        const pass = Number(form.passPercent);
-        if (!Number.isInteger(pass) || pass < 0 || pass > 100) {
-          next.passPercent = t("staffCatalog.examMeta.passInvalid");
-        }
-      }
-      if (isWritten) {
-        const max = Number(form.maximum);
-        if (!Number.isInteger(max) || max < 1) {
-          next.maximum = t("staffCatalog.examMeta.maximumInvalid");
-        }
-      }
-    }
-    const price = section === "price" && canSetPrice ? parsePrice(form.price) : null;
-    if (price && !price.ok) {
-      next.price = t("staffCatalog.examMeta.priceInvalid");
-    }
-    setErrors(next);
-    if (Object.keys(next).length > 0) {
-      return null;
-    }
-    if (section === "details") {
-      return {
-        titleEn: form.titleEn.trim(),
-        titleBn: form.titleBn.trim(),
-        descriptionEn: form.descriptionEn.trim() || null,
-        descriptionBn: form.descriptionBn.trim() || null,
-        rulesEn: form.rulesEn.trim() || null,
-        rulesBn: form.rulesBn.trim() || null,
-        paperLanguage: form.paperLanguage,
-      };
-    }
-    if (section === "schedule") {
-      const body: ExamInput = {
-        durationMinutes: Number(form.durationMinutes),
-        passPercent: form.passPercent === "" ? null : Number(form.passPercent),
-        liveAt: form.dated ? form.liveAt : null,
-      };
-      if (isWritten) {
-        body.maximum = Number(form.maximum);
-      }
-      return body;
-    }
-    return price?.ok ? { price: price.value } : null;
-  }
+  }, []);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    setFormError(null);
-    setClash(null);
-    const body = validate();
-    if (!body) {
+    // Save all submits every section; a section with nothing to save, or a price the role cannot set, sends nothing.
+    if (!canEdit || !dirty || (section === "price" && !context.canSetPrice)) {
       return;
     }
+    setFormError(null);
+    setClash(null);
+    const local = examFormErrors(form, section, context, saved);
+    if (Object.keys(local).length > 0) {
+      const messages: ExamFormErrors = {};
+      for (const [key, value] of Object.entries(local)) {
+        messages[key as keyof ExamFormErrors] = t(value as string);
+      }
+      setErrors(messages);
+      return;
+    }
+    setErrors({});
     try {
-      const saved = await save.mutateAsync(body);
-      const next = initialState(saved);
-      setForm((current) => ({ ...current, ...pick(next, SECTION_FIELDS[section]) }));
-      setBaseline((current) => ({ ...current, ...pick(next, SECTION_FIELDS[section]) }));
-      toast({
-        title:
-          saved.status === "DRAFT" && exam.status === "PUBLISHED"
-            ? t("staffCatalog.examMeta.savedReturnedToDraft")
-            : t("staffCatalog.examMeta.saved"),
-        tone: "ok",
-      });
+      const next = examFormState(await save.mutateAsync(examBodyFor(form, section, context)));
+      setSaved((current) => mergeSection(current, next, section));
+      setForm((current) => mergeSection(current, next, section));
+      toast({ title: t("staffCatalog.examMeta.saved"), tone: "ok" });
     } catch (error) {
       const clashing = clashExamFor(error);
       setClash(clashing);
       setFormError(clashing ? null : t(catalogErrorKey(error)));
-      setErrors({
-        titleEn: fieldErrorFor(error, "titleEn") ?? undefined,
-        titleBn: fieldErrorFor(error, "titleBn") ?? undefined,
-        liveAt: fieldErrorFor(error, "liveAt") ?? undefined,
-        durationMinutes: fieldErrorFor(error, "durationMinutes") ?? undefined,
-        passPercent: fieldErrorFor(error, "passPercent") ?? undefined,
-        maximum: fieldErrorFor(error, "maximum") ?? undefined,
-        price: fieldErrorFor(error, "price") ?? undefined,
-      });
+      const messages: ExamFormErrors = {};
+      for (const key of SECTION_KEYS[section]) {
+        const message = fieldErrorFor(error, key);
+        if (message) {
+          messages[key] = message;
+        }
+      }
+      if (isApiError(error, "EXAM_WINDOW_INVALID")) {
+        messages.window = t(catalogErrorKey(error));
+      }
+      setErrors(messages);
     }
   }
 
-  const saveRow = !locked && (section !== "price" || canSetPrice) ? (
-    <div className="flex flex-wrap items-center gap-3">
+  const fields: SectionFieldsProps = {
+    exam,
+    form,
+    set,
+    errors,
+    disabled: !canEdit,
+    context,
+    saved,
+    saving: save.isPending,
+    onSave: () => formRef.current?.requestSubmit(),
+  };
+  const priceLocked = section === "price" && !context.canSetPrice;
+  // The section's one footer row: its status on the left, its Save on the right.
+  const footer = canEdit && !priceLocked ? (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+      <div className="grid gap-1">
+        <p role="status" className={dirty ? "text-meta text-warn" : "text-meta text-muted"}>
+          {dirty ? t("staffCatalog.examMeta.dirty") : t("staffCatalog.examMeta.savedStatus")}
+        </p>
+        {exam.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.stagedHint")}</p> : null}
+      </div>
       <Button type="submit" loading={save.isPending} disabled={save.isPending || !dirty}>
         {t("staffCatalog.examMeta.save")}
       </Button>
-      {dirty ? (
-        <span role="status" className="text-meta text-warn">
-          {t("staffCatalog.examMeta.dirty")}
-        </span>
-      ) : null}
-      <p className="text-meta text-muted">{t("staffCatalog.examMeta.returnsToDraftHelp")}</p>
     </div>
   ) : null;
 
   return (
-    <form id={`exam-${section}-form`} onSubmit={onSubmit} noValidate className="grid gap-5">
-      {locked ? (
-        <p role="status" className="rounded-control border border-warn/40 bg-warn/10 px-4 py-3 text-meta text-warn">
-          {t("staffCatalog.examMeta.lockedNotice")}
-        </p>
-      ) : null}
-      <fieldset disabled={locked} className="grid gap-5">
-        {section === "details" ? (
-          <>
-            <p className="text-meta text-muted">{t("staffCatalog.examMeta.textHint")}</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t("staffCatalog.examMeta.titleEn")} required error={errors.titleEn}>
-                <TextInput value={form.titleEn} onChange={(e) => set("titleEn", e.target.value)} dir="ltr" />
-              </Field>
-              <Field label={t("staffCatalog.examMeta.titleBn")} required error={errors.titleBn}>
-                <TextInput value={form.titleBn} onChange={(e) => set("titleBn", e.target.value)} />
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t("staffCatalog.examMeta.descriptionEn")}>
-                <Textarea rows={3} value={form.descriptionEn} onChange={(e) => set("descriptionEn", e.target.value)} dir="ltr" />
-              </Field>
-              <Field label={t("staffCatalog.examMeta.descriptionBn")}>
-                <Textarea rows={3} value={form.descriptionBn} onChange={(e) => set("descriptionBn", e.target.value)} />
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t("staffCatalog.examMeta.rulesEn")}>
-                <Textarea rows={3} value={form.rulesEn} onChange={(e) => set("rulesEn", e.target.value)} dir="ltr" />
-              </Field>
-              <Field label={t("staffCatalog.examMeta.rulesBn")}>
-                <Textarea rows={3} value={form.rulesBn} onChange={(e) => set("rulesBn", e.target.value)} />
-              </Field>
-            </div>
-            <p className="text-meta text-muted">{t("staffCatalog.examMeta.rulesHint")}</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <RulesPreview title={t("staffCatalog.examMeta.rulesPreview")} text={form.rulesEn} lang="en" />
-              <RulesPreview title={t("staffCatalog.examMeta.rulesPreview")} text={form.rulesBn} lang="bn" />
-            </div>
-            <Field label={t("staffCatalog.examMeta.paperLanguage")} hint={t("staffCatalog.examMeta.paperLanguageHint")}>
-              <Select value={form.paperLanguage} onChange={(e) => set("paperLanguage", e.target.value as PaperLanguage)}>
-                <option value="BN">{t("staffCatalog.paperLanguage.BN")}</option>
-                <option value="EN">{t("staffCatalog.paperLanguage.EN")}</option>
-              </Select>
-            </Field>
-          </>
-        ) : null}
-
-        {section === "schedule" ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={t("staffCatalog.examMeta.duration")} required hint={t("staffCatalog.examMeta.durationHint")} error={errors.durationMinutes}>
-                <NumberInput inputMode="numeric" min={2} step={1} value={form.durationMinutes} onChange={(e) => set("durationMinutes", e.target.value)} />
-              </Field>
-              <Field label={t("staffCatalog.examMeta.passPercent")} hint={t("staffCatalog.examMeta.passHint")} error={errors.passPercent}>
-                <NumberInput inputMode="numeric" min={0} max={100} step={1} value={form.passPercent} onChange={(e) => set("passPercent", e.target.value)} />
-              </Field>
-              {isWritten ? (
-                <Field label={t("staffCatalog.examMeta.maximum")} required hint={t("staffCatalog.examMeta.maximumHint")} error={errors.maximum}>
-                  <NumberInput inputMode="numeric" min={1} step={1} value={form.maximum} onChange={(e) => set("maximum", e.target.value)} />
-                </Field>
-              ) : null}
-            </div>
-            <div id="exam-start" className="grid gap-3">
-              <fieldset className="grid gap-2">
-                <legend className="mb-1 text-label font-medium">{t("staffCatalog.examMeta.startLegend")}</legend>
-                <div role="radiogroup" aria-label={t("staffCatalog.examMeta.startLegend")} className="grid gap-2 sm:grid-cols-2">
-                  {[
-                    { dated: true, label: t("staffCatalog.examMeta.dateSet") },
-                    { dated: false, label: t("staffCatalog.examMeta.dateLater") },
-                  ].map((option) => {
-                    const selected = form.dated === option.dated;
-                    return (
-                      <button
-                        key={String(option.dated)}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => {
-                          set("dated", option.dated);
-                          if (!option.dated) {
-                            set("liveAt", null);
-                          }
-                        }}
-                        className={cn(
-                          "min-h-11 rounded-control border px-4 text-start text-body",
-                          selected ? "border-action font-medium ring-1 ring-action" : "border-border-control bg-field hover:border-muted",
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-              {!form.dated ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.dateLaterHint")}</p> : null}
-              {form.dated ? (
-                <Field label={t("staffCatalog.examMeta.start")} hint={t("staffCatalog.examMeta.startHint")} error={errors.liveAt}>
-                  <DateTimeInput value={form.liveAt} onChange={(iso) => set("liveAt", iso)} invalid={Boolean(errors.liveAt)} />
-                </Field>
-              ) : (
-                <p className="text-meta text-muted">{t("staffCatalog.dateNotSet")}</p>
-              )}
-              {endLabel ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.endsAt", { time: endLabel })}</p> : null}
-            </div>
-          </>
-        ) : null}
-
-        {section === "price" ? (
-          canSetPrice ? (
-            <Field label={t("staffCatalog.examMeta.price")} hint={t("staffCatalog.examMeta.priceHint")} error={errors.price}>
-              <NumberInput inputMode="decimal" min={0} step="0.01" value={form.price} onChange={(e) => set("price", e.target.value)} className="max-w-48" />
-            </Field>
-          ) : (
-            <div className="grid gap-1">
-              <span className="text-meta font-medium text-muted">{t("staffCatalog.examMeta.price")}</span>
-              <p className="text-body">{formatMoney(exam.price) ?? t("staffCatalog.examMeta.noPrice")}</p>
-              <p className="text-meta text-muted">{t("staffCatalog.examMeta.priceReadOnly")}</p>
-            </div>
-          )
-        ) : null}
+    <form ref={formRef} id={`exam-${section}-form`} onSubmit={onSubmit} noValidate className="grid gap-4">
+      <fieldset disabled={!canEdit} className="grid gap-4">
+        {section === "details" ? <ExamDetailsFields {...fields} /> : null}
+        {section === "text" ? <ExamTextFields {...fields} /> : null}
+        {section === "schedule" ? <ExamScheduleFields {...fields} /> : null}
+        {section === "price" ? <ExamPriceFields {...fields} /> : null}
       </fieldset>
 
       {clash ? <ClashAlert clash={clash} /> : null}
@@ -348,26 +155,8 @@ export function ExamMetaForm({ exam, locked, section }: { exam: StaffExam; locke
           {formError}
         </p>
       ) : null}
-      {saveRow}
+      {footer}
     </form>
-  );
-}
-
-/** The rules as a student sees them: one numbered rule per line. */
-function RulesPreview({ title, text, lang }: { title: string; text: string; lang: "en" | "bn" }) {
-  const items = ruleLines(text);
-  if (items.length === 0) {
-    return null;
-  }
-  return (
-    <div className="grid gap-2 rounded-card border border-border bg-card p-4">
-      <p className="text-meta font-medium text-muted">{title}</p>
-      <ol lang={lang} className="grid list-decimal gap-1.5 ps-6 text-body">
-        {items.map((item, index) => (
-          <li key={`${index}-${item}`}>{item}</li>
-        ))}
-      </ol>
-    </div>
   );
 }
 

@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 /* Self-hosted fonts (WS9 F8): the same families, weights and subsets as before, from web/src/app/fonts. */
+/* Kalpurush is the Bangla face of the old site (it sets it for all text); the file is the one the old site loads. */
+@font-face {
+  font-family: "Kalpurush";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/kalpurush-bengali.woff2") format("woff2");
+}
 @font-face {
   font-family: "Hind Siliguri";
   font-style: normal;
@@ -111,6 +119,14 @@
   --color-danger: var(--danger);
   --color-band: var(--band);
   --color-on-band: var(--on-band);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-on-active: var(--sidebar-on-active);
+  --color-sidebar-accent: var(--sidebar-accent);
 
   --radius-card: var(--radius-card-value);
   --radius-control: var(--radius-control-value);
@@ -183,27 +199,37 @@
   --text-pill--font-weight: 600;
 }
 
+/*
+ * Kalpurush has a smaller x-height than the face it replaces, so Bangla text is scaled to match it. The value is the x-height
+ * the text is scaled to (tune it here: higher is larger). The rule follows the page language, so English is unchanged.
+ */
+html:lang(bn) {
+  font-size-adjust: 0.5;
+}
+
 /* Font families. The faces are self-hosted above, so builds never fetch fonts. */
 :root {
-  --font-hind: "Hind Siliguri";
-  --font-bengali: "Noto Sans Bengali";
+  --font-hind: "Kalpurush";
+  --font-bengali: "Kalpurush";
   --font-inter: "Inter";
 }
 
 /* Student site, light. */
 :root,
 [data-surface="site"] {
-  --bg: #f6f4ee;
-  --card: #ffffff;
+  /* Softened from pure white and cream so the cards read as paper on the page (decided 29 October 2026). */
+  --bg: #efebe1;
+  --card: #faf8f3;
+  --card-shadow: none;
   --text: #14213d;
   --muted: #5d6578;
   --accent: #c8962e;
   --accent-text: #8a5f12;
   --on-accent: #14213d;
-  --border: #e3dfd3;
+  --border: #d9d3c3;
   /* Field and table-frame edges. The student site keeps its current value this round. */
   --border-control: #cfc8b6;
-  --field: #ffffff;
+  --field: #faf8f3;
   --warn: #c2410c;
   --warn-fill: #e8590c;
   --ok: #2f9e44;
@@ -222,8 +248,10 @@
 
 /* Admin panel, light. */
 [data-surface="staff"] {
-  --bg: #f4f6f8;
+  /* A cooler, deeper page than the first light value, so the white cards separate from it; the card shadow adds the edge. */
+  --bg: #e6ebf1;
   --card: #ffffff;
+  --card-shadow: 0 1px 2px rgb(28 36 48 / 0.08), 0 3px 10px rgb(28 36 48 / 0.06);
   --text: #1c2430;
   --muted: #5c6b7a;
   --border: #b4bfcc;
@@ -243,6 +271,15 @@
   --on-accent: #ffffff;
   --radius-card-value: 8px;
   --radius-control-value: 8px;
+  /* Sidebar: a dark rail in both themes, tuned for contrast (every text pair is 6:1 or more). */
+  --sidebar: #1b2a3f;
+  --sidebar-text: #eef3f8;
+  --sidebar-muted: #b3c0cf;
+  --sidebar-line: #33506f;
+  --sidebar-hover: #243a56;
+  --sidebar-active: #2c4a6e;
+  --sidebar-on-active: #ffffff;
+  --sidebar-accent: #7eb0d8;
 }
 
 /* Student site, dark. */
@@ -290,6 +327,14 @@
     --accent: #7eb0d8;
     --accent-text: #7eb0d8;
     --on-accent: #12181f;
+    --sidebar: #0b1119;
+    --sidebar-text: #e7edf2;
+    --sidebar-muted: #9aabba;
+    --sidebar-line: #223246;
+    --sidebar-hover: #15212e;
+    --sidebar-active: #1c2c3e;
+    --sidebar-on-active: #ffffff;
+    --sidebar-accent: #7eb0d8;
   }
 }
 
@@ -335,6 +380,14 @@
   --accent: #7eb0d8;
   --accent-text: #7eb0d8;
   --on-accent: #12181f;
+  --sidebar: #0b1119;
+  --sidebar-text: #e7edf2;
+  --sidebar-muted: #9aabba;
+  --sidebar-line: #223246;
+  --sidebar-hover: #15212e;
+  --sidebar-active: #1c2c3e;
+  --sidebar-on-active: #ffffff;
+  --sidebar-accent: #7eb0d8;
 }
 
 @media (prefers-reduced-motion: reduce) {

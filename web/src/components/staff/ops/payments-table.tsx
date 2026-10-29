@@ -16,7 +16,10 @@ import {
   scopeKey,
 } from "./ops-copy";
 
-/** The payments list. Read only: no cell changes an order. */
+/**
+ * The payments list. Read only: no cell changes an order. Six columns on a wide screen; below 640 px the
+ * Table shows each row as a card, with the same labels.
+ */
 export function PaymentsTable({
   rows,
   loading,
@@ -41,83 +44,69 @@ export function PaymentsTable({
 
   const columns: Column<StaffOrderRow>[] = [
     {
-      key: "time",
-      header: t("staffOps.payments.columns.time"),
-      width: "w-36",
-      nowrap: true,
-      cell: (row) => format.formatDateTime(row.createdAt),
-    },
-    {
-      key: "paidAt",
-      header: t("staffOps.payments.columns.paidAt"),
-      width: "w-36",
-      nowrap: true,
-      cell: (row) => (row.paidAt ? format.formatDateTime(row.paidAt) : "—"),
-    },
-    {
-      key: "receiptNo",
-      header: t("staffOps.payments.columns.receipt"),
-      width: "w-36",
-      nowrap: true,
-      cell: (row) => (row.receiptNo ? <code className="font-latin text-meta">{row.receiptNo}</code> : "—"),
+      key: "date",
+      header: t("staffOps.payments.columns.date"),
+      mobileLabel: t("staffOps.payments.columns.date"),
+      cell: (row) => (
+        <span className="grid gap-0.5">
+          <span>{format.formatDateTime(row.createdAt)}</span>
+          {row.status === "SUCCEEDED" && row.paidAt ? (
+            <span className="text-meta text-muted">
+              {t("staffOps.payments.paidLine", { time: format.formatDateTime(row.paidAt) })}
+            </span>
+          ) : null}
+          {row.receiptNo ? <code className="break-all font-latin text-meta">{row.receiptNo}</code> : null}
+        </span>
+      ),
     },
     {
       key: "student",
       header: t("staffOps.payments.columns.student"),
+      mobileLabel: t("staffOps.payments.columns.student"),
       cell: (row) => (
-        <Link
-          href={`/staff/students/${row.studentId}`}
-          className="font-medium text-text underline-offset-4 hover:underline"
-        >
-          {row.studentName ?? t("staffOps.payments.unnamed")}
-        </Link>
+        <span className="grid gap-0.5">
+          <Link
+            href={`/staff/students/${row.studentId}`}
+            className="font-medium text-text underline-offset-4 hover:underline"
+          >
+            {row.studentName ?? t("staffOps.payments.unnamed")}
+          </Link>
+          <span className="font-latin text-meta tabular-nums text-muted">{row.studentPhone}</span>
+        </span>
       ),
-    },
-    {
-      key: "phone",
-      header: t("staffOps.payments.columns.phone"),
-      width: "w-32",
-      nowrap: true,
-      cell: (row) => <span className="font-latin tabular-nums">{row.studentPhone}</span>,
     },
     {
       key: "product",
       header: t("staffOps.payments.columns.product"),
+      mobileLabel: t("staffOps.payments.columns.product"),
       cell: (row) => <ProductName row={row} />,
     },
     {
       key: "amount",
       header: t("staffOps.payments.columns.amount"),
+      mobileLabel: t("staffOps.payments.columns.amount"),
       align: "end",
-      width: "w-24",
-      nowrap: true,
-      cell: (row) => format.formatMoney(row.amount),
-    },
-    {
-      key: "method",
-      header: t("staffOps.payments.columns.method"),
-      width: "w-28",
-      cell: (row) => row.paymentChannel ?? "—",
+      cell: (row) => (
+        <span className="grid justify-items-end gap-0.5">
+          <span className="font-medium tabular-nums">{format.formatMoney(row.amount)}</span>
+          {row.paymentChannel ? <span className="text-meta text-muted">{row.paymentChannel}</span> : null}
+          <span className="break-all font-latin text-meta tabular-nums text-muted">{row.tranId}</span>
+        </span>
+      ),
     },
     {
       key: "status",
       header: t("staffOps.payments.columns.status"),
-      width: "w-24",
-      nowrap: true,
+      mobileLabel: t("staffOps.payments.columns.status"),
       cell: (row) => {
         const key = paymentStatusKey(row.status);
         return <Pill tone={paymentStatusTone(key)}>{t(`staffOps.payments.status.${key}`)}</Pill>;
       },
     },
     {
-      key: "tranId",
-      header: t("staffOps.payments.columns.tranId"),
-      width: "w-40",
-      cell: (row) => <span className="break-all font-latin text-meta tabular-nums">{row.tranId}</span>,
-    },
-    {
       key: "menu",
       header: "",
+      mobileLabel: t("staffOps.payments.columns.actions"),
       align: "end",
       width: "w-12",
       cell: (row) => (
@@ -144,7 +133,10 @@ export function PaymentsTable({
   );
 }
 
-/** The product is the exam for an exam order, and the module for a module order. */
+/**
+ * The product is the exam for an exam order, and the module for a module order. The title links to the
+ * payment's detail page and wraps to at most two lines. One muted line under it gives the scope and the access.
+ */
 function ProductName({ row }: { row: StaffOrderRow }) {
   const { pickTitle } = useFormat();
   const { t } = useLocale();
@@ -152,12 +144,19 @@ function ProductName({ row }: { row: StaffOrderRow }) {
     row.scope === "EXAM" && row.examId
       ? pickTitle({ titleEn: row.examTitleEn ?? "", titleBn: row.examTitleBn ?? "" })
       : pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn });
-  // The scope and what the order grants sit under the title, so the table needs one column less.
+  const scope = t(`staffOps.payments.scope.${scopeKey(row.scope)}`);
+  const access = t(`staffOps.payments.access.${accessCopyKey(row)}`);
   return (
-    <span className="grid gap-0.5">
-      <span>{title}</span>
-      <span className="text-meta text-muted">{t(`staffOps.payments.scope.${scopeKey(row.scope)}`)}</span>
-      <span className="text-meta text-muted">{t(`staffOps.payments.access.${accessCopyKey(row)}`)}</span>
+    <span className="grid max-w-56 gap-0.5">
+      <Link
+        href={`/staff/payments/${encodeURIComponent(row.tranId)}`}
+        className="font-medium text-text underline-offset-4 hover:underline"
+      >
+        <span className="line-clamp-2">{title}</span>
+      </Link>
+      <span className="text-meta text-muted">
+        <span>{scope}</span> · <span>{access}</span>
+      </span>
     </span>
   );
 }
