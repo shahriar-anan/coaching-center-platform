@@ -214,7 +214,9 @@ public class LiveExamService {
 			exam.setDiscountPercent(readOptionalInt(body, "discountPercent"));
 		}
 		if (body.has("discountEndsAt")) {
-			exam.setDiscountEndsAt(readOptionalInstant(body, "discountEndsAt"));
+			Instant discountEndsAt = readOptionalInstant(body, "discountEndsAt");
+			ExamPricing.requireNotPast(discountEndsAt, exam.getDiscountEndsAt(), clock.instant());
+			exam.setDiscountEndsAt(discountEndsAt);
 		}
 		if (body.has("accessDays")) {
 			Integer days = readOptionalInt(body, "accessDays");

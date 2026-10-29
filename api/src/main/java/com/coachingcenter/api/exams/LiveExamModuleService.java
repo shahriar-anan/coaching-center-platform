@@ -84,6 +84,7 @@ public class LiveExamModuleService {
 		}
 		module.setDiscountPercent(readDiscountPercent(body));
 		module.setDiscountEndsAt(readDiscountEndsAt(body));
+		ExamPricing.requireNotPast(module.getDiscountEndsAt(), null, clock.instant());
 		ExamPricing.validate(module.getPrice(), false, module.getDiscountPercent(), module.getDiscountEndsAt());
 		return view(modules.save(module));
 	}
@@ -222,6 +223,7 @@ public class LiveExamModuleService {
 		BigDecimal price = body.has("price") ? readPrice(body.get("price")) : current.price();
 		Integer discountPercent = body.has("discountPercent") ? readDiscountPercent(body) : current.discountPercent();
 		Instant discountEndsAt = body.has("discountEndsAt") ? readDiscountEndsAt(body) : current.discountEndsAt();
+		ExamPricing.requireNotPast(discountEndsAt, current.discountEndsAt(), clock.instant());
 		ExamPricing.validate(price, false, discountPercent, discountEndsAt);
 		return new PackageRevisionService.Draft(titleEn, titleBn, descriptionEn, descriptionBn, categoryId, position,
 				price, discountPercent, discountEndsAt, current.examIds());
