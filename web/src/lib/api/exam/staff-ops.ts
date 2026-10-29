@@ -34,6 +34,10 @@ export type StaffOrderRow = {
   studentEmail: string;
   studentCode: string | null;
   createdAt: string;
+  /** ISO UTC, set once the order is paid (P2). */
+  paidAt: string | null;
+  /** The receipt number of a paid order (P4). */
+  receiptNo: string | null;
   updatedAt: string;
 };
 

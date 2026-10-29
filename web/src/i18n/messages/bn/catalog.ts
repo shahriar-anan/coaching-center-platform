@@ -9,6 +9,9 @@ const catalog = {
   typeMcq: "এমসিকিউ",
   typeWritten: "রিটেন",
   comingSoon: "শীঘ্রই আসছে",
+  examCover: {
+    note: "ছবিটি সঙ্গে সঙ্গে চালু হবে, প্যাকেজের ছবির মতো।",
+  },
   typeFilter: {
     label: "পরীক্ষার ধরন",
     all: "সব",

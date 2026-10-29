@@ -28,6 +28,8 @@ const staffOps = {
       status: "Status",
       access: "Access",
       tranId: "Transaction id",
+      paidAt: "Paid on",
+      receipt: "Receipt number",
     },
     scope: {
       module: "Module",

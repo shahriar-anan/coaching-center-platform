@@ -69,6 +69,8 @@ export type StaffQuestion = {
 
 /** `status` is DRAFT, PUBLISHED or ARCHIVED; `myStatus` is only set for students. */
 export type StaffExam = {
+  /** The exam's own cover path, or null (Phase 4, E1). Only the Master Admin changes it (see the exam cover uploader). */
+  coverUrl?: string | null;
   id: string;
   moduleId: string;
   examType: ExamType;
@@ -285,6 +287,44 @@ export function useStaffModuleCover(moduleId: string, version: string | null | u
     queryFn: async () => URL.createObjectURL(await apiBlob(`/api/v1/live-exam-modules/${moduleId}/cover`)),
     enabled: Boolean(version),
     staleTime: Infinity,
+  });
+}
+
+/** Replaces the exam's cover (Master Admin only). The change is live at once, as the package cover is (Phase 4, E1). */
+export function useUploadExamCover(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiRequest<StaffExam>(`/api/v1/live-exams/${examId}/cover`, { method: "POST", body: form });
+    },
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "exam", saved.id] });
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "exams"] });
+    },
+  });
+}
+
+/** The exam's cover for the staff screen, as an object URL. `version` changes with each upload, so a new cover is fetched. */
+export function useStaffExamCover(examId: string, version: string | null | undefined) {
+  return useQuery({
+    queryKey: ["staffCatalog", "examCover", examId, version ?? ""],
+    queryFn: async () => URL.createObjectURL(await apiBlob(`/api/v1/live-exams/${examId}/cover`)),
+    enabled: Boolean(version),
+    staleTime: Infinity,
+  });
+}
+
+/** Removes the exam's cover (Master Admin only). */
+export function useRemoveExamCover(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<StaffExam>(`/api/v1/live-exams/${examId}/cover`, { method: "DELETE" }),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "exam", saved.id] });
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "exams"] });
+    },
   });
 }
 

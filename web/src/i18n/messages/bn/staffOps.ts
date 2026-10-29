@@ -28,6 +28,8 @@ const staffOps = {
       status: "অবস্থা",
       access: "চালু",
       tranId: "লেনদেন নম্বর",
+      paidAt: "পরিশোধের সময়",
+      receipt: "রসিদ নম্বর",
     },
     scope: {
       module: "মডিউল",

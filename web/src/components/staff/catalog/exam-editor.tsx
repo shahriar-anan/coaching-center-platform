@@ -26,6 +26,7 @@ import { ExamMetaForm } from "@/components/staff/catalog/exam-meta-form";
 import { McqQuestions } from "@/components/staff/catalog/mcq-questions";
 import { SectionBlock, type SectionState } from "@/components/staff/catalog/section-block";
 import { WrittenPaper } from "@/components/staff/catalog/written-paper";
+import { ExamCoverUploader } from "@/components/staff/catalog/exam-cover-uploader";
 
 /** The descriptions and rules, in both languages. Publish needs all four (the server checks the same). */
 export function hasExamText(exam: StaffExam): boolean {
@@ -339,6 +340,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
         <div className="grid min-w-0 gap-10">
           <SectionBlock id="exam-details" number={numberFor(0)} title={t("staffCatalog.sections.details")} state={sectionState.details}>
             <ExamMetaForm exam={exam} locked={!canEdit} section="details" />
+            {role.canManageCover ? <ExamCoverUploader exam={exam} /> : null}
           </SectionBlock>
 
           <SectionBlock id="exam-schedule" number={numberFor(1)} title={t("staffCatalog.sections.schedule")} state={sectionState.schedule}>

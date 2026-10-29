@@ -11,6 +11,9 @@ const catalog: typeof bn = {
   typeMcq: "MCQ",
   typeWritten: "Written",
   comingSoon: "Coming soon",
+  examCover: {
+    note: "The cover goes live at once, as a package cover does.",
+  },
   typeFilter: {
     label: "Exam type",
     all: "All",
