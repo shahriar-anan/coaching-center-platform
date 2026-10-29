@@ -64,9 +64,10 @@ export function CategoryExams({ categoryId, door, hasChildren }: { categoryId: s
       {rows.length === 0 ? (
         <EmptyState title={t("catalog.categoryExams.empty")} body={t("catalog.categoryExams.emptyBody")} />
       ) : (
-        <ul className="grid gap-3">
+        // Two cards per row from lg, one below it (the same gap both ways), so the list needs less scrolling on a desktop.
+        <ul className="grid gap-3 lg:grid-cols-2">
           {rows.map((exam) => (
-            <li key={exam.id}>
+            <li key={exam.id} className="min-w-0">
               <CatalogExamRow exam={exam} />
             </li>
           ))}

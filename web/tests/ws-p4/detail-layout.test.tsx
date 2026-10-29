@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { DetailLayout } from "@/components/student/catalog/detail-layout";
+import { DetailLayout, barActionOf } from "@/components/student/catalog/detail-layout";
+import { Button } from "@/components/ui/button";
 import { PackageCover } from "@/components/ui/package/package-cover";
 
 function Sample() {
@@ -15,19 +16,31 @@ function Sample() {
   );
 }
 
-/** The document order of the four slots is the phone order: header, card, cover, details (Phase 4, S4.3). */
+/** True when each node comes after the one before it in the document. */
 function order(nodes: HTMLElement[]) {
   return nodes.every((node, index) => index === 0 || (nodes[index - 1].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
 }
 
 describe("the shared detail layout (Phase 4, S4.3)", () => {
-  it("puts the header, then the buy card, then the cover, then the details in document order", () => {
+  it("reads the header, the details, the cover and then the buy card in document order", () => {
     render(<Sample />);
     const header = screen.getByRole("heading", { name: "Package title" });
     const card = screen.getByRole("region", { name: "Buy" });
     const cover = screen.getByTestId("cover");
     const details = screen.getByText("Details");
-    expect(order([header, card, cover, details])).toBe(true);
+    expect(order([header, details, cover, card])).toBe(true);
+  });
+
+  it("shows the cover, the header, the details, then the buy card on a phone, through the order classes", () => {
+    render(<Sample />);
+    const cover = screen.getByTestId("cover").parentElement;
+    const header = screen.getByRole("heading", { name: "Package title" }).parentElement;
+    const details = screen.getByText("Details").parentElement;
+    const card = screen.getByRole("region", { name: "Buy" }).parentElement;
+    expect(cover).toHaveClass("order-1");
+    expect(header).toHaveClass("order-2");
+    expect(details).toHaveClass("order-3");
+    expect(card).toHaveClass("order-4");
   });
 
   it("keeps the cover and the buy card in one sticky column on desktop", () => {
@@ -35,9 +48,19 @@ describe("the shared detail layout (Phase 4, S4.3)", () => {
     const cover = screen.getByTestId("cover");
     // The cover sits in its own wrapper, and the wrapper sits in the sticky column with the card.
     const column = cover.parentElement?.parentElement;
-    expect(column).toHaveClass("lg:sticky", "lg:top-20");
+    expect(column).toHaveClass("lg:sticky", "lg:top-20", "lg:self-start");
     expect(column?.contains(screen.getByRole("region", { name: "Buy" }))).toBe(true);
     expect(column?.contains(screen.getByText("Details"))).toBe(false);
+  });
+});
+
+describe("the phone bar repeats only an action that can be taken now (Phase 4, S4.3)", () => {
+  it("gives the card's enabled button, and no bar for a disabled button or a line of text", () => {
+    const enabled = <Button>Buy</Button>;
+    expect(barActionOf(enabled)).toBe(enabled);
+    expect(barActionOf(<Button disabled>Buy</Button>)).toBeNull();
+    expect(barActionOf(<p>Missed</p>)).toBeNull();
+    expect(barActionOf(null)).toBeNull();
   });
 });
 

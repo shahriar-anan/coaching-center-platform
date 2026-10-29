@@ -1,5 +1,5 @@
-import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExamPage } from "@/components/student/catalog/exam-page";
 import { ModulePage } from "@/components/student/catalog/module-page";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
@@ -102,10 +102,11 @@ describe("the package page on the shared layout (Phase 4, S4.3 and S4.4)", () =>
     const link = await within(card).findByRole("link", { name: "View payment" });
     expect(link).toHaveAttribute("href", "/account/payments?order=order-1");
     expect(within(card).getByText(/Purchased/)).toBeInTheDocument();
-    // The Wish List mark is in the header, before the buy card, and it is one icon button.
+    // The Wish List mark is in the header, and it is one icon button. The buy card comes after the tabs in the document.
     const mark = within(heading.parentElement as HTMLElement).getByRole("button", { name: "Wish List" });
     expect(mark).toHaveClass("absolute", "size-11");
     expect(heading.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("tablist").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The tabs wrap rather than scroll, so the About tab is never cut off at 320 px (S4.4).
     expect(screen.getByRole("tablist")).toHaveClass("flex-wrap");
   });
@@ -146,7 +147,7 @@ describe("the package page on the shared layout (Phase 4, S4.3 and S4.4)", () =>
 });
 
 describe("the exam page on the shared layout (Phase 4, S4.3 and S4.4)", () => {
-  it("puts the header, then the buy card, then the details, and shows the purchase line for a bought exam", async () => {
+  it("puts the header, then the details, then the buy card, and shows the purchase line for a bought exam", async () => {
     mockApi({
       [`GET /api/v1/public/live-exams/${EXAM_ID}`]: exam({ state: "EXAM", buyable: false, blockedReason: null }),
       [`GET /api/v1/public/live-exam-modules/${MODULE_ID}`]: pkg(null),
@@ -162,8 +163,8 @@ describe("the exam page on the shared layout (Phase 4, S4.3 and S4.4)", () => {
     const heading = await screen.findByRole("heading", { level: 1, name: "CPC Full Mock" });
     const card = screen.getByRole("region", { name: "CPC Full Mock" });
     const details = screen.getByText("Duration").closest("dl") as HTMLElement;
-    expect(heading.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(card.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(details.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(await within(card).findByRole("link", { name: "View payment" })).toHaveAttribute("href", "/account/payments?order=order-e");
   });
 
@@ -221,5 +222,68 @@ describe("the exam cover fallback (Phase 4, E1 and S4.4)", () => {
     renderWithProviders(<ExamPage examId={EXAM_ID} />, { locale: "en" });
     await screen.findByRole("heading", { level: 1, name: "CPC Full Mock" });
     expect(screen.queryByRole("img", { name: /Cover of/ })).not.toBeInTheDocument();
+  });
+});
+
+type FakeObserver = { callback: IntersectionObserverCallback; targets: Element[] };
+let observers: FakeObserver[] = [];
+
+/** A stand-in for the browser's observer: the test reports the card on screen or off it. */
+class FakeIntersectionObserver {
+  private readonly entry: FakeObserver;
+  constructor(callback: IntersectionObserverCallback) {
+    this.entry = { callback, targets: [] };
+    observers.push(this.entry);
+  }
+  observe(target: Element) {
+    this.entry.targets.push(target);
+  }
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
+function report(target: Element, isIntersecting: boolean) {
+  const observer = observers.find((o) => o.targets.includes(target));
+  act(() => {
+    observer?.callback([{ isIntersecting, target } as IntersectionObserverEntry], {} as IntersectionObserver);
+  });
+}
+
+describe("the phone bar follows the buy card (Phase 4, S4.3)", () => {
+  beforeEach(() => {
+    observers = [];
+    vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("slides the bar in only while the buy card is off screen, and away again when the card comes back", async () => {
+    mockApi({
+      [`GET /api/v1/public/live-exam-modules/${MODULE_ID}`]: pkg(null),
+      [`GET /api/v1/public/live-exam-modules/${MODULE_ID}/exams`]: { ...emptyPage, content: [exam(null)] },
+      "GET /api/v1/public/live-exam-categories": fixtures.categoryTree,
+      "GET /api/v1/public/exam-site/status": { checkoutEnabled: true },
+    });
+    renderWithProviders(<ModulePage door="mcq" moduleId={MODULE_ID} />, { locale: "en" });
+
+    const card = await screen.findByRole("region", { name: "Buy whole package" });
+    await waitFor(() => expect(observers.some((o) => o.targets.includes(card))).toBe(true));
+    // The bar stays hidden until the observer says the card is off screen.
+    // The bar is the div with an explicit region role; the card is a section, so the two never match the same query.
+    const bar = () => document.querySelector<HTMLElement>('[role="region"][aria-label="Buy whole package"]') as HTMLElement;
+    expect(bar()).toHaveAttribute("aria-hidden", "true");
+    expect(bar()).toHaveClass("invisible", "translate-y-full", "motion-reduce:transition-none");
+
+    report(card, false);
+    expect(bar()).toHaveAttribute("aria-hidden", "false");
+    expect(bar()).toHaveClass("visible", "translate-y-0");
+
+    report(card, true);
+    expect(bar()).toHaveAttribute("aria-hidden", "true");
+    expect(bar()).toHaveClass("invisible", "translate-y-full");
   });
 });

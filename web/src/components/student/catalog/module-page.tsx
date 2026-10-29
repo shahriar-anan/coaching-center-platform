@@ -18,7 +18,7 @@ import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
 import { BundleSelection } from "./bundle-selection";
-import { DetailLayout } from "./detail-layout";
+import { ActionBar, DetailLayout, barActionOf, detailFrame } from "./detail-layout";
 import { PriceLine } from "./price-line";
 import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { bundleOrders } from "@/lib/config";
@@ -110,7 +110,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   useEffect(() => {
     const element = buyRef.current;
     if (!ready || !element || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => setBuyOffscreen(!entry.isIntersecting));
+    const observer = new IntersectionObserver(([entry]) => setBuyOffscreen(!entry.isIntersecting), { threshold: 0 });
     observer.observe(element);
     return () => observer.disconnect();
   }, [ready]);
@@ -209,7 +209,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
     }
     return null;
   }
-  const barAction = price !== null && price !== undefined && !moduleOwned ? buyAction(false) : null;
+  const barAction = price !== null && price !== undefined && !moduleOwned ? barActionOf(buyAction(false)) : null;
   const showBar = buyOffscreen && barAction !== null;
 
   const tabItems: { value: ModuleTab; label: string; badge?: number }[] = [
@@ -220,7 +220,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const activeTab = tabItems.some((item) => item.value === tab) ? tab : "exams";
 
   return (
-    <div className={cn(barAction !== null && "pb-24 md:pb-0")}>
+    <div className={cn(detailFrame, barAction !== null && "pb-24 md:pb-0")}>
       <Breadcrumbs items={breadcrumbs} />
       <ConfigNotice show={checkoutOff} />
 
@@ -387,26 +387,17 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
             ) : null}
 
             {activeTab === "about" && description ? (
-              <p className="whitespace-pre-line text-body leading-relaxed text-muted">{description}</p>
+              <p className="whitespace-pre-line text-body leading-relaxed text-muted lg:max-w-[70ch]">{description}</p>
             ) : null}
           </div>
         </div>
       </DetailLayout>
 
-      {showBar ? (
-        <div
-          className="fixed inset-x-0 bottom-[var(--tabbar-h,0px)] z-30 border-t border-border bg-card/95 px-4 pb-3 pt-3 backdrop-blur md:hidden"
-          role="region"
-          aria-label={t("catalog.buyModule")}
-        >
-          <div className="mx-auto flex max-w-[760px] items-center gap-3">
-            <div className="grid min-w-0 flex-1">
-              <span className="text-meta text-muted">{t("catalog.buyModule")}</span>
-              <PriceLine label={priceLabel(pricingOf(data.pricing, price))} size="detail" />
-            </div>
-            <div className="shrink-0">{barAction}</div>
-          </div>
-        </div>
+      {barAction !== null ? (
+        <ActionBar show={showBar} label={t("catalog.buyModule")} action={barAction}>
+          <span className="text-meta text-muted">{t("catalog.buyModule")}</span>
+          <PriceLine label={priceLabel(pricingOf(data.pricing, price))} size="detail" />
+        </ActionBar>
       ) : null}
 
       {isStudent && price !== null && price !== undefined && !moduleOwned ? (

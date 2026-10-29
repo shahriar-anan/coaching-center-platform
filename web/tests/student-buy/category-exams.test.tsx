@@ -61,6 +61,19 @@ describe("the category exam list (S2.1)", () => {
     expect(screen.getByText("First exam")).toBeInTheDocument();
   });
 
+  it("lays the exams out in two columns from lg, with one column below lg and the same gap both ways", async () => {
+    mockApi({
+      "GET /api/v1/public/live-exam-categories/c1/exams": () => page([exam("e1", "First exam"), exam("e2", "Second exam")], 0, 1),
+    });
+    renderWithProviders(<CategoryExams categoryId="c1" door="mcq" hasChildren />, { locale: "en" });
+
+    const list = (await screen.findByText("First exam")).closest("ul") as HTMLElement;
+    expect(list).toHaveClass("grid", "gap-3", "lg:grid-cols-2");
+    expect(list).not.toHaveClass("md:grid-cols-2", "sm:grid-cols-2");
+    expect(list.children).toHaveLength(2);
+    expect(list.children[0]).toHaveClass("min-w-0");
+  });
+
   it("a category with nothing in it and no subcategory shows the coming-soon note", async () => {
     mockApi({ "GET /api/v1/public/live-exam-categories/c1/exams": () => page([], 0, 1) });
     renderWithProviders(<CategoryExams categoryId="c1" door="mcq" hasChildren={false} />, { locale: "en" });

@@ -30,7 +30,7 @@ import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useNotice } from "@/lib/notices/use-notice";
-import { DetailLayout } from "./detail-layout";
+import { ActionBar, DetailLayout, barActionOf, detailFrame } from "./detail-layout";
 import { doorLabelKey, doorPath, examPath, type Door } from "./catalog-helpers";
 import { ExamPackages } from "./exam-packages";
 import { FavouriteButton } from "./favourite-button";
@@ -100,7 +100,7 @@ export function ExamPage({ examId }: { examId: string }) {
   useEffect(() => {
     const element = actionRef.current;
     if (!ready || !element || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => setActionOffscreen(!entry.isIntersecting));
+    const observer = new IntersectionObserver(([entry]) => setActionOffscreen(!entry.isIntersecting), { threshold: 0 });
     observer.observe(element);
     return () => observer.disconnect();
   }, [ready]);
@@ -199,9 +199,9 @@ export function ExamPage({ examId }: { examId: string }) {
       primary = <Button fullWidth href={`${examPath(examId)}/result`}>{t("catalog.exam.viewResult")}</Button>;
     }
   }
-  // The bar only offers an action that can be taken now.
-  const barAllowed = primary !== null && !(ownsExam && (status === "NOT_ANNOUNCED" || status === "UPCOMING"));
-  const showBar = actionOffscreen && barAllowed;
+  // The bar repeats the card's action, and only when that action can be taken now (see barActionOf).
+  const barAction = barActionOf(primary);
+  const showBar = actionOffscreen && barAction !== null;
 
   // The timing line under the title: a countdown for an owner before the start, otherwise the start time.
   const timingLine =
@@ -216,7 +216,7 @@ export function ExamPage({ examId }: { examId: string }) {
     );
 
   return (
-    <div className={cn(barAllowed && "pb-24 md:pb-0")}>
+    <div className={cn(detailFrame, barAction !== null && "pb-24 md:pb-0")}>
       <Breadcrumbs items={crumbs} />
       <ConfigNotice show={checkoutOff} />
 
@@ -287,7 +287,7 @@ export function ExamPage({ examId }: { examId: string }) {
 
         {description ? (
           <Section title={t("catalog.exam.description")}>
-            <p className="whitespace-pre-line leading-relaxed text-muted">{description}</p>
+            <p className="whitespace-pre-line leading-relaxed text-muted lg:max-w-[70ch]">{description}</p>
           </Section>
         ) : null}
         {ruleItems.length > 0 ? (
@@ -320,22 +320,13 @@ export function ExamPage({ examId }: { examId: string }) {
         ) : null}
       </DetailLayout>
 
-      {showBar ? (
-        <div
-          className="fixed inset-x-0 bottom-[var(--tabbar-h,0px)] z-30 border-t border-border bg-card/95 px-4 pb-3 pt-3 backdrop-blur md:hidden"
-          role="region"
-          aria-label={title}
-        >
-          <div className="mx-auto flex max-w-[760px] items-center gap-3">
-            <div className="grid min-w-0 flex-1">
-              <span className="line-clamp-1 text-body font-semibold">{title}</span>
-              {!ownsExam && ownPrice ? (
-                <span className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(charged, locale)}</span>
-              ) : null}
-            </div>
-            <div className="shrink-0">{primary}</div>
-          </div>
-        </div>
+      {barAction !== null ? (
+        <ActionBar show={showBar} label={title} action={barAction}>
+          <span className="line-clamp-1 text-body font-semibold">{title}</span>
+          {!ownsExam && ownPrice ? (
+            <span className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(charged, locale)}</span>
+          ) : null}
+        </ActionBar>
       ) : null}
 
       {isStudent && ownPrice && !ownsExam ? (
