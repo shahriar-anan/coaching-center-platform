@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.error.FieldErrorDetail;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -236,10 +237,7 @@ public class LiveExamRevisionService {
 			throw new ApiException(ErrorCode.PASS_PERCENT_REQUIRED, HttpStatus.CONFLICT,
 					"Publish requires a pass percent from 0 through 100.");
 		}
-		if (blank(state.descriptionEn) || blank(state.descriptionBn) || blank(state.rulesEn) || blank(state.rulesBn)) {
-			throw new ApiException(ErrorCode.EXAM_TEXT_REQUIRED, HttpStatus.CONFLICT,
-					"Publish requires the English and Bangla descriptions and rules.");
-		}
+		requireTexts(state.descriptionEn, state.descriptionBn, state.rulesEn, state.rulesBn);
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
 			if (state.questions.isEmpty()) {
 				throw new ApiException(ErrorCode.QUESTIONS_REQUIRED, HttpStatus.CONFLICT,
@@ -427,6 +425,30 @@ public class LiveExamRevisionService {
 
 	private LiveExam exam(UUID examId) {
 		return exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
+	}
+
+	/**
+	 * The four text fields a publish needs (R1). Create accepts them blank; publish does not. Each blank field is named in
+	 * {@code fieldErrors}, so the form can show the message under it.
+	 */
+	static void requireTexts(String descriptionEn, String descriptionBn, String rulesEn, String rulesBn) {
+		List<FieldErrorDetail> missing = new ArrayList<>();
+		if (blank(descriptionEn)) {
+			missing.add(new FieldErrorDetail("descriptionEn", "The English description is needed to publish."));
+		}
+		if (blank(descriptionBn)) {
+			missing.add(new FieldErrorDetail("descriptionBn", "The Bangla description is needed to publish."));
+		}
+		if (blank(rulesEn)) {
+			missing.add(new FieldErrorDetail("rulesEn", "The English rules are needed to publish."));
+		}
+		if (blank(rulesBn)) {
+			missing.add(new FieldErrorDetail("rulesBn", "The Bangla rules are needed to publish."));
+		}
+		if (!missing.isEmpty()) {
+			throw new ApiException(ErrorCode.EXAM_TEXT_REQUIRED, HttpStatus.CONFLICT,
+					"Publish requires the English and Bangla descriptions and rules.", missing);
+		}
 	}
 
 	private static boolean blank(String value) {

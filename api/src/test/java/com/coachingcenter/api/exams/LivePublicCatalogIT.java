@@ -197,13 +197,13 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(examBody(null, "2099-01-01T10:00:00+06:00")))
-			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.paperLanguage").doesNotExist());
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(examBody("BOTH", "2099-01-01T10:00:00+06:00")))
-			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.paperLanguage").value("BOTH"));
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(examBody("bn", "2099-01-01T10:00:00+06:00")))
