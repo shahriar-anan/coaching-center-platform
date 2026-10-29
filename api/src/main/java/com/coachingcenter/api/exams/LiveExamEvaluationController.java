@@ -108,7 +108,7 @@ public class LiveExamEvaluationController {
 
 	@GetMapping("/api/v1/live-exam-participants/{id}/answer-pdf")
 	public ResponseEntity<byte[]> answerPdf(@PathVariable UUID id) {
-		require(Permissions.LIVE_EXAM_EVALUATE);
+		requireReader();
 		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.answerPdf(id, actor()));
 	}
 

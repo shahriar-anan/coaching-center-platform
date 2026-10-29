@@ -510,9 +510,14 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsByteArray();
 		assertThat(masterBytes).startsWith("%PDF".getBytes());
-		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/answer-pdf")
+		// The System Admin reads the answer sheet (read only); marking and release stay with the marker and the Master Admin.
+		byte[] systemBytes = mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/answer-pdf")
 			.header("Authorization", "Bearer " + system))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsByteArray();
+		assertThat(systemBytes).startsWith("%PDF".getBytes());
 		mockMvc.perform(get("/api/v1/live-exam-participants/" + participant + "/answer-pdf")
 			.header("Authorization", "Bearer " + other.token()))
 			.andExpect(status().isForbidden());

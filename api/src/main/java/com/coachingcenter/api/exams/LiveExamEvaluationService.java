@@ -343,7 +343,7 @@ public class LiveExamEvaluationService {
 			throw notFound();
 		}
 		LiveExam exam = requireExam(participant.getExamId());
-		requireMarker(exam, actor);
+		requireReader(exam, actor);
 		if (participant.getAnswerStoredFileName() == null) {
 			throw notFound();
 		}
