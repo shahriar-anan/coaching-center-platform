@@ -41,6 +41,7 @@ describe("paste format (F7)", () => {
         stem: "বাংলাদেশের রাজধানী কোথায়?",
         marks: 2,
         explanation: "ঢাকা রাজধানী।",
+        multipleAnswer: false,
         options: [
           { text: "ঢাকা", correct: true },
           { text: "চট্টগ্রাম", correct: false },
@@ -49,10 +50,14 @@ describe("paste format (F7)", () => {
     });
   });
 
-  it("splits questions on blank lines and reports each bad block on its own", () => {
+  it("splits questions on blank lines and reports each bad block on its own; several stars are a multiple-answer question", () => {
     const text = [validBlock, "", "খ) শুধু অপশন", "", "প্রশ্ন: দুটি অপশন, কোনো সঠিক নয়", "ক) এক", "খ) দুই", "", "প্রশ্ন: দুটি সঠিক", "ক) এক *", "খ) দুই *"].join("\n");
     const blocks = parsePastedQuestions(text);
-    expect(blocks.map((b) => ("error" in b ? b.error : "ok"))).toEqual(["ok", "noStem", "noCorrect", "manyCorrect"]);
+    expect(blocks.map((b) => ("error" in b ? b.error : "ok"))).toEqual(["ok", "noStem", "noCorrect", "ok"]);
+    // Two stars are valid now (NR-01, several correct options): the block is a multiple-answer question.
+    const multi = blocks[3];
+    expect("question" in multi && multi.question.multipleAnswer).toBe(true);
+    expect("question" in multi && multi.question.options.filter((o) => o.correct)).toHaveLength(2);
   });
 
   it("marks below 1 are an error for that block", () => {

@@ -87,7 +87,7 @@ export function ModuleSetup({ module }: { module: StaffModule }) {
           : t("staffCatalog.setup.visible");
 
   return (
-    <section aria-labelledby="module-setup-heading" className="grid gap-4 rounded-card border border-border bg-card p-5">
+    <section aria-labelledby="module-setup-heading" className="grid gap-4 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
       <h2 id="module-setup-heading" className="text-label font-semibold">
         {t("staffCatalog.setup.heading")}
       </h2>

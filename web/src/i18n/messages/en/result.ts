@@ -17,6 +17,12 @@ const result = {
     score: "{score} / {maximum}",
     none: "—",
   },
+  position: {
+    current: "Your current position: #{rank} of {of} live participants.",
+    board: "Your position on the merit list: #{rank} of {of}.",
+    relative: "Your score would have ranked #{rank} of {of} live participants.",
+    belowPass: "Below pass mark, not ranked.",
+  },
   outcome: {
     passed: "Passed",
     failed: "Not passed",

@@ -45,6 +45,9 @@ const SITTING_PATH = /^\/exam\/[^/]+\/sit(\/|$)/;
 /** Sign-in and sign-up pages on the student host: copyright and legal links only. */
 const SIGN_IN_PATH = /^\/(login|register|set-phone|activate|code|forgot-password|reset-password)(\/|$)/;
 
+/** The exam and package detail pages keep their own wide frame (detail-layout.tsx); every other page uses the full width. */
+const DETAIL_PATH = /^\/(exam\/[^/]+|mcq\/m\/[^/]+|written\/m\/[^/]+)\/?$/;
+
 function hidesTabBar(pathname: string): boolean {
   return SITTING_PATH.test(pathname);
 }
@@ -295,9 +298,10 @@ function WideNav() {
 }
 
 /**
- * The student surface: a 760 px column with a header, a footer and, on phones,
- * a bottom tab bar for signed-in students. Pages render their content only.
- * The home page for everyone who is not a signed-in student is drawn wide.
+ * The student surface: a header, a footer and, on phones, a bottom tab bar for signed-in students.
+ * Most pages use a 1024 px frame. The exam and package detail pages keep their own
+ * wide frame, and the home page for everyone who is not a signed-in student is drawn wide too.
+ * Pages render their content only.
  */
 export function StudentShell({ children }: { children: ReactNode }) {
   const { t } = useLocale();
@@ -307,9 +311,10 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
   const student = signedIn && session.user.role === "STUDENT";
   const wide = pathname === "/" && !student;
-  const column = wide ? "max-w-6xl" : "max-w-[760px]";
-  // The top bar needs the wider header from large width up; the content column stays 760 px.
-  const headerColumn = student ? "max-w-[760px] lg:max-w-6xl" : column;
+  const roomy = !wide && !DETAIL_PATH.test(pathname);
+  const column = wide ? "max-w-6xl" : roomy ? "max-w-5xl" : "max-w-[760px]";
+  // The top bar needs the wider header from large width up; the content column stays 760 px on detail pages.
+  const headerColumn = student ? "max-w-[760px] lg:max-w-5xl" : column;
   const footer = footerVariant(pathname);
 
   return (
@@ -347,13 +352,14 @@ export function StudentShell({ children }: { children: ReactNode }) {
         className={cn(
           "mx-auto w-full flex-1",
           // The wide landing page sets its own gutters and column per section.
-          !wide && "max-w-[760px] px-4 pt-6 pb-10",
+          !wide && (roomy ? "max-w-5xl px-4 pt-6 pb-10" : "max-w-[760px] px-4 pt-6 pb-10"),
           showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10",
         )}
       >
-        {children}
+        {/* Lists and cards sit in a centred 768 px column; the sitting paper keeps the full frame. */}
+        {roomy && !SITTING_PATH.test(pathname) ? <div className="mx-auto w-full max-w-3xl">{children}</div> : children}
       </main>
-      {footer !== "none" ? <SiteFooter variant={footer} width={column} /> : null}
+      {footer !== "none" ? <SiteFooter variant={footer} width={wide ? "max-w-6xl" : "max-w-5xl"} /> : null}
       {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>

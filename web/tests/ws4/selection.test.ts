@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  answerPayload,
   mergeSelection,
   nextRetryDelay,
-  toAnswerList,
   toggleFlag,
   toggleOption,
 } from "@/components/student/sitting/selection";
@@ -11,17 +11,17 @@ import { crossedWarning, inFinalMinute } from "@/components/student/sitting/warn
 describe("selection", () => {
   it("tapping the selected option again clears it, another option replaces it", () => {
     const first = toggleOption({}, "q1", "a");
-    expect(first).toEqual({ q1: "a" });
+    expect(first).toEqual({ q1: ["a"] });
     expect(toggleOption(first, "q1", "a")).toEqual({});
-    expect(toggleOption(first, "q1", "b")).toEqual({ q1: "b" });
+    expect(toggleOption(first, "q1", "b")).toEqual({ q1: ["b"] });
   });
 
-  it("sends the whole selection as a list", () => {
-    expect(toAnswerList({ q1: "a", q2: "c" })).toEqual([
-      { questionId: "q1", optionId: "a" },
-      { questionId: "q2", optionId: "c" },
+  it("sends the whole selection as a list of option ids", () => {
+    expect(answerPayload({ q1: ["a"], q2: ["c"] }, new Set(), true)).toEqual([
+      { questionId: "q1", optionIds: ["a"] },
+      { questionId: "q2", optionIds: ["c"] },
     ]);
-    expect(toAnswerList({})).toEqual([]);
+    expect(answerPayload({}, new Set(), true)).toEqual([]);
   });
 
   it("flags toggle without touching the answers", () => {
@@ -30,22 +30,22 @@ describe("selection", () => {
   });
 
   it("keeps the server copy when there is no backup", () => {
-    expect(mergeSelection({ q1: "a" }, 1000, null)).toEqual({ q1: "a" });
+    expect(mergeSelection({ q1: ["a"] }, 1000, null)).toEqual({ q1: ["a"] });
   });
 
   it("uses the backup when this device is newer than the server copy", () => {
-    const backup = { selection: { q1: "b", q2: "c" }, flagged: [], savedAt: 2000 };
-    expect(mergeSelection({ q1: "a" }, 1000, backup)).toEqual({ q1: "a", q2: "c" });
+    const backup = { selection: { q1: ["b"], q2: ["c"] }, flagged: [], savedAt: 2000 };
+    expect(mergeSelection({ q1: ["a"] }, 1000, backup)).toEqual({ q1: ["a"], q2: ["c"] });
   });
 
   it("server wins where both have an answer when the server copy is at least as new", () => {
-    const backup = { selection: { q1: "b" }, flagged: [], savedAt: 1000 };
-    expect(mergeSelection({ q1: "a" }, 2000, backup)).toEqual({ q1: "a" });
+    const backup = { selection: { q1: ["b"] }, flagged: [], savedAt: 1000 };
+    expect(mergeSelection({ q1: ["a"] }, 2000, backup)).toEqual({ q1: ["a"] });
   });
 
   it("when the server has no save time, the backup fills in", () => {
-    const backup = { selection: { q3: "d" }, flagged: [], savedAt: 500 };
-    expect(mergeSelection({}, null, backup)).toEqual({ q3: "d" });
+    const backup = { selection: { q3: ["d"] }, flagged: [], savedAt: 500 };
+    expect(mergeSelection({}, null, backup)).toEqual({ q3: ["d"] });
   });
 
   it("retries at 1 s, 2 s, 4 s and then stops", () => {

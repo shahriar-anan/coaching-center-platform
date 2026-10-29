@@ -71,10 +71,11 @@ describe("exam editor sections (U5)", () => {
     mockApi(routes(mcqExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
-    for (const name of [/১\s*বিবরণ/, /২\s*সময় ও নম্বর/, /৩\s*প্রশ্ন/, /৪\s*মূল্য/, /৫\s*যাচাই ও প্রকাশ/]) {
+    // The six parts of plan 7.2, in the order the work is done.
+    for (const name of [/১\s*বিবরণ/, /২\s*বিবরণ ও নিয়মাবলি/, /৩\s*সময় ও নম্বর/, /৪\s*প্রশ্ন/, /৫\s*মূল্য/, /৬\s*যাচাই ও প্রকাশ/]) {
       expect(await screen.findByRole("heading", { name })).toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: /২\s*সময় ও নম্বর/ })).toHaveAttribute("href", "#exam-schedule");
+    expect(screen.getByRole("link", { name: /৩\s*সময় ও নম্বর/ })).toHaveAttribute("href", "#exam-schedule");
   });
 
   it("System Admin sees the price as text and no delete control", async () => {
@@ -97,7 +98,7 @@ describe("exam editor sections (U5)", () => {
     mockApi(routes(writtenExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
-    expect(await screen.findByText("এই মডিউলে এখনো শিক্ষক দেওয়া নেই। শিক্ষক দেবেন মাস্টার অ্যাডমিন।")).toBeInTheDocument();
+    expect(await screen.findByText("এই প্যাকেজে এখনো শিক্ষক দেওয়া নেই। শিক্ষক দেবেন মাস্টার অ্যাডমিন।")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "শিক্ষক দিন" })).not.toBeInTheDocument();
   });
 
@@ -124,7 +125,7 @@ describe("publish summary and next step (UF7, F3)", () => {
     expect(within(dialog).getByText("প্রকাশের আগে দেখে নিন")).toBeInTheDocument();
     expect(within(dialog).getByText("২টি প্রশ্ন · মোট ৫০ নম্বর")).toBeInTheDocument();
     expect(within(dialog).getByText("মূল্য এখনো ঠিক হয়নি")).toBeInTheDocument();
-    expect(within(dialog).getByText(/মডিউলে, এমসিকিউ দরজায়/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/প্যাকেজে, এমসিকিউ দরজায়/)).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "প্রকাশ করুন" }));
     await waitFor(() => expect(api.calls.some((call) => call.method === "POST" && call.path.endsWith("/publish"))).toBe(true));

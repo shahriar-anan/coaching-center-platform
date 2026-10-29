@@ -8,7 +8,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Pagination } from "@/components/ui/pagination";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
-import { Select } from "@/components/ui/select";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SummaryStrip } from "@/components/ui/summary-strip";
 import { PaymentsTable } from "@/components/staff/ops/payments-table";
 import { PAYMENT_STATUS_FILTERS } from "@/components/staff/ops/ops-copy";
@@ -41,7 +41,8 @@ function PaymentsList() {
         title={t("staffOps.payments.title")}
         breadcrumbs={[{ label: t("common.nav.home"), href: "/staff" }, { label: t("staffOps.payments.title") }]}
       />
-      <p className="text-meta text-muted">{t("staffOps.payments.readOnly")}</p>
+      {/* Under the title. The header's bottom padding already leaves room, so the grid gap is pulled back. */}
+      <p className="-mt-5 text-meta text-muted">{t("staffOps.payments.readOnly")}</p>
 
       {strip.isError ? (
         <p className="text-meta text-muted">{t("staffOps.payments.strip.error")}</p>
@@ -67,32 +68,34 @@ function PaymentsList() {
         />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label={t("staffOps.payments.searchLabel")}>
-          <SearchInput
-            id="payments-q"
-            value={params.q}
-            onChange={(q) => setParams({ q })}
-            placeholder={t("staffOps.payments.searchPlaceholder")}
-          />
-        </Field>
-        <Field label={t("staffOps.payments.tranIdLabel")}>
-          <SearchInput
-            id="payments-tran"
-            value={params.tranId}
-            onChange={(tranId) => setParams({ tranId })}
-            placeholder={t("staffOps.payments.tranIdPlaceholder")}
-          />
-        </Field>
-        <Field label={t("staffOps.payments.statusLabel")}>
-          <Select value={params.status} onChange={(event) => setParams({ status: event.target.value })}>
-            {PAYMENT_STATUS_FILTERS.map((option) => (
-              <option key={option.key} value={option.value}>
-                {t(`staffOps.payments.status.${option.key}`)}
-              </option>
-            ))}
-          </Select>
-        </Field>
+      <div className="grid gap-4">
+        <SegmentedControl
+          ariaLabel={t("staffOps.payments.statusLabel")}
+          options={PAYMENT_STATUS_FILTERS.map((option) => ({
+            value: option.value,
+            label: t(`staffOps.payments.status.${option.key}`),
+          }))}
+          value={params.status}
+          onChange={(status) => setParams({ status })}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("staffOps.payments.searchLabel")}>
+            <SearchInput
+              id="payments-q"
+              value={params.q}
+              onChange={(q) => setParams({ q })}
+              placeholder={t("staffOps.payments.searchPlaceholder")}
+            />
+          </Field>
+          <Field label={t("staffOps.payments.tranIdLabel")}>
+            <SearchInput
+              id="payments-tran"
+              value={params.tranId}
+              onChange={(tranId) => setParams({ tranId })}
+              placeholder={t("staffOps.payments.tranIdPlaceholder")}
+            />
+          </Field>
+        </div>
       </div>
 
       {payments.isError ? (

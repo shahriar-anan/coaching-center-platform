@@ -40,7 +40,7 @@ describe("unknown error codes on the admin screens", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: bnStaffAdmin.access.grantOpen }));
-    await user.selectOptions(screen.getByLabelText(/^মডিউল/), modules.content[0].id);
+    await user.selectOptions(screen.getByLabelText(/^প্যাকেজ/), modules.content[0].id);
     await user.type(screen.getByLabelText(/^কারণ/), "ভর্তির জন্য");
     await user.click(screen.getByRole("button", { name: bnStaffAdmin.grant.submit }));
 

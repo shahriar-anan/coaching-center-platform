@@ -36,13 +36,20 @@ beforeEach(() => {
 });
 
 describe("PdfViewer", () => {
-  it("shows the pages, page count, and watermark, and loads the worker from the site", async () => {
-    renderWs4(<PdfDocument load={async () => pdfBlob()} watermark="নাঈম হাসান · S18492017" />);
+  it("shows the pages, page count, and the mark on each page, and loads the worker from the site", async () => {
+    renderWs4(<PdfDocument load={async () => pdfBlob()} />);
     expect(await screen.findByText("পৃষ্ঠা ১ / ৩")).toBeInTheDocument();
     expect(await screen.findAllByTestId("pdf-watermark")).toHaveLength(3);
-    expect(screen.getAllByText("নাঈম হাসান · S18492017").length).toBeGreaterThan(0);
+    expect(screen.queryByText("নাঈম হাসান · S18492017")).not.toBeInTheDocument();
     expect(workerOptions.workerSrc).toBe(PDF_WORKER_SRC);
     await waitFor(() => expect(render).toHaveBeenCalled());
+  });
+
+  it("prints a student's name and ID once at the top and once at the bottom of every page", async () => {
+    renderWs4(<PdfDocument load={async () => pdfBlob()} studentLine="নাঈম হাসান · S18492017" />);
+    expect(await screen.findByText("পৃষ্ঠা ১ / ৩")).toBeInTheDocument();
+    expect(await screen.findAllByTestId("pdf-watermark")).toHaveLength(3);
+    expect(screen.getAllByText("নাঈম হাসান · S18492017")).toHaveLength(6);
   });
 
   it("gives students no download and suppresses the context menu", async () => {

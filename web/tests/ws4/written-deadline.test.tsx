@@ -26,7 +26,7 @@ it("when the deadline passes during an upload, the drop closes and says so", asy
     <WrittenSitting
       exam={{ id: "ex-w", questionPdf: null } as never}
       deadlineAt={new Date(Date.now() + 60 * 60 * 1000).toISOString()}
-      watermark="নাঈম হাসান"
+      studentLine="নাঈম হাসান"
       onClosed={() => undefined}
       onSubmitted={() => undefined}
     />,

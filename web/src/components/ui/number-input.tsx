@@ -13,7 +13,13 @@ export const NumberInput = forwardRef<HTMLInputElement, TextInputProps>(function
       inputMode="numeric"
       {...rest}
       type="number"
-      className={cn(controlBase, controlBorder(invalid), "tabular-nums", className)}
+      // The browser's spin buttons drew a tall box beside the number; the field keeps the same shape as a text field.
+      className={cn(
+        controlBase,
+        controlBorder(invalid),
+        "tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        className,
+      )}
     />
   );
 });

@@ -37,6 +37,9 @@ import { FavouriteButton } from "./favourite-button";
 import { PriceLine } from "./price-line";
 import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { ruleLines } from "./lms-blocks";
+import { paperLanguageLabel } from "./paper-language";
+import { RichTextView } from "@/components/ui/rich-text-view";
+import { hasMarkup } from "@/lib/format/rich-text";
 import { StartConfirm } from "./start-confirm";
 import { ExamStatusPill, TypePill } from "./status-pill";
 
@@ -134,6 +137,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const doorLabel = t(doorLabelKey(door));
   const title = pickTitle(data, locale);
   const description = pickText({ ...data }, "description", locale);
+  const paperLabel = paperLanguageLabel(data.paperLanguage, t);
   const rules = pickText({ ...data }, "rules", locale);
   const ruleItems = rules ? ruleLines(rules) : [];
   const owned: StudentExam | null = mine.data ?? null;
@@ -294,16 +298,20 @@ export function ExamPage({ examId }: { examId: string }) {
             value={startsAt ? formatDateTime(startsAt, locale) : t("catalog.dateTbd")}
             sub={endsAt ? `${t("catalog.exam.end")}: ${formatTime(endsAt, locale)}` : undefined}
           />
-          <Fact label={t("catalog.exam.paperLanguage")} value={data.paperLanguage === "EN" ? t("catalog.exam.langEn") : t("catalog.exam.langBn")} />
+          {paperLabel ? <Fact label={t("catalog.exam.paperLanguage")} value={paperLabel} /> : null}
           {owned && owned.maximum ? <Fact label={t("catalog.exam.fullMarks")} value={formatNumber(owned.maximum, locale)} /> : null}
         </dl>
 
         {description ? (
           <Section title={t("catalog.exam.description")}>
-            <p className="whitespace-pre-line leading-relaxed text-muted lg:max-w-[70ch]">{description}</p>
+            <RichTextView value={description} className="lg:max-w-[70ch]" />
           </Section>
         ) : null}
-        {ruleItems.length > 0 ? (
+        {hasMarkup(rules) ? (
+          <Section title={t("catalog.exam.rules")}>
+            <RichTextView value={rules} />
+          </Section>
+        ) : ruleItems.length > 0 ? (
           <Section title={t("catalog.exam.rules")}>
             <ol className="grid list-decimal gap-2.5 ps-5 leading-relaxed text-muted marker:font-semibold marker:text-text-accent">
               {ruleItems.map((rule, index) => (

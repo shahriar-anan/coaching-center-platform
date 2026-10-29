@@ -42,7 +42,6 @@ export function QuestionPaperPanel({ examId, examTitle }: { examId: string; exam
     <PdfViewer
       load={() => Promise.resolve(blob)}
       fileName={`${examTitle}-question-paper.pdf`}
-      watermark={t("staffMarking.questionPaper.watermark")}
     />
   );
 }

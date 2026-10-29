@@ -84,6 +84,7 @@ class ExamChangeListBuilder {
 		add(changes, "descriptionBn", before.descriptionBn, after.descriptionBn);
 		add(changes, "rulesEn", before.rulesEn, after.rulesEn);
 		add(changes, "rulesBn", before.rulesBn, after.rulesBn);
+		add(changes, "categoryId", before.categoryId, after.categoryId);
 		add(changes, "paperLanguage", before.paperLanguage, after.paperLanguage);
 		add(changes, "mode", before.mode, after.mode);
 		add(changes, "liveAt", dhaka(before.liveAt), dhaka(after.liveAt));

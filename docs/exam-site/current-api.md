@@ -349,7 +349,7 @@ All additive. Old clients keep working: every existing field and route is unchan
   - Bad values are 400 `VALIDATION_FAILED`, and so is `from` after `to`.
 - Each row adds `paidAt` and `receiptNo` (null until paid). `OrderView` (`POST /live-exam-orders`, `GET /live-exam-orders/{id}`, and the rest) adds the same two fields. The staff order list (`GET /live-exam-orders`) adds them too.
 - `GET /api/v1/me/live-exam-orders/summary` returns `{totalPaid, currency, paidCount, pendingCount}` for the signed-in student, all time. `currency` is `BDT`.
-- `GET /api/v1/me/live-exam-orders/{id}/receipt.pdf` is an A4 PDF of the student's own PAID order, sent as an attachment named by the receipt number. Any other order (pending, failed, cancelled, another student's, unknown) is 404. The PDF is in English, because PDFBox cannot draw Bangla: the student's name keeps only its Latin letters, and an item with no English title prints without a title. The order id is always printed.
+- `GET /api/v1/me/live-exam-orders/{id}/receipt.pdf` is an A4 PDF of the student's own PAID order, sent as an attachment named by the receipt number. Any other order (pending, failed, cancelled, another student's, unknown) is 404. The PDF follows an invoice layout with the Symam Law company block and logo, the billed-to block, an item table (one row per module, exam, or bundle exam, with its validity), the totals with a red discount line and a PAID stamp, and the payment details; the company details are constants at the top of `LiveExamReceiptPdf`. It is in English, because PDFBox cannot draw Bangla: the student's name keeps only its Latin letters, an item with no English title prints the order id in its place, and the order id is always printed.
 - The receipt email (`ExamOutboundMail` payment receipt) carries the receipt number as one more line.
 
 ### Exam cover (E1)
@@ -364,3 +364,36 @@ All additive. Old clients keep working: every existing field and route is unchan
 
 - The bundle match for `examId` is covered by the SQL only; no IT builds a bundle with several exams in the new filter test.
 - No refunds and no refund states.
+
+## Added 2026-10-29 (NR-01 UI Step 1)
+
+Plan `new-requirements/nr-01-ui/STEP-1-PLAN.md`, slice A1. All additive for old clients, except the two changes below, which the web follows.
+
+### Migrations
+
+- **V55** (`live_exams`): `paper_language` widened to `VARCHAR(8)`, now nullable. The check is replaced (the V30 check was `live_exams_paper_language_check`): `BN`, `EN` or `BOTH`, and null passes. No existing row changes.
+
+### Exams
+
+- `paperLanguage` is `BN | EN | BOTH | null` on the staff exam, the student exam, the public exam and the preview. `null` means no language was chosen: nothing is shown, and the answer letters follow the viewer's interface language (C2).
+- **Create** (`POST /live-exams`, `POST /live-exam-modules/{id}/exams`): `paperLanguage` is optional. Absent or `null` stores `null`. Any other value other than `BN`, `EN` or `BOTH` is `VALIDATION_FAILED`, as is a blank string.
+- **Create** accepts blank or missing `descriptionEn`, `descriptionBn`, `rulesEn` and `rulesBn` (stored as empty strings). Titles stay required. **PATCH still refuses a blank value** for these four fields.
+- **Publish** (`POST /live-exams/{id}/publish`, and the staged publish): with any blank description or rules it is `EXAM_TEXT_REQUIRED` (409), and `fieldErrors` names each blank field (`descriptionEn`, `descriptionBn`, `rulesEn`, `rulesBn`).
+- **PATCH with `"paperLanguage": null`** clears the language. An absent member leaves it as it is.
+- **HTML on save.** The six exam text fields and the two package description fields are sanitized on every save, in the draft path and in the staged path. A value with no tags is plain text and is stored unchanged (line breaks kept). A value with tags keeps only `p br h2 h3 strong em u ul ol li a`, `text-align` on `p h2 h3`, and links with `href` of `http`, `https` or `mailto`, given `rel="nofollow"` (no `target` is kept, so `noopener` is not needed). Scripts, event handlers, images and other tags are removed. Library: OWASP Java HTML Sanitizer `20260924.2` (`api/pom.xml`).
+- The package routes (`/live-exam-modules`) sanitize `descriptionEn` and `descriptionBn` on create and on edit. The legacy `/exam-modules` routes do not (not used by the NR-01 web).
+
+### Known gaps
+
+- The legacy `/exam-modules` routes take package descriptions unsanitized. The web renders them as plain text, so no HTML is shown, but the stored value is not cleaned.
+
+## Added 2026-10-29 (NR-01 UI Step 1 fixes)
+
+Fixes to the NR-01 UI Step 1 work. Two API behaviours change; the rest is web only.
+
+### Exams
+
+- **Package exam order (staff).** `GET /live-exam-modules/{id}/exams` and `GET /live-exams?packageId=` (staff) list a package's exams in the package's own order: membership `position`, then `addedAt`, then the membership id, then the exam id. The reorder `PATCH /live-exam-modules/{id}/exams/order` writes that position. An explicit `sort` parameter still wins. Before this fix both sorted by the window start (or `updatedAt`). A package in draft takes the new order at once. **Gap:** on a published package the reorder is staged, so the staff list shows the new order only after the Master Admin publishes the package.
+- **Package exam order (student and public).** Unchanged: by date, soonest first with undated last, and by membership order among equal dates.
+- **Category on PATCH.** `PATCH /live-exams/{id}` accepts `categoryId` for any exam, in a package or standalone. Master Admin and System Admin only (`EXAM_MANAGE`), as before. The category must exist, not be deleted, and not be archived (nor sit under an archived branch). Otherwise `400 VALIDATION_FAILED` with `fieldErrors[0].field = "categoryId"`. A body that repeats the exam's current category is accepted even when that category has been archived since, so other fields can still be saved. Create (`POST /live-exams`, `POST /live-exam-modules/{id}/exams`) is unchanged: a package exam takes the package's category.
+- **Category on a published exam.** The change is staged like the other fields. The change list (`GET /live-exams/{id}/pending-changes`) names it as a field `categoryId` with the published and the staged category ids in `before` and `after`. It applies when the Master Admin publishes the revision.

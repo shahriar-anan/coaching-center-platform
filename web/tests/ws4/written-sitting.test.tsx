@@ -36,7 +36,7 @@ function renderSitting() {
     <WrittenSitting
       exam={exam}
       deadlineAt={new Date(Date.now() + 60 * 60 * 1000).toISOString()}
-      watermark="নাঈম হাসান"
+      studentLine="নাঈম হাসান"
       onClosed={() => undefined}
       onSubmitted={onSubmitted}
     />,

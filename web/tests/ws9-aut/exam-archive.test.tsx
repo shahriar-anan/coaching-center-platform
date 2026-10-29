@@ -59,14 +59,14 @@ describe("exam archive (decided 2026-10-27: hidden from students, Master Admin o
     });
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
-    await userEvent.click(await screen.findByRole("button", { name: "আর্কাইভ করুন" }));
+    await userEvent.click(await screen.findByRole("button", { name: "প্রত্যাহার" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "আর্কাইভ করুন" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "প্রত্যাহার" }));
 
     await waitFor(() =>
       expect(api.calls.some((call) => call.method === "POST" && call.path === `/api/v1/live-exams/${examId}/archive`)).toBe(true),
     );
-    expect(await screen.findByText("এই পরীক্ষা আর্কাইভ করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি বদলানো যাবে না।")).toBeInTheDocument();
+    expect(await screen.findByText("এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি বদলানো যাবে না।")).toBeInTheDocument();
   });
 
   it("System Admin sees no archive control on the exam", async () => {
@@ -77,7 +77,7 @@ describe("exam archive (decided 2026-10-27: hidden from students, Master Admin o
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
     await waitFor(() => expect(screen.getAllByText("সিআরপিসি").length).toBeGreaterThan(0));
-    expect(screen.queryByRole("button", { name: "আর্কাইভ করুন" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "প্রত্যাহার" })).not.toBeInTheDocument();
   });
 
   it("an archived exam shows its notice and offers no archive control", async () => {
@@ -87,7 +87,7 @@ describe("exam archive (decided 2026-10-27: hidden from students, Master Admin o
     });
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
-    expect(await screen.findByText("এই পরীক্ষা আর্কাইভ করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি বদলানো যাবে না।")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "আর্কাইভ করুন" })).not.toBeInTheDocument();
+    expect(await screen.findByText("এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি বদলানো যাবে না।")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "প্রত্যাহার" })).not.toBeInTheDocument();
   });
 });

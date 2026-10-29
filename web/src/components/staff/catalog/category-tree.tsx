@@ -224,7 +224,7 @@ export function CategoryTree() {
       ) : shownRoots.length === 0 ? (
         <EmptyState title={t("staffCatalog.categories.noMatch")} />
       ) : (
-        <div className="rounded-card border border-border bg-card">
+        <div className="rounded-card border border-border bg-card shadow-[var(--card-shadow)]">
           <ul className="grid">
             {shownRoots.map((node) => (
               <Row

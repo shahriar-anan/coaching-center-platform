@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,6 +71,9 @@ public class StaffExamListService {
 		Instant now = clock.instant();
 		String status = status(query.status());
 		String text = query.text() == null ? "" : query.text().trim().toLowerCase(Locale.ROOT);
+		// Inside one package, with no sort asked for, the list keeps the package's own order (NR-01 UI Step 1 fix).
+		Pageable sorted = query.packageId() != null && !pageable.getSort().isSorted() ? inPackageOrder(pageable)
+				: ordered(pageable);
 		Page<LiveExam> page = exams.searchForStaff(query.categoryId() == null,
 				query.categoryId() == null ? NONE : query.categoryId(),
 				query.packageId() == null, query.packageId() == null ? NONE : query.packageId(),
@@ -77,7 +81,7 @@ public class StaffExamListService {
 				LiveExamTypeFilter.ANY.equals(query.mode()), query.mode(), status.isEmpty(), status,
 				query.pendingOnly(), query.popularOnly(), instructorId != null,
 				instructorId == null ? NONE : instructorId, text.isEmpty(), "%" + text + "%", query.phase(), now,
-				ordered(pageable));
+				sorted);
 		List<UUID> ids = page.getContent().stream().map(LiveExam::getId).toList();
 		Map<UUID, List<LiveExamModuleService.PackageRef>> packages = packagesOf(ids);
 		Map<UUID, Integer> questionCounts = new HashMap<>();
@@ -159,6 +163,17 @@ public class StaffExamListService {
 		}
 		orders.add(Sort.Order.asc("id"));
 		return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
+	}
+
+	/**
+	 * Membership position, then the day the exam was added, then the membership id, then the exam id. {@code pk} is the
+	 * package's membership row, joined in {@code searchForStaff}; an exam outside the package has none, and the unsafe
+	 * sort keeps the alias as written.
+	 */
+	private static Pageable inPackageOrder(Pageable pageable) {
+		Sort order = JpaSort.unsafe(Sort.Direction.ASC, "pk.position", "pk.addedAt", "pk.id")
+			.and(Sort.by(Sort.Order.asc("id")));
+		return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), order);
 	}
 
 	private static String property(String name) {

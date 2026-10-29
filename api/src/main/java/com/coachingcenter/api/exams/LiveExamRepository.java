@@ -42,6 +42,25 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""")
 	Page<LiveExam> findByModuleIdAndDeletedAtIsNull(@Param("moduleId") UUID moduleId, Pageable pageable);
 
+	/**
+	 * The exams of a package in the package's own order: membership position, then the day it was added, then its id
+	 * (NR-01 UI Step 1 fix). The staff package list uses it; the student and public lists keep the date order. The
+	 * {@code pageable} must be unsorted, because the order is fixed here.
+	 */
+	@Query(value = """
+			SELECT e FROM LiveExam e
+			JOIN LiveExamPackageExam pm ON pm.examId = e.id
+			WHERE e.deletedAt IS NULL AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			ORDER BY pm.position ASC, pm.addedAt ASC, pm.id ASC
+			""", countQuery = """
+			SELECT count(e) FROM LiveExam e
+			WHERE e.deletedAt IS NULL AND EXISTS (
+			  SELECT pm FROM LiveExamPackageExam pm
+			  WHERE pm.examId = e.id AND pm.moduleId = :moduleId AND pm.removedAt IS NULL
+			)
+			""")
+	Page<LiveExam> findStaffByModuleIdInPackageOrder(@Param("moduleId") UUID moduleId, Pageable pageable);
+
 	@Query(value = """
 			SELECT e FROM LiveExam e
 			WHERE e.deletedAt IS NULL AND e.status = :status AND EXISTS (
@@ -310,6 +329,7 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 	 */
 	@Query(value = """
 			SELECT e FROM LiveExam e
+			LEFT JOIN LiveExamPackageExam pk ON pk.examId = e.id AND pk.moduleId = :packageId AND pk.removedAt IS NULL
 			WHERE e.deletedAt IS NULL
 			  AND (:anyCategory = true OR e.categoryId = :categoryId)
 			  AND (:anyPackage = true OR EXISTS (

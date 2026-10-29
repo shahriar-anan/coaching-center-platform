@@ -28,6 +28,9 @@ public class LiveExam extends BaseEntity {
 
 	public static final String EN = "EN";
 
+	/** Both languages; a null paper language means none was chosen (D5, C2). */
+	public static final String BOTH = "BOTH";
+
 	/** An exam with a window: live at {@code liveAt}, open until {@code endsAt}. */
 	public static final String MODE_LIVE = "LIVE";
 
@@ -101,7 +104,7 @@ public class LiveExam extends BaseEntity {
 	@Column(name = "rules_bn", nullable = false, columnDefinition = "TEXT")
 	private String rulesBn;
 
-	@Column(name = "paper_language", nullable = false, length = 2)
+	@Column(name = "paper_language", length = 8)
 	private String paperLanguage;
 
 	@Column(name = "live_at")

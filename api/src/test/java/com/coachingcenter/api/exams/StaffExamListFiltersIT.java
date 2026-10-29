@@ -120,7 +120,7 @@ class StaffExamListFiltersIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void sortsByUpdatedAtAndNewestFirstIsTheDefault() throws Exception {
+	void sortsByUpdatedAtAndThePackageOrderIsTheDefault() throws Exception {
 		Fixture set = createSet();
 		String base = "/api/v1/live-exams?packageId=" + set.pkg();
 		fx.sql("update live_exams set updated_at = ? where id = ?", java.sql.Timestamp.from(Instant.parse("2026-10-01T00:00:00Z")), set.alpha());
@@ -132,7 +132,9 @@ class StaffExamListFiltersIT extends PostgresIntegrationTest {
 		List<UUID> newestFirst = List.of(set.echo(), set.delta(), set.charlie(), set.bravo(), set.alpha());
 		PackageFixtures.assertOrder(PackageFixtures.ids(fx.content(set.system(), base + "&sort=updatedAt,desc")),
 				newestFirst.toArray(UUID[]::new));
-		PackageFixtures.assertOrder(PackageFixtures.ids(fx.content(set.system(), base)), newestFirst.toArray(UUID[]::new));
+		// With no sort asked for, a package's list keeps the package order: the order the exams were added (NR-01 UI Step 1 fix).
+		PackageFixtures.assertOrder(PackageFixtures.ids(fx.content(set.system(), base)), set.alpha(), set.bravo(), set.charlie(),
+				set.delta(), set.echo());
 		PackageFixtures.assertOrder(PackageFixtures.ids(fx.content(set.system(), base + "&sort=updatedAt,asc")),
 				set.alpha(), set.bravo(), set.charlie(), set.delta(), set.echo());
 	}

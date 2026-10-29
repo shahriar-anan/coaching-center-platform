@@ -64,7 +64,7 @@ describe("payments", () => {
     });
     renderWithProviders(<PaymentsPage />, { user: fixtures.student, route: "/account/payments" });
     expect((await screen.findAllByText("সিআরপিসি মডেল টেস্ট"))[0]).toBeInTheDocument();
-    expect(screen.getAllByText("সফল")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("পরিশোধিত")[0]).toBeInTheDocument();
     // The transaction id is in the order's detail panel (Phase 4, S4.6), not in the table.
     expect(screen.queryByText("TRAN-1")).not.toBeInTheDocument();
   });

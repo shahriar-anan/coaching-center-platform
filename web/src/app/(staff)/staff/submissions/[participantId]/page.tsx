@@ -183,10 +183,13 @@ function Paper({ participantId }: { participantId: string }) {
         {canEvaluate && hasAnswer ? (
           <div className={phoneTab === "script" ? "lg:sticky lg:top-20" : "hidden lg:sticky lg:top-20 lg:block"}>
             <PaperViews
+              key={current.id}
               answerId={current.id}
               studentName={current.studentName}
               examId={current.examId}
               examTitle={examTitle}
+              marked={current.evaluatedPdf === true}
+              markedAt={current.evaluatedAt}
             />
           </div>
         ) : null}

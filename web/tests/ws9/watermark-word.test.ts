@@ -6,18 +6,16 @@ import bnMarking from "@/i18n/messages/bn/staffMarking";
 import enPeople from "@/i18n/messages/en/staffPeople";
 import bnPeople from "@/i18n/messages/bn/staffPeople";
 
-/** The brand word drawn across every question paper and script that staff open. A student's own sitting uses their name and code. */
-const WORD = "SYMAMLAW";
+/** The old diagonal brand word. Papers now carry the school mark once per page, not this text. */
+const OLD_WORD = "SYMAMLAW";
 
-describe("watermark word on papers staff open", () => {
+describe("papers carry no diagonal brand word", () => {
   it.each([
-    ["exam preview", enCatalog.preview.watermark, bnCatalog.preview.watermark],
-    ["written paper, staff view", enCatalog.written.staffWatermark, bnCatalog.written.staffWatermark],
-    ["marking: question paper", enMarking.questionPaper.watermark, bnMarking.questionPaper.watermark],
-    ["marking: answer script and marked file", enMarking.form.watermark, bnMarking.form.watermark],
-    ["submission page", enPeople.submission.watermark, bnPeople.submission.watermark],
-  ])("%s reads %s in both languages", (_name, en, bn) => {
-    expect(en).toBe(WORD);
-    expect(bn).toBe(WORD);
+    ["catalog (preview and written paper)", enCatalog, bnCatalog],
+    ["marking (question paper, answer script and marked file)", enMarking, bnMarking],
+    ["people (submission page)", enPeople, bnPeople],
+  ])("%s carries no brand word in either language", (_name, en, bn) => {
+    expect(JSON.stringify(en)).not.toContain(OLD_WORD);
+    expect(JSON.stringify(bn)).not.toContain(OLD_WORD);
   });
 });

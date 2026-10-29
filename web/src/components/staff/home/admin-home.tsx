@@ -84,7 +84,7 @@ function FirstRun() {
     { key: "exam", label: t("staffCatalog.home.onboarding.exam"), href: "/staff/modules" },
   ];
   return (
-    <section aria-labelledby="first-run-heading" className="grid gap-3 rounded-card border border-border bg-card p-5">
+    <section aria-labelledby="first-run-heading" className="grid gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
       <h2 id="first-run-heading" className="text-card-title font-semibold">
         {t("staffCatalog.home.onboarding.title")}
       </h2>
@@ -164,14 +164,14 @@ function Agenda({ rows, now }: { rows: ParticipationRow[]; now: number }) {
         {t("staffCatalog.home.agenda.title")}
       </h2>
       {groups.size === 0 ? (
-        <p className="rounded-card border border-border bg-card p-4 text-meta text-muted">{t("staffCatalog.home.agenda.empty")}</p>
+        <p className="rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4 text-meta text-muted">{t("staffCatalog.home.agenda.empty")}</p>
       ) : (
         [...groups.entries()].map(([key, list]) => (
           <div key={key} className="grid gap-1">
             <h3 className="text-label font-medium">
               {key === today ? t("staffCatalog.home.agenda.today") : formatDate(new Date(list[0].liveAt as string))}
             </h3>
-            <ul className="rounded-card border border-border bg-card px-4">
+            <ul className="rounded-card border border-border bg-card shadow-[var(--card-shadow)] px-4">
               {list.map((row) => (
                 <AgendaRow key={row.examId} row={row} status={statusByExam.get(row.examId)} />
               ))}

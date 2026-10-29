@@ -30,7 +30,7 @@ const home: typeof bn = {
   nowSection: "Live now",
   upcomingSection: "Coming up",
   seeAll: "See all",
-  myModules: "My exams",
+  myModules: "My orders",
   noUpcoming: "No exams coming up.",
   emptyTitle: "You haven't bought any exams yet",
   emptyBody: "Pick a package from MCQ or Written.",

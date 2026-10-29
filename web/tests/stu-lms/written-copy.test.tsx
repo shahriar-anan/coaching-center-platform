@@ -31,7 +31,7 @@ describe("written paper copy (S-024)", () => {
       <WrittenSitting
         exam={{ id: "ex-w", questionPdf: null } as unknown as StudentExam}
         deadlineAt={new Date(Date.now() + 60 * MINUTE).toISOString()}
-        watermark="নাঈম"
+        studentLine="নাঈম"
         onClosed={() => undefined}
         onSubmitted={() => undefined}
       />,
