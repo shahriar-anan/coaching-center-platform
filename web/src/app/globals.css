@@ -201,17 +201,18 @@
 /* Student site, light. */
 :root,
 [data-surface="site"] {
-  --bg: #f6f4ee;
-  --card: #ffffff;
+  /* Softened from pure white and cream so the cards read as paper on the page (decided 29 October 2026). */
+  --bg: #efebe1;
+  --card: #faf8f3;
   --text: #14213d;
   --muted: #5d6578;
   --accent: #c8962e;
   --accent-text: #8a5f12;
   --on-accent: #14213d;
-  --border: #e3dfd3;
+  --border: #d9d3c3;
   /* Field and table-frame edges. The student site keeps its current value this round. */
   --border-control: #cfc8b6;
-  --field: #ffffff;
+  --field: #faf8f3;
   --warn: #c2410c;
   --warn-fill: #e8590c;
   --ok: #2f9e44;
