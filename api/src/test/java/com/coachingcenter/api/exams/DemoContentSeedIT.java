@@ -153,6 +153,21 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void onlyThePreviewExamHasPreviewOnAndItsPaperHasTenQuestions() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		assertThat(jdbc.queryForList("SELECT id FROM live_exams WHERE preview_enabled AND id::text LIKE ?", UUID.class, DEMO_EXAM))
+			.containsExactly(DemoContentSeed.demo('e', 66));
+		// A standalone MCQ paper whose window has ended, so the preview is open; its answers are not released.
+		assertThat(jdbc.queryForObject("""
+				SELECT exam_type = 'MCQ' AND module_id IS NULL AND status = 'PUBLISHED' AND title_en = 'Preview MCQ'
+				  AND ends_at < ? AND answers_released_at IS NULL
+				FROM live_exams WHERE id = ?
+				""", Boolean.class, java.sql.Timestamp.from(NOW), DemoContentSeed.demo('e', 66))).isTrue();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_questions WHERE exam_id = ?", Integer.class,
+				DemoContentSeed.demo('e', 66))).isEqualTo(10);
+	}
+
+	@Test
 	void theNextSevenDaysEachHaveAnElevenPmExamInTheMixedPackage() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
 		for (int day = 1; day <= 7; day++) {
@@ -456,11 +471,11 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	private void assertCatalog() {
 		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(6);
 		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(8);
-		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(31);
-		// Sixteen MCQ exams of ten questions (fourteen published, two drafts), four options each.
-		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(160);
+		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(32);
+		// Seventeen MCQ exams of ten questions (fifteen published, two drafts), four options each.
+		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(170);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_options WHERE question_id::text LIKE ?", Integer.class,
-				DEMO_QUESTION)).isEqualTo(640);
+				DEMO_QUESTION)).isEqualTo(680);
 		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(8);
 		assertThat(count("users", DEMO_STUDENT)).isEqualTo(4);
 		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(15);
