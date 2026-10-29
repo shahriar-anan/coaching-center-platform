@@ -481,7 +481,7 @@ export function McqPaper({ exam, studentId, startedAt, deadlineAt, kind, onClose
 
       {/* Submit: the primary action, fixed to the bottom on phones. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <p className="text-body text-muted">
             {result ? t("sitting.score.final") : t("sitting.submit.counts", { answered: n(answeredCount), unanswered: n(Math.max(0, unanswered)) })}
           </p>

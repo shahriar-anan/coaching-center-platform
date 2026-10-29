@@ -299,7 +299,7 @@ function WideNav() {
 
 /**
  * The student surface: a header, a footer and, on phones, a bottom tab bar for signed-in students.
- * Most pages use the full width (up to 1152 px). The exam and package detail pages keep their own
+ * Most pages use a 1024 px frame. The exam and package detail pages keep their own
  * wide frame, and the home page for everyone who is not a signed-in student is drawn wide too.
  * Pages render their content only.
  */
@@ -312,9 +312,9 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const student = signedIn && session.user.role === "STUDENT";
   const wide = pathname === "/" && !student;
   const roomy = !wide && !DETAIL_PATH.test(pathname);
-  const column = wide || roomy ? "max-w-6xl" : "max-w-[760px]";
+  const column = wide ? "max-w-6xl" : roomy ? "max-w-5xl" : "max-w-[760px]";
   // The top bar needs the wider header from large width up; the content column stays 760 px on detail pages.
-  const headerColumn = student ? "max-w-[760px] lg:max-w-6xl" : column;
+  const headerColumn = student ? "max-w-[760px] lg:max-w-5xl" : column;
   const footer = footerVariant(pathname);
 
   return (
@@ -352,13 +352,13 @@ export function StudentShell({ children }: { children: ReactNode }) {
         className={cn(
           "mx-auto w-full flex-1",
           // The wide landing page sets its own gutters and column per section.
-          !wide && (roomy ? "max-w-6xl px-4 pt-6 pb-10" : "max-w-[760px] px-4 pt-6 pb-10"),
+          !wide && (roomy ? "max-w-5xl px-4 pt-6 pb-10" : "max-w-[760px] px-4 pt-6 pb-10"),
           showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10",
         )}
       >
         {children}
       </main>
-      {footer !== "none" ? <SiteFooter variant={footer} width="max-w-6xl" /> : null}
+      {footer !== "none" ? <SiteFooter variant={footer} width={wide ? "max-w-6xl" : "max-w-5xl"} /> : null}
       {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>
