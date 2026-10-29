@@ -131,7 +131,8 @@
   --radius-card: var(--radius-card-value);
   --radius-control: var(--radius-control-value);
 
-  --font-site: var(--font-hind), var(--font-bengali), system-ui, sans-serif;
+  /* Latin letters use Inter, which is heavier and clearer than Kalpurush in light mode; Bangla falls back to Kalpurush. */
+  --font-site: var(--font-inter), var(--font-bengali), var(--font-hind), system-ui, sans-serif;
   --font-bn: var(--font-bengali), var(--font-hind), system-ui, sans-serif;
   --font-latin: var(--font-inter), system-ui, sans-serif;
   --font-sans: var(--font-site);
@@ -161,11 +162,11 @@
 
   --text-body: 16px;
   --text-body--line-height: 1.6;
-  --text-body--font-weight: 400;
+  --text-body--font-weight: 500;
 
   --text-meta: 14px;
   --text-meta--line-height: 1.5;
-  --text-meta--font-weight: 400;
+  --text-meta--font-weight: 500;
 
   --text-label: 15px;
   --text-label--line-height: 1.3;
