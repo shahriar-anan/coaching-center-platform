@@ -127,6 +127,8 @@ Web only. Commit `98339d7` (code change `625a83f`), same build env as the fix ab
 
 Checks: staged API base `""` and only Linux native modules; up in about 1 s, admin `/login` and student `/` 200; live admin bundle over HTTPS has API base `""` and the shared refresh; `/api/v1/auth/refresh` on the admin host reaches the API.
 
+Checked in a real browser after the release (confirmed by Shahriar, 30 October): signed in on the admin host, the admin stays signed in after a page reload and past the 15-minute access token.
+
 Tests before the release: typecheck clean; 159 files and 1048 tests pass, including `tests/ws0/token-refresh.test.ts` (4 of its 5 cases fail on the previous client). Lint: 3 errors, all in files this change does not touch (`staff/enrolments/page.tsx`, `student-shell.tsx`).
 
 Rollback: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-refresh-20261029-191125` back, start it.
