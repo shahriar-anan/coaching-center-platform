@@ -27,6 +27,8 @@ export interface MyOrder {
   examTitleBn: string | null;
   /** Payment channel as the gateway names it (bKash, VISA...), when known. */
   paymentChannel: string | null;
+  /** The receipt address typed for this order (Phase 4B), or null: the verified account email then gets the receipt. */
+  receiptEmail: string | null;
   /** ISO UTC. */
   createdAt: string;
   /** The price the student saw, and the discount, when there was one (R19). */

@@ -21,6 +21,17 @@ const purchase: typeof bn = {
   compare: "Whole package {price} — every exam",
   switchToModule: "Buy the package",
   redirecting: "Taking you to payment…",
+  receipt: {
+    label: "Send receipt to (optional)",
+    helper: "We send your receipt here. If you leave it empty, we send it to your verified email.",
+    helperUnverified: "Verify your email to get receipts by mail.",
+    verifyLink: "Verify email",
+    skip: "Skip",
+    skippedVerified: "Your receipt goes to your verified email.",
+    skippedUnverified: "No receipt will be emailed. You can print it from payment history.",
+    addAddress: "Add a receipt address",
+    invalid: "Enter a valid email address, such as name@example.com.",
+  },
   errors: {
     gateway: "Payments aren't available right now. Please try again shortly.",
     alreadyPurchased: "This is already unlocked for you.",

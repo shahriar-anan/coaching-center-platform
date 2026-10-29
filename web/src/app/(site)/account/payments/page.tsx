@@ -15,6 +15,7 @@ import {
   type PaymentStatus,
 } from "@/lib/api/exam/account";
 import { useCancelOrder, useResumeOrder } from "@/lib/api/exam/purchase";
+import { useSession } from "@/lib/auth/session-context";
 import { useMyLiveExamAccess } from "@/lib/api/exam/catalog";
 import { useListParams } from "@/lib/url/list-params";
 import { formatDate, formatDateTime, formatMoney, formatNumber, pickTitle } from "@/lib/format";
@@ -122,6 +123,8 @@ function AccessLine({ orderId }: { orderId: string }) {
 /** The detail panel of one order, with the actions its status allows (Phase 4, S4.6). */
 function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void }) {
   const { t, locale } = useLocale();
+  const { session } = useSession();
+  const verified = session.status === "authenticated" && Boolean(session.user.emailVerifiedAt);
   const { toast } = useToast();
   const resume = useResumeOrder();
   const cancel = useCancelOrder();
@@ -181,6 +184,19 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
       <dl className="grid gap-2 text-body sm:grid-cols-2">
         <div><dt className="text-meta text-muted">{order.paidAt ? t("account.payments.detail.paidOn") : t("account.payments.detail.createdOn")}</dt><dd>{formatDateTime(rowDate(order), locale)}</dd></div>
         <div><dt className="text-meta text-muted">{t("account.payments.detail.receiptNo")}</dt><dd>{order.receiptNo ? <code className="font-latin">{order.receiptNo}</code> : "—"}</dd></div>
+        {order.status === "PAID" ? (
+          // The receipt line (Phase 4B): where the receipt went. A paid order with no address and no verified email got none.
+          <div>
+            <dt className="sr-only">{t("account.payments.detail.receiptTo")}</dt>
+            <dd>
+              {order.receiptEmail
+                ? t("account.payments.detail.receiptSentTo", { email: order.receiptEmail })
+                : verified
+                  ? t("account.payments.detail.receiptAccount")
+                  : t("account.payments.detail.receiptNone")}
+            </dd>
+          </div>
+        ) : null}
         <div><dt className="text-meta text-muted">{t("account.payments.method")}</dt><dd>{order.paymentChannel ?? "—"}</dd></div>
         <div><dt className="text-meta text-muted">{t("account.payments.detail.orderId")}</dt><dd><CopyValue value={order.orderId} label={t("account.payments.detail.orderId")} /></dd></div>
         <div><dt className="text-meta text-muted">{t("account.payments.tranId")}</dt><dd><CopyValue value={order.tranId} label={t("account.payments.tranId")} /></dd></div>

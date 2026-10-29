@@ -8,6 +8,9 @@ import { useLocale } from "@/i18n/locale-context";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { SelectableExamList } from "@/components/ui/purchase/selectable-exam-list";
 import { remember } from "@/components/student/purchase/purchase-sheet";
+import { ReceiptEmailField } from "@/components/student/purchase/receipt-email-field";
+import { isEmail } from "@/app/(auth)/_components/validate";
+import { useSession } from "@/lib/auth/session-context";
 
 export type BundleItem = {
   id: string;
@@ -33,6 +36,11 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const order = useBundleOrder();
+  // The receipt address for this payment only (Phase 4B), asked the same way as on the purchase sheet.
+  const { session } = useSession();
+  const verified = session.status === "authenticated" && Boolean(session.user.emailVerifiedAt);
+  const [receiptEmail, setReceiptEmail] = useState("");
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   const rows = items.map((item) => ({
     id: item.id,
@@ -53,9 +61,17 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
 
   async function buy() {
     setError(null);
+    // The address is checked first, so an invalid one sends no request.
+    const typed = receiptEmail.trim();
+    if (typed && !isEmail(typed)) {
+      setReceiptError(t("purchase.receipt.invalid"));
+      document.getElementById("receipt-email")?.focus();
+      return;
+    }
+    setReceiptError(null);
     try {
       const ids = chosen.map((item) => item.id);
-      const result = await order.mutateAsync(ids);
+      const result = await order.mutateAsync({ examIds: ids, receiptEmail: typed || undefined });
       if (!result.redirectUrl) {
         setError(t("purchase.errors.generic"));
         return;
@@ -64,6 +80,11 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
       remember(result.tranId, { scope: "BUNDLE", examId: null, moduleId: null, door: null, title: t("purchase.bundleTitle", { count: ids.length }), amount: result.amount, orderId: result.orderId });
       window.location.assign(result.redirectUrl);
     } catch (caught) {
+      if (caught instanceof ApiError && caught.fieldErrors?.some((detail) => detail.field === "receiptEmail")) {
+        setReceiptError(t("purchase.receipt.invalid"));
+        document.getElementById("receipt-email")?.focus();
+        return;
+      }
       setError(
         caught instanceof ApiError && caught.code === "ALREADY_PURCHASED"
           ? t("purchase.shared.alreadyPurchasedBundle")
@@ -84,6 +105,15 @@ export function BundleSelection({ items, disabled }: { items: BundleItem[]; disa
             {t("purchase.shared.buyChosen")}
           </Button>
         }
+      />
+      <ReceiptEmailField
+        value={receiptEmail}
+        error={receiptError ?? undefined}
+        verified={verified}
+        onChange={(value) => {
+          setReceiptEmail(value);
+          setReceiptError(null);
+        }}
       />
       {error ? <p role="alert" className="text-body text-danger">{error}</p> : null}
     </div>

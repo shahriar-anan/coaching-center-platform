@@ -18,6 +18,9 @@ import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { IncludedList } from "@/components/student/catalog/included-list";
 import { PriceLine } from "@/components/student/catalog/price-line";
 import { priceLabel } from "@/components/student/catalog/price-view";
+import { ReceiptEmailField } from "@/components/student/purchase/receipt-email-field";
+import { isEmail } from "@/app/(auth)/_components/validate";
+import { useSession } from "@/lib/auth/session-context";
 import type { PriceView } from "@/lib/api/exam/types";
 
 export interface PurchaseItem {
@@ -143,21 +146,39 @@ export function PurchaseSheet({
   const invalidate = useInvalidateCatalog();
   const [problem, setProblem] = useState<Problem | null>(null);
   const [leaving, setLeaving] = useState(false);
+  // The receipt address is per order (Phase 4B): it is typed for this purchase only and is not saved to the profile.
+  const { session } = useSession();
+  const verified = session.status === "authenticated" && Boolean(session.user.emailVerifiedAt);
+  const [receiptEmail, setReceiptEmail] = useState("");
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   function close(next: boolean) {
     if (!next) {
       setProblem(null);
+      setReceiptEmail("");
+      setReceiptError(null);
       start.reset();
     }
     onOpenChange(next);
   }
 
+  function receiptFieldError(message: string) {
+    setReceiptError(message);
+    document.getElementById("receipt-email")?.focus();
+  }
+
   async function pay() {
     setProblem(null);
+    // The address is checked here first, so an invalid one sends no request.
+    const typed = receiptEmail.trim();
+    if (typed && !isEmail(typed)) {
+      receiptFieldError(t("purchase.receipt.invalid"));
+      return;
+    }
+    setReceiptError(null);
     try {
-      const order = await start.mutateAsync(
-        item.kind === "exam" ? { examId: item.id } : { moduleId: item.id },
-      );
+      const target = item.kind === "exam" ? { examId: item.id } : { moduleId: item.id };
+      const order = await start.mutateAsync(typed ? { ...target, receiptEmail: typed } : target);
       if (!order.redirectUrl) {
         setProblem({ kind: "generic" });
         return;
@@ -174,6 +195,10 @@ export function PurchaseSheet({
       setLeaving(true);
       window.location.assign(order.redirectUrl);
     } catch (error) {
+      if (error instanceof ApiError && error.fieldErrors?.some((detail) => detail.field === "receiptEmail")) {
+        receiptFieldError(t("purchase.receipt.invalid"));
+        return;
+      }
       const next = problemFrom(error);
       if (next.kind === "owned" || next.kind === "price" || next.kind === "missing") {
         void invalidate();
@@ -294,9 +319,20 @@ export function PurchaseSheet({
             {t("catalog.unlocked")}
           </Button>
         ) : (
-          <Button fullWidth loading={busy} onClick={() => void pay()}>
-            {busy ? t("purchase.redirecting") : t("purchase.payWithPrice", { price: formatMoney(item.price, locale) ?? "" })}
-          </Button>
+          <>
+            <ReceiptEmailField
+              value={receiptEmail}
+              error={receiptError ?? undefined}
+              verified={verified}
+              onChange={(value) => {
+                setReceiptEmail(value);
+                setReceiptError(null);
+              }}
+            />
+            <Button fullWidth loading={busy} onClick={() => void pay()}>
+              {busy ? t("purchase.redirecting") : t("purchase.payWithPrice", { price: formatMoney(item.price, locale) ?? "" })}
+            </Button>
+          </>
         )}
         <Button variant="ghost" fullWidth onClick={() => close(false)}>
           {t("purchase.cancel")}

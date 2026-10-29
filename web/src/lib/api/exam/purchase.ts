@@ -22,8 +22,11 @@ export interface PaymentStatus {
   examName: string;
 }
 
-/** What an order is for: one exam, one package, or the exams of a bundle (plan 8). */
-export type PurchaseTarget = { examId: string } | { moduleId: string } | { examIds: string[] };
+/**
+ * What an order is for: one exam, one package, or the exams of a bundle (plan 8). `receiptEmail` is the address typed for the
+ * receipt (Phase 4B). It is sent only when filled in, so a skipped field sends nothing.
+ */
+export type PurchaseTarget = ({ examId: string } | { moduleId: string } | { examIds: string[] }) & { receiptEmail?: string };
 
 export const purchaseKeys = {
   all: ["purchase"] as const,
@@ -43,8 +46,11 @@ export function useStartOrder() {
 export function useBundleOrder() {
   return useMutation({
     retry: false,
-    mutationFn: (examIds: string[]) =>
-      apiRequest<OrderView>("/api/v1/live-exam-orders", { method: "POST", body: { examIds } }),
+    mutationFn: ({ examIds, receiptEmail }: { examIds: string[]; receiptEmail?: string }) =>
+      apiRequest<OrderView>("/api/v1/live-exam-orders", {
+        method: "POST",
+        body: receiptEmail ? { examIds, receiptEmail } : { examIds },
+      }),
   });
 }
 
@@ -63,17 +69,19 @@ export function useCancelOrder() {
 }
 
 /** The order fields a payment needs to be paid again (the list row, P1). */
-export type ResumableOrder = Pick<MyOrder, "orderId" | "scope" | "moduleId" | "examId">;
+export type ResumableOrder = Pick<MyOrder, "orderId" | "scope" | "moduleId" | "examId"> & { receiptEmail?: string | null };
 
 /**
  * The target to post again to pay an open order (S4.6). An exam or package order posts its own id; a bundle posts its exam ids,
  * which the order read gives. The API answers with the same open order and a fresh gateway redirect, so no new order is made.
+ * The receipt address already on the order goes back with it, so paying again keeps it (Phase 4B).
  */
 export async function pendingTarget(order: ResumableOrder): Promise<PurchaseTarget> {
-  if (order.scope === "EXAM" && order.examId) return { examId: order.examId };
-  if (order.scope === "MODULE" && order.moduleId) return { moduleId: order.moduleId };
-  const detail = await apiRequest<{ examIds: string[] }>(`/api/v1/live-exam-orders/${order.orderId}`);
-  return { examIds: detail.examIds };
+  const receiptEmail = order.receiptEmail ?? undefined;
+  if (order.scope === "EXAM" && order.examId) return { examId: order.examId, receiptEmail };
+  if (order.scope === "MODULE" && order.moduleId) return { moduleId: order.moduleId, receiptEmail };
+  const detail = await apiRequest<{ examIds: string[]; receiptEmail: string | null }>(`/api/v1/live-exam-orders/${order.orderId}`);
+  return { examIds: detail.examIds, receiptEmail: detail.receiptEmail ?? undefined };
 }
 
 /** Pays an open order again: posts its target and goes to the gateway page the answer names. Throws when there is no page. */
