@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
-import type { PendingChangeList, PendingFieldChange } from "@/lib/api/exam/staff-catalog";
+import { useCategoryTree, type PendingChangeList, type PendingFieldChange } from "@/lib/api/exam/staff-catalog";
+import { categoryNames } from "@/components/staff/exams/exam-groups";
 import { plainExcerpt } from "@/lib/format/rich-text";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -32,12 +33,23 @@ export function changeValueText(field: string, value: unknown, words: { empty: s
   return String(value);
 }
 
-/** Every changed field as a row, in the order the server gives. */
-export function changeRows(fields: PendingFieldChange[], words: { empty: string; yes: string; no: string }): ChangeRow[] {
+/**
+ * Every changed field as a row, in the order the server gives. A category shows its name when `categoryName` knows the
+ * id (NR-01 UI Step 1 fix); an id it does not know shows as it is.
+ */
+export function changeRows(
+  fields: PendingFieldChange[],
+  words: { empty: string; yes: string; no: string },
+  categoryName?: (id: string) => string | undefined,
+): ChangeRow[] {
+  const text = (field: string, value: unknown) =>
+    field === "categoryId" && typeof value === "string" && categoryName
+      ? (categoryName(value) ?? value)
+      : changeValueText(field, value, words);
   return fields.map((change) => ({
     field: change.field,
-    before: changeValueText(change.field, change.before, words),
-    after: changeValueText(change.field, change.after, words),
+    before: text(change.field, change.before),
+    after: text(change.field, change.after),
   }));
 }
 
@@ -91,7 +103,13 @@ export function ChangeListDialog({
     }
   }
 
-  const rows = changes ? changeRows(changes.fields, words) : [];
+  const tree = useCategoryTree();
+  const categories = useMemo(() => categoryNames(tree.data), [tree.data]);
+  const categoryName = (id: string) => {
+    const found = categories.get(id);
+    return found ? (locale === "bn" ? found.titleBn : found.titleEn) : undefined;
+  };
+  const rows = changes ? changeRows(changes.fields, words, categoryName) : [];
   const impact = changes ? impactCounts(changes) : null;
 
   return (

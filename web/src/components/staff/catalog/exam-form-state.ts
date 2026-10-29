@@ -9,6 +9,8 @@ export type ExamSection = "details" | "text" | "schedule" | "price";
 export type ExamFormState = {
   titleEn: string;
   titleBn: string;
+  /** The category id, or `""` while none is chosen. Any exam can change it (a package exam too). */
+  categoryId: string;
   paperLanguage: PaperLanguage | "";
   previewEnabled: boolean;
   descriptionEn: string;
@@ -44,6 +46,7 @@ export function examFormState(exam: StaffExam): ExamFormState {
   return {
     titleEn: exam.titleEn,
     titleBn: exam.titleBn,
+    categoryId: exam.categoryId ?? "",
     paperLanguage: exam.paperLanguage ?? "",
     previewEnabled: exam.previewEnabled ?? false,
     descriptionEn: exam.descriptionEn ?? "",
@@ -70,7 +73,7 @@ export function examFormState(exam: StaffExam): ExamFormState {
 
 /** The fields each section sends. A section is dirty when one of them differs from the saved state. */
 export const SECTION_KEYS: Record<ExamSection, (keyof ExamFormState)[]> = {
-  details: ["titleEn", "titleBn", "paperLanguage", "previewEnabled"],
+  details: ["titleEn", "titleBn", "categoryId", "paperLanguage", "previewEnabled"],
   text: ["descriptionEn", "descriptionBn", "rulesEn", "rulesBn"],
   schedule: ["mode", "dated", "liveAt", "endAt", "durationMinutes", "passPercent", "maximum", "negativeOn", "negativeMarks", "answersChangeable"],
   price: ["price", "free", "discountPercent", "discountEndsAt", "accessDays"],
@@ -130,6 +133,9 @@ export function examFormErrors(form: ExamFormState, section: ExamSection, contex
     }
     if (!form.titleBn.trim()) {
       errors.titleBn = "staffCatalog.examMeta.titleBnRequired";
+    }
+    if (!form.categoryId) {
+      errors.categoryId = "staffCatalog.examMeta.categoryRequired";
     }
   }
   if (section === "schedule") {
@@ -196,6 +202,7 @@ export function examBodyFor(form: ExamFormState, section: ExamSection, context: 
     return {
       titleEn: form.titleEn.trim(),
       titleBn: form.titleBn.trim(),
+      categoryId: form.categoryId || null,
       paperLanguage: form.paperLanguage || null,
       previewEnabled: form.previewEnabled,
     } as ExamInput;

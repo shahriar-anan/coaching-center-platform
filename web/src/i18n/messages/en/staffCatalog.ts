@@ -404,6 +404,10 @@ const staffCatalog = {
     accessDays: "Access days",
     accessDaysHint: "Empty means lifetime access.",
     accessDaysInvalid: "Enter a whole number of days, at least 1.",
+    category: "Category",
+    categoryHint: "Any exam can move to another category. On a published exam the change waits until the Master Admin publishes it.",
+    categoryPick: "Choose a category",
+    categoryRequired: "Choose a category.",
     titleEn: "English title",
     titleBn: "Bangla title",
     titleEnRequired: "Enter the English title.",
@@ -469,6 +473,7 @@ const staffCatalog = {
     discarded: "Staged changes discarded.",
     fields: {
       titleEn: "English title",
+      categoryId: "Category",
       titleBn: "Bangla title",
       descriptionEn: "English description",
       descriptionBn: "Bangla description",

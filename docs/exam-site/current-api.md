@@ -386,3 +386,14 @@ Plan `new-requirements/nr-01-ui/STEP-1-PLAN.md`, slice A1. All additive for old 
 ### Known gaps
 
 - The legacy `/exam-modules` routes take package descriptions unsanitized. The web renders them as plain text, so no HTML is shown, but the stored value is not cleaned.
+
+## Added 2026-10-29 (NR-01 UI Step 1 fixes)
+
+Fixes to the NR-01 UI Step 1 work. Two API behaviours change; the rest is web only.
+
+### Exams
+
+- **Package exam order (staff).** `GET /live-exam-modules/{id}/exams` and `GET /live-exams?packageId=` (staff) list a package's exams in the package's own order: membership `position`, then `addedAt`, then the membership id, then the exam id. The reorder `PATCH /live-exam-modules/{id}/exams/order` writes that position. An explicit `sort` parameter still wins. Before this fix both sorted by the window start (or `updatedAt`). A package in draft takes the new order at once. **Gap:** on a published package the reorder is staged, so the staff list shows the new order only after the Master Admin publishes the package.
+- **Package exam order (student and public).** Unchanged: by date, soonest first with undated last, and by membership order among equal dates.
+- **Category on PATCH.** `PATCH /live-exams/{id}` accepts `categoryId` for any exam, in a package or standalone. Master Admin and System Admin only (`EXAM_MANAGE`), as before. The category must exist, not be deleted, and not be archived (nor sit under an archived branch). Otherwise `400 VALIDATION_FAILED` with `fieldErrors[0].field = "categoryId"`. A body that repeats the exam's current category is accepted even when that category has been archived since, so other fields can still be saved. Create (`POST /live-exams`, `POST /live-exam-modules/{id}/exams`) is unchanged: a package exam takes the package's category.
+- **Category on a published exam.** The change is staged like the other fields. The change list (`GET /live-exams/{id}/pending-changes`) names it as a field `categoryId` with the published and the staged category ids in `before` and `after`. It applies when the Master Admin publishes the revision.

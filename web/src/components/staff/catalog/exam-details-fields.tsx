@@ -5,9 +5,11 @@ import { useLocale } from "@/i18n/locale-context";
 import { useRole } from "@/lib/auth/guards";
 import {
   useAssignExamInstructor,
+  useCategoryTree,
   useInstructorDirectory,
   useSetExamPopular,
   useUnassignExamInstructor,
+  type CategoryTreeNode,
   type StaffExam,
 } from "@/lib/api/exam/staff-catalog";
 import type { PaperLanguage } from "@/lib/api/exam/types";
@@ -124,9 +126,22 @@ function InstructorPicker({ exam }: { exam: StaffExam }) {
   );
 }
 
-/** Titles, paper language, the preview switch, and the Master Admin controls. */
+/**
+ * The categories as select options, subcategories indented under their parent. An archived category is left out, unless
+ * the exam is already in it, so the saved choice still shows.
+ */
+function categoryOptions(nodes: CategoryTreeNode[] | undefined, current: string, depth = 0) {
+  return (nodes ?? []).flatMap((node) => [
+    ...(node.archived && node.id !== current ? [] : [{ id: node.id, depth, titleEn: node.titleEn, titleBn: node.titleBn }]),
+    ...categoryOptions(node.children, current, depth + 1),
+  ]);
+}
+
+/** Titles, the category, paper language, the preview switch, and the Master Admin controls. */
 export function ExamDetailsFields({ exam, form, set, errors }: SectionFieldsProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const tree = useCategoryTree();
+  const options = categoryOptions(tree.data, form.categoryId);
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -135,6 +150,18 @@ export function ExamDetailsFields({ exam, form, set, errors }: SectionFieldsProp
         </Field>
         <Field label={t("staffCatalog.examMeta.titleBn")} required error={errors.titleBn}>
           <TextInput value={form.titleBn} onChange={(e) => set("titleBn", e.target.value)} />
+        </Field>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={t("staffCatalog.examMeta.category")} required error={errors.categoryId} hint={t("staffCatalog.examMeta.categoryHint")}>
+          <Select value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
+            <option value="">{t("staffCatalog.examMeta.categoryPick")}</option>
+            {options.map((item) => (
+              <option key={item.id} value={item.id}>
+                {`${"— ".repeat(item.depth)}${locale === "bn" ? item.titleBn : item.titleEn}`}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

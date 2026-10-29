@@ -188,6 +188,9 @@ public class LiveExamService {
 	private void applyEdit(LiveExam exam, JsonNode body, boolean create) {
 		rejectMaximumOnMcq(exam.getExamType(), body);
 		applyText(exam, body, create);
+		if (!create && body.has("categoryId")) {
+			applyCategory(exam, body);
+		}
 		if (create || body.has("paperLanguage")) {
 			exam.setPaperLanguage(readPaperLanguage(body));
 		}
@@ -251,6 +254,38 @@ public class LiveExamService {
 				case "rulesEn" -> exam.setRulesEn(sanitizer.clean(value));
 				default -> exam.setRulesBn(sanitizer.clean(value));
 			}
+		}
+	}
+
+	/**
+	 * The category of any exam, in a package or standalone (NR-01 UI Step 1 fix). It must be a category that exists and is
+	 * not archived, and not under an archived branch. An exam that already sits in a category that has since been archived
+	 * keeps it when the body repeats that same id, so other fields can still be saved.
+	 */
+	private void applyCategory(LiveExam exam, JsonNode body) {
+		UUID requested = readOptionalId(body.get("categoryId"));
+		if (requested != null && requested.equals(exam.getCategoryId())) {
+			return;
+		}
+		boolean choosable = requested != null && categories.findByIdAndDeletedAtIsNull(requested).isPresent()
+				&& !visibility.branchHidden(requested);
+		if (!choosable) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+					List.of(new FieldErrorDetail("categoryId", "Choose a category that is not archived.")));
+		}
+		exam.setCategoryId(requested);
+	}
+
+	/** The id in a JSON node, or null when the node is missing, null or not a UUID. */
+	private static UUID readOptionalId(JsonNode node) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		try {
+			return UUID.fromString(node.asText().trim());
+		}
+		catch (IllegalArgumentException exception) {
+			return null;
 		}
 	}
 

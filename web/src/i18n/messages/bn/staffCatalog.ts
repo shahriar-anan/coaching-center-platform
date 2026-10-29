@@ -408,6 +408,10 @@ const staffCatalog = {
     accessDays: "প্রবেশের দিন",
     accessDaysHint: "খালি রাখলে আজীবন প্রবেশাধিকার।",
     accessDaysInvalid: "দিনের একটি পূর্ণসংখ্যা লিখুন, কমপক্ষে ১।",
+    category: "ক্যাটাগরি",
+    categoryHint: "যেকোনো পরীক্ষা অন্য ক্যাটাগরিতে সরানো যায়। প্রকাশিত পরীক্ষায় পরিবর্তন মাস্টার অ্যাডমিন প্রকাশ করা পর্যন্ত অপেক্ষা করে।",
+    categoryPick: "একটি ক্যাটাগরি বেছে নিন",
+    categoryRequired: "একটি ক্যাটাগরি বেছে নিন।",
     titleEn: "ইংরেজি নাম",
     titleBn: "বাংলা নাম",
     titleEnRequired: "ইংরেজি নাম লিখুন।",
@@ -473,6 +477,7 @@ const staffCatalog = {
     discarded: "অপেক্ষায় থাকা পরিবর্তন বাতিল হয়েছে।",
     fields: {
       titleEn: "ইংরেজি শিরোনাম",
+      categoryId: "ক্যাটাগরি",
       titleBn: "বাংলা শিরোনাম",
       descriptionEn: "ইংরেজি বিবরণ",
       descriptionBn: "বাংলা বিবরণ",
