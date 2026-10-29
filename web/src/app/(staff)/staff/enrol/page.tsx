@@ -24,7 +24,14 @@ function EnrolRoute() {
   if (studentId !== null && student.isPending) {
     return <Skeleton variant="card" count={2} />;
   }
-  return <DirectEnrolment key={studentId ?? "none"} initialStudents={student.data ? [student.data] : []} />;
+  const examId = params?.get("exam") ?? undefined;
+  return (
+    <DirectEnrolment
+      key={`${studentId ?? "none"}-${examId ?? "any"}`}
+      initialStudents={student.data ? [student.data] : []}
+      initialExamId={examId}
+    />
+  );
 }
 
 export default function StaffEnrolPage() {

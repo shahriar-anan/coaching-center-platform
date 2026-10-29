@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { useRole } from "@/lib/auth/guards";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { ExamPrice } from "@/components/staff/exams/exam-price";
 import { useFormat } from "@/lib/format/use-format";
@@ -35,6 +36,7 @@ export function ExamRow({
 }) {
   const { t } = useLocale();
   const { pickTitle, formatDateTime, formatNumber } = useFormat();
+  const { isMasterAdmin } = useRole();
   const title = pickTitle(exam);
   const otherPackages = (exam.packages ?? []).filter((ref) => ref.id !== groupPackageId).length;
   const window =
@@ -52,6 +54,13 @@ export function ExamRow({
   }
   if (canRemove && exam.status === "DRAFT") {
     items.push({ label: t("staffExams.row.delete"), onClick: () => onAction("delete", exam), tone: "danger" });
+  }
+  if (isMasterAdmin) {
+    items.push({
+      label: t("staffExams.row.enrol"),
+      href: `/staff/enrol?exam=${exam.id}`,
+      disabled: exam.status !== "PUBLISHED",
+    });
   }
 
   return (

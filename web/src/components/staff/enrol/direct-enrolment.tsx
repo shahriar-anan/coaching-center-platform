@@ -65,14 +65,14 @@ function StudentLine({ student }: { student: FoundStudent }) {
  * Master Admin only: add students to a list, one search at a time, then enrol everyone on the list in one go with a
  * reason. A package or an exam is chosen first, and only published ones can be chosen. Each student gets their own result.
  */
-export function DirectEnrolment({ initialStudents }: { initialStudents: FoundStudent[] }) {
+export function DirectEnrolment({ initialStudents, initialExamId }: { initialStudents: FoundStudent[]; initialExamId?: string }) {
   const { t } = useLocale();
   const { pickTitle, formatNumber } = useFormat();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [scope, setScope] = useState<Scope>("PACKAGE");
-  const [targetId, setTargetId] = useState("");
+  const [scope, setScope] = useState<Scope>(initialExamId ? "EXAM" : "PACKAGE");
+  const [targetId, setTargetId] = useState(initialExamId ?? "");
   const [text, setText] = useState("");
   const [list, setList] = useState<FoundStudent[]>(initialStudents);
   const [reason, setReason] = useState("");

@@ -10,12 +10,15 @@ export type RowMenuItem = {
   href?: string;
   onClick?: () => void;
   tone?: "danger";
+  /** Kept in the menu, greyed out and not selectable, while the action is not allowed yet. */
+  disabled?: boolean;
 };
 
-const itemClass = (tone?: "danger") =>
+const itemClass = (tone?: "danger", disabled?: boolean) =>
   cn(
-    "flex min-h-10 cursor-pointer items-center rounded-control px-3 text-label outline-none data-[highlighted]:bg-bg",
+    "flex min-h-10 cursor-pointer items-center rounded-control px-3 text-label outline-none data-[highlighted]:bg-bg data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
     tone === "danger" ? "text-danger" : "text-text",
+    disabled && "text-muted opacity-50",
   );
 
 /** A row's action menu, opened from one button. `label` names the button for screen readers. */
@@ -41,14 +44,19 @@ export function RowMenu({
           className="z-50 grid min-w-44 gap-0.5 rounded-card border border-border bg-card p-1 shadow-lg"
         >
           {items.map((item) =>
-            item.href ? (
-              <DropdownMenu.Item key={item.label} asChild className={itemClass(item.tone)}>
+            item.href && !item.disabled ? (
+              <DropdownMenu.Item key={item.label} asChild className={itemClass(item.tone, item.disabled)}>
                 <Link href={item.href} prefetch>
                   {item.label}
                 </Link>
               </DropdownMenu.Item>
             ) : (
-              <DropdownMenu.Item key={item.label} onSelect={() => item.onClick?.()} className={itemClass(item.tone)}>
+              <DropdownMenu.Item
+                key={item.label}
+                disabled={item.disabled}
+                onSelect={() => item.onClick?.()}
+                className={itemClass(item.tone, item.disabled)}
+              >
                 {item.label}
               </DropdownMenu.Item>
             ),
