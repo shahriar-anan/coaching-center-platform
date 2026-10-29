@@ -20,12 +20,10 @@ type Month = { year: number; month: number };
 
 const EMPTY: Draft = { date: "", time: "", period: "AM" };
 const pad = (n: number) => String(n).padStart(2, "0");
-/** One row of a scroll column: a 44 px touch target and a 4 px gap. */
-const ROW = 48;
 const HOURS = Array.from({ length: 12 }, (_, i) => pad(i + 1));
 const MINUTES = Array.from({ length: 60 }, (_, i) => pad(i));
 const secondaryButton =
-  "min-h-11 rounded-control border border-border-control bg-field px-4 text-body font-medium text-text transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-60";
+  "min-h-11 rounded-control border border-border-control bg-field px-4 text-body font-medium text-text transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-9";
 
 /** The draft fields for an instant, in Dhaka time, with the time on a 12-hour clock. An empty value gives empty fields. */
 function draftFor(iso: string | null): Draft {
@@ -140,14 +138,20 @@ function TimeColumn({
   onPick: (value: string) => void;
 }) {
   const list = useRef<HTMLDivElement>(null);
-  const [first] = useState(() => Math.max(0, options.findIndex((option) => option.value === selected) - 2));
+  // The chosen row is measured, because a row is taller on a phone (44 px) than on a desktop (32 px).
   useEffect(() => {
-    if (list.current) {
-      list.current.scrollTop = first * ROW;
+    const chosen = list.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (list.current && chosen) {
+      list.current.scrollTop = Math.max(0, chosen.offsetTop - 2 * chosen.offsetHeight);
     }
-  }, [first]);
+  }, []);
   return (
-    <div ref={list} role="group" aria-label={label} className="grid max-h-60 content-start gap-1 overflow-y-auto pe-1">
+    <div
+      ref={list}
+      role="group"
+      aria-label={label}
+      className="relative grid max-h-40 content-start gap-1 overflow-y-auto pe-1 sm:max-h-[15.5rem]"
+    >
       {options.map((option) => {
         const chosen = option.value === selected;
         return (
@@ -157,7 +161,7 @@ function TimeColumn({
             aria-pressed={chosen}
             onClick={() => onPick(option.value)}
             className={cn(
-              "min-h-11 rounded-control border px-2 text-body font-medium transition-colors",
+              "min-h-11 rounded-control border px-2 text-body font-medium transition-colors sm:min-h-8",
               chosen ? "border-action bg-action text-on-action" : "border-transparent text-text hover:bg-field",
             )}
           >
@@ -401,14 +405,17 @@ export function DateTimeInput({
         {panelOpen ? (
           <div
             id={panelId}
-            className="absolute start-0 top-full z-30 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-card border border-border bg-card p-4 shadow-lg"
+            className="absolute start-0 top-full z-30 mt-2 grid w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-card border border-border bg-card p-3 shadow-lg sm:w-[min(27rem,calc(100vw-2rem))]"
           >
+            {/* The calendar on the left and the time columns on the right; stacked on a phone. */}
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid content-start gap-2">
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 aria-label={t("common.dateTime.previousMonth")}
                 onClick={() => shiftMonth(-1)}
-                className="grid min-h-11 min-w-11 place-items-center rounded-control text-text hover:bg-field"
+                className="grid min-h-11 min-w-11 place-items-center rounded-control text-text hover:bg-field sm:min-h-8 sm:min-w-8"
               >
                 <ChevronLeft aria-hidden="true" className="size-5" />
               </button>
@@ -417,7 +424,7 @@ export function DateTimeInput({
                 type="button"
                 aria-label={t("common.dateTime.nextMonth")}
                 onClick={() => shiftMonth(1)}
-                className="grid min-h-11 min-w-11 place-items-center rounded-control text-text hover:bg-field"
+                className="grid min-h-11 min-w-11 place-items-center rounded-control text-text hover:bg-field sm:min-h-8 sm:min-w-8"
               >
                 <ChevronRight aria-hidden="true" className="size-5" />
               </button>
@@ -438,7 +445,7 @@ export function DateTimeInput({
                     aria-pressed={selectedDay === day}
                     onClick={() => pickDay(day)}
                     className={cn(
-                      "min-h-11 rounded-control text-body font-medium transition-colors",
+                      "min-h-11 rounded-control text-body font-medium transition-colors sm:min-h-8",
                       selectedDay === day ? "bg-action text-on-action" : "text-text hover:bg-field",
                     )}
                   >
@@ -447,7 +454,8 @@ export function DateTimeInput({
                 ),
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            </div>
+            <div className="grid grid-cols-3 gap-1 sm:w-44">
               <TimeColumn
                 label={t("common.dateTime.chooseHour")}
                 options={hourOptions}
@@ -467,6 +475,7 @@ export function DateTimeInput({
                 onPick={(period) => pickPeriod(period === "PM" ? "PM" : "AM")}
               />
             </div>
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex gap-2">
                 <button type="button" disabled={disabled} onClick={chooseNow} className={secondaryButton}>
@@ -482,7 +491,7 @@ export function DateTimeInput({
                   setPanelOpen(false);
                   triggerRef.current?.focus();
                 }}
-                className="min-h-11 rounded-control bg-action px-4 text-body font-medium text-on-action transition-colors hover:opacity-90"
+                className="min-h-11 rounded-control bg-action px-4 text-body font-medium text-on-action transition-colors hover:opacity-90 sm:min-h-9"
               >
                 {t("common.dateTime.done")}
               </button>
