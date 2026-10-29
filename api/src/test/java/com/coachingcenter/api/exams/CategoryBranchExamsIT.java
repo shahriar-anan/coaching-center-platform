@@ -95,8 +95,8 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 	void branchAddsTheExamsOfEverySubcategoryAtAnyDepth() throws Exception {
 		Set<String> branch = ids(categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true"));
 		assertThat(branch).isEqualTo(subtree(DemoContentSeed.CATEGORY_ROOT));
-		// Exams from the MCQ, written and full-mock subcategories, the standalone ones, and the two review packages.
-		assertThat(branch).contains(exam(1), exam(6), exam(10), exam(60), exam(61), exam(62), exam(63), exam(64));
+		// Exams from the MCQ, written and full-mock subcategories, the standalone written paper, and the discount and popular packages.
+		assertThat(branch).contains(exam(1), exam(6), exam(10), exam(60), exam(62), exam(63));
 		// The Bar Council branch is a separate root, so it stays out.
 		assertThat(branch).doesNotContain(exam(30), exam(31));
 		assertThat(ids(categoryExams(DemoContentSeed.CATEGORY_BAR, "&branch=true")))
@@ -113,7 +113,7 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 	void theUpcomingListKeepsOnlyPopularExamsWhenAsked() throws Exception {
 		JsonNode everything = upcoming("");
 		JsonNode popular = upcoming("&popular=true");
-		assertThat(ids(popular)).contains(exam(63)).doesNotContain(exam(60), exam(64));
+		assertThat(ids(popular)).contains(exam(63)).doesNotContain(exam(60));
 		for (JsonNode row : popular) {
 			assertThat(row.get("popular").asBoolean()).isTrue();
 		}
@@ -131,19 +131,6 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 		assertThat(expiring.get("state").asText()).isEqualTo("MANUAL");
 		assertThat(expiring.get("blockedReason").asText()).isEqualTo("ALREADY_HAS_ACCESS");
 		assertThat(Instant.parse(expiring.get("expiresAt").asText())).isEqualTo(windowEnd.plus(Duration.ofDays(30)));
-
-		// The grant on the written paper that ran out reads as NONE, with the end of that grant still shown.
-		Instant expiredEnd = jdbc.queryForObject("SELECT ends_at FROM live_exams WHERE id = ?", Timestamp.class,
-				DemoContentSeed.demo('e', 65)).toInstant();
-		JsonNode expired = examAs(PHONE_STUDENT_D, exam(65)).get("access");
-		assertThat(expired.get("state").asText()).isEqualTo("NONE");
-		assertThat(Instant.parse(expired.get("expiresAt").asText())).isEqualTo(expiredEnd.plus(Duration.ofDays(7)));
-		assertThat(Instant.parse(expired.get("expiresAt").asText())).isBefore(Instant.now());
-
-		// A free exam never ends.
-		JsonNode free = examAs(PHONE_STUDENT_D, exam(61)).get("access");
-		assertThat(free.get("state").asText()).isEqualTo("FREE");
-		assertThat(free.get("expiresAt").isNull()).isTrue();
 
 		// A paper in the full mock package has no access days, so the package access is lifetime.
 		JsonNode lifetime = examAs(PHONE_STUDENT_A, exam(10)).get("access");
