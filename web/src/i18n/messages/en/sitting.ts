@@ -38,6 +38,12 @@ const sitting = {
     empty: "This exam has no questions yet.",
     end: "End of the paper.",
     locked: "Time is up. Answers can no longer change.",
+    selectAll: "Select all that apply.",
+    confirm: "Confirm this answer",
+    confirmFailed: "Your answer could not be confirmed. Try again.",
+    answerLocked: "This answer is final and cannot be changed.",
+    final: "Final: this answer cannot be changed.",
+    finalAnswers: "Answers are final: once saved, they cannot be changed.",
   },
   grid: {
     title: "Go to question",
@@ -60,6 +66,7 @@ const sitting = {
     passed: "Passed",
     failed: "Not passed",
     canChange: "You can change your answers until time runs out.",
+    final: "Your answers are final and cannot be changed.",
   },
   warn: {
     minutes: "{minutes} minutes left",

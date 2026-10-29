@@ -32,7 +32,7 @@ const staffOps = {
       receipt: "রসিদ নম্বর",
     },
     scope: {
-      module: "মডিউল",
+      module: "প্যাকেজ",
       exam: "পরীক্ষা",
     },
     access: {
@@ -66,7 +66,7 @@ const staffOps = {
     valId: "ভ্যালিডেশন আইডি",
     product: "পণ্য",
     openStudent: "শিক্ষার্থীর পাতা খুলুন",
-    openModule: "মডিউল খুলুন",
+    openModule: "প্যাকেজ খুলুন",
     openExam: "পরীক্ষা খুলুন",
     accessGranted: "চালু আছে: {product}, {scope}",
     accessNone: "এই পেমেন্টে কিছু চালু করা হয়নি।",
@@ -96,8 +96,8 @@ const staffOps = {
       PAYMENT_FAILED: "পেমেন্ট ব্যর্থ হয়েছে",
       LIVE_EXAM_CATEGORY_DELETE: "ক্যাটাগরি মুছে ফেলা হয়েছে",
       LIVE_EXAM_CATEGORY_ARCHIVE: "ক্যাটাগরি আর্কাইভ করা হয়েছে",
-      LIVE_EXAM_MODULE_DELETE: "মডিউল মুছে ফেলা হয়েছে",
-      LIVE_EXAM_MODULE_ARCHIVE: "মডিউল আর্কাইভ করা হয়েছে",
+      LIVE_EXAM_MODULE_DELETE: "প্যাকেজ মুছে ফেলা হয়েছে",
+      LIVE_EXAM_MODULE_ARCHIVE: "প্যাকেজ আর্কাইভ করা হয়েছে",
       LIVE_EXAM_DELETE: "পরীক্ষা মুছে ফেলা হয়েছে",
       LIVE_EXAM_QUESTION_DELETE: "প্রশ্ন মুছে ফেলা হয়েছে",
       LIVE_EXAM_INSTRUCTOR_UNASSIGN: "শিক্ষককে সরানো হয়েছে",

@@ -109,7 +109,7 @@ const staffResults = {
     empty: "This student has not sat any exam yet.",
     columns: {
       exam: "Exam",
-      module: "Module",
+      module: "Package",
       kind: "Type",
       status: "Status",
       score: "Score",

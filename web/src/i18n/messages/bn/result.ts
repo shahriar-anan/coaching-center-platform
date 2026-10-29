@@ -17,6 +17,12 @@ const result = {
     score: "{score} / {maximum}",
     none: "—",
   },
+  position: {
+    current: "আপনার বর্তমান অবস্থান: {of} জনের মধ্যে #{rank}।",
+    board: "মেধাতালিকায় আপনার অবস্থান: {of} জনের মধ্যে #{rank}।",
+    relative: "আপনার নম্বর হলে লাইভ অংশগ্রহণকারী {of} জনের মধ্যে #{rank} হতো।",
+    belowPass: "পাস নম্বরের নিচে, র‍্যাঙ্ক দেওয়া হয়নি।",
+  },
   outcome: {
     passed: "উত্তীর্ণ",
     failed: "অনুত্তীর্ণ",
