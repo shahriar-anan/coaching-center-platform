@@ -84,9 +84,9 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 
 	@Test
 	void theCategoryListHoldsItsOwnExamsByDefault() throws Exception {
-		// The root has no package of its own: its standalone exams sit directly in it (61, 62, 65 and the preview paper, 66).
+		// The root has no package of its own: its standalone exam sits directly in it (the written paper, 62).
 		assertThat(ids(categoryExams(DemoContentSeed.CATEGORY_ROOT, "")))
-			.containsExactlyInAnyOrder(exam(61), exam(62), exam(65), exam(66));
+			.containsExactlyInAnyOrder(exam(62));
 		// A category with only subcategory exams lists nothing by default.
 		assertThat(ids(categoryExams(DemoContentSeed.CATEGORY_BAR, ""))).isEmpty();
 	}
