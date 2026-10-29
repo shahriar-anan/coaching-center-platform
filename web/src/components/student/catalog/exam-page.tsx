@@ -165,6 +165,8 @@ export function ExamPage({ examId }: { examId: string }) {
   const windowOpen = hasWindow && now >= Date.parse(startsAt as string) && now < Date.parse(endsAt as string);
   const examType = data.examType;
   const retakeOffer = status === "MISSED" && owned?.retakeAvailable === true && examType === "MCQ";
+  // The API says a missed paper can still be sat (ARCHIVED_OPEN). For a written paper that is the one first attempt.
+  const writtenArchivedOpen = status === "MISSED" && examType === "WRITTEN" && owned?.myStatusDetail === "ARCHIVED_OPEN";
   // The sitting's deadline has passed, but the server has not posted it yet: show the result, not Resume.
   const sittingEnded = Boolean(owned?.sitting && Date.parse(owned.sitting.deadlineAt) <= now);
   const loginHref = `/login?next=${encodeURIComponent(examPath(examId))}`;
@@ -195,7 +197,13 @@ export function ExamPage({ examId }: { examId: string }) {
     } else if ((status === "IN_PROGRESS" || (status === "SUBMITTED" && windowOpen)) && !sittingEnded) {
       primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t(status === "SUBMITTED" ? "catalog.exam.reviewAnswers" : "catalog.exam.resume")}</Button>;
     } else if (status === "MISSED") {
-      primary = retakeOffer ? (
+      // A written paper the student bought after its window ended, and never sat: one first attempt, now (D20).
+      primary = writtenArchivedOpen ? (
+        <div className="grid gap-2 text-center">
+          <p className="text-meta text-muted">{t("catalog.exam.archivedWrittenNote")}</p>
+          <Button fullWidth onClick={() => setStarting("live")}>{t("catalog.exam.startArchived")}</Button>
+        </div>
+      ) : retakeOffer ? (
         <Button fullWidth variant="secondary" onClick={() => setStarting("retake")}>{t("catalog.exam.practice")}</Button>
       ) : (
         <p className="text-center text-muted">{t("catalog.exam.missedBody")}</p>

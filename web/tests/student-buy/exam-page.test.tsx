@@ -138,3 +138,38 @@ describe("the exam detail access and price states (S2.5)", () => {
     expect(screen.getAllByText(/25% off/).length).toBeGreaterThan(0);
   });
 });
+
+describe("a written paper bought after its window ended, never sat (D20)", () => {
+  function mountOwned(examBody: Record<string, unknown>, mine: Record<string, unknown>) {
+    mockApi({
+      "GET /api/v1/public/live-exams/e1": examBody,
+      "GET /api/v1/public/live-exam-modules/m1": pkg,
+      "GET /api/v1/public/exam-site/status": { checkoutEnabled: true },
+      "GET /api/v1/live-exams/e1": { ...examBody, ...mine },
+    });
+    return renderWithProviders(<ExamPage examId="e1" />, { user: fixtures.student, locale: "en" });
+  }
+
+  const ended = {
+    examType: "WRITTEN",
+    titleEn: "CPC written",
+    liveAt: "2020-01-01T00:00:00Z",
+    endAt: "2020-01-01T00:20:00Z",
+    price: 500,
+    pricing: offer(500, 500),
+    access: { state: "EXAM", buyable: false, blockedReason: "ALREADY_HAS_ACCESS", expiresAt: null },
+  };
+
+  it("shows the one-attempt note and a Start the paper button that starts a live attempt", async () => {
+    mountOwned(ended, { myStatus: "MISSED", myStatusDetail: "ARCHIVED_OPEN", retakeAvailable: false });
+    expect(await screen.findByText("The live window has ended. You can take this paper once now.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start the paper" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Practice attempt" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the missed message when the paper cannot be sat any more", async () => {
+    mountOwned(ended, { myStatus: "MISSED", myStatusDetail: "EXPIRED", retakeAvailable: false });
+    expect(await screen.findByText("The time for this exam has ended.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start the paper" })).not.toBeInTheDocument();
+  });
+});

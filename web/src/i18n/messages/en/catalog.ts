@@ -144,6 +144,8 @@ const catalog: typeof bn = {
     practiceNote: "One practice attempt · not on the merit list",
     timeOver: "Time over",
     missedBody: "The time for this exam has ended.",
+    archivedWrittenNote: "The live window has ended. You can take this paper once now.",
+    startArchived: "Start the paper",
     viewResult: "See result",
     meritList: "Merit list",
     staffNote: "Staff accounts cannot buy or take exams.",
