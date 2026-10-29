@@ -36,7 +36,8 @@ export default function RegisterPage() {
   );
 }
 
-type Values = { fullName: string; phone: string; email: string; password: string };
+/** The confirm value stays in the form. The request sends only the four account fields (see mutationFn). */
+type Values = { fullName: string; phone: string; email: string; password: string; confirmPassword: string };
 type FieldErrors = Partial<Record<keyof Values, string>>;
 
 /**
@@ -57,7 +58,7 @@ function RegisterForm() {
     if (status.ok) return t("auth.register.passwordOk");
     return t("auth.register.passwordShort", { n: formatNumber(status.short, locale) });
   }
-  const [values, setValues] = useState<Values>({ fullName: "", phone: "", email: "", password: "" });
+  const [values, setValues] = useState<Values>({ fullName: "", phone: "", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   /** The signed-in student after registration, or "manual" when the automatic sign-in failed. */
@@ -110,6 +111,9 @@ function RegisterForm() {
     else if (!isEmail(values.email)) next.email = t("auth.register.invalidEmail");
     if (!values.password) next.password = t("auth.register.fieldRequired");
     else if (!isPasswordLength(values.password)) next.password = t("auth.register.passwordLength");
+    // The match is checked here, in the browser: a mismatch sends no request.
+    if (!values.confirmPassword) next.confirmPassword = t("auth.register.fieldRequired");
+    else if (values.confirmPassword !== values.password) next.confirmPassword = t("auth.register.passwordMismatch");
     return next;
   }
 
@@ -118,7 +122,7 @@ function RegisterForm() {
     const found = validate();
     setErrors(found);
     setFormError(null);
-    const order: (keyof Values)[] = ["fullName", "phone", "email", "password"];
+    const order: (keyof Values)[] = ["fullName", "phone", "email", "password", "confirmPassword"];
     const first = order.find((key) => found[key]);
     if (first) {
       focusFirst([`register-${first}`]);
@@ -203,6 +207,16 @@ function RegisterForm() {
               value={values.password}
               onChange={(e) => set("password", e.target.value)}
               invalid={Boolean(errors.password)}
+            />
+          </Field>
+          <Field label={t("auth.register.confirmPassword")} error={errors.confirmPassword} required>
+            <PasswordInput
+              id="register-confirmPassword"
+              name="confirmPassword"
+              autoComplete="new-password"
+              value={values.confirmPassword}
+              onChange={(e) => set("confirmPassword", e.target.value)}
+              invalid={Boolean(errors.confirmPassword)}
             />
           </Field>
           {formError ? <FormError>{formError}</FormError> : null}

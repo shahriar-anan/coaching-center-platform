@@ -57,6 +57,8 @@ const auth = {
     email: "ইমেইল",
     password: "পাসওয়ার্ড",
     passwordHelp: "৮ থেকে ৭২ অক্ষর।",
+    confirmPassword: "পাসওয়ার্ড নিশ্চিত করুন",
+    passwordMismatch: "পাসওয়ার্ড দুটি মেলেনি।",
     submit: "অ্যাকাউন্ট খুলুন",
     duplicatePhone: "এই ফোন নম্বরে আগেই একটি অ্যাকাউন্ট আছে।",
     duplicateEmail: "এই ইমেইলে আগেই একটি অ্যাকাউন্ট আছে।",
