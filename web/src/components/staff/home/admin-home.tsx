@@ -10,6 +10,10 @@ import { moduleExamsQuery, useCategoryTree, type StaffExam } from "@/lib/api/exa
 import { useParticipationRows, useParticipationSummary, useOpenOrderCount, type ParticipationRow } from "@/lib/api/exam/staff-home";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { Card } from "@/components/ui/card";
+import { Tabs } from "@/components/ui/tabs";
+import { useListParams } from "@/lib/url/list-params";
+import { SubmissionBrowser } from "@/components/staff/marking/submission-browser";
+import { PaymentsList } from "@/components/staff/ops/payments-list";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -186,18 +190,14 @@ function Agenda({ rows, now }: { rows: ParticipationRow[]; now: number }) {
 const shortcutClass =
   "flex min-h-11 items-center rounded-control border border-border-control bg-card px-4 text-label font-medium text-text hover:bg-bg";
 
-/** Master Admin and System Admin home: counts, first-run steps while the catalog is empty, quick actions and the agenda. */
-export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
+/** The exams tab: the counts, the agenda of the next 14 days, and the quick actions. */
+function ExamsTab({ isMasterAdmin }: { isMasterAdmin: boolean }) {
   const { t } = useLocale();
   const now = useServerNow(60_000);
-  const categories = useCategoryTree();
   const rows = useParticipationRows({ sort: "liveAt", size: 100 });
-  const catalogEmpty = categories.isSuccess && categories.data.length === 0;
 
   return (
     <div className="grid gap-8">
-      {catalogEmpty ? <FirstRun /> : null}
-
       <SummaryCards showPayments />
 
       {/* The exam list is the main column; the shortcuts sit beside it on wide screens and below it on narrow ones. */}
@@ -241,6 +241,43 @@ export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
           {!isMasterAdmin ? <p className="text-meta text-muted">{t("staffCatalog.home.quick.systemAdminNote")}</p> : null}
         </section>
       </div>
+    </div>
+  );
+}
+
+const TABS = ["exams", "submissions", "payments"] as const;
+type HomeTab = (typeof TABS)[number];
+
+/**
+ * Master Admin and System Admin home: three tabs, Exams (the counts, the agenda and the quick actions), Submitted answer
+ * sheets and Payment management. Each tab shows the same table as its own page. The tab is kept in the URL.
+ * The first-run steps show above the tabs while the catalog is empty.
+ */
+export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
+  const { t } = useLocale();
+  const categories = useCategoryTree();
+  const [params, setParams] = useListParams({ tab: "exams" as string });
+  const catalogEmpty = categories.isSuccess && categories.data.length === 0;
+  const tab: HomeTab = (TABS as readonly string[]).includes(params.tab) ? (params.tab as HomeTab) : "exams";
+
+  return (
+    <div className="grid gap-6">
+      {catalogEmpty ? <FirstRun /> : null}
+
+      <Tabs
+        ariaLabel={t("staffCatalog.home.tabs.label")}
+        value={tab}
+        onChange={(next) => setParams({ tab: next })}
+        tabs={[
+          { value: "exams", label: t("staffCatalog.home.tabs.exams") },
+          { value: "submissions", label: t("staffCatalog.home.tabs.submissions") },
+          { value: "payments", label: t("staffCatalog.home.tabs.payments") },
+        ]}
+      />
+
+      {tab === "exams" ? <ExamsTab isMasterAdmin={isMasterAdmin} /> : null}
+      {tab === "submissions" ? <SubmissionBrowser embedded /> : null}
+      {tab === "payments" ? <PaymentsList embedded /> : null}
     </div>
   );
 }

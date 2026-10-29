@@ -55,7 +55,8 @@ const SORT_KEY: Record<FeedSort, string> = {
  * category → module → exam on the left. The selection, filter, sort and search live in the URL.
  * Instructors start on the papers still waiting; Master Admin and System Admin start on all.
  */
-export function SubmissionBrowser() {
+/** The submitted answer sheets: a package and exam tree beside the submission table. `embedded` hides its own header (the admin dashboard tab). */
+export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useLocale();
   const format = useFormat();
   const router = useRouter();
@@ -245,13 +246,15 @@ export function SubmissionBrowser() {
 
   return (
     <div className="grid gap-5">
-      <PageHeader
-        title={headerTitle}
-        breadcrumbs={[
-          { label: t("common.staffNav.dashboard"), href: "/staff" },
-          { label: t("staffMarking.browser.title") },
-        ]}
-      />
+      {embedded ? null : (
+        <PageHeader
+          title={headerTitle}
+          breadcrumbs={[
+            { label: t("common.staffNav.dashboard"), href: "/staff" },
+            { label: t("staffMarking.browser.title") },
+          ]}
+        />
+      )}
 
       <SplitBrowser
         tree={index.tree}

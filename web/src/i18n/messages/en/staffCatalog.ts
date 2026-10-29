@@ -28,6 +28,12 @@ const staffCatalog = {
   },
   dateNotSet: "Date to be announced",
   home: {
+    tabs: {
+      label: "Dashboard sections",
+      exams: "Exams",
+      submissions: "Submitted answer sheets",
+      payments: "Payment management",
+    },
     onboarding: {
       title: "Create your first exam",
       body: "Start in three steps: category, package, exam. Finish them one at a time.",
