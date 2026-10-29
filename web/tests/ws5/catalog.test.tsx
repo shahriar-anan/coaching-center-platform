@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { CategoryTree } from "@/components/staff/catalog/category-tree";
@@ -140,33 +140,37 @@ describe("roster (Master Admin)", () => {
         totalPages: 1,
       },
     });
-    renderWithProviders(<RosterTab moduleId={moduleFixture.id} />, { user: fixtures.masterAdmin });
+    renderWithProviders(<RosterTab moduleId={moduleFixture.id} published={true} />, { user: fixtures.masterAdmin });
 
     expect((await screen.findAllByText("নাঈম হাসান"))[0]).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole("button", { name: "সরান" })[0]);
     expect(await screen.findByRole("dialog")).toHaveTextContent("নাঈম হাসান");
   });
 
-  it("shows the paste result with the count and the unknown lines", async () => {
-    mockApi({
-      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": {
-        content: [],
-        page: 0,
-        size: 20,
-        totalElements: 0,
-        totalPages: 0,
-      },
-      "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster/paste": {
-        marked: [{ id: "s1", fullName: "নাঈম হাসান", phone: "01711000010", email: null }],
-        unknown: ["nobody@example.com"],
-      },
+  it("enrols one student found by student code, and refuses a package that is not published", async () => {
+    const found = { id: "s9", fullName: "রাফি আহমেদ", phone: "01711000099", email: null, studentCode: "DEMO-STU-009" };
+    const api = mockApi({
+      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
+      "GET /api/v1/students": { content: [found], page: 0, size: 8, totalElements: 1, totalPages: 1 },
+      "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": found,
     });
-    renderWithProviders(<RosterTab moduleId={moduleFixture.id} />, { user: fixtures.masterAdmin });
+    renderWithProviders(<RosterTab moduleId={moduleFixture.id} published />, { user: fixtures.masterAdmin });
 
-    await userEvent.type(screen.getByLabelText("ইমেইল বা ফোন নম্বরের তালিকা"), "01711000010{enter}nobody@example.com");
-    await userEvent.click(screen.getByRole("button", { name: "তালিকা যোগ করুন" }));
-    expect(await screen.findByText(/জন যোগ হয়েছে/)).toBeInTheDocument();
-    expect(screen.getByText("nobody@example.com")).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText("শিক্ষার্থী কোড, ফোন, ইমেইল বা নাম"), "DEMO-STU-009");
+    await userEvent.click(await screen.findByRole("button", { name: "বেছে নিন" }));
+    await userEvent.click(screen.getByRole("button", { name: "শিক্ষার্থীকে ভর্তি করুন" }));
+    await waitFor(() =>
+      expect(api.calls.some((call) => call.method === "POST" && (call.body as { studentId?: string }).studentId === "s9")).toBe(true),
+    );
+  });
+
+  it("does not offer enrolment on a package that is not published", () => {
+    mockApi({
+      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
+    });
+    renderWithProviders(<RosterTab moduleId={moduleFixture.id} published={false} />, { user: fixtures.masterAdmin });
+    expect(screen.queryByPlaceholderText("শিক্ষার্থী কোড, ফোন, ইমেইল বা নাম")).not.toBeInTheDocument();
+    expect(screen.getByText("শিক্ষার্থী ভর্তির আগে প্যাকেজটি প্রকাশ করুন। আগে থেকে ভর্তি শিক্ষার্থীদের প্রবেশাধিকার থাকবে।")).toBeInTheDocument();
   });
 });
 

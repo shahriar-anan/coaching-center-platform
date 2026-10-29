@@ -61,7 +61,7 @@ function ModuleEditor() {
         <Tabs tabs={tabs} value={activeTab} onChange={(value) => setParams({ tab: value })} ariaLabel={t("staffCatalog.moduleTabs.label")} />
         {activeTab === "details" ? <ModuleDetails module={data} /> : null}
         {activeTab === "exams" ? <ModuleExams moduleId={data.id} /> : null}
-        {activeTab === "roster" && role.canManageRoster ? <RosterTab moduleId={data.id} /> : null}
+        {activeTab === "roster" && role.canManageRoster ? <RosterTab moduleId={data.id} published={data.status === "PUBLISHED"} /> : null}
         {activeTab === "instructor" && role.canAssignInstructor ? <InstructorTab moduleId={data.id} /> : null}
       </div>
     </>

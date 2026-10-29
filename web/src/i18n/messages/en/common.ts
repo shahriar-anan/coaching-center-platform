@@ -81,6 +81,7 @@ const common = {
     participation: "Results & marking",
     submissions: "Submissions",
     students: "Students",
+    directEnrol: "Direct enrolment",
     instructors: "Teachers",
     admins: "System admins",
     payments: "Payments",

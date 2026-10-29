@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -20,7 +19,6 @@ import {
   type AdminAccessRow,
 } from "@/lib/api/exam/staff-admin";
 import { adminErrorText } from "./admin-error";
-import { GrantAccessForm } from "./grant-access-form";
 import { ReasonDialog } from "./reason-dialog";
 
 /**
@@ -43,7 +41,6 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
   const { toast } = useToast();
   const { isMasterAdmin } = useRole();
   const [page, setPage] = useState(0);
-  const [adding, setAdding] = useState(false);
   const [revoking, setRevoking] = useState<AdminAccessRow | null>(null);
 
   const access = useStudentAccessRows(studentId, page);
@@ -117,8 +114,8 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
           </h2>
           <p className="text-meta text-muted">{t("staffAdmin.access.intro")}</p>
         </div>
-        {canGrant && !adding ? (
-          <Button variant="secondary" onClick={() => setAdding(true)}>
+        {canGrant ? (
+          <Button variant="secondary" href={staffHref(`/staff/enrol?student=${studentId}`)}>
             {t("staffAdmin.access.grantOpen")}
           </Button>
         ) : null}
@@ -145,11 +142,6 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
 
       {isMasterAdmin ? null : <p className="text-meta text-muted">{t("staffAdmin.access.revokeOnlyMaster")}</p>}
 
-      {canGrant && adding ? (
-        <Card as="section" padding="md">
-          <GrantAccessForm studentId={studentId} onDone={() => setAdding(false)} />
-        </Card>
-      ) : null}
 
       <ReasonDialog
         open={revoking !== null}

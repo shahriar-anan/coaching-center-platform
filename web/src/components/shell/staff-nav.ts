@@ -13,6 +13,7 @@ import {
   Trophy,
   UserCheck,
   UserCog,
+  UserPlus,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +27,7 @@ export type StaffNavKey =
   | "participation"
   | "submissions"
   | "students"
+  | "directEnrol"
   | "instructors"
   | "admins"
   | "payments"
@@ -128,6 +130,7 @@ export const STAFF_NAV: StaffNavItem[] = [
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
     icon: Users,
   },
+  { key: "directEnrol", group: "people", href: "/staff/enrol", access: { MASTER_ADMIN: "full" }, icon: UserPlus },
   { key: "instructors", group: "people", href: "/staff/instructors", access: { MASTER_ADMIN: "full" }, icon: UserCheck },
   { key: "admins", group: "people", href: "/staff/admins", access: { MASTER_ADMIN: "full" }, icon: ShieldCheck },
   {

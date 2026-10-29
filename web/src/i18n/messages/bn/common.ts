@@ -81,6 +81,7 @@ const common = {
     participation: "ফলাফল ও মূল্যায়ন",
     submissions: "খাতা জমা",
     students: "শিক্ষার্থী",
+    directEnrol: "সরাসরি ভর্তি",
     instructors: "শিক্ষক",
     admins: "সিস্টেম অ্যাডমিন",
     payments: "পেমেন্ট",

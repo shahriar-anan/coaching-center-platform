@@ -32,6 +32,7 @@ import { useToast } from "@/components/ui/toast";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
 import { ExamChecklist } from "@/components/staff/catalog/exam-checklist";
+import { ExamEnrol } from "@/components/staff/enrol/exam-enrol";
 import { ExamMetaForm } from "@/components/staff/catalog/exam-meta-form";
 import { McqQuestions } from "@/components/staff/catalog/mcq-questions";
 import { SectionBlock, type SectionState } from "@/components/staff/catalog/section-block";
@@ -406,6 +407,12 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             {banner}
             <ExamMetaForm exam={exam} section="price" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
+
+          {masterAdmin ? (
+            <section className="grid gap-3">
+              <ExamEnrol examId={exam.id} published={exam.status === "PUBLISHED"} />
+            </section>
+          ) : null}
 
           <SectionBlock id="exam-publish" number={numberFor(5)} title={t("staffCatalog.sections.publish")} description={t("staffCatalog.sections.about.publish")} state={sectionState.publish}>
             {canEdit ? (
