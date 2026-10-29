@@ -7,11 +7,16 @@ import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { CoverUploader } from "@/components/staff/catalog/cover-uploader";
 import {
+  primaryExamAction,
   useCategoryTree,
   useDeleteModule,
+  useDiscardPendingChanges,
   useModuleAction,
+  usePendingChanges,
+  usePublishPendingChanges,
   useSaveCategory,
   useSaveModule,
+  useSetPackagePopular,
   type CategoryTreeNode,
   type ModuleInput,
   type StaffModule,
@@ -20,16 +25,21 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { ModuleStudentPreview } from "@/components/staff/catalog/module-student-preview";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
 import { useUnsavedWarning } from "@/components/staff/catalog/use-unsaved-warning";
 import { ExamChecklist, type ChecklistItem } from "@/components/staff/catalog/exam-checklist";
+import { ChangeListDialog } from "@/components/staff/catalog/change-list-dialog";
+import { PendingChangesBanner } from "@/components/staff/catalog/pending-changes-banner";
+import { parseDiscount } from "@/components/staff/catalog/package-rows";
 
 type FormState = {
   titleEn: string;
@@ -38,6 +48,8 @@ type FormState = {
   descriptionBn: string;
   categoryId: string;
   price: string;
+  discountPercent: string;
+  discountEndsAt: string | null;
 };
 
 type Errors = Partial<Record<keyof FormState, string>>;
@@ -70,6 +82,8 @@ function initialState(module: StaffModule | undefined): FormState {
     descriptionBn: module?.descriptionBn ?? "",
     categoryId: module?.categoryId ?? "",
     price: module?.price == null ? "" : String(module.price),
+    discountPercent: module?.discountPercent == null ? "" : String(module.discountPercent),
+    discountEndsAt: module?.discountEndsAt ?? null,
   };
 }
 
@@ -86,6 +100,11 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const archive = useModuleAction(module?.id ?? "", "archive");
   const remove = useDeleteModule(module?.id ?? "");
   const saveCategory = useSaveCategory();
+  const setPopular = useSetPackagePopular(module?.id ?? "");
+  // The change list is read only when the server says something is staged.
+  const changes = usePendingChanges("package", module?.pendingChanges ? module.id : undefined);
+  const publishChanges = usePublishPendingChanges("package", module?.id ?? "");
+  const discardChanges = useDiscardPendingChanges("package", module?.id ?? "");
 
   const [form, setForm] = useState<FormState>(() => initialState(module));
   const [baseline, setBaseline] = useState<FormState>(() => initialState(module));
@@ -94,6 +113,9 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [popularFailure, setPopularFailure] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState({ titleEn: "", titleBn: "", parentId: "" });
   const [newCategoryErrors, setNewCategoryErrors] = useState<{ titleEn?: string; titleBn?: string }>({});
@@ -107,10 +129,12 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const categories = useMemo(() => flatCategories(tree.data ?? []), [tree.data]);
   const selectedCategory = categories.find((c) => c.id === form.categoryId) ?? null;
 
-  const priceDisplay = status?.price ?? null;
+  // Price, discount and the popular flag are the Master Admin's (the API answers a System Admin with 403).
   const canSetPrice = role.canEditPrice;
+  const masterAdmin = role.canPublishExam;
+  const priceDisplay = status?.price ?? null;
 
-  // The checklist before publish. Each item links to the field it names.
+  // Publishing a package needs its final save, the same as an exam; the staged state decides the rest.
   const checklist: ChecklistItem[] = [
     {
       key: "finalSave",
@@ -120,8 +144,9 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     },
   ];
   const publishable = checklist.every((item) => item.done) && status?.status !== "PUBLISHED" && !archived;
+  const primary = status ? primaryExamAction(status, { dirty, masterAdmin }) : "none";
 
-  function set<K extends keyof FormState>(key: K, value: string) {
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -140,7 +165,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     setNewCategoryError(null);
   }
 
-  /** Creates the category, then selects it here so the module details stay as they are. */
+  /** Creates the category, then selects it here so the package details stay as they are. */
   async function createCategory() {
     const next: { titleEn?: string; titleBn?: string } = {};
     if (!newCategory.titleEn.trim()) {
@@ -183,19 +208,28 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     if (!price.ok) {
       next.price = t("staffCatalog.moduleForm.priceInvalid");
     }
+    const discount = parseDiscount(form.discountPercent);
+    if (!discount.ok) {
+      next.discountPercent = t("staffCatalog.moduleForm.discountInvalid");
+    } else if (discount.value === null && form.discountEndsAt) {
+      next.discountEndsAt = t("staffCatalog.moduleForm.discountEndNeedsDiscount");
+    }
     setErrors(next);
-    if (Object.keys(next).length > 0 || !price.ok) {
+    if (Object.keys(next).length > 0 || !price.ok || !discount.ok) {
       return null;
     }
     const body: ModuleInput = {
       titleEn: form.titleEn.trim(),
       titleBn: form.titleBn.trim(),
+      // Rich text: the editor's HTML is sent as it is; the server sanitizes it (R3).
       descriptionEn: form.descriptionEn.trim() || null,
       descriptionBn: form.descriptionBn.trim() || null,
       categoryId: form.categoryId,
     };
     if (canSetPrice) {
-      body.price = price.ok ? price.value : null;
+      body.price = price.value;
+      body.discountPercent = discount.value;
+      body.discountEndsAt = discount.value === null ? null : form.discountEndsAt;
     }
     return body;
   }
@@ -219,7 +253,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
       setForm(next);
       setBaseline(next);
       toast({
-        title: saved.status === "DRAFT" && module?.status === "PUBLISHED" ? t("staffCatalog.moduleForm.savedReturnedToDraft") : t("staffCatalog.moduleForm.saved"),
+        title: saved.status === "PUBLISHED" ? t("staffCatalog.moduleForm.savedStaged") : t("staffCatalog.moduleForm.saved"),
         tone: "ok",
       });
     } catch (error) {
@@ -228,6 +262,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
         titleEn: fieldErrorFor(error, "titleEn") ?? undefined,
         titleBn: fieldErrorFor(error, "titleBn") ?? undefined,
         price: fieldErrorFor(error, "price") ?? undefined,
+        discountPercent: fieldErrorFor(error, "discountPercent") ?? undefined,
+        discountEndsAt: fieldErrorFor(error, "discountEndsAt") ?? undefined,
       });
     }
   }
@@ -248,13 +284,26 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     }
   }
 
+  async function togglePopular(next: boolean) {
+    setPopularFailure(null);
+    try {
+      await setPopular.mutateAsync(next);
+      setStatus((current) => (current ? { ...current, popular: next } : current));
+    } catch (e) {
+      setPopularFailure(t(catalogErrorKey(e)));
+    }
+  }
+
   if (!module && !role.canAuthor) {
     return null;
   }
 
+  const banner = module?.pendingChanges ? <PendingChangesBanner masterAdmin={masterAdmin} /> : null;
+
   return (
     <div className="grid gap-6">
-      <form onSubmit={onSubmit} noValidate className="grid max-w-3xl gap-5">
+      {banner}
+      <form id="module-details-form" onSubmit={onSubmit} noValidate className="grid max-w-3xl gap-5">
         <fieldset disabled={readOnly} className="grid gap-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t("staffCatalog.moduleForm.titleEn")} required error={errors.titleEn}>
@@ -265,12 +314,18 @@ function DetailsBody({ module }: { module?: StaffModule }) {
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t("staffCatalog.moduleForm.descriptionEn")} error={errors.descriptionEn}>
-              <Textarea rows={4} value={form.descriptionEn} onChange={(e) => set("descriptionEn", e.target.value)} dir="ltr" />
-            </Field>
-            <Field label={t("staffCatalog.moduleForm.descriptionBn")} error={errors.descriptionBn}>
-              <Textarea rows={4} value={form.descriptionBn} onChange={(e) => set("descriptionBn", e.target.value)} />
-            </Field>
+            <RichTextEditor
+              label={t("staffCatalog.moduleForm.descriptionEn")}
+              value={form.descriptionEn}
+              onChange={(html) => set("descriptionEn", html)}
+              invalid={Boolean(errors.descriptionEn)}
+            />
+            <RichTextEditor
+              label={t("staffCatalog.moduleForm.descriptionBn")}
+              value={form.descriptionBn}
+              onChange={(html) => set("descriptionBn", html)}
+              invalid={Boolean(errors.descriptionBn)}
+            />
           </div>
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <div className="grid gap-3">
@@ -350,23 +405,33 @@ function DetailsBody({ module }: { module?: StaffModule }) {
               )}
             </div>
             {canSetPrice ? (
-              <Field
-                label={t("staffCatalog.moduleForm.price")}
-                hint={t("staffCatalog.moduleForm.priceHint")}
-                error={errors.price}
-              >
-                <NumberInput inputMode="decimal" min={0} step="0.01" value={form.price} onChange={(e) => set("price", e.target.value)} className="max-w-48" />
-              </Field>
+              <div className="grid gap-4">
+                <Field label={t("staffCatalog.moduleForm.price")} hint={t("staffCatalog.moduleForm.priceHint")} error={errors.price}>
+                  <NumberInput inputMode="decimal" min={0} step="0.01" value={form.price} onChange={(e) => set("price", e.target.value)} className="max-w-48" />
+                </Field>
+                <Field label={t("staffCatalog.moduleForm.discountPercent")} hint={t("staffCatalog.moduleForm.discountHint")} error={errors.discountPercent}>
+                  <NumberInput inputMode="numeric" min={1} max={99} step={1} value={form.discountPercent} onChange={(e) => set("discountPercent", e.target.value)} className="max-w-32" />
+                </Field>
+                <Field label={t("staffCatalog.moduleForm.discountEndsAt")} error={errors.discountEndsAt}>
+                  <DateTimeInput
+                    value={form.discountEndsAt}
+                    onChange={(iso) => set("discountEndsAt", iso)}
+                    invalid={Boolean(errors.discountEndsAt)}
+                    disabled={form.discountPercent.trim() === ""}
+                  />
+                </Field>
+              </div>
             ) : (
               <div className="grid gap-1">
                 <span className="text-label font-medium text-muted">{t("staffCatalog.moduleForm.price")}</span>
                 <p className="text-body">{formatMoney(priceDisplay) ?? t("staffCatalog.moduleForm.noPrice")}</p>
+                <p className="text-meta text-muted">{t("staffCatalog.moduleForm.priceReadOnly")}</p>
               </div>
             )}
           </div>
           {!readOnly ? (
             <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" loading={save.isPending} disabled={save.isPending}>
+              <Button type="submit" loading={save.isPending} disabled={save.isPending || (!creating && !dirty)}>
                 {creating ? t("staffCatalog.moduleForm.create") : t("staffCatalog.moduleForm.save")}
               </Button>
               {dirty ? (
@@ -374,7 +439,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                   {t("staffCatalog.moduleForm.dirty")}
                 </span>
               ) : null}
-              <p className="text-meta text-muted">{t("staffCatalog.moduleForm.returnsToDraftHelp")}</p>
+              {status?.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.moduleForm.stagedHint")}</p> : null}
             </div>
           ) : null}
         </fieldset>
@@ -384,6 +449,24 @@ function DetailsBody({ module }: { module?: StaffModule }) {
           </p>
         ) : null}
       </form>
+
+      {module && role.canPublishExam ? (
+        <div className="grid max-w-3xl gap-2">
+          <Switch
+            id="module-popular"
+            checked={status?.popular ?? module.popular ?? false}
+            onCheckedChange={(value) => togglePopular(value)}
+            disabled={setPopular.isPending || readOnly}
+            label={t("staffCatalog.moduleForm.popular")}
+          />
+          <p className="text-meta text-muted">{t("staffCatalog.moduleForm.popularHint")}</p>
+          {popularFailure ? (
+            <p role="alert" className="text-meta text-danger">
+              {popularFailure}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {module ? (
         <Dialog
@@ -422,11 +505,50 @@ function DetailsBody({ module }: { module?: StaffModule }) {
             <Button variant="secondary" onClick={() => setPreviewing(true)}>
               {t("staffCatalog.preview.open")}
             </Button>
-            <Button disabled={!publishable || publish.isPending} loading={publish.isPending} onClick={() => runAction("publish")}>
-              {t("staffCatalog.moduleForm.publish")}
-            </Button>
+            {primary === "publish" ? (
+              <Button disabled={!publishable || publish.isPending} loading={publish.isPending} onClick={() => runAction("publish")}>
+                {t("staffCatalog.moduleForm.publish")}
+              </Button>
+            ) : null}
+            {primary === "publishChanges" ? (
+              <Button onClick={() => setReviewing(true)}>{t("staffCatalog.changes.publishChanges")}</Button>
+            ) : null}
+            {module.pendingChanges && masterAdmin ? (
+              <Button variant="secondary" onClick={() => setDiscarding(true)}>
+                {t("staffCatalog.changes.discardChanges")}
+              </Button>
+            ) : null}
           </div>
         </section>
+      ) : null}
+
+      {module && masterAdmin && changes.data ? (
+        <ChangeListDialog
+          open={reviewing}
+          onOpenChange={setReviewing}
+          changes={changes.data}
+          onPublish={(revisionId) => publishChanges.mutateAsync(revisionId)}
+          onFailed={(message) => setFormError(message)}
+        />
+      ) : null}
+
+      {module && masterAdmin ? (
+        <ConfirmDialog
+          open={discarding}
+          onOpenChange={setDiscarding}
+          title={t("staffCatalog.changes.discardTitle")}
+          body={t("staffCatalog.changes.discardBody")}
+          confirmLabel={t("staffCatalog.changes.discard")}
+          tone="danger"
+          onConfirm={async () => {
+            try {
+              await discardChanges.mutateAsync();
+              toast({ title: t("staffCatalog.changes.discarded"), tone: "ok" });
+            } catch (e) {
+              throw new Error(t(catalogErrorKey(e)));
+            }
+          }}
+        />
       ) : null}
 
       {module && role.canDelete && !archived ? (
@@ -481,7 +603,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   );
 }
 
-/** Create a module (no `module`) or edit its details. Both titles and descriptions are always visible. */
+/** Create a package (no `module`) or edit its details. Both titles and descriptions are always visible. */
 export function ModuleDetails({ module }: { module?: StaffModule }) {
   return <DetailsBody key={module?.id ?? "new"} module={module} />;
 }

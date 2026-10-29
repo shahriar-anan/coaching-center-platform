@@ -46,9 +46,12 @@ public class LiveExamModuleService {
 
 	private final Clock clock;
 
+	private final RichTextSanitizer sanitizer;
+
 	public LiveExamModuleService(LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility,
 			LiveExamAccess access, AuditRecorder audit, ExamMailService examMail, AfterCommit afterCommit,
-			PackageRevisionService revisions, LiveExamPackageExamRepository memberships, Clock clock) {
+			PackageRevisionService revisions, LiveExamPackageExamRepository memberships, Clock clock,
+			RichTextSanitizer sanitizer) {
 		this.modules = modules;
 		this.visibility = visibility;
 		this.access = access;
@@ -58,6 +61,7 @@ public class LiveExamModuleService {
 		this.revisions = revisions;
 		this.memberships = memberships;
 		this.clock = clock;
+		this.sanitizer = sanitizer;
 	}
 
 	@Transactional
@@ -69,8 +73,8 @@ public class LiveExamModuleService {
 		module.setCategoryId(categoryId);
 		module.setTitleEn(requiredText(body, "titleEn"));
 		module.setTitleBn(requiredText(body, "titleBn"));
-		module.setDescriptionEn(requiredText(body, "descriptionEn"));
-		module.setDescriptionBn(requiredText(body, "descriptionBn"));
+		module.setDescriptionEn(sanitizer.clean(requiredText(body, "descriptionEn")));
+		module.setDescriptionBn(sanitizer.clean(requiredText(body, "descriptionBn")));
 		module.setAccessMode(LiveExamModule.MANUAL);
 		module.setStatus(LiveExamModule.DRAFT);
 		module.setFinallySaved(false);
@@ -199,8 +203,8 @@ public class LiveExamModuleService {
 	private PackageRevisionService.Draft edit(LiveExamModule module, PackageRevisionService.Draft current, JsonNode body) {
 		String titleEn = optionalText(body, "titleEn", current.titleEn());
 		String titleBn = optionalText(body, "titleBn", current.titleBn());
-		String descriptionEn = optionalText(body, "descriptionEn", current.descriptionEn());
-		String descriptionBn = optionalText(body, "descriptionBn", current.descriptionBn());
+		String descriptionEn = sanitizer.clean(optionalText(body, "descriptionEn", current.descriptionEn()));
+		String descriptionBn = sanitizer.clean(optionalText(body, "descriptionBn", current.descriptionBn()));
 		UUID categoryId = current.categoryId();
 		boolean categoryChanged = false;
 		if (body.has("categoryId")) {

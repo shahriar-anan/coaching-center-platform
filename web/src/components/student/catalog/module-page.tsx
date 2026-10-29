@@ -23,6 +23,8 @@ import { PriceLine } from "./price-line";
 import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { bundleOrders } from "@/lib/config";
 import { formatDate, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
+import { plainExcerpt } from "@/lib/format/rich-text";
+import { RichTextView } from "@/components/ui/rich-text-view";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { cn } from "@/components/ui/cn";
@@ -43,7 +45,6 @@ import {
   doorType,
   examPath,
   findModulePath,
-  firstLine,
   isDone,
   modulePath,
   type Door,
@@ -299,7 +300,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
               ) : (
                 <ul className="grid gap-3">
                   {list.map((exam) => {
-                    const summary = firstLine(pickText({ ...exam }, "description", locale));
+                    const summary = plainExcerpt(pickText({ ...exam }, "description", locale), 160);
                     const examAccess = resolveAccess(exam.access);
                     return (
                       <li key={exam.id} className="min-w-0">
@@ -387,7 +388,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
             ) : null}
 
             {activeTab === "about" && description ? (
-              <p className="whitespace-pre-line text-body leading-relaxed text-muted lg:max-w-[70ch]">{description}</p>
+              <RichTextView value={description} className="lg:max-w-[70ch]" />
             ) : null}
           </div>
         </div>

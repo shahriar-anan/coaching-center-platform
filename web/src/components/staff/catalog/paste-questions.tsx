@@ -8,7 +8,7 @@ import { useAddQuestion, type QuestionInput, type StaffExam } from "@/lib/api/ex
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
 
 /**
  * The paste format (F7). Questions are separated by a blank line. Each block:
@@ -20,12 +20,16 @@ import { catalogErrorKey } from "@/components/staff/catalog/errors";
  *   নম্বর: 2
  *   ব্যাখ্যা: ঢাকা রাজধানী। (optional)
  *
- * `*` marks the one correct option. Options may use ক–ঘ or a–d. Marks default to 1.
+ * `*` marks a correct option. One `*` makes a single-answer question; several make a multiple-answer one
+ * (NR-01). Options may use ক–ঘ or a–d. Marks default to 1.
  */
-export const PASTE_FORMAT_EXAMPLE = ["প্রশ্ন: বাংলাদেশের রাজধানী কোথায়?", "ক) ঢাকা *", "খ) চট্টগ্রাম", "গ) সিলেট", "নম্বর: 2"].join("\n");
+export const PASTE_FORMAT_EXAMPLE = [
+  ["প্রশ্ন: বাংলাদেশের রাজধানী কোথায়?", "ক) ঢাকা *", "খ) চট্টগ্রাম", "গ) সিলেট", "নম্বর: 2"].join("\n"),
+  ["প্রশ্ন: নিচের কোনগুলো বিভাগীয় শহর?", "ক) ঢাকা *", "খ) রাজশাহী *", "গ) সিলেট", "নম্বর: 2"].join("\n"),
+].join("\n\n");
 
 export type ParsedBlock = { index: number; question: QuestionInput } | { index: number; error: ParseError };
-export type ParseError = "noStem" | "fewOptions" | "noCorrect" | "manyCorrect" | "badMarks";
+export type ParseError = "noStem" | "fewOptions" | "noCorrect" | "badMarks";
 
 const OPTION_LABEL = /^([কখগঘa-dA-D])\)\s*(.+)$/;
 const STEM = /^প্রশ্ন:\s*(.+)$/;
@@ -83,13 +87,11 @@ export function parsePastedQuestions(text: string): ParsedBlock[] {
     if (correctCount === 0) {
       return { index, error: "noCorrect" };
     }
-    if (correctCount > 1) {
-      return { index, error: "manyCorrect" };
-    }
     if (!Number.isInteger(marks) || marks < 1) {
       return { index, error: "badMarks" };
     }
-    return { index, question: { stem, marks, explanation, options } };
+    // Several correct marks make a multiple-answer question; the server checks the same rule.
+    return { index, question: { stem, marks, explanation, multipleAnswer: correctCount > 1, options } };
   });
 }
 
@@ -102,11 +104,13 @@ export function PasteQuestions({
   nextPosition,
   open,
   onOpenChange,
+  onStructureLocked,
 }: {
   exam: StaffExam;
   nextPosition: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStructureLocked?: () => void;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -129,6 +133,9 @@ export function PasteQuestions({
         setProgress({ done: offset + 1, total: ready.length });
       } catch (e) {
         setProgress(null);
+        if (isApiError(e, "QUESTION_STRUCTURE_LOCKED")) {
+          onStructureLocked?.();
+        }
         setError(t("staffCatalog.paste.stopped", { n: formatNumber(block.index), reason: t(catalogErrorKey(e)) }));
         return;
       }
@@ -146,6 +153,7 @@ export function PasteQuestions({
         <p className="rounded-control border border-border bg-bg px-3 py-2 text-meta whitespace-pre-line" dir="ltr" lang="bn">
           {PASTE_FORMAT_EXAMPLE}
         </p>
+        <p className="text-meta text-muted">{t("staffCatalog.paste.multiHint")}</p>
         <Textarea
           rows={8}
           aria-label={t("staffCatalog.paste.label")}

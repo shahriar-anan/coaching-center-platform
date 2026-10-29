@@ -12,13 +12,13 @@ import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat, StatRow } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
-import { McqQuestion, type OptionLabels } from "@/components/student/sitting/mcq-question";
+import { McqQuestion, resolvePaperLanguage, type OptionLabels } from "@/components/student/sitting/mcq-question";
 import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
 import { useNotice } from "@/lib/notices/use-notice";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam } from "@/lib/api/exam/sitting";
+import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam, type SittingPosition } from "@/lib/api/exam/sitting";
 import { formatNumber, pickTitle } from "@/lib/format";
 import { isMissing } from "@/lib/api/missing";
 
@@ -40,14 +40,29 @@ export function isWithheld(question: {
   return question.options.length > 0 && question.options.every((option) => isMissing(option.correct)) && (question.explanation ?? null) === null;
 }
 
+/**
+ * Right only on an exact match: every option the student chose is correct, and every correct option was
+ * chosen. A multi-answer question with some of its correct options is wrong.
+ */
 export function outcomeOf(question: {
   explanation?: string | null;
   options: { selected: boolean | null; correct: boolean | null }[];
 }): Outcome {
-  const picked = question.options.find((option) => option.selected === true);
-  if (!picked) return "skipped";
+  const chosen = question.options.filter((option) => option.selected === true);
+  if (chosen.length === 0) return "skipped";
   if (isWithheld(question)) return "withheld";
-  return picked.correct === true ? "right" : "wrong";
+  const exact =
+    chosen.every((option) => option.correct === true) &&
+    question.options.every((option) => option.correct !== true || option.selected === true);
+  return exact ? "right" : "wrong";
+}
+
+/** The message key for the position line: a rank on the board, a relative rank, or no rank below the pass mark. */
+export function positionKey(position: SittingPosition): "result.position.belowPass" | "result.position.current" | "result.position.board" | "result.position.relative" {
+  if (position.belowPass) return "result.position.belowPass";
+  if (position.type === "CURRENT") return "result.position.current";
+  if (position.type === "BOARD") return "result.position.board";
+  return "result.position.relative";
 }
 
 const jumpTone: Record<Outcome, string> = {
@@ -151,8 +166,13 @@ export function ResultPage({ examId }: { examId: string }) {
     yourAnswer: t("result.review.yourAnswer"),
     correct: t("result.review.correct"),
     explanation: t("result.review.explanation"),
+    selectAll: t("sitting.paper.selectAll"),
+    confirm: t("sitting.paper.confirm"),
+    final: t("sitting.paper.final"),
   };
-  const letters = exam.data?.paperLanguage === "EN" ? LETTERS_EN : LETTERS_BN;
+  // No paper language (or BOTH) follows the interface: the letters and the script do, and no language is named.
+  const paperScript = resolvePaperLanguage(exam.data?.paperLanguage, locale);
+  const letters = paperScript === "EN" ? LETTERS_EN : LETTERS_BN;
 
   const reviewItems = (data.questions ?? []).map((question, index) => ({
     question,
@@ -191,6 +211,12 @@ export function ResultPage({ examId }: { examId: string }) {
           label={written && awaiting ? t("result.stat.marking") : t("result.stat.rank")}
         />
       </StatRow>
+
+      {!written && data.position ? (
+        <p className="text-body text-text">
+          {t(positionKey(data.position), { rank: n(data.position.rank), of: n(data.position.of) })}
+        </p>
+      ) : null}
 
       {!written && !isMissing(data.passed) ? (
         <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
@@ -266,9 +292,9 @@ export function ResultPage({ examId }: { examId: string }) {
               <McqQuestion
                 question={item.question}
                 index={item.number}
-                selectedOptionId={item.question.options.find((option) => option.selected === true)?.id}
+                selectedOptionIds={item.question.options.filter((option) => option.selected === true).map((option) => option.id)}
                 flagged={false}
-                paperLanguage={exam.data?.paperLanguage === "EN" ? "EN" : "BN"}
+                paperLanguage={paperScript}
                 editable={false}
                 reviewing
                 labels={labels}

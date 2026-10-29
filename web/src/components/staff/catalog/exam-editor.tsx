@@ -1,14 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
-import { useServerNow } from "@/lib/time/clock";
 import { siteHref } from "@/lib/config";
-import { useModule, useArchiveExam, useDeleteExam, useExam, useExamAction, type StaffExam } from "@/lib/api/exam/staff-catalog";
+import {
+  primaryExamAction,
+  useArchiveExam,
+  useDeleteExam,
+  useDiscardPendingChanges,
+  useExam,
+  useExamAction,
+  useModule,
+  usePendingChanges,
+  usePublishPendingChanges,
+  type StaffExam,
+} from "@/lib/api/exam/staff-catalog";
 import { apiBlob } from "@/lib/api/client";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
@@ -21,47 +31,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
-import { ExamChecklist, type ChecklistItem } from "@/components/staff/catalog/exam-checklist";
+import { ExamChecklist } from "@/components/staff/catalog/exam-checklist";
 import { ExamMetaForm } from "@/components/staff/catalog/exam-meta-form";
 import { McqQuestions } from "@/components/staff/catalog/mcq-questions";
 import { SectionBlock, type SectionState } from "@/components/staff/catalog/section-block";
 import { WrittenPaper } from "@/components/staff/catalog/written-paper";
 import { ExamCoverUploader } from "@/components/staff/catalog/exam-cover-uploader";
+import {
+  examChecklist,
+  examPublishable,
+  hasExamText,
+  windowFits,
+  type ExamSection,
+} from "@/components/staff/catalog/exam-form-state";
+import { ChangeListDialog } from "@/components/staff/catalog/change-list-dialog";
+import { PendingChangesBanner } from "@/components/staff/catalog/pending-changes-banner";
 
-/** The descriptions and rules, in both languages. Publish needs all four (the server checks the same). */
-export function hasExamText(exam: StaffExam): boolean {
-  return [exam.descriptionEn, exam.descriptionBn, exam.rulesEn, exam.rulesBn].every((value) => Boolean(value?.trim()));
-}
-
-/** What publish waits for, each item linked to the place that fixes it. */
-export function examChecklist(exam: StaffExam, t: (key: string) => string): ChecklistItem[] {
-  const items: ChecklistItem[] = [
-    { key: "passPercent", label: t("staffCatalog.checklist.passPercent"), done: exam.passPercent !== null, anchor: "exam-schedule" },
-    { key: "examText", label: t("staffCatalog.checklist.examText"), done: hasExamText(exam), anchor: "exam-details" },
-  ];
-  if (exam.examType === "MCQ") {
-    items.push({
-      key: "questions",
-      label: t("staffCatalog.checklist.questions"),
-      done: (exam.questions?.length ?? 0) > 0,
-      anchor: "exam-questions",
-    });
-  } else {
-    items.push({
-      key: "questionPdf",
-      label: t("staffCatalog.checklist.questionPdf"),
-      done: exam.questionPdf === true,
-      anchor: "exam-question-pdf",
-    });
-    items.push({
-      key: "maximum",
-      label: t("staffCatalog.checklist.maximum"),
-      done: exam.maximum > 0,
-      anchor: "exam-schedule",
-    });
-  }
-  return items;
-}
+/** The exam's own forms that have a save button. Save all submits each of them that has changes. */
+const SECTION_FORMS = ["exam-details-form", "exam-text-form", "exam-schedule-form", "exam-price-form"];
 
 /** A read-only look at the paper as a student sees it: no correct marks, no explanations. */
 function StudentPreview({ exam }: { exam: StaffExam }) {
@@ -78,8 +65,10 @@ function StudentPreview({ exam }: { exam: StaffExam }) {
     );
   }
   const questions = [...(exam.questions ?? [])].sort((a, b) => a.position - b.position);
+  // BN and EN set the letters' language; with no paper language (or Both) the letters follow the interface (C2).
+  const lang = exam.paperLanguage === "BN" || exam.paperLanguage === "EN" ? exam.paperLanguage.toLowerCase() : locale;
   return (
-    <div lang={exam.paperLanguage === "BN" ? "bn" : "en"} className="grid gap-5">
+    <div lang={lang} className="grid gap-5">
       {questions.map((q, index) => (
         <div key={q.id} className="grid gap-2">
           <p className="font-medium">
@@ -101,8 +90,8 @@ function StudentPreview({ exam }: { exam: StaffExam }) {
 }
 
 /**
- * What students get once this exam is published, stated before the publish button
- * is pressed: title, date, price, content, and the module and door it appears in.
+ * What students get once this exam is published, stated before the publish button is pressed: title, date, price,
+ * content, and the package and door it appears in. A standalone exam has no package and says so.
  */
 function PublishSummary({
   exam,
@@ -170,15 +159,17 @@ function PublishSummary({
         </div>
         <div className="grid gap-0.5">
           <dt className="text-meta text-muted">{t("staffCatalog.publish.where")}</dt>
-          <dd>{t("staffCatalog.publish.whereValue", { module: moduleTitle ?? "", door })}</dd>
+          <dd>
+            {moduleTitle ? t("staffCatalog.publish.whereValue", { module: moduleTitle, door }) : t("staffCatalog.publish.whereStandalone", { door })}
+          </dd>
         </div>
       </dl>
     </Dialog>
   );
 }
 
-/** What to do once an exam is saved: another exam in this module, or the instructor for the module. */
-function NextStepCard({ moduleId, canAssign }: { moduleId: string; canAssign: boolean }) {
+/** What to do once an exam is saved: another exam, or the instructor for its package. A standalone exam has no package. */
+function NextStepCard({ moduleId, canAssign }: { moduleId: string | null; canAssign: boolean }) {
   const { t } = useLocale();
   const choice = "grid min-h-11 gap-1 rounded-control border border-border-control bg-field p-4 hover:border-muted";
   return (
@@ -190,28 +181,20 @@ function NextStepCard({ moduleId, canAssign }: { moduleId: string; canAssign: bo
         <p className="text-meta text-muted">{t("staffCatalog.next.body")}</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Link href={`/staff/modules/${moduleId}?tab=exams&new=1`} className={choice}>
+        <Link href={moduleId ? `/staff/modules/${moduleId}?tab=exams&new=1` : "/staff/exams"} className={choice}>
           <span className="font-medium">{t("staffCatalog.next.anotherTitle")}</span>
           <span className="text-meta text-muted">{t("staffCatalog.next.anotherBody")}</span>
         </Link>
-        {canAssign ? (
+        {moduleId && canAssign ? (
           <Link href={`/staff/modules/${moduleId}?tab=instructor`} className={choice}>
             <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
             <span className="text-meta text-muted">{t("staffCatalog.next.assignBody")}</span>
           </Link>
-        ) : (
-          <div className="grid gap-1 rounded-control border border-border p-4">
-            <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
-            <span className="text-meta text-muted">{t("staffCatalog.next.assignMasterOnly")}</span>
-          </div>
-        )}
+        ) : null}
       </div>
     </section>
   );
 }
-
-/** The three sections that have their own save. Save all submits each of them. */
-const SECTION_FORMS = ["exam-details-form", "exam-schedule-form", "exam-price-form"];
 
 function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const { t, locale } = useLocale();
@@ -219,43 +202,50 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const role = useRole();
   const router = useRouter();
   const { toast } = useToast();
-  const now = useServerNow(1000);
-  const moduleQuery = useModule(exam.moduleId);
+  const moduleId = exam.moduleId;
+  const moduleQuery = useModule(moduleId ?? undefined);
   const finalSave = useExamAction(exam.id, "final-save");
   const publish = useExamAction(exam.id, "publish");
-  const remove = useDeleteExam(exam.id, exam.moduleId);
-  const archive = useArchiveExam(exam.id, exam.moduleId);
+  const remove = useDeleteExam(exam.id, moduleId ?? "");
+  const archive = useArchiveExam(exam.id, moduleId ?? "");
+  // The change list is read only when the server says something is staged.
+  const changes = usePendingChanges("exam", exam.pendingChanges ? exam.id : undefined);
+  const publishChanges = usePublishPendingChanges("exam", exam.id);
+  const discardChanges = useDiscardPendingChanges("exam", exam.id);
+  const [dirtySections, setDirtySections] = useState<Partial<Record<ExamSection, boolean>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   // True right after the exam was created (the create dialog opens the editor with ?created=1).
   const created = useSearchParams().get("created") === "1";
 
-  function saveAll() {
-    for (const id of SECTION_FORMS) {
-      (document.getElementById(id) as HTMLFormElement | null)?.requestSubmit();
-    }
-  }
-  const [previewing, setPreviewing] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const onDirtyChange = useCallback((section: ExamSection, value: boolean) => {
+    setDirtySections((current) => (current[section] === value ? current : { ...current, [section]: value }));
+  }, []);
+  const dirty = Object.values(dirtySections).some(Boolean);
 
-  // After the start instant the paper, the file and the schedule are locked.
-  const locked = exam.liveAt !== null && new Date(exam.liveAt).getTime() <= now;
-  const items = examChecklist(exam, (key) => t(key));
-  const publishable = items.every((item) => item.done) && exam.status !== "PUBLISHED";
-  const title = pickTitle(exam);
-  const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data) : null;
   // An archived exam is read-only for everyone: no edits, no final save, no publish (the API refuses them too).
   const archived = exam.status === "ARCHIVED";
-  const canEdit = role.canAuthor && !locked && !archived;
+  const canEdit = role.canAuthor && !archived;
+  // Publishing is the Master Admin's act; a System Admin edits and sees the staged state.
+  const masterAdmin = role.canPublishExam;
+  const items = examChecklist(exam, (key) => t(key));
+  const publishable = examPublishable(exam, items);
+  const primary = primaryExamAction(exam, { dirty, masterAdmin });
+  const title = pickTitle(exam);
+  const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data) : null;
   const hasTeacher = moduleQuery.data?.instructor != null;
 
-  // Done means the section holds what publish needs. The price is optional, so it is only "done" when set.
-  const sectionState: Record<"details" | "schedule" | "content" | "price" | "publish", SectionState> = {
-    details: hasExamText(exam) ? "done" : "todo",
-    schedule: exam.passPercent !== null ? "done" : "todo",
+  const sectionState: Record<"details" | "text" | "schedule" | "content" | "price" | "publish", SectionState> = {
+    details: "done",
+    text: hasExamText(exam) ? "done" : "todo",
+    schedule: exam.passPercent !== null && windowFits(exam) ? "done" : "todo",
     content: (exam.examType === "MCQ" ? (exam.questions?.length ?? 0) > 0 : exam.questionPdf === true) ? "done" : "todo",
-    price: exam.price !== null ? "done" : "todo",
+    price: exam.price !== null || exam.free ? "done" : "todo",
     publish: exam.status === "PUBLISHED" ? "done" : "todo",
   };
 
@@ -264,11 +254,19 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const contentTitle = exam.examType === "MCQ" ? t("staffCatalog.sections.questions") : t("staffCatalog.sections.questionPdf");
   const navSections: SectionNavItem[] = [
     { id: "exam-details", label: `${numberFor(0)} ${t("staffCatalog.sections.details")}`, state: sectionState.details },
-    { id: "exam-schedule", label: `${numberFor(1)} ${t("staffCatalog.sections.schedule")}`, state: sectionState.schedule },
-    { id: contentId, label: `${numberFor(2)} ${contentTitle}`, state: sectionState.content },
-    { id: "exam-price", label: `${numberFor(3)} ${t("staffCatalog.sections.price")}`, state: sectionState.price },
-    { id: "exam-publish", label: `${numberFor(4)} ${t("staffCatalog.sections.publish")}`, state: sectionState.publish },
+    { id: "exam-text", label: `${numberFor(1)} ${t("staffCatalog.sections.text")}`, state: sectionState.text },
+    { id: "exam-schedule", label: `${numberFor(2)} ${t("staffCatalog.sections.schedule")}`, state: sectionState.schedule },
+    { id: contentId, label: `${numberFor(3)} ${contentTitle}`, state: sectionState.content },
+    { id: "exam-price", label: `${numberFor(4)} ${t("staffCatalog.sections.price")}`, state: sectionState.price },
+    { id: "exam-publish", label: `${numberFor(5)} ${t("staffCatalog.sections.publish")}`, state: sectionState.publish },
   ];
+  const banner = exam.pendingChanges ? <PendingChangesBanner masterAdmin={masterAdmin} /> : null;
+
+  function saveAll() {
+    for (const id of SECTION_FORMS) {
+      (document.getElementById(id) as HTMLFormElement | null)?.requestSubmit();
+    }
+  }
 
   /** Publish records the final save itself (the server needs it), so there is no separate Final save button. */
   async function publishExam() {
@@ -277,9 +275,19 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
       await finalSave.mutateAsync();
       await publish.mutateAsync();
       setPublishing(false);
-      toast({ title: `${t("staffCatalog.editor.published")} ${t(role.canEditPrice ? "staffCatalog.nextStep.masterAdmin" : "staffCatalog.nextStep.systemAdmin")}`, tone: "ok" });
+      toast({ title: `${t("staffCatalog.editor.published")} ${t(masterAdmin ? "staffCatalog.nextStep.masterAdmin" : "staffCatalog.nextStep.systemAdmin")}`, tone: "ok" });
     } catch (e) {
       setPublishing(false);
+      setFormError(t(catalogErrorKey(e)));
+    }
+  }
+
+  async function finalSaveNow() {
+    setFormError(null);
+    try {
+      await finalSave.mutateAsync();
+      toast({ title: t("staffCatalog.editor.finalSaved"), tone: "ok" });
+    } catch (e) {
       setFormError(t(catalogErrorKey(e)));
     }
   }
@@ -288,43 +296,51 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
     <>
       <PageHeader
         title={title}
-        breadcrumbs={[
-          { label: t("staffCatalog.nav.modules"), href: "/staff/modules" },
-          ...(moduleTitle ? [{ label: moduleTitle, href: `/staff/modules/${exam.moduleId}?tab=exams` }] : []),
-          { label: title },
-        ]}
+        breadcrumbs={
+          moduleId
+            ? [
+                { label: t("staffCatalog.nav.modules"), href: "/staff/modules" },
+                ...(moduleTitle ? [{ label: moduleTitle, href: `/staff/modules/${moduleId}?tab=exams` }] : []),
+                { label: title },
+              ]
+            : [{ label: t("staffCatalog.nav.exams"), href: "/staff/exams" }, { label: title }]
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill status={exam.status} />
-            {/* SLOT: answer release (phase 2, STAFF-ADMIN-UI) */}
             <Button variant="secondary" onClick={() => setPreviewing(true)}>
               {t("staffCatalog.preview.open")}
             </Button>
-            {canEdit && exam.status === "DRAFT" ? (
-              <Button variant="secondary" onClick={saveAll}>
-                {t("staffCatalog.next.saveAll")}
+            {canEdit && primary === "save" ? <Button onClick={saveAll}>{t("staffCatalog.next.saveAll")}</Button> : null}
+            {canEdit && primary === "finalSave" ? (
+              <Button variant="secondary" loading={finalSave.isPending} disabled={finalSave.isPending} onClick={finalSaveNow}>
+                {t("staffCatalog.editor.finalSave")}
               </Button>
             ) : null}
-            {canEdit && role.canPublishExam ? (
+            {canEdit && primary === "publish" ? (
               <Button loading={publish.isPending} disabled={!publishable || publish.isPending} onClick={() => setPublishing(true)}>
                 {t("staffCatalog.editor.publish")}
+              </Button>
+            ) : null}
+            {primary === "publishChanges" ? <Button onClick={() => setReviewing(true)}>{t("staffCatalog.changes.publishChanges")}</Button> : null}
+            {exam.pendingChanges && masterAdmin ? (
+              <Button variant="secondary" onClick={() => setDiscarding(true)}>
+                {t("staffCatalog.changes.discardChanges")}
               </Button>
             ) : null}
           </div>
         }
       />
 
-      {created ? <div className="mb-6"><NextStepCard moduleId={exam.moduleId} canAssign={role.canAssignInstructor} /></div> : null}
+      {created ? (
+        <div className="mb-6">
+          <NextStepCard moduleId={moduleId} canAssign={role.canAssignInstructor} />
+        </div>
+      ) : null}
 
       {archived ? (
         <p role="status" className="mb-6 rounded-control border border-border bg-card px-4 py-3 text-meta text-muted">
           {t("staffCatalog.editor.archivedNotice")}
-        </p>
-      ) : null}
-
-      {locked ? (
-        <p role="status" className="mb-6 rounded-control border border-warn/40 bg-warn/10 px-4 py-3 text-meta text-warn">
-          {t("staffCatalog.editor.lockedAfterStart")}
         </p>
       ) : null}
 
@@ -339,15 +355,23 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
 
         <div className="grid min-w-0 gap-10">
           <SectionBlock id="exam-details" number={numberFor(0)} title={t("staffCatalog.sections.details")} state={sectionState.details}>
-            <ExamMetaForm exam={exam} locked={!canEdit} section="details" />
+            {banner}
+            <ExamMetaForm exam={exam} section="details" canEdit={canEdit} onDirtyChange={onDirtyChange} />
             {role.canManageCover ? <ExamCoverUploader exam={exam} /> : null}
           </SectionBlock>
 
-          <SectionBlock id="exam-schedule" number={numberFor(1)} title={t("staffCatalog.sections.schedule")} state={sectionState.schedule}>
-            <ExamMetaForm exam={exam} locked={!canEdit} section="schedule" />
+          <SectionBlock id="exam-text" number={numberFor(1)} title={t("staffCatalog.sections.text")} state={sectionState.text}>
+            {banner}
+            <ExamMetaForm exam={exam} section="text" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id={contentId} number={numberFor(2)} title={contentTitle} state={sectionState.content}>
+          <SectionBlock id="exam-schedule" number={numberFor(2)} title={t("staffCatalog.sections.schedule")} state={sectionState.schedule}>
+            {banner}
+            <ExamMetaForm exam={exam} section="schedule" canEdit={canEdit} onDirtyChange={onDirtyChange} />
+          </SectionBlock>
+
+          <SectionBlock id={contentId} number={numberFor(3)} title={contentTitle} state={sectionState.content}>
+            {banner}
             {exam.examType === "MCQ" ? (
               <McqQuestions exam={exam} locked={!canEdit} canDelete={role.canAuthor} />
             ) : (
@@ -355,11 +379,12 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             )}
           </SectionBlock>
 
-          <SectionBlock id="exam-price" number={numberFor(3)} title={t("staffCatalog.sections.price")} state={sectionState.price}>
-            <ExamMetaForm exam={exam} locked={!canEdit} section="price" />
+          <SectionBlock id="exam-price" number={numberFor(4)} title={t("staffCatalog.sections.price")} state={sectionState.price}>
+            {banner}
+            <ExamMetaForm exam={exam} section="price" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id="exam-publish" number={numberFor(4)} title={t("staffCatalog.sections.publish")} state={sectionState.publish}>
+          <SectionBlock id="exam-publish" number={numberFor(5)} title={t("staffCatalog.sections.publish")} state={sectionState.publish}>
             {canEdit ? (
               <section aria-labelledby="exam-checklist-heading" className="grid max-w-3xl gap-3 rounded-card border border-border bg-card p-5">
                 <h3 id="exam-checklist-heading" className="text-label font-semibold">
@@ -370,18 +395,18 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
               </section>
             ) : null}
 
-            {canEdit && !role.canPublishExam ? (
+            {canEdit && !masterAdmin ? (
               <p role="status" className="max-w-3xl text-meta text-muted">
                 {t("staffCatalog.checklist.publishMasterOnly")}
               </p>
             ) : null}
 
-            {exam.examType === "WRITTEN" && !hasTeacher && moduleQuery.data ? (
+            {exam.examType === "WRITTEN" && moduleId && !hasTeacher && moduleQuery.data ? (
               <p role="status" className="max-w-3xl rounded-control border border-warn/40 bg-warn/10 px-4 py-3 text-meta text-warn">
                 {role.canAssignInstructor ? (
                   <>
                     {t("staffCatalog.editor.noTeacherWarning")}{" "}
-                    <a href={`/staff/modules/${exam.moduleId}?tab=instructor`} className="font-medium underline-offset-2 hover:underline">
+                    <a href={`/staff/modules/${moduleId}?tab=instructor`} className="font-medium underline-offset-2 hover:underline">
                       {t("staffCatalog.editor.assignTeacher")}
                     </a>
                   </>
@@ -400,7 +425,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             ) : null}
           </SectionBlock>
 
-          {created ? null : <NextStepCard moduleId={exam.moduleId} canAssign={role.canAssignInstructor} />}
+          {created ? null : <NextStepCard moduleId={moduleId} canAssign={role.canAssignInstructor} />}
 
           {role.canDelete ? (
             <section className="flex flex-wrap gap-3 border-t border-border pt-6">
@@ -430,6 +455,35 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
         onConfirm={() => publishExam()}
       />
 
+      {masterAdmin && changes.data ? (
+        <ChangeListDialog
+          open={reviewing}
+          onOpenChange={setReviewing}
+          changes={changes.data}
+          onPublish={(revisionId) => publishChanges.mutateAsync(revisionId)}
+          onFailed={(message) => setFormError(message)}
+        />
+      ) : null}
+
+      {masterAdmin ? (
+        <ConfirmDialog
+          open={discarding}
+          onOpenChange={setDiscarding}
+          title={t("staffCatalog.changes.discardTitle")}
+          body={t("staffCatalog.changes.discardBody")}
+          confirmLabel={t("staffCatalog.changes.discard")}
+          tone="danger"
+          onConfirm={async () => {
+            try {
+              await discardChanges.mutateAsync();
+              toast({ title: t("staffCatalog.changes.discarded"), tone: "ok" });
+            } catch (e) {
+              throw new Error(t(catalogErrorKey(e)));
+            }
+          }}
+        />
+      ) : null}
+
       {role.canDelete ? (
         <ConfirmDialog
           open={deleting}
@@ -442,7 +496,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           onConfirm={async () => {
             try {
               await remove.mutateAsync();
-              router.replace(`/staff/modules/${exam.moduleId}?tab=exams`);
+              router.replace(moduleId ? `/staff/modules/${moduleId}?tab=exams` : "/staff/exams");
             } catch (e) {
               throw new Error(t(catalogErrorKey(e)));
             }
