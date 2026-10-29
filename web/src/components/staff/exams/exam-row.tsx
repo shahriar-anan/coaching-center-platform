@@ -4,6 +4,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { ExamPrice } from "@/components/staff/exams/exam-price";
 import { useFormat } from "@/lib/format/use-format";
 import type { StaffExam } from "@/lib/api/exam/staff-catalog";
 
@@ -32,12 +33,11 @@ export function ExamRow({
   onAction: (action: ExamAction, exam: StaffExam) => void;
 }) {
   const { t } = useLocale();
-  const { pickTitle, formatDateTime, formatMoney, formatNumber } = useFormat();
+  const { pickTitle, formatDateTime, formatNumber } = useFormat();
   const title = pickTitle(exam);
   const otherPackages = (exam.packages ?? []).filter((ref) => ref.id !== groupPackageId).length;
   const window =
     exam.mode === "PRACTICE" ? t("staffExams.mode.PRACTICE") : exam.liveAt ? `${formatDateTime(exam.liveAt)}${exam.endAt ? ` – ${formatDateTime(exam.endAt)}` : ""}` : t("staffExams.row.undated");
-  const price = exam.free ? t("staffExams.row.free") : exam.price !== null ? formatMoney(exam.price) : t("staffExams.row.noPrice");
 
   const items: RowMenuItem[] = [
     { label: t("staffExams.row.results"), href: `/staff/exams/${exam.id}/results` },
@@ -71,7 +71,9 @@ export function ExamRow({
         {t(`staffExams.type.${exam.examType}`)} · {t(`staffExams.mode.${exam.mode ?? "LIVE"}`)}
       </p>
       <p className="text-meta text-muted tabular-nums">{window}</p>
-      <p className="text-meta text-text tabular-nums">{price}</p>
+      <p className="text-meta text-text tabular-nums">
+        <ExamPrice pricing={exam.pricing} />
+      </p>
       <div className="flex items-center gap-2">
         <StatusPill status={exam.status} />
         <Button href={`/staff/exams/${exam.id}`} variant="secondary" className="min-h-11">

@@ -52,6 +52,7 @@ const staffExams = {
     free: "Free",
     pending: "Has changes waiting",
     noPrice: "No price",
+    discountOff: "{percent}% off",
   },
   type: {
     MCQ: "MCQ",

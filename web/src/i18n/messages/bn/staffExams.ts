@@ -50,6 +50,7 @@ const staffExams = {
     also: "আরও {count}টি প্যাকেজে আছে",
     undated: "তারিখ এখনো নয়",
     free: "বিনামূল্যে",
+    discountOff: "{percent}% ছাড়",
     pending: "পরিবর্তন অপেক্ষায় আছে",
     noPrice: "মূল্য নেই",
   },
