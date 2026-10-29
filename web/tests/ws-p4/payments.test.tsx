@@ -88,11 +88,8 @@ describe("payment history page (S4.6)", () => {
 
     await screen.findByRole("heading", { name: "Order details" });
     const section = document.body;
-    expect(within(section).getByRole("button", { name: "Download PDF" })).toBeInTheDocument();
-    expect(within(section).getByRole("link", { name: "Print receipt" })).toHaveAttribute(
-      "href",
-      "/account/payments/receipt?order=o1",
-    );
+    expect(within(section).getByRole("button", { name: "Download receipt" })).toBeInTheDocument();
+    expect(within(section).queryByRole("link", { name: "Print receipt" })).not.toBeInTheDocument();
     expect(within(section).queryByRole("button", { name: "Cancel order" })).not.toBeInTheDocument();
     expect(screen.getAllByText("RCPT-2026-000123").length).toBeGreaterThan(0);
   });
