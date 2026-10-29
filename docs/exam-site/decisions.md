@@ -159,3 +159,15 @@ Shahriar agreed these after the client approved the design. The full record, wit
 - **Price and access.** Percent discounts with an optional end date, on exams and packages. A free exam can be sat by any signed-in student. Access is set per exam as a number of days counted from the window end (or from the grant if that is later), or for life. Expiry stops new attempts; results stay readable. Prices, discounts and the free setting are Master Admin only.
 - **Withdrawing.** An archived (withdrawn) package gives no access through it. A student who has the exam another way keeps it. Removing an exam from a package keeps it for anyone who held the package before.
 - **Also decided.** Popular exams and packages (Master Admin) and student favourites; a preview of the questions after the window (or any time for practice) when an exam allows it; no coupons; old-site data is not imported; "Module" is renamed "Package" on screens only, and the "Archive" button becomes "Withdraw".
+
+## Student page Phase 4 (decided 29 October 2026)
+
+Shahriar's answers, recorded in `new-requirements/student-page/PHASE-4-PLAN.md` section 2. The API changes are in `current-api.md`, "Added 2026-10-29 (Student page Phase 4)".
+
+- **Payment history keeps its path** (`/account/payments`), restyled, and is linked from the student menu, the account page, My exams, the package and exam pages, the purchase result, and the purchase-granted notice. The full link table is plan section 6, S4.6.
+- **Notice tabs** are Results, Exams and Announcements. `PURCHASE_GRANTED` sits under Exams. A kind that is not mapped (including one added later) sits under Exams. The mapping is one place in the API (`NoticeGroup`).
+- **Receipts.** A receipt number (`RCPT-<year>-<6 digits>`) and a PDF for each paid order. The PDF is English only, because PDFBox cannot draw Bangla. The web print view stays Bangla. The paid time is `paidAt` on each order; old paid orders carry an approximate time (their last update).
+- **No refunds and no refund states.** The payment history shows paid, awaiting payment, failed and cancelled only.
+- **Exam cover.** An exam has its own optional cover, uploaded by the Master Admin like a package cover. An exam without a cover shows its first package's cover, then the placeholder.
+- **Category counts** count the whole branch on a parent card and the card's own exams on a leaf (the same value on a leaf). No API change.
+- **Filters.** A segmented control (All, MCQ, Written) under the existing tabs on My exams (exam tab only) and Results. Bangla for every label is a draft until the client has seen it.

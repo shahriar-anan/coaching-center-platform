@@ -318,3 +318,49 @@ The authoritative tables are in `new-requirements/nr-01/api-changes/`. Summary:
 - The no-submit zero stays on the live board: replaced by the pass-mark filter on the board.
 - The answers-released switch: stores a value and gates nothing.
 - One instructor per package: now per exam, with a package default.
+
+## Added 2026-10-29 (Student page Phase 4, S4.0; plan `new-requirements/student-page/PHASE-4-PLAN.md` section 5)
+
+All additive. Old clients keep working: every existing field and route is unchanged, and new fields are added at the end of a response.
+
+### Migrations
+
+- **V52** (`live_exam_orders`): `paid_at timestamptz` and `receipt_no varchar(24)` (unique), with the sequence `live_exam_receipt_seq`. Paid time and the receipt number are set in the transaction that marks an order PAID (gateway verify, IPN, Master Admin confirm). A repeat notice does not move either.
+- **Backfill (V52).** Each existing PAID order gets `paid_at = updated_at`. That is the best value on record and is approximate for an order changed after payment. Existing PAID orders take receipt numbers in paid order. The demo seed does the same for its paid orders.
+- **V53** (`live_exams`): `cover_stored_name`, `cover_content_type`, `cover_byte_size`, `cover_updated_at`, as V41 on packages.
+
+### Notices (N1)
+
+- `GET /api/v1/me/notices?group=RESULTS|EXAMS|ANNOUNCEMENTS`. Absent means all, as before. Any other value is 400 `VALIDATION_FAILED`.
+- The tab of a kind is in one place, `NoticeGroup`: `MCQ_SCORE` and `WRITTEN_RESULT` are RESULTS, `ANNOUNCEMENT` is ANNOUNCEMENTS, and every other kind (including one added later) is EXAMS.
+- Each notice row adds `group` (the tab name).
+- `GET /api/v1/me/notices/unread-count` returns `{count, byGroup: {RESULTS, EXAMS, ANNOUNCEMENTS}}`. `count` is unchanged.
+- `POST /api/v1/me/notices/read-all?group=` marks one tab. Absent marks every notice, as before.
+
+### Orders (P1, P2, P3, P4)
+
+- `GET /api/v1/me/live-exam-orders` takes optional filters, all combinable:
+  - `status`: repeatable, one of `PENDING`, `PAID`, `FAILED`, `CANCELLED`.
+  - `scope`: `MODULE`, `EXAM` or `BUNDLE`.
+  - `moduleId`: the order's package, or the package of its exam (the same value the row shows as `moduleId`).
+  - `examId`: an exam's own orders, and any bundle that holds the exam.
+  - `from` and `to` (ISO dates, Bangladesh time, `to` inclusive): compared with the paid time, or the created time for an order not yet paid.
+  - `orderId` (P3): zero or one row with titles. Another student's id returns an empty page.
+  - Bad values are 400 `VALIDATION_FAILED`, and so is `from` after `to`.
+- Each row adds `paidAt` and `receiptNo` (null until paid). `OrderView` (`POST /live-exam-orders`, `GET /live-exam-orders/{id}`, and the rest) adds the same two fields. The staff order list (`GET /live-exam-orders`) adds them too.
+- `GET /api/v1/me/live-exam-orders/summary` returns `{totalPaid, currency, paidCount, pendingCount}` for the signed-in student, all time. `currency` is `BDT`.
+- `GET /api/v1/me/live-exam-orders/{id}/receipt.pdf` is an A4 PDF of the student's own PAID order, sent as an attachment named by the receipt number. Any other order (pending, failed, cancelled, another student's, unknown) is 404. The PDF is in English, because PDFBox cannot draw Bangla: the student's name keeps only its Latin letters, and an item with no English title prints without a title. The order id is always printed.
+- The receipt email (`ExamOutboundMail` payment receipt) carries the receipt number as one more line.
+
+### Exam cover (E1)
+
+- `POST /api/v1/live-exams/{id}/cover` (multipart `file`) and `DELETE /api/v1/live-exams/{id}/cover`: Master Admin (`MODULE_COVER_MANAGE`). Same types and 2 MB limit as the package cover. Saved at once, not staged.
+- `GET /api/v1/live-exams/{id}/cover`: staff (`EXAM_READ`), draft or published, `Cache-Control: private, no-cache`.
+- `GET /api/v1/public/live-exams/{id}/cover`: visitors. Only a PUBLISHED exam; any other exam is 404. `Cache-Control: public, max-age=3600`.
+- `coverUrl` (null when none) is added to: the staff and student exam read (`ExamView`, `StudentExam`), the package exam list (`ExamView`), the category exam rows (`CategoryExam`), the upcoming and popular rows (`UpcomingExam`), the public exam read and the favourites rows (`PublicExam`). The path carries the upload time as `?v=`.
+- The cover is the exam's own. The web falls back to the first package's cover, then the placeholder.
+
+### Known gaps
+
+- The bundle match for `examId` is covered by the SQL only; no IT builds a bundle with several exams in the new filter test.
+- No refunds and no refund states.
