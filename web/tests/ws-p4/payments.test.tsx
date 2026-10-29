@@ -54,7 +54,7 @@ describe("payment filters and actions (Phase 4, S4.6)", () => {
   });
 
   it("gives each status its own actions", () => {
-    expect(actionsFor("PAID")).toEqual(["downloadPdf", "printReceipt", "open"]);
+    expect(actionsFor("PAID")).toEqual(["downloadPdf", "open"]);
     expect(actionsFor("PENDING")).toEqual(["continue", "cancel"]);
     expect(actionsFor("FAILED")).toEqual(["buyAgain"]);
     expect(actionsFor("CANCELLED")).toEqual(["buyAgain"]);
@@ -109,7 +109,7 @@ describe("payment history page (S4.6)", () => {
     const panel = document.body;
     expect(within(panel).getByRole("button", { name: "Continue payment" })).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: "Cancel order" })).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Download PDF" })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Download receipt" })).not.toBeInTheDocument();
   });
 
   it("labels a bundle as a whole package, not as an exam", async () => {

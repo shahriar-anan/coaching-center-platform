@@ -125,7 +125,7 @@ const account = {
       accessExpired: "Expired on {date}",
       accessLifetime: "Lifetime access",
       accessUntil: "Access until {date}",
-      downloadPdf: "Download PDF",
+      downloadPdf: "Download receipt",
       pdfFailed: "The receipt could not be downloaded. Try again.",
       printReceipt: "Print receipt",
       open: "Open",

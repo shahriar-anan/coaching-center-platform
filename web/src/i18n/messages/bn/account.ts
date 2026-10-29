@@ -125,7 +125,7 @@ const account = {
       accessExpired: "{date} শেষ হয়েছে",
       accessLifetime: "আজীবন অ্যাক্সেস",
       accessUntil: "{date} পর্যন্ত অ্যাক্সেস",
-      downloadPdf: "পিডিএফ নামান",
+      downloadPdf: "রসিদ নামান",
       pdfFailed: "রসিদ নামানো যায়নি। আবার চেষ্টা করুন।",
       printReceipt: "রসিদ ছাপুন",
       open: "খুলুন",
