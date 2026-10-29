@@ -316,7 +316,8 @@ public class DemoContentSeed {
 		boolean topUp = exists("live_exam_modules", MODULE_DRAFT_READY);
 		boolean review = exists("live_exam_modules", MODULE_SALE);
 		boolean expired = exists("live_exams", demo('e', 65));
-		if (base && topUp && review && expired) {
+		boolean reviewOrders = exists("live_exam_orders", demo('c', 12));
+		if (base && topUp && review && expired && reviewOrders) {
 			return;
 		}
 		String hash = passwords.encode(password);
@@ -339,6 +340,9 @@ public class DemoContentSeed {
 		}
 		if (!expired) {
 			expiredCase(now);
+		}
+		if (!reviewOrders) {
+			insertOrders(reviewStudentOrders(now));
 		}
 	}
 
@@ -707,6 +711,23 @@ public class DemoContentSeed {
 						now.minus(Duration.ofHours(26)), false),
 				new Order(11, "DEMO-PKG-B4-A", STUDENT_A, "MODULE", MODULE_BAR, null, "1200.00", "INITIATED",
 						now.minus(Duration.ofDays(2)), false));
+	}
+
+	/**
+	 * The review student's own payments in the three states the review needs (NR-01 review, S4.8): a pending exam order and a pending
+	 * package order, both older than a day so the recheck job leaves them; a failed package order; and a cancelled discounted
+	 * package. None of them grants access, so the student's access is the same as before.
+	 */
+	private static List<Order> reviewStudentOrders(Instant now) {
+		return List.of(
+				new Order(12, "DEMO-EXM-E60-D", STUDENT_D, "EXAM", MODULE_SALE, demo('e', 60), "300.00", "INITIATED",
+						now.minus(Duration.ofDays(2)), false),
+				new Order(13, "DEMO-PKG-B8-D", STUDENT_D, "MODULE", MODULE_POPULAR, null, "900.00", "INITIATED",
+						now.minus(Duration.ofDays(3)), false),
+				new Order(14, "DEMO-EXM-E63-D", STUDENT_D, "EXAM", MODULE_POPULAR, demo('e', 63), "300.00", "FAILED",
+						now.minus(Duration.ofDays(5)), false),
+				new Order(15, "DEMO-PKG-B7-D", STUDENT_D, "MODULE", MODULE_SALE, null, "750.00", "CANCELLED",
+						now.minus(Duration.ofDays(6)), false));
 	}
 
 	private void insertOrders(List<Order> orders) {

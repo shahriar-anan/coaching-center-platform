@@ -235,11 +235,11 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	@Test
 	void paymentsAreInEveryStateAndOnlyPaidOnesGrantAccess() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(11);
+		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(15);
 		assertThat(orderCount("SUCCEEDED")).isEqualTo(5);
-		assertThat(orderCount("FAILED")).isEqualTo(2);
-		assertThat(orderCount("CANCELLED")).isEqualTo(1);
-		assertThat(orderCount("INITIATED")).isEqualTo(3);
+		assertThat(orderCount("FAILED")).isEqualTo(3);
+		assertThat(orderCount("CANCELLED")).isEqualTo(2);
+		assertThat(orderCount("INITIATED")).isEqualTo(5);
 		// Only a paid order carries a grant.
 		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(7);
 		assertThat(jdbc.queryForObject("""
@@ -254,13 +254,27 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theReviewStudentHasAPendingFailedAndCancelledPaymentAndNoAccessFromThem() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ? AND status = 'INITIATED' AND id::text LIKE ?",
+				Integer.class, DemoContentSeed.STUDENT_D, DEMO_ORDER)).isEqualTo(2);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ? AND status = 'FAILED' AND id::text LIKE ?",
+				Integer.class, DemoContentSeed.STUDENT_D, DEMO_ORDER)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ? AND status = 'CANCELLED' AND id::text LIKE ?",
+				Integer.class, DemoContentSeed.STUDENT_D, DEMO_ORDER)).isEqualTo(1);
+		// Only a paid order grants access, so none of the review student's four orders has a grant.
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_grants WHERE student_id = ? AND order_id IS NOT NULL",
+				Integer.class, DemoContentSeed.STUDENT_D)).isZero();
+	}
+
+	@Test
 	void thePendingPaymentsAreOlderThanADaySoTheRecheckJobLeavesThemForTheMasterAdmin() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
 		// The recheck job reads open orders from the last 24 hours only, so none of these is touched by it.
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = 'INITIATED'
 				  AND created_at < ?
-				""", Integer.class, DEMO_ORDER, java.sql.Timestamp.from(NOW.minus(Duration.ofHours(24))))).isEqualTo(3);
+				""", Integer.class, DEMO_ORDER, java.sql.Timestamp.from(NOW.minus(Duration.ofHours(24))))).isEqualTo(5);
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = 'INITIATED'
 				  AND (val_id IS NOT NULL OR payment_channel IS NOT NULL)
@@ -360,7 +374,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 				DemoContentSeed.demo('e', 51), DemoContentSeed.demo('e', 52), DemoContentSeed.demo('e', 53) };
 		jdbc.update("DELETE FROM live_exam_participants WHERE id IN (?, ?)", DemoContentSeed.demo('7', 7), DemoContentSeed.demo('7', 8));
 		jdbc.update("DELETE FROM live_exam_grants WHERE id IN (?, ?)", DemoContentSeed.demo('d', 5), DemoContentSeed.demo('d', 6));
-		for (int order = 5; order <= 11; order++) {
+		for (int order = 5; order <= 15; order++) {
 			jdbc.update("DELETE FROM live_exam_orders WHERE id = ?", DemoContentSeed.demo('c', order));
 		}
 		for (UUID exam : exams) {
@@ -449,7 +463,7 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 				DEMO_QUESTION)).isEqualTo(640);
 		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(8);
 		assertThat(count("users", DEMO_STUDENT)).isEqualTo(4);
-		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(11);
+		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(15);
 		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(7);
 	}
 
