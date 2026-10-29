@@ -23,6 +23,7 @@ import bnStaffOps from "./bn/staffOps";
 import bnStaffMarking from "./bn/staffMarking";
 import bnStaffResults from "./bn/staffResults";
 import bnStaffAdmin from "./bn/staffAdmin";
+import bnStaffExams from "./bn/staffExams";
 
 import enLegacy from "./en/legacy";
 import enCommon from "./en/common";
@@ -42,6 +43,7 @@ import enStaffOps from "./en/staffOps";
 import enStaffMarking from "./en/staffMarking";
 import enStaffResults from "./en/staffResults";
 import enStaffAdmin from "./en/staffAdmin";
+import enStaffExams from "./en/staffExams";
 
 export type { MessageTree };
 
@@ -75,6 +77,7 @@ export const bn: MessageTree = merge(bnLegacy as MessageTree, {
   staffMarking: bnStaffMarking,
   staffResults: bnStaffResults,
   staffAdmin: bnStaffAdmin,
+  staffExams: bnStaffExams,
 });
 
 export const en: MessageTree = merge(enLegacy as MessageTree, {
@@ -95,6 +98,7 @@ export const en: MessageTree = merge(enLegacy as MessageTree, {
   staffMarking: enStaffMarking,
   staffResults: enStaffResults,
   staffAdmin: enStaffAdmin,
+  staffExams: enStaffExams,
 });
 
 export const catalogs = { bn, en };
