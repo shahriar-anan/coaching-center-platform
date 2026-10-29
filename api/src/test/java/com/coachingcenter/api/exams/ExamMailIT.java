@@ -318,6 +318,60 @@ class ExamMailIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aTypedReceiptAddressGetsTheReceiptAndTheAccountEmailGetsNone() {
+		Fixture fixture = seed("PUBLISHED", START.plus(Duration.ofHours(2)), "Typed receipt", "টাইপড");
+		Student buyer = student("ACTIVE");
+		exams.publish(fixture.examId);
+		BigDecimal amount = new BigDecimal("80.00");
+		LiveExamOrder order = orders.insert(buyer.id, LiveExamOrder.EXAM, fixture.moduleId, fixture.examId, amount, amount, null,
+				"typed@example.com");
+		orders.verify(order.getTranId(),
+				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
+
+		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isEqualTo(1);
+		assertThat(sender.sentTo("typed@example.com").stream().anyMatch(message -> message.subject().contains("Payment receipt")))
+			.isTrue();
+		assertThat(sender.sentTo(buyer.email).stream().anyMatch(message -> message.subject().contains("Payment receipt")))
+			.isFalse();
+	}
+
+	@Test
+	void anUnverifiedAccountWithNoTypedAddressGetsNoReceiptRow() {
+		Fixture fixture = seed("PUBLISHED", START.plus(Duration.ofHours(2)), "Unverified paper", "আনভেরিফায়েড");
+		Student buyer = student("ACTIVE");
+		jdbc.update("update users set email_verified_at = null where id = ?", buyer.id);
+		exams.publish(fixture.examId);
+		BigDecimal amount = new BigDecimal("90.00");
+		LiveExamOrder order = orders.insert(buyer.id, LiveExamOrder.EXAM, fixture.moduleId, fixture.examId, amount);
+		orders.verify(order.getTranId(),
+				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
+
+		assertThat(orderStatus(order.getId())).isEqualTo(LiveExamOrder.SUCCEEDED);
+		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isZero();
+		assertThat(sender.sentTo(buyer.email).stream().anyMatch(message -> message.subject().contains("Payment receipt")))
+			.isFalse();
+		// The purchase notice to the Master Admin is unchanged by the receipt rule.
+		assertThat(noticeCount(order.getId())).isEqualTo(1);
+	}
+
+	@Test
+	void anUnverifiedAccountWithATypedAddressGetsTheReceiptThere() {
+		Fixture fixture = seed("PUBLISHED", START.plus(Duration.ofHours(2)), "Unverified typed", "আনভেরিফায়েড টাইপড");
+		Student buyer = student("ACTIVE");
+		jdbc.update("update users set email_verified_at = null where id = ?", buyer.id);
+		exams.publish(fixture.examId);
+		BigDecimal amount = new BigDecimal("95.00");
+		LiveExamOrder order = orders.insert(buyer.id, LiveExamOrder.EXAM, fixture.moduleId, fixture.examId, amount, amount, null,
+				"reader@example.com");
+		orders.verify(order.getTranId(),
+				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
+
+		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isEqualTo(1);
+		assertThat(sender.sentTo("reader@example.com").stream().anyMatch(message -> message.subject().contains("Payment receipt")))
+			.isTrue();
+	}
+
+	@Test
 	void failedAndCancelledOrdersSendNoMail() {
 		Fixture fixture = seed("PUBLISHED", START.plus(Duration.ofHours(2)), "Unpaid", "অপেইড");
 		Student buyer = student("ACTIVE");
@@ -485,9 +539,10 @@ class ExamMailIT extends PostgresIntegrationTest {
 		String phone = "+8801" + ThreadLocalRandom.current().nextInt(100_000_000, 1_000_000_000);
 		UUID id = UUID.randomUUID();
 		String email = "exam-" + id + "@example.com";
+		// A verified account email: the receipt rule (Phase 4B) sends to it when no address was typed.
 		jdbc.update("""
-				insert into users (id, phone, email, role, status, created_at, updated_at)
-				values (?, ?, ?, 'STUDENT', ?, now(), now())
+				insert into users (id, phone, email, email_verified_at, role, status, created_at, updated_at)
+				values (?, ?, ?, now(), 'STUDENT', ?, now(), now())
 				""", id, phone, email, status);
 		return new Student(id, email, phone);
 	}

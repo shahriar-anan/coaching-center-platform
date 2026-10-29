@@ -86,6 +86,20 @@ class ExamMailTexts {
 		return studentId + "/" + exam.getId() + "/" + exam.getLiveAt();
 	}
 
+	/**
+	 * Where a receipt goes (Phase 4B): the address typed for the order, else the account email when it is verified, else
+	 * nowhere (null). The queue uses the same rule, so no receipt row is made for an order with nowhere to send it.
+	 */
+	static String receiptAddress(LiveExamOrder order, User student) {
+		if (order.getReceiptEmail() != null && !order.getReceiptEmail().isBlank()) {
+			return order.getReceiptEmail();
+		}
+		if (student.getEmailVerifiedAt() != null && student.getEmail() != null && !student.getEmail().isBlank()) {
+			return student.getEmail();
+		}
+		return null;
+	}
+
 	private Prepared receipt(ExamOutboundMail row) {
 		UUID id = orderId(row);
 		if (id == null) {
@@ -99,16 +113,20 @@ class ExamMailTexts {
 		if (student == null || !student.getId().equals(order.getStudentId())) {
 			return null;
 		}
+		String to = receiptAddress(order, student);
+		if (to == null) {
+			return null;
+		}
 		Titles titles = titles(order);
 		if (titles == null) {
 			return null;
 		}
 		String buyerName = profiles.findById(student.getId()).map(StudentProfile::getFullName).orElse(null);
 		boolean module = !LiveExamOrder.EXAM.equals(order.getScope());
-		RenderedEmail mail = EmailTemplates.paymentReceipt(context, new MailRecipient(student.getEmail(), buyerName, Role.STUDENT), module,
+		RenderedEmail mail = EmailTemplates.paymentReceipt(context, new MailRecipient(to, buyerName, Role.STUDENT), module,
 				titles.bn(), titles.en(), order.getAmount().toPlainString(), order.getPaymentChannel(), order.getTranId(),
 				TIME.format(order.getUpdatedAt()), module ? "/my-modules" : "/exam/" + order.getExamId(), order.getReceiptNo());
-		return new Prepared(student.getEmail(), mail.subject(), mail.text(), mail.html());
+		return new Prepared(to, mail.subject(), mail.text(), mail.html());
 	}
 
 	private Prepared purchaseNotice(ExamOutboundMail row) {

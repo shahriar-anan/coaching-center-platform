@@ -83,6 +83,35 @@ class BundleOrderIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aTypedReceiptAddressIsKeptOnTheBundleAndAnInvalidOneMakesNoOrder() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		UUID module = publishPricedModule(master, "Receipt shop", "1000.00");
+		UUID first = publishMcq(master, module, "Receipt first", "100.00", "2026-10-20T12:00:00+06:00");
+		UUID second = publishMcq(master, module, "Receipt second", "200.00", "2026-10-20T13:00:00+06:00");
+
+		JsonNode refused = initiate(student, bundleWithReceipt("not-an-email", first, second), 400);
+		assertThat(refused.get("fieldErrors").get(0).get("field").asText()).isEqualTo("receiptEmail");
+		assertThat(orderCount(studentId)).isZero();
+
+		JsonNode order = initiate(student, bundleWithReceipt("  Buyer@Example.COM ", first, second), 201);
+		assertThat(order.get("receiptEmail").asText()).isEqualTo("buyer@example.com");
+		UUID orderId = UUID.fromString(order.get("orderId").asText());
+		assertThat(jdbc.queryForObject("select receipt_email from live_exam_orders where id = ?", String.class, orderId))
+			.isEqualTo("buyer@example.com");
+		assertThat(order(student, orderId).get("receiptEmail").asText()).isEqualTo("buyer@example.com");
+
+		// The same open bundle takes the address now sent, and a blank one clears it.
+		JsonNode again = initiate(student, bundleWithReceipt("", first, second), 200);
+		assertThat(again.get("orderId").asText()).isEqualTo(orderId.toString());
+		// A null field is left out of the JSON, so the cleared address is an absent one.
+		assertThat(again.hasNonNull("receiptEmail")).isFalse();
+		assertThat(jdbc.queryForObject("select receipt_email from live_exam_orders where id = ?", String.class, orderId)).isNull();
+		assertThat(orderCount(studentId)).isEqualTo(1);
+	}
+
+	@Test
 	void threeExamsMakeOneOrderAndAValidIpnGrantsEachOnce() throws Exception {
 		String master = token(seed("MASTER_ADMIN"));
 		UUID studentId = seed("STUDENT");
@@ -351,6 +380,11 @@ class BundleOrderIT extends PostgresIntegrationTest {
 		assertThat(grantsFor(studentId)).isEqualTo(2);
 	}
 
+	private static String bundleWithReceipt(String receiptEmail, UUID... examIds) {
+		String base = bundle(examIds);
+		return base.substring(0, base.length() - 1) + ",\"receiptEmail\":\"" + receiptEmail + "\"}";
+	}
+
 	private static String bundle(UUID... examIds) {
 		StringBuilder body = new StringBuilder("{\"examIds\":[");
 		for (int i = 0; i < examIds.length; i++) {
@@ -514,6 +548,8 @@ class BundleOrderIT extends PostgresIntegrationTest {
 		if ("STUDENT".equals(role)) {
 			jdbc.update("INSERT INTO student_profiles (user_id, full_name, student_code) VALUES (?, 'Seed', ?)", id,
 					"S" + id.toString().substring(0, 8));
+			// A verified account email, so the receipt goes to it when no address is typed (Phase 4B).
+			jdbc.update("update users set email_verified_at = now() where id = ?", id);
 		}
 		else {
 			jdbc.update("INSERT INTO admin_profiles (user_id, full_name) VALUES (?, 'Admin')", id);

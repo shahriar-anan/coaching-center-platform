@@ -56,7 +56,7 @@ public class LiveExamOrderHistoryService {
 	private static final String SELECT = """
 			select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, coalesce(o.module_id, pk.module_id) as module_id,
 			  o.exam_id, o.payment_channel, o.list_price, o.discount_percent,
-			  o.created_at, o.paid_at, o.receipt_no, m.title_en as module_title_en, m.title_bn as module_title_bn,
+			  o.created_at, o.paid_at, o.receipt_no, o.receipt_email, m.title_en as module_title_en, m.title_bn as module_title_bn,
 			  e.title_en as exam_title_en, e.title_bn as exam_title_bn
 			""";
 
@@ -82,7 +82,7 @@ public class LiveExamOrderHistoryService {
 						rs.getString("exam_title_en"), rs.getString("exam_title_bn"), rs.getString("payment_channel"),
 						instant(rs.getTimestamp("created_at")), rs.getBigDecimal("list_price"),
 						rs.getObject("discount_percent", Integer.class), instant(rs.getTimestamp("paid_at")),
-						rs.getString("receipt_no")));
+						rs.getString("receipt_no"), rs.getString("receipt_email")));
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
 
@@ -207,7 +207,7 @@ public class LiveExamOrderHistoryService {
 	public record OwnOrderRow(UUID orderId, String tranId, String status, BigDecimal amount, String currency, String scope,
 			UUID moduleId, String moduleTitleEn, String moduleTitleBn, UUID examId, String examTitleEn, String examTitleBn,
 			String paymentChannel, Instant createdAt, BigDecimal listPrice, Integer discountPercent, Instant paidAt,
-			String receiptNo) {
+			String receiptNo, String receiptEmail) {
 	}
 
 	/** A paid order with the student's name and phone, as the receipt prints them. Either may be null. */

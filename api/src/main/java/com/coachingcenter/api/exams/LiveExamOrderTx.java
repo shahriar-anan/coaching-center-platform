@@ -71,6 +71,12 @@ class LiveExamOrderTx {
 	@Transactional
 	public LiveExamOrder insert(UUID studentId, String scope, UUID moduleId, UUID examId, BigDecimal amount,
 			BigDecimal listPrice, Integer discountPercent) {
+		return insert(studentId, scope, moduleId, examId, amount, listPrice, discountPercent, null);
+	}
+
+	@Transactional
+	public LiveExamOrder insert(UUID studentId, String scope, UUID moduleId, UUID examId, BigDecimal amount,
+			BigDecimal listPrice, Integer discountPercent, String receiptEmail) {
 		Instant now = clock.instant();
 		LiveExamOrder order = new LiveExamOrder();
 		order.setId(UUID.randomUUID());
@@ -81,6 +87,7 @@ class LiveExamOrderTx {
 		order.setAmount(amount);
 		order.setListPrice(listPrice);
 		order.setDiscountPercent(discountPercent);
+		order.setReceiptEmail(receiptEmail);
 		order.setCurrency(LiveExamOrder.BDT);
 		order.setMethod(LiveExamOrder.SSLCOMMERZ);
 		order.setTranId(tranId());
@@ -96,17 +103,24 @@ class LiveExamOrderTx {
 	 */
 	@Transactional
 	public LiveExamOrderBundle.Inserted insertBundle(UUID studentId, UUID moduleId, List<UUID> examIds,
-			BigDecimal amount, BigDecimal listPrice, Integer discountPercent) {
+			BigDecimal amount, BigDecimal listPrice, Integer discountPercent, String receiptEmail) {
 		bundles.lockStudent(studentId);
 		Optional<UUID> open = bundles.findOpen(studentId, moduleId, examIds);
 		if (open.isPresent()) {
-			return new LiveExamOrderBundle.Inserted(orders.findById(open.get()).orElseThrow(LiveExamOrderTx::notFound),
-					false);
+			return new LiveExamOrderBundle.Inserted(setReceiptEmail(open.get(), receiptEmail), false);
 		}
 		LiveExamOrder order = insert(studentId, LiveExamOrderBundle.SCOPE, moduleId, null, amount, listPrice,
-				discountPercent);
+				discountPercent, receiptEmail);
 		bundles.insertExams(order.getId(), examIds);
 		return new LiveExamOrderBundle.Inserted(order, true);
+	}
+
+	/** Sets the receipt address of an open order: the student may type it again before paying (Phase 4B). */
+	@Transactional
+	public LiveExamOrder setReceiptEmail(UUID orderId, String receiptEmail) {
+		LiveExamOrder order = orders.findById(orderId).orElseThrow(LiveExamOrderTx::notFound);
+		order.setReceiptEmail(receiptEmail);
+		return orders.saveAndFlush(order);
 	}
 
 	@Transactional

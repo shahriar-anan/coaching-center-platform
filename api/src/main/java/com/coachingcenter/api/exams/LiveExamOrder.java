@@ -238,6 +238,18 @@ public class LiveExamOrder {
 		this.receiptNo = receiptNo;
 	}
 
+	/** The receipt address the student typed for this order (V54), or null: the account email is used when verified. */
+	@Column(name = "receipt_email", length = 254)
+	private String receiptEmail;
+
+	public String getReceiptEmail() {
+		return receiptEmail;
+	}
+
+	public void setReceiptEmail(String receiptEmail) {
+		this.receiptEmail = receiptEmail;
+	}
+
 	/** Set when Master Admin confirms a pending order after checking the payment (V39). */
 	@Column(name = "confirmed_by")
 	private UUID confirmedBy;
