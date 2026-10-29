@@ -317,7 +317,8 @@ public class DemoContentSeed {
 		boolean review = exists("live_exam_modules", MODULE_SALE);
 		boolean expired = exists("live_exams", demo('e', 65));
 		boolean reviewOrders = exists("live_exam_orders", demo('c', 12));
-		if (base && topUp && review && expired && reviewOrders) {
+		boolean preview = exists("live_exams", demo('e', 66));
+		if (base && topUp && review && expired && reviewOrders && preview) {
 			return;
 		}
 		String hash = passwords.encode(password);
@@ -343,6 +344,9 @@ public class DemoContentSeed {
 		}
 		if (!reviewOrders) {
 			insertOrders(reviewStudentOrders(now));
+		}
+		if (!preview) {
+			previewCase(now);
 		}
 	}
 
@@ -443,6 +447,19 @@ public class DemoContentSeed {
 				INSERT INTO live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)
 				VALUES (?, ?, 'EXAM', NULL, ?, NULL, ?, 'MANUAL') ON CONFLICT (id) DO NOTHING
 				""", demo('d', 21), STUDENT_D, demo('e', 65), ts(now.minus(Duration.ofDays(30))));
+	}
+
+	/**
+	 * The preview case (C10', P-b), added once: a standalone MCQ paper whose window ended five days ago, with preview on. A signed-in
+	 * student opens its paper from the exam page, and the correct options stay hidden.
+	 */
+	private void previewCase(Instant now) {
+		Schedule s = Schedule.at(now);
+		exam(mcq(66, null, "Preview MCQ", "প্রিভিউ এমসিকিউ",
+				"A finished MCQ paper with preview on. Open the paper from the exam page; the correct answers stay hidden.",
+				"একটি শেষ হওয়া এমসিকিউ পরীক্ষা, প্রিভিউ চালু আছে। পরীক্ষার পাতা থেকে প্রশ্নপত্র দেখুন; সঠিক উত্তর লুকানো থাকে।",
+				s.at23(-5), "300.00", PENAL, false), now);
+		jdbc.update("UPDATE live_exams SET preview_enabled = true WHERE id = ?", demo('e', 66));
 	}
 
 	/** An exam in one more package. Its membership id is the exam's number plus 100, so it cannot clash with the first one. */
