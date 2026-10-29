@@ -81,6 +81,8 @@ const staffPeople = {
     filters: {
       module: "Package",
       allModules: "All packages",
+      category: "Category",
+      allCategories: "All categories",
       type: "Type",
       allTypes: "All types",
       from: "From",
@@ -89,7 +91,7 @@ const staffPeople = {
       text: "Exam name",
       textPlaceholder: "Search by exam name",
     },
-    sort: { date: "Date", title: "Title", sitting: "Sittings" },
+    sort: { date: "Date", title: "Title", sitting: "Sittings", category: "Category" },
     type: { MCQ: "MCQ", WRITTEN: "Written" },
     columns: {
       exam: "Exam",

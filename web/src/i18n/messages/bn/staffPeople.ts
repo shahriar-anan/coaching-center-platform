@@ -81,6 +81,8 @@ const staffPeople = {
     filters: {
       module: "প্যাকেজ",
       allModules: "সব প্যাকেজ",
+      category: "ক্যাটাগরি",
+      allCategories: "সব ক্যাটাগরি",
       type: "ধরন",
       allTypes: "সব ধরন",
       from: "শুরু থেকে",
@@ -89,7 +91,7 @@ const staffPeople = {
       text: "পরীক্ষার নাম",
       textPlaceholder: "পরীক্ষার নাম দিয়ে খুঁজুন",
     },
-    sort: { date: "তারিখ", title: "নাম", sitting: "অংশগ্রহণ সংখ্যা" },
+    sort: { date: "তারিখ", title: "নাম", sitting: "অংশগ্রহণ সংখ্যা", category: "ক্যাটাগরি" },
     type: { MCQ: "এমসিকিউ", WRITTEN: "রিটেন" },
     columns: {
       exam: "পরীক্ষা",

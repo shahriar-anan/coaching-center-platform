@@ -30,6 +30,7 @@ import {
 } from "@/components/staff/participation/exam-step";
 import { ALL_STAFF, RequireStaff, useRole } from "@/lib/auth/guards";
 import { useModuleOptions, useParticipation, type ParticipationRow } from "@/lib/api/exam/staff-people";
+import { useCategoryTree, type CategoryTreeNode } from "@/lib/api/exam/staff-catalog";
 import { useFormat } from "@/lib/format/use-format";
 import { useServerNow } from "@/lib/time/clock";
 import { useListParams } from "@/lib/url/list-params";
@@ -72,6 +73,7 @@ function Participation() {
     q: "",
     sort: "liveAt",
     focus: "",
+    categoryId: "",
   });
   const focus: Focus = isFocus(params.focus) ? params.focus : "";
   const rows = useParticipation({
@@ -83,10 +85,13 @@ function Participation() {
     to: params.to ? dhakaDay(params.to, true) : "",
     q: params.q,
     sort: params.sort,
+    categoryId: params.categoryId,
   });
   // The tab counts cover every written exam, whatever the filters below say.
   const written = useParticipation({ page: 0, size: FOCUS_SIZE, moduleId: "", type: "WRITTEN", from: "", to: "", q: "", sort: "liveAt" });
   const modules = useModuleOptions();
+  const categories = useCategoryTree();
+  const categoryOptions = flatCategories(categories.data ?? []);
   const drafts = useDraftContent();
   const showDrafts = focus === "drafts";
   const totals = focusTotals(written.data?.content ?? []);
@@ -113,6 +118,9 @@ function Participation() {
             {format.pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn })} ·{" "}
             {t(row.examType === "MCQ" ? "staffPeople.participation.type.MCQ" : "staffPeople.participation.type.WRITTEN")}
           </span>
+          {row.categoryTitleEn || row.categoryTitleBn ? (
+            <span className="text-meta text-muted">{format.pickTitle({ titleEn: row.categoryTitleEn ?? "", titleBn: row.categoryTitleBn ?? "" })}</span>
+          ) : null}
         </div>
       ),
     },
@@ -277,11 +285,22 @@ function Participation() {
             <option value="WRITTEN">{t("staffPeople.participation.type.WRITTEN")}</option>
           </Select>
         </Field>
+        <Field label={t("staffPeople.participation.filters.category")}>
+          <Select value={params.categoryId} onChange={(event) => setParams({ categoryId: event.target.value })}>
+            <option value="">{t("staffPeople.participation.filters.allCategories")}</option>
+            {categoryOptions.map((category) => (
+              <option key={category.id} value={category.id}>
+                {`${"— ".repeat(category.depth)}${format.pickTitle({ titleEn: category.titleEn, titleBn: category.titleBn })}`}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Field label={t("staffPeople.participation.filters.sort")}>
           <Select value={params.sort} onChange={(event) => setParams({ sort: event.target.value })}>
             <option value="liveAt">{t("staffPeople.participation.sort.date")}</option>
             <option value="title">{t("staffPeople.participation.sort.title")}</option>
             <option value="sitting">{t("staffPeople.participation.sort.sitting")}</option>
+            <option value="category">{t("staffPeople.participation.sort.category")}</option>
           </Select>
         </Field>
         <Field label={t("staffPeople.participation.filters.from")}>
@@ -321,4 +340,12 @@ function Participation() {
       )}
     </div>
   );
+}
+
+/** The category tree as select options, subcategories indented under their parent (the same order as the catalog). */
+function flatCategories(nodes: CategoryTreeNode[], depth = 0): { id: string; titleEn: string; titleBn: string; depth: number }[] {
+  return nodes.flatMap((node) => [
+    { id: node.id, titleEn: node.titleEn, titleBn: node.titleBn, depth },
+    ...flatCategories(node.children ?? [], depth + 1),
+  ]);
 }

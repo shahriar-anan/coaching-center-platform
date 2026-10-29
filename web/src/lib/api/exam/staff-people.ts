@@ -199,6 +199,10 @@ export type ParticipationRow = {
   moduleId: string;
   moduleTitleEn: string;
   moduleTitleBn: string;
+  /** The exam's own category (API: categoryId, categoryTitleEn, categoryTitleBn). */
+  categoryId?: string | null;
+  categoryTitleEn?: string | null;
+  categoryTitleBn?: string | null;
   examType: ExamType;
   titleEn: string;
   titleBn: string;
@@ -225,6 +229,8 @@ export type ParticipationFilters = {
   to: string;
   q: string;
   sort: string;
+  /** Empty for every category (API: categoryId). */
+  categoryId?: string;
 };
 
 export type ParticipationSummary = { awaitingMarking: number; draftsAwaitingPublish: number };
