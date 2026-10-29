@@ -72,7 +72,7 @@ Each slice ends with its exit check passing and a line in [../reports/vps-stagin
 1. From `api/`, run `mvn test` against local PostgreSQL with `TEST_DB_URL`, `TEST_DB_USER` and `TEST_DB_PASSWORD` set. This PC has no Docker. Every class passes except, at most, `BookOrderIT` and `CoursePurchaseIT` (V1).
 2. Commit (V2).
 3. `mvn -DskipTests clean package`. The suite just passed on the same commit. Always `clean`: a deleted source file leaves its `.class` in `target/`, and a plain `package` would ship it (seen on 25 October 2026 with the removed mail-test controller). Record the SHA-256 of `api/target/api-0.0.1-SNAPSHOT.jar` and the commit hash.
-4. Web: apply V3 (one line in `next.config.ts`). Read `web/node_modules/next/dist/docs/` on standalone output first, as `web/AGENTS.md` requires. Build with `NEXT_PUBLIC_API_BASE_URL=https://srv2089893.hstgr.cloud`. The value is baked in at build time and is not secret, so set it in the shell for this build and do not change `web/.env.local`. Run `npm run lint` and `npm test` first.
+4. Web: apply V3 (one line in `next.config.ts`). Read `web/node_modules/next/dist/docs/` on standalone output first, as `web/AGENTS.md` requires. Build with `NEXT_PUBLIC_API_BASE_URL` set to empty, plus `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_STAFF_URL` set to the two hosts (`web/.env.example`). Empty means each host calls its own `/api/`. An absolute URL here (the original instruction was the student host) makes the admin host's API calls cross-site, so the browser drops the `SameSite=Strict` refresh cookie and every refresh logs the admin out (29 October 2026). The values are baked in at build time and are not secret, so set them in Git Bash for this build (`NEXT_PUBLIC_API_BASE_URL= npm run build`; in PowerShell `$env:X=''` deletes the variable and `web/.env.local`'s `localhost:8080` wins) and do not change `web/.env.local`. After the build, the client chunks must show `let u=a("")` before the host config and no `localhost:80`. Run `npm run lint` and `npm test` first.
 5. Check the standalone folder for native modules built for Windows (for example `sharp`, or anything under `node_modules/@img`). A Windows binary will not load on Linux. The build bundles `@img/sharp-win32-x64`. Shahriar approved this swap on 25 October 2026: in an empty scratch folder, `npm install --os=linux --cpu=x64 --libc=glibc sharp@<version in standalone/node_modules/sharp>`, copy its `@img/sharp-linux-x64` and `@img/sharp-libvips-linux-x64` into `.next/standalone/node_modules/@img/`, and delete `@img/sharp-win32-x64`. Do not run `npm install` inside the standalone folder: it would install every dependency in its `package.json`. Repeat after every web build.
 
 **Exit:** suite green apart from the V1 exception, commit hash and jar SHA recorded, `web/.next/standalone/server.js` exists, and `find .next/standalone -name '*.node'` lists only Linux files.
@@ -169,7 +169,7 @@ Follows [auth-and-mail.md](auth-and-mail.md) section 4, steps 3–6.
 
 **Exit:** both services enabled and active, Nginx config valid, pages served over HTTPS, and no request goes to `localhost`.
 
-**Redeploying the website later:** build on the PC, swap the `sharp` binary (slice 0 step 5), copy into a new folder, swap folders, then `systemctl restart coaching-web`.
+**Redeploying the website later:** build on the PC with the env in slice 0 step 4 (empty API base), swap the `sharp` binary (slice 0 step 5), copy into a new folder, check that its API base is empty, swap folders, then `systemctl restart coaching-web`.
 
 ### 7. Staging seed
 

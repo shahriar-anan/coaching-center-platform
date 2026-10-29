@@ -102,6 +102,25 @@ Tests before the release: web 116 files and 700 tests pass; API 409 tests, 407 p
 
 Rollback: stop `coaching-api`, copy `api.jar.before-receipt` over `api.jar`, start it.
 
+## Website fix, 30 October 2026: admin logged out on every refresh
+
+Web only; same commit as the live site (`8713cfc`), rebuilt with the right env. No API, database, env or Nginx change.
+
+The cause: the two website releases of 29 October (17:12 and 17:36 UTC, builds `5B92vXoiWFLLSJqx8o1S9` and `lHFX65ZOIlGjVK_Cso__c`) were built with `NEXT_PUBLIC_API_BASE_URL=https://srv2089893.hstgr.cloud`, following the old slice 0 step 4 of the VPS plan, and without the two host URLs. Every release before them has an empty API base. With the student host baked in, the admin host called the API cross-site, so the browser never kept the `SameSite=Strict` refresh cookie. Sign-in worked (the access token is in the response body), but a page reload, or the first call after the 15-minute access token ran out, found no cookie and sent the admin to the login page. The student host was not affected, because there the API is same-origin. The missing host URLs also left the browser bundle unaware of the split hosts.
+
+The fix: rebuild with `NEXT_PUBLIC_API_BASE_URL=` (empty), `NEXT_PUBLIC_SITE_URL=https://srv2089893.hstgr.cloud`, `NEXT_PUBLIC_STAFF_URL=https://admin.187-52-115-111.nip.io`, `NEXT_PUBLIC_GOOGLE_ENABLED=false`. Build `K5cLY7hp8U6vfkWkZ8rij`, package SHA-256 `f5581019a2e861a43b47ee7d59a93745c93502a586b0ca7bc34ec964973bebbf`. Linux `sharp` 0.35.4 binaries copied from the running release (same version), Windows binary removed. Swapped in at 18:56 UTC; the previous release is `/opt/coaching-web.before-apibase-20261029-185640`. The VPS plan's step 4 now says empty.
+
+| Check | Result |
+|---|---|
+| Staged release before the swap | API base `""`, both host URLs baked in, no `localhost` in client chunks, only Linux native modules |
+| After restart | up in about 1 s; admin `/login` and student `/` 200 |
+| Live admin bundle over HTTPS | API base `""`; no chunk names the student host as the API |
+| `POST /api/v1/auth/refresh` on the admin host | reaches the API (401 `INVALID_REFRESH_TOKEN` without a cookie) |
+
+Tests: none run for this release; the code is the commit that was already live, only the build env changed.
+
+Rollback: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-apibase-20261029-185640` back as `/opt/coaching-web`, start it (this brings the bug back).
+
 ## Not checked
 
 - A real browser session on either host (layout, redirects after sign-in, the basic-auth prompt in each browser).
