@@ -356,27 +356,45 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
         </p>
       ) : null}
 
-      <div className="grid gap-8 md:grid-cols-[13rem_minmax(0,1fr)] md:items-start">
+      <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:items-start">
         <SectionNav sections={navSections} />
 
-        <div className="grid min-w-0 gap-10">
-          <SectionBlock id="exam-details" number={numberFor(0)} title={t("staffCatalog.sections.details")} state={sectionState.details}>
+        <div className="grid min-w-0 max-w-[45rem] gap-6">
+          <SectionBlock
+            id="exam-details"
+            number={numberFor(0)}
+            title={t("staffCatalog.sections.details")}
+            description={t("staffCatalog.sections.about.details")}
+            state={sectionState.details}
+          >
             {banner}
-            <ExamMetaForm exam={exam} section="details" canEdit={canEdit} onDirtyChange={onDirtyChange} />
             {role.canManageCover ? <ExamCoverUploader exam={exam} /> : null}
+            <ExamMetaForm exam={exam} section="details" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id="exam-text" number={numberFor(1)} title={t("staffCatalog.sections.text")} state={sectionState.text}>
+          <SectionBlock id="exam-text" number={numberFor(1)} title={t("staffCatalog.sections.text")} description={t("staffCatalog.examMeta.textHint")} state={sectionState.text}>
             {banner}
             <ExamMetaForm exam={exam} section="text" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id="exam-schedule" number={numberFor(2)} title={t("staffCatalog.sections.schedule")} state={sectionState.schedule}>
+          <SectionBlock
+            id="exam-schedule"
+            number={numberFor(2)}
+            title={t("staffCatalog.sections.schedule")}
+            description={t("staffCatalog.sections.about.schedule")}
+            state={sectionState.schedule}
+          >
             {banner}
             <ExamMetaForm exam={exam} section="schedule" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id={contentId} number={numberFor(3)} title={contentTitle} state={sectionState.content}>
+          <SectionBlock
+            id={contentId}
+            number={numberFor(3)}
+            title={contentTitle}
+            description={t(exam.examType === "MCQ" ? "staffCatalog.sections.about.mcq" : "staffCatalog.sections.about.written")}
+            state={sectionState.content}
+          >
             {banner}
             {exam.examType === "MCQ" ? (
               <McqQuestions exam={exam} locked={!canEdit} canDelete={role.canAuthor} />
@@ -385,30 +403,30 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             )}
           </SectionBlock>
 
-          <SectionBlock id="exam-price" number={numberFor(4)} title={t("staffCatalog.sections.price")} state={sectionState.price}>
+          <SectionBlock id="exam-price" number={numberFor(4)} title={t("staffCatalog.sections.price")} description={t("staffCatalog.sections.about.price")} state={sectionState.price}>
             {banner}
             <ExamMetaForm exam={exam} section="price" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id="exam-publish" number={numberFor(5)} title={t("staffCatalog.sections.publish")} state={sectionState.publish}>
+          <SectionBlock id="exam-publish" number={numberFor(5)} title={t("staffCatalog.sections.publish")} description={t("staffCatalog.sections.about.publish")} state={sectionState.publish}>
             {canEdit ? (
-              <section aria-labelledby="exam-checklist-heading" className="grid max-w-3xl gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
+              <div className="grid gap-3">
                 <h3 id="exam-checklist-heading" className="text-label font-semibold">
                   {t("staffCatalog.checklist.heading")}
                 </h3>
                 <ExamChecklist items={items} />
                 <p className="text-meta text-muted">{t("staffCatalog.publish.priceNote")}</p>
-              </section>
+              </div>
             ) : null}
 
             {canEdit && !masterAdmin ? (
-              <p role="status" className="max-w-3xl text-meta text-muted">
+              <p role="status" className="text-meta text-muted">
                 {t("staffCatalog.checklist.publishMasterOnly")}
               </p>
             ) : null}
 
             {exam.examType === "WRITTEN" && moduleId && !hasTeacher && moduleQuery.data ? (
-              <p role="status" className="max-w-3xl rounded-control border border-warn/40 bg-warn/10 px-4 py-3 text-meta text-warn">
+              <p role="status" className="rounded-control border border-warn/40 bg-warn/10 px-4 py-3 text-meta text-warn">
                 {role.canAssignInstructor ? (
                   <>
                     {t("staffCatalog.editor.noTeacherWarning")}{" "}

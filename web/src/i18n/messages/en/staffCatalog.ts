@@ -445,6 +445,9 @@ const staffCatalog = {
     endsAt: "Ends {time}",
     save: "Save",
     saved: "Exam details saved.",
+    savedStatus: "Saved",
+    negativeOnHint: "Students lose marks for each wrong answer.",
+    currentInstructor: "Current: {name}",
     dirty: "Not saved",
   },
   changes: {
@@ -597,6 +600,14 @@ const staffCatalog = {
     publish: "Check and publish",
     fold: "Hide",
     unfold: "Show",
+    about: {
+      details: "What students see first: the names, the category and the paper language.",
+      schedule: "When it opens, how long it runs, and how it is marked.",
+      mcq: "The questions, their options and the correct answers.",
+      written: "The question paper and its full marks.",
+      price: "Only the Master Admin sets the price, the discount and the access.",
+      publish: "Check every step before the exam goes live.",
+    },
     state: { done: "Done", todo: "To do", error: "Needs fixing" },
   },
   publish: {

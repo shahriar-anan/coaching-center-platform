@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { controlBase, controlBorder } from "@/components/ui/control";
 import { useLocale } from "@/i18n/locale-context";
@@ -319,25 +319,41 @@ export function DateTimeInput({
   ];
 
   return (
-    <div className={cn("grid gap-2", className)}>
+    <div ref={wrapRef} className={cn("grid gap-2", className)}>
       <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
-        <label className="grid gap-1 text-meta text-muted sm:w-44">
-          <span>{t("common.dateTime.date")}</span>
-          <input
-            id={id}
-            name={name}
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder={t("common.dateTime.datePlaceholder")}
-            value={draft.date}
+        {/* The calendar is the date field's own picker, so its button sits beside the typed date. */}
+        <div className="flex items-end gap-2 sm:w-56">
+          <label className="grid min-w-0 flex-1 gap-1 text-meta text-muted">
+            <span>{t("common.dateTime.date")}</span>
+            <input
+              id={id}
+              name={name}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder={t("common.dateTime.datePlaceholder")}
+              value={draft.date}
+              disabled={disabled}
+              aria-invalid={invalid || error ? true : undefined}
+              aria-describedby={describedBy}
+              onChange={(e) => update({ ...draft, date: e.target.value })}
+              className={cn(controlBase, controlBorder(invalid || Boolean(error)), "tabular-nums")}
+            />
+          </label>
+          <button
+            ref={triggerRef}
+            type="button"
+            aria-label={t(panelOpen ? "common.dateTime.hideCalendar" : "common.dateTime.pickOnCalendar")}
+            title={t(panelOpen ? "common.dateTime.hideCalendar" : "common.dateTime.pickOnCalendar")}
+            aria-expanded={panelOpen}
+            aria-controls={panelId}
             disabled={disabled}
-            aria-invalid={invalid || error ? true : undefined}
-            aria-describedby={describedBy}
-            onChange={(e) => update({ ...draft, date: e.target.value })}
-            className={cn(controlBase, controlBorder(invalid || Boolean(error)), "tabular-nums")}
-          />
-        </label>
+            onClick={togglePanel}
+            className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-control border border-border-control bg-field text-text transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <CalendarDays aria-hidden="true" className="size-5" />
+          </button>
+        </div>
         <label className="grid gap-1 text-meta text-muted sm:w-40">
           <span>{t("common.dateTime.time")}</span>
           <input
@@ -355,7 +371,8 @@ export function DateTimeInput({
         </label>
         <div role="radiogroup" aria-label={t("common.dateTime.period")} className="grid gap-1 text-meta text-muted">
           <span aria-hidden="true">{t("common.dateTime.period")}</span>
-          <div className="flex gap-1">
+          {/* A small segmented control beside the time: AM and PM on one track. */}
+          <div className="inline-flex gap-0.5 rounded-control border border-border-control bg-field p-0.5">
             {(["AM", "PM"] as const).map((period) => {
               const selected = draft.period === period;
               return (
@@ -367,8 +384,8 @@ export function DateTimeInput({
                   disabled={disabled}
                   onClick={() => pickPeriod(period)}
                   className={cn(
-                    "min-h-11 min-w-16 rounded-control border px-4 text-body font-medium transition-colors",
-                    selected ? "border-action bg-action text-on-action" : "border-border-control bg-field text-text hover:border-muted",
+                    "min-h-11 min-w-14 rounded-control px-3 text-label font-medium transition-colors sm:min-h-10",
+                    selected ? "bg-action text-on-action" : "text-text hover:bg-card",
                     "disabled:cursor-not-allowed disabled:opacity-60",
                   )}
                 >
@@ -379,18 +396,8 @@ export function DateTimeInput({
           </div>
         </div>
       </div>
-      <div ref={wrapRef} className="relative w-fit">
-        <button
-          ref={triggerRef}
-          type="button"
-          aria-expanded={panelOpen}
-          aria-controls={panelId}
-          disabled={disabled}
-          onClick={togglePanel}
-          className="min-h-11 justify-self-start rounded-control px-1 text-meta font-medium text-action underline-offset-2 hover:underline"
-        >
-          {t(panelOpen ? "common.dateTime.hideCalendar" : "common.dateTime.pickOnCalendar")}
-        </button>
+      {/* The panel opens under the row, from the date's side. The empty wrapper takes no space while it is closed. */}
+      <div className="relative empty:hidden">
         {panelOpen ? (
           <div
             id={panelId}

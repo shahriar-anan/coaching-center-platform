@@ -114,23 +114,24 @@ export function ExamMetaForm({
 
   const fields: SectionFieldsProps = { exam, form, set, errors, disabled: !canEdit, context };
   const priceLocked = section === "price" && !context.canSetPrice;
-  const saveRow = canEdit && !priceLocked ? (
-    <div className="flex flex-wrap items-center gap-3">
+  // The section's one footer row: its status on the left, its Save on the right.
+  const footer = canEdit && !priceLocked ? (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+      <div className="grid gap-1">
+        <p role="status" className={dirty ? "text-meta text-warn" : "text-meta text-muted"}>
+          {dirty ? t("staffCatalog.examMeta.dirty") : t("staffCatalog.examMeta.savedStatus")}
+        </p>
+        {exam.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.stagedHint")}</p> : null}
+      </div>
       <Button type="submit" loading={save.isPending} disabled={save.isPending || !dirty}>
         {t("staffCatalog.examMeta.save")}
       </Button>
-      {dirty ? (
-        <span role="status" className="text-meta text-warn">
-          {t("staffCatalog.examMeta.dirty")}
-        </span>
-      ) : null}
-      {exam.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.stagedHint")}</p> : null}
     </div>
   ) : null;
 
   return (
-    <form id={`exam-${section}-form`} onSubmit={onSubmit} noValidate className="grid gap-5">
-      <fieldset disabled={!canEdit} className="grid gap-5">
+    <form id={`exam-${section}-form`} onSubmit={onSubmit} noValidate className="grid gap-4">
+      <fieldset disabled={!canEdit} className="grid gap-4">
         {section === "details" ? <ExamDetailsFields {...fields} /> : null}
         {section === "text" ? <ExamTextFields {...fields} /> : null}
         {section === "schedule" ? <ExamScheduleFields {...fields} /> : null}
@@ -143,7 +144,7 @@ export function ExamMetaForm({
           {formError}
         </p>
       ) : null}
-      {saveRow}
+      {footer}
     </form>
   );
 }

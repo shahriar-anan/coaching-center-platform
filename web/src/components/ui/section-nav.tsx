@@ -24,20 +24,20 @@ const TONE = {
 
 /**
  * Jump links to the sections of a long form. Sticky beside the form on desktop;
- * on phones it is a plain list above the form, so it scrolls away with the page.
+ * on phones it is a horizontal scroller above the form, so it scrolls away with the page.
  */
 export function SectionNav({ sections }: { sections: SectionNavItem[] }) {
   const { t } = useLocale();
   return (
     <nav aria-label={t("common.sectionNav.label")} className="md:sticky md:top-20 md:self-start">
-      <ol className="grid gap-1">
+      <ol className="flex gap-2 overflow-x-auto pb-1 md:grid md:gap-1 md:overflow-visible">
         {sections.map((section) => {
           const Icon = ICON[section.state];
           return (
-            <li key={section.id} data-state={section.state}>
+            <li key={section.id} data-state={section.state} className="shrink-0 md:shrink">
               <a
                 href={`#${section.id}`}
-                className="flex min-h-10 items-center gap-2 rounded-control px-3 text-label text-text outline-none hover:bg-bg focus-visible:outline-accent"
+                className="flex min-h-11 items-center gap-2 rounded-control border border-border px-3 text-label text-text outline-none hover:bg-bg focus-visible:outline-accent md:min-h-10 md:border-0"
               >
                 <Icon aria-hidden="true" className={cn("size-4 shrink-0", TONE[section.state])} />
                 <span className="min-w-0 truncate">{section.label}</span>

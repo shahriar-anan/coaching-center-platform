@@ -7,10 +7,13 @@ import { cn } from "@/components/ui/cn";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
-import { Switch } from "@/components/ui/switch";
+import { SettingRow } from "@/components/staff/catalog/setting-row";
 import type { SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
 
-/** Mode, the window, duration and marks. A practice exam has no window; the negative mark field shows only when it is on. */
+/**
+ * Mode, the window, duration and marks, in one column. The mode is a two-option control with its description under it.
+ * A practice exam has no window; the negative mark field shows only when its setting is on.
+ */
 export function ExamScheduleFields({ exam, form, set, errors, disabled, context }: SectionFieldsProps) {
   const { t } = useLocale();
   const { formatDateTime } = useFormat();
@@ -31,8 +34,8 @@ export function ExamScheduleFields({ exam, form, set, errors, disabled, context 
   return (
     <>
       <fieldset className="grid gap-2">
-        <legend className="mb-1 text-label font-medium">{t("staffCatalog.examMeta.modeLegend")}</legend>
-        <div role="radiogroup" aria-label={t("staffCatalog.examMeta.modeLegend")} className="grid gap-2 sm:grid-cols-2">
+        <legend className="mb-1 text-label font-medium text-text">{t("staffCatalog.examMeta.modeLegend")}</legend>
+        <div role="radiogroup" aria-label={t("staffCatalog.examMeta.modeLegend")} className="grid grid-cols-2 gap-1 rounded-control border border-border-control bg-field p-1 sm:w-80">
           {(["LIVE", "PRACTICE"] as const).map((mode) => {
             const selected = form.mode === mode;
             return (
@@ -44,113 +47,92 @@ export function ExamScheduleFields({ exam, form, set, errors, disabled, context 
                 disabled={disabled || modeLocked}
                 onClick={() => set("mode", mode)}
                 className={cn(
-                  "min-h-11 rounded-control border px-4 text-start text-body disabled:cursor-not-allowed disabled:opacity-60",
-                  selected ? "border-action font-medium ring-1 ring-action" : "border-border-control bg-field hover:border-muted",
+                  "min-h-11 rounded-control px-4 text-label font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                  selected ? "bg-action text-on-action" : "text-text hover:bg-card",
                 )}
               >
-                <span className="block">{t(`staffCatalog.examMeta.mode.${mode}`)}</span>
-                <span className="block text-meta text-muted">{t(`staffCatalog.examMeta.modeHint.${mode}`)}</span>
+                {t(`staffCatalog.examMeta.mode.${mode}`)}
               </button>
             );
           })}
         </div>
+        <p className="text-meta text-muted">{t(`staffCatalog.examMeta.modeHint.${form.mode}`)}</p>
         {modeLocked ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.modeLockedHint")}</p> : null}
       </fieldset>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label={t("staffCatalog.examMeta.duration")} required hint={t("staffCatalog.examMeta.durationHint")} error={errors.durationMinutes}>
-          <NumberInput inputMode="numeric" min={2} step={1} value={form.durationMinutes} onChange={(e) => set("durationMinutes", e.target.value)} />
-        </Field>
-        <Field label={t("staffCatalog.examMeta.passPercent")} hint={t("staffCatalog.examMeta.passHint")} error={errors.passPercent}>
-          <NumberInput inputMode="numeric" min={0} max={100} step={1} value={form.passPercent} onChange={(e) => set("passPercent", e.target.value)} />
-        </Field>
-        {context.written ? (
-          <Field label={t("staffCatalog.examMeta.maximum")} required hint={t("staffCatalog.examMeta.maximumHint")} error={errors.maximum}>
-            <NumberInput inputMode="numeric" min={1} step={1} value={form.maximum} onChange={(e) => set("maximum", e.target.value)} />
-          </Field>
-        ) : null}
-      </div>
-
       {windowOn ? (
-        <div id="exam-window" className="grid gap-3">
-          <fieldset className="grid gap-2">
-            <legend className="mb-1 text-label font-medium">{t("staffCatalog.examMeta.startLegend")}</legend>
-            <div role="radiogroup" aria-label={t("staffCatalog.examMeta.startLegend")} className="grid gap-2 sm:grid-cols-2">
-              {[
-                { dated: true, label: t("staffCatalog.examMeta.dateSet") },
-                { dated: false, label: t("staffCatalog.examMeta.dateLater") },
-              ].map((option) => {
-                const selected = form.dated === option.dated;
-                return (
-                  <button
-                    key={String(option.dated)}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    disabled={disabled}
-                    onClick={() => {
-                      set("dated", option.dated);
-                      if (!option.dated) {
-                        set("liveAt", null);
-                        set("endAt", null);
-                      }
-                    }}
-                    className={cn(
-                      "min-h-11 rounded-control border px-4 text-start text-body disabled:cursor-not-allowed disabled:opacity-60",
-                      selected ? "border-action font-medium ring-1 ring-action" : "border-border-control bg-field hover:border-muted",
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+        <div id="exam-window" className="grid gap-4">
+          <SettingRow
+            id="exam-dated"
+            label={t("staffCatalog.examMeta.dateSet")}
+            description={t("staffCatalog.examMeta.dateLaterHint")}
+            checked={form.dated}
+            disabled={disabled}
+            onCheckedChange={(value) => {
+              set("dated", value);
+              if (!value) {
+                set("liveAt", null);
+                set("endAt", null);
+              }
+            }}
+          />
           {form.dated ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4">
               <Field label={t("staffCatalog.examMeta.start")} hint={t("staffCatalog.examMeta.startHint")} error={errors.liveAt}>
                 <DateTimeInput value={form.liveAt} onChange={(iso) => set("liveAt", iso)} invalid={Boolean(errors.liveAt)} disabled={disabled} />
               </Field>
               <Field label={t("staffCatalog.examMeta.end")} hint={t("staffCatalog.examMeta.endHint")} error={errors.window}>
                 <DateTimeInput value={form.endAt} onChange={(iso) => set("endAt", iso)} invalid={Boolean(errors.window)} disabled={disabled} />
               </Field>
+              {endsAt && !form.endAt ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.endsAt", { time: endsAt })}</p> : null}
             </div>
           ) : (
-            <p className="text-meta text-muted">{t("staffCatalog.dateNotSet")}</p>
+            <p className="text-body">{t("staffCatalog.examMeta.dateLater")}</p>
           )}
-          {endsAt && !form.endAt ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.endsAt", { time: endsAt })}</p> : null}
         </div>
       ) : (
         <p className="text-meta text-muted">{t("staffCatalog.examMeta.practiceNoWindow")}</p>
       )}
 
+      <div className={cn("grid gap-4", context.written ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+        <Field label={t("staffCatalog.examMeta.duration")} required hint={t("staffCatalog.examMeta.durationHint")} error={errors.durationMinutes}>
+          <NumberInput inputMode="numeric" min={2} step={1} value={form.durationMinutes} onChange={(e) => set("durationMinutes", e.target.value)} className="max-w-48" />
+        </Field>
+        <Field label={t("staffCatalog.examMeta.passPercent")} hint={t("staffCatalog.examMeta.passHint")} error={errors.passPercent}>
+          <NumberInput inputMode="numeric" min={0} max={100} step={1} value={form.passPercent} onChange={(e) => set("passPercent", e.target.value)} className="max-w-48" />
+        </Field>
+        {context.written ? (
+          <Field label={t("staffCatalog.examMeta.maximum")} required hint={t("staffCatalog.examMeta.maximumHint")} error={errors.maximum}>
+            <NumberInput inputMode="numeric" min={1} step={1} value={form.maximum} onChange={(e) => set("maximum", e.target.value)} className="max-w-48" />
+          </Field>
+        ) : null}
+      </div>
+
       {context.written ? null : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Switch
-              id="exam-negative-on"
-              checked={form.negativeOn}
-              onCheckedChange={(value) => set("negativeOn", value)}
-              disabled={disabled}
-              label={t("staffCatalog.examMeta.negativeOn")}
-            />
+        <>
+          <SettingRow
+            id="exam-negative-on"
+            label={t("staffCatalog.examMeta.negativeOn")}
+            description={t("staffCatalog.examMeta.negativeOnHint")}
+            checked={form.negativeOn}
+            onCheckedChange={(value) => set("negativeOn", value)}
+            disabled={disabled}
+          >
             {form.negativeOn ? (
               <Field label={t("staffCatalog.examMeta.negativeMarks")} hint={t("staffCatalog.examMeta.negativeHint")} error={errors.negativeMarks}>
                 <NumberInput inputMode="decimal" min={0} step="0.25" value={form.negativeMarks} onChange={(e) => set("negativeMarks", e.target.value)} className="max-w-32" />
               </Field>
             ) : null}
-          </div>
-          <div className="grid gap-1 self-start">
-            <Switch
-              id="exam-answers-changeable"
-              checked={form.answersChangeable}
-              onCheckedChange={(value) => set("answersChangeable", value)}
-              disabled={disabled}
-              label={t("staffCatalog.examMeta.answersChangeable")}
-            />
-            <p className="text-meta text-muted">{t("staffCatalog.examMeta.answersChangeableHint")}</p>
-          </div>
-        </div>
+          </SettingRow>
+          <SettingRow
+            id="exam-answers-changeable"
+            label={t("staffCatalog.examMeta.answersChangeable")}
+            description={t("staffCatalog.examMeta.answersChangeableHint")}
+            checked={form.answersChangeable}
+            onCheckedChange={(value) => set("answersChangeable", value)}
+            disabled={disabled}
+          />
+        </>
       )}
     </>
   );

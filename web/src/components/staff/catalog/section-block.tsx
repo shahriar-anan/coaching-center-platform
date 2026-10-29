@@ -20,19 +20,22 @@ const STATE_TONE = {
 } as const;
 
 /**
- * One numbered part of a long form. On desktop the body is always open. On phones
- * the header is a button that folds the body away, so a long editor stays short.
+ * One numbered part of the exam page, drawn as a card like the package page's sections: the number and title, a one-line
+ * description, then the fields in one column. On desktop the body is always open. On phones the header is a button that
+ * folds the body away, so a long editor stays short.
  */
 export function SectionBlock({
   id,
   number,
   title,
+  description,
   state,
   children,
 }: {
   id: string;
   number: string;
   title: string;
+  description?: string;
   state: SectionState;
   children: ReactNode;
 }) {
@@ -43,23 +46,30 @@ export function SectionBlock({
   const headingId = `${id}-heading`;
 
   return (
-    <section id={id} aria-labelledby={headingId} className="grid scroll-mt-24 gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id={headingId} className="flex min-w-0 items-center gap-2 text-card-title font-semibold">
-          <span className="tabular-nums text-muted">{number}</span>
-          <span className="min-w-0">{title}</span>
-          <StateIcon aria-hidden="true" className={cn("size-4 shrink-0", STATE_TONE[state])} />
-          <span className="sr-only">{t(`staffCatalog.sections.state.${state}`)}</span>
-        </h2>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => setOpen((value) => !value)}
-          className="min-h-10 rounded-control px-3 text-label text-action outline-none hover:bg-bg focus-visible:outline-accent md:hidden"
-        >
-          {open ? t("staffCatalog.sections.fold") : t("staffCatalog.sections.unfold")}
-        </button>
+    <section
+      id={id}
+      aria-labelledby={headingId}
+      className="grid scroll-mt-24 gap-4 rounded-card border border-border bg-card p-5 shadow-[var(--card-shadow)]"
+    >
+      <div className="grid gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id={headingId} className="flex min-w-0 items-center gap-2 text-card-title font-semibold">
+            <span className="tabular-nums text-muted">{number}</span>
+            <span className="min-w-0">{title}</span>
+            <StateIcon aria-hidden="true" className={cn("size-4 shrink-0", STATE_TONE[state])} />
+            <span className="sr-only">{t(`staffCatalog.sections.state.${state}`)}</span>
+          </h2>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={() => setOpen((value) => !value)}
+            className="min-h-11 rounded-control px-3 text-label text-action outline-none hover:bg-bg focus-visible:outline-accent md:hidden"
+          >
+            {open ? t("staffCatalog.sections.fold") : t("staffCatalog.sections.unfold")}
+          </button>
+        </div>
+        {description ? <p className="text-meta text-muted">{description}</p> : null}
       </div>
       <div id={bodyId} className={cn("grid gap-4", !open && "hidden md:grid")}>
         {children}
