@@ -34,6 +34,9 @@ import tools.jackson.databind.ObjectMapper;
 @Import(CapturingEmailConfig.class)
 class CoursePurchaseIT extends PostgresIntegrationTest {
 
+	/** A new value each run: transaction references are unique, and the test database keeps rows between runs. */
+	private static final String RUN = UUID.randomUUID().toString().substring(0, 8);
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -91,8 +94,8 @@ class CoursePurchaseIT extends PostgresIntegrationTest {
 			.perform(post("/api/v1/courses/" + openCourse + "/purchases").header("Authorization", "Bearer " + student)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{"method":"BKASH","transactionRef":"trx-open-1"}
-						"""))
+						{"method":"BKASH","transactionRef":"trx-open-%s"}
+						""".formatted(RUN)))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.enrollmentStatus").value("AWAITING_PAYMENT"))
 			.andExpect(jsonPath("$.paymentStatus").value("PENDING"))
@@ -115,8 +118,8 @@ class CoursePurchaseIT extends PostgresIntegrationTest {
 			.perform(post("/api/v1/courses/" + hybridCourse + "/purchases").header("Authorization", "Bearer " + student)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{"method":"NAGAD","transactionRef":"trx-hybrid-1","deliveryMode":"OFFLINE"}
-						"""))
+						{"method":"NAGAD","transactionRef":"trx-hybrid-%s","deliveryMode":"OFFLINE"}
+						""".formatted(RUN)))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.paymentNumber").value("01800000001"));
 
@@ -126,24 +129,24 @@ class CoursePurchaseIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/courses/" + closedCourse + "/purchases").header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-closed\"}"))
+			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-closed-" + RUN + "\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("COURSE_NOT_OPEN"));
 
 		mockMvc.perform(post("/api/v1/courses/" + fullFreeCourse + "/purchases").header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-free\"}"))
+			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-free-" + RUN + "\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("COURSE_IS_FREE"));
 
 		mockMvc.perform(post("/api/v1/courses/" + openCourse + "/purchases").header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-pending-2\"}"))
+			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-pending-2-" + RUN + "\"}"))
 			.andExpect(status().isCreated());
 
 		mockMvc.perform(post("/api/v1/courses/" + openCourse + "/purchases").header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-open-1\"}"))
+			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-open-" + RUN + "\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("DUPLICATE_TRANSACTION_REF"));
 
@@ -154,7 +157,7 @@ class CoursePurchaseIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/courses/" + openCourse + "/purchases").header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-active-block\"}"))
+			.content("{\"method\":\"BKASH\",\"transactionRef\":\"trx-active-block-" + RUN + "\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("ALREADY_ENROLLED"));
 	}
