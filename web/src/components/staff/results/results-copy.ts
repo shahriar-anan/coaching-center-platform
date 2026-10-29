@@ -51,8 +51,9 @@ type Format = ReturnType<typeof useFormat>;
 export function resultsSummaryItems(summary: ResultsSummary, t: Translate, format: Format) {
   const dash = t("staffResults.result.none");
   const count = (value: number) => format.formatNumber(value);
-  const whole = (value: number | null) => (value === null ? dash : format.formatNumber(value));
-  const average = (value: number | null) => (value === null ? dash : format.formatNumber(value, { decimals: 1 }));
+  // The API leaves a score field out while it is not released or not computed (its JSON omits null), so a missing field is read as none.
+  const whole = (value: number | null | undefined) => (value == null ? dash : format.formatNumber(value));
+  const average = (value: number | null | undefined) => (value == null ? dash : format.formatNumber(value, { decimals: 1 }));
   return [
     { label: t("staffResults.summary.participants"), value: count(summary.participants) },
     { label: t("staffResults.summary.submitted"), value: count(summary.submitted), tone: "ok" as const },
@@ -68,7 +69,7 @@ export function resultsSummaryItems(summary: ResultsSummary, t: Translate, forma
     {
       label: t("staffResults.summary.passRate"),
       value:
-        summary.passRate === null
+        summary.passRate == null
           ? dash
           : t("staffResults.percent", { value: format.formatNumber(summary.passRate, { decimals: 1 }) }),
     },

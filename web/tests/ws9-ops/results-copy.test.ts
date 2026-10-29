@@ -90,3 +90,15 @@ describe("result pills", () => {
     expect(publishedTone(false)).toBe("warn");
   });
 });
+
+describe("results summary strip when the API leaves score fields out", () => {
+  it("shows dashes for the missing scores instead of failing (a written exam before release)", () => {
+    const omitted = { participants: 2, submitted: 2, failedToSubmit: 0, passCount: 0, practiceParticipants: 1 } as unknown as ResultsSummary;
+    const items = resultsSummaryItems(omitted, t, format);
+    expect(items.find((item) => item.label === "staffResults.summary.average")?.value).toBe("staffResults.result.none");
+    expect(items.find((item) => item.label === "staffResults.summary.highest")?.value).toBe("staffResults.result.none");
+    expect(items.find((item) => item.label === "staffResults.summary.lowest")?.value).toBe("staffResults.result.none");
+    expect(items.find((item) => item.label === "staffResults.summary.passRate")?.value).toBe("staffResults.result.none");
+    expect(items.find((item) => item.label === "staffResults.summary.participants")?.value).toBe("2");
+  });
+});

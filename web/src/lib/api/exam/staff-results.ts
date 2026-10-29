@@ -16,11 +16,11 @@ export type ResultsSummary = {
   participants: number;
   submitted: number;
   failedToSubmit: number;
-  averageScore: number | null;
-  highestScore: number | null;
-  lowestScore: number | null;
+  averageScore?: number | null;
+  highestScore?: number | null;
+  lowestScore?: number | null;
   passCount: number;
-  passRate: number | null;
+  passRate?: number | null;
   practiceParticipants: number;
 };
 
