@@ -71,10 +71,11 @@ describe("exam editor sections (U5)", () => {
     mockApi(routes(mcqExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
-    for (const name of [/১\s*বিবরণ/, /২\s*সময় ও নম্বর/, /৩\s*প্রশ্ন/, /৪\s*মূল্য/, /৫\s*যাচাই ও প্রকাশ/]) {
+    // The six parts of plan 7.2, in the order the work is done.
+    for (const name of [/১\s*বিবরণ/, /২\s*বিবরণ ও নিয়মাবলি/, /৩\s*সময় ও নম্বর/, /৪\s*প্রশ্ন/, /৫\s*মূল্য/, /৬\s*যাচাই ও প্রকাশ/]) {
       expect(await screen.findByRole("heading", { name })).toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: /২\s*সময় ও নম্বর/ })).toHaveAttribute("href", "#exam-schedule");
+    expect(screen.getByRole("link", { name: /৩\s*সময় ও নম্বর/ })).toHaveAttribute("href", "#exam-schedule");
   });
 
   it("System Admin sees the price as text and no delete control", async () => {

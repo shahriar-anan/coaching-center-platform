@@ -40,6 +40,7 @@ import { ExamChecklist, type ChecklistItem } from "@/components/staff/catalog/ex
 import { ChangeListDialog } from "@/components/staff/catalog/change-list-dialog";
 import { PendingChangesBanner } from "@/components/staff/catalog/pending-changes-banner";
 import { parseDiscount } from "@/components/staff/catalog/package-rows";
+import { richTextValue } from "@/components/staff/catalog/exam-form-state";
 
 type FormState = {
   titleEn: string;
@@ -317,13 +318,13 @@ function DetailsBody({ module }: { module?: StaffModule }) {
             <RichTextEditor
               label={t("staffCatalog.moduleForm.descriptionEn")}
               value={form.descriptionEn}
-              onChange={(html) => set("descriptionEn", html)}
+              onChange={(html) => set("descriptionEn", richTextValue(html, form.descriptionEn))}
               invalid={Boolean(errors.descriptionEn)}
             />
             <RichTextEditor
               label={t("staffCatalog.moduleForm.descriptionBn")}
               value={form.descriptionBn}
-              onChange={(html) => set("descriptionBn", html)}
+              onChange={(html) => set("descriptionBn", richTextValue(html, form.descriptionBn))}
               invalid={Boolean(errors.descriptionBn)}
             />
           </div>
@@ -505,7 +506,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
             <Button variant="secondary" onClick={() => setPreviewing(true)}>
               {t("staffCatalog.preview.open")}
             </Button>
-            {primary === "publish" ? (
+            {/* A draft always shows Publish; it stays disabled until the final save is done (the server checks the same). */}
+            {primary === "publish" || primary === "finalSave" ? (
               <Button disabled={!publishable || publish.isPending} loading={publish.isPending} onClick={() => runAction("publish")}>
                 {t("staffCatalog.moduleForm.publish")}
               </Button>

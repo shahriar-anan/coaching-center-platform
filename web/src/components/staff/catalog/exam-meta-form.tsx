@@ -48,7 +48,8 @@ export function ExamMetaForm({
   exam: StaffExam;
   section: ExamSection;
   canEdit: boolean;
-  onDirtyChange: (section: ExamSection, dirty: boolean) => void;
+  /** Reports whether this section has unsaved changes. Optional: the form works without it. */
+  onDirtyChange?: (section: ExamSection, dirty: boolean) => void;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -63,7 +64,7 @@ export function ExamMetaForm({
   const dirty = sectionDirty(form, saved, section);
   useUnsavedChangesGuard(dirty);
   useEffect(() => {
-    onDirtyChange(section, dirty);
+    onDirtyChange?.(section, dirty);
   }, [section, dirty, onDirtyChange]);
 
   const set = useCallback(<K extends keyof ExamFormState>(key: K, value: ExamFormState[K]) => {

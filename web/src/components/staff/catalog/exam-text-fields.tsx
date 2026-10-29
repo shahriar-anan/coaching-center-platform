@@ -3,7 +3,7 @@
 import { useLocale } from "@/i18n/locale-context";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { plainExcerpt } from "@/lib/format/rich-text";
-import type { SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
+import { richTextValue, type SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
 
 /** The four rich text fields: the description and the rules, in both languages (plan 7.2, section 2). */
 export function ExamTextFields({ form, set, errors }: SectionFieldsProps) {
@@ -23,7 +23,7 @@ export function ExamTextFields({ form, set, errors }: SectionFieldsProps) {
             <RichTextEditor
               label={field.label}
               value={form[field.key]}
-              onChange={(html) => set(field.key, html)}
+              onChange={(html) => set(field.key, richTextValue(html, form[field.key]))}
               invalid={Boolean(errors[field.key])}
             />
             {errors[field.key] ? (

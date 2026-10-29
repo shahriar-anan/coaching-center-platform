@@ -190,6 +190,12 @@ function NextStepCard({ moduleId, canAssign }: { moduleId: string | null; canAss
             <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
             <span className="text-meta text-muted">{t("staffCatalog.next.assignBody")}</span>
           </Link>
+        ) : moduleId ? (
+          // A role that cannot assign sees the choice disabled, with the reason (plan 7.1: shown, not hidden).
+          <div className="grid gap-1 rounded-control border border-border p-4">
+            <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
+            <span className="text-meta text-muted">{t("staffCatalog.next.assignMasterOnly")}</span>
+          </div>
         ) : null}
       </div>
     </section>
