@@ -5,7 +5,7 @@ const staffResults = {
   title: "পরীক্ষার ফলাফল",
   openLeaderboard: "মেধাতালিকা",
   summary: {
-    participants: "অংশগ্রহণকারী",
+    participants: "ফলাফল ও মূল্যায়নকারী",
     submitted: "জমা দেওয়া হয়েছে",
     failed: "জমা হয়নি",
     average: "গড় নম্বর",
@@ -109,7 +109,7 @@ const staffResults = {
     empty: "এই শিক্ষার্থী এখনো কোনো পরীক্ষা দেননি।",
     columns: {
       exam: "পরীক্ষা",
-      module: "মডিউল",
+      module: "প্যাকেজ",
       kind: "ধরন",
       status: "অবস্থা",
       score: "নম্বর",

@@ -32,7 +32,7 @@ const staffOps = {
       receipt: "Receipt number",
     },
     scope: {
-      module: "Module",
+      module: "Package",
       exam: "Exam",
     },
     access: {
@@ -96,11 +96,11 @@ const staffOps = {
       PAYMENT_FAILED: "Payment failed",
       LIVE_EXAM_CATEGORY_DELETE: "Category deleted",
       LIVE_EXAM_CATEGORY_ARCHIVE: "Category archived",
-      LIVE_EXAM_MODULE_DELETE: "Module deleted",
-      LIVE_EXAM_MODULE_ARCHIVE: "Module archived",
+      LIVE_EXAM_MODULE_DELETE: "Package deleted",
+      LIVE_EXAM_MODULE_ARCHIVE: "Package withdrawn",
       LIVE_EXAM_DELETE: "Exam deleted",
       LIVE_EXAM_QUESTION_DELETE: "Question deleted",
-      LIVE_EXAM_INSTRUCTOR_UNASSIGN: "Teacher removed from a module",
+      LIVE_EXAM_INSTRUCTOR_UNASSIGN: "Teacher removed from a package",
     },
     empty: "No activity yet.",
     newestFirst: "Newest first",
