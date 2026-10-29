@@ -72,7 +72,7 @@ export function SiteFooter({ variant, width }: { variant: Exclude<FooterVariant,
     <footer className="border-t border-border bg-card">
       <nav
         aria-label={t("common.footer.label")}
-        className={cn("mx-auto grid w-full gap-8 px-4 py-8 sm:grid-cols-2 lg:grid-cols-4", width)}
+        className={cn("mx-auto grid w-full gap-x-10 gap-y-10 px-4 py-10 sm:grid-cols-2 xl:grid-cols-4", width)}
       >
         <div className="grid content-start gap-3">
           <Logo />
