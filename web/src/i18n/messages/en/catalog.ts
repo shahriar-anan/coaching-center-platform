@@ -153,6 +153,17 @@ const catalog: typeof bn = {
     accessUntil: "Access until {date}",
     accessEnded: "Your access ended on {date}",
     packagesTitle: "Packages with this exam",
+    previewPaper: "Preview paper",
+    previewLogin: "Log in to preview the paper",
+  },
+  preview: {
+    note: "This is a preview of the paper. The correct answers and explanations are not shown.",
+    questionPaper: "Question paper",
+    noQuestions: "This paper has no questions yet.",
+    noPaper: "The question paper has not been added yet.",
+    openPdf: "Open question paper (PDF)",
+    pdfFailed: "The question paper could not be opened. Try again.",
+    backToExam: "Back to the exam",
   },
   start: {
     title: "Start the exam?",

@@ -165,6 +165,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const sittingEnded = Boolean(owned?.sitting && Date.parse(owned.sitting.deadlineAt) <= now);
   const loginHref = `/login?next=${encodeURIComponent(examPath(examId))}`;
   const buyLabel = t("catalog.exam.buyExam", { price: formatMoney(charged, locale) ?? "" });
+  const previewHref = `${examPath(examId)}/preview`;
 
   // One primary action, chosen by state.
   let primary: ReactNode = null;
@@ -197,6 +198,15 @@ export function ExamPage({ examId }: { examId: string }) {
       );
     } else if (sittingEnded || status === "AWAITING_RESULT" || status === "RESULT_READY" || status === "FAILED_TO_SUBMIT" || status === "SUBMITTED") {
       primary = <Button fullWidth href={`${examPath(examId)}/result`}>{t("catalog.exam.viewResult")}</Button>;
+    }
+  }
+  // The paper preview (C10', P-b), when staff switched it on. A visitor logs in first, and only a student can open it.
+  let previewLink: ReactNode = null;
+  if (data.previewEnabled) {
+    if (!signedIn) {
+      previewLink = <Button fullWidth variant="secondary" href={`/login?next=${encodeURIComponent(previewHref)}`}>{t("catalog.exam.previewLogin")}</Button>;
+    } else if (isStudent) {
+      previewLink = <Button fullWidth variant="secondary" href={previewHref}>{t("catalog.exam.previewPaper")}</Button>;
     }
   }
   // The bar repeats the card's action, and only when that action can be taken now (see barActionOf).
@@ -257,6 +267,7 @@ export function ExamPage({ examId }: { examId: string }) {
             ) : null}
             {ownsExam && bought ? <PurchasedLine grant={bought} /> : null}
             {primary}
+            {previewLink}
             {isStudent && !ownsExam ? <OpenOrderLine filter={{ examId }} enabled /> : null}
             <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
               {t("catalog.exam.copyLink")}
