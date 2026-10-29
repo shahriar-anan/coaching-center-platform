@@ -18,6 +18,7 @@ const staffCatalog = {
   paperLanguage: {
     BN: "Bangla",
     EN: "English",
+    BOTH: "Both",
   },
   instructorStatus: {
     ACTIVE: "Active",
@@ -210,8 +211,15 @@ const staffCatalog = {
       WRITTEN: "One question paper PDF. The student uploads an answer script.",
     },
     fieldRequired: "Fill in this field.",
-    paperLanguagePick: "Choose",
-    paperLanguageRequired: "Choose the paper language.",
+    paperLanguageNotSet: "Not set",
+    placeLabel: "Where it goes",
+    placePackage: "In a package",
+    placeCategory: "In a category only",
+    packagePick: "Choose a package",
+    categoryPick: "Choose a category",
+    placeRequired: "Choose a package or a category.",
+    noPackages: "No packages yet. Create one first, or choose a category.",
+    noCategories: "No categories yet.",
     create: "Create",
     created: "Exam created.",
     columns: {
@@ -540,6 +548,12 @@ const staffCatalog = {
     PRICE_REQUIRED: "Enter a price if this module is for sale.",
     PRICE_NOT_ALLOWED: "Only the Master Admin can set the price.",
     FILE_TOO_LARGE: "The file is too large. Choose a smaller PDF.",
+    EXAM_WINDOW_INVALID: "The end must be after the start, and at least the duration after it.",
+    QUESTION_STRUCTURE_LOCKED: "Questions and options cannot be added or removed once a student has started this exam.",
+    ANSWER_LOCKED: "This answer can no longer be changed.",
+    PENDING_CHANGES_STALE: "These changes were updated after you read them. Read them again.",
+    NO_PENDING_CHANGES: "No changes are waiting to be published.",
+    EXAM_ALREADY_IN_PACKAGE: "This exam is already in that package.",
   },
 };
 
