@@ -157,6 +157,8 @@ export interface PublicExam extends Titled {
   /** Every package the exam is in (NR-01, S2.4). */
   packages?: PackageRef[];
   popular?: boolean;
+  /** UNANNOUNCED, UPCOMING, LIVE, ENDED or PRACTICE (see CategoryExam.phase). */
+  phase?: string;
   /** Whether staff switched the student preview of the paper on (C10', P-b). */
   previewEnabled?: boolean;
   /** Signed-in students only (NR-01, S3). */

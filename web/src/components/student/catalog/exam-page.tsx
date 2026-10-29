@@ -200,9 +200,11 @@ export function ExamPage({ examId }: { examId: string }) {
       primary = <Button fullWidth href={`${examPath(examId)}/result`}>{t("catalog.exam.viewResult")}</Button>;
     }
   }
-  // The paper preview (C10', P-b), when staff switched it on. A visitor logs in first, and only a student can open it.
+  // The paper preview (C10', P-b), when staff switched it on and the window has ended or the exam is practice, as the API
+  // allows it. A visitor logs in first, and only a student can open it.
+  const previewOpen = data.phase === "ENDED" || data.phase === "PRACTICE";
   let previewLink: ReactNode = null;
-  if (data.previewEnabled) {
+  if (data.previewEnabled && previewOpen) {
     if (!signedIn) {
       previewLink = <Button fullWidth variant="secondary" href={`/login?next=${encodeURIComponent(previewHref)}`}>{t("catalog.exam.previewLogin")}</Button>;
     } else if (isStudent) {
