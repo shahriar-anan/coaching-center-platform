@@ -34,10 +34,11 @@ public class LiveExamParticipationController {
 	public PageResponse<LiveExamParticipationService.ParticipationRow> list(@RequestParam(required = false) UUID moduleId,
 			@RequestParam(required = false) String type, @RequestParam(required = false) String from,
 			@RequestParam(required = false) String to, @RequestParam(required = false) String q,
-			@RequestParam(required = false) String sort, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String sort, @RequestParam(required = false) UUID categoryId,
+			@PageableDefault(size = 20) Pageable pageable) {
 		requireReader();
 		LiveExamParticipationService.Filter filter = new LiveExamParticipationService.Filter(moduleId, type,
-				instant(from), instant(to), q, sort);
+				instant(from), instant(to), q, sort, categoryId);
 		return PageResponse.from(participation.list(actor(), filter, pageable));
 	}
 

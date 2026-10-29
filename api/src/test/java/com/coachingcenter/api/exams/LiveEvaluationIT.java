@@ -1352,6 +1352,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		assertThat(examIds(participation(master, "moduleId", mine.toString(), "from", "2026-10-21T00:00:00Z"))).isEmpty();
 		assertThat(examIds(participation(master, "moduleId", mine.toString(), "sort", "title"))).containsExactly(mineExam);
 		assertThat(examIds(participation(master, "moduleId", mine.toString(), "sort", "sitting"))).containsExactly(mineExam);
+		String category = participation(master, "moduleId", mine.toString()).get("content").get(0).get("categoryId").asText();
+		assertThat(examIds(participation(master, "categoryId", category))).contains(mineExam);
+		assertThat(examIds(participation(master, "categoryId", UUID.randomUUID().toString()))).isEmpty();
+		assertThat(examIds(participation(master, "moduleId", mine.toString(), "sort", "category"))).containsExactly(mineExam);
 
 		JsonNode firstPage = participation(system, "size", "1", "page", "0");
 		assertThat(firstPage.get("content")).hasSize(1);

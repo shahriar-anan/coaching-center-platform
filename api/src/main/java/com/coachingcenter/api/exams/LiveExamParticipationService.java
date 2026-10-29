@@ -63,6 +63,7 @@ public class LiveExamParticipationService {
 			  where pe.exam_id = e.id and pe.removed_at is null
 			  order by pe.added_at, pe.id limit 1
 			) m on true
+			left join live_exam_categories c on c.id = e.category_id
 			left join live_exam_participants p on p.exam_id = e.id and p.deleted_at is null
 			""";
 
@@ -85,7 +86,7 @@ public class LiveExamParticipationService {
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
 		String sql = """
 				select e.id, m.id as module_id, m.title_en as module_title_en, m.title_bn as module_title_bn, e.exam_type,
-				  e.title_en, e.title_bn, e.live_at, e.ends_at,
+				  e.title_en, e.title_bn, e.live_at, e.ends_at, c.id as category_id, c.title_en as category_title_en, c.title_bn as category_title_bn,
 				  count(p.id) filter (where %s) as sitting,
 				  count(p.id) filter (where %s) as submitted,
 				  count(p.id) filter (where %s) as failed,
@@ -101,7 +102,7 @@ public class LiveExamParticipationService {
 				  count(p.id) filter (where p.kind = 'PRACTICE') as practice_n
 				%s
 				where %s
-				group by e.id, m.id, m.title_en, m.title_bn
+				group by e.id, m.id, m.title_en, m.title_bn, c.id, c.title_en, c.title_bn
 				order by %s
 				limit :limit offset :offset
 				""".formatted(SITTING, SUBMITTED, FAILED, AWAITING, DRAFT, PUBLISHED, FROM, where, order(filter.sort()));
@@ -117,7 +118,8 @@ public class LiveExamParticipationService {
 					rs.getInt("submitted"), rs.getInt("failed"), written ? rs.getInt("awaiting") : null,
 					written ? rs.getInt("drafts") : null, written ? rs.getInt("published") : null, rs.getInt("retakes"),
 					written ? rs.getInt("ready") : null, written ? rs.getInt("corrections") : null, rs.getInt("live_n"),
-					rs.getInt("archived_n"), rs.getInt("retake_n"), rs.getInt("practice_n"));
+					rs.getInt("archived_n"), rs.getInt("retake_n"), rs.getInt("practice_n"), rs.getObject("category_id", UUID.class),
+					rs.getString("category_title_en"), rs.getString("category_title_bn"));
 		});
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
@@ -125,7 +127,7 @@ public class LiveExamParticipationService {
 	@Transactional(readOnly = true)
 	public Summary summary(CurrentActor actor) {
 		MapSqlParameterSource params = new MapSqlParameterSource("now", Timestamp.from(clock.instant()));
-		String where = where(actor, new Filter(null, null, null, null, null, null), params) + " and e.exam_type = 'WRITTEN'";
+		String where = where(actor, new Filter(null, null, null, null, null, null, null), params) + " and e.exam_type = 'WRITTEN'";
 		String sql = """
 				select count(p.id) filter (where %s) as awaiting, count(p.id) filter (where %s) as drafts
 				%s
@@ -150,6 +152,10 @@ public class LiveExamParticipationService {
 			params.addValue("moduleId", filter.moduleId());
 			clauses.add("exists (select 1 from live_exam_package_exams x where x.exam_id = e.id and x.module_id = :moduleId"
 					+ " and x.removed_at is null)");
+		}
+		if (filter.categoryId() != null) {
+			params.addValue("categoryId", filter.categoryId());
+			clauses.add("e.category_id = :categoryId");
 		}
 		if (filter.type() != null && !filter.type().isBlank()) {
 			String type = filter.type().trim();
@@ -192,6 +198,9 @@ public class LiveExamParticipationService {
 		if ("sitting".equals(sort)) {
 			return "sitting desc, e.id";
 		}
+		if ("category".equals(sort)) {
+			return "lower(c.title_en), lower(e.title_en), e.id";
+		}
 		throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Sort is invalid.");
 	}
 
@@ -199,13 +208,14 @@ public class LiveExamParticipationService {
 		return instant.atZone(DHAKA).format(TIME);
 	}
 
-	public record Filter(UUID moduleId, String type, Instant from, Instant to, String q, String sort) {
+	public record Filter(UUID moduleId, String type, Instant from, Instant to, String q, String sort, UUID categoryId) {
 	}
 
 	public record ParticipationRow(UUID examId, UUID moduleId, String moduleTitleEn, String moduleTitleBn, String examType,
 			String titleEn, String titleBn, String liveAt, String endAt, int sitting, int submitted, int failedToSubmit,
 			Integer awaitingMarking, Integer draftsAwaitingPublish, Integer published, int retakes, Integer readyForRelease,
-			Integer correctionsWaiting, int live, int archived, int retake, int practice) {
+			Integer correctionsWaiting, int live, int archived, int retake, int practice, UUID categoryId, String categoryTitleEn,
+			String categoryTitleBn) {
 	}
 
 	public record Summary(int awaitingMarking, int draftsAwaitingPublish) {
