@@ -53,6 +53,11 @@ describe("each notice kind: its label and where its row opens (S-002, S-004, S-0
     const links = screen.queryAllByRole("link");
     if (href === null) {
       expect(links).toHaveLength(0);
+    } else if (kind === "PURCHASE_GRANTED") {
+      // A purchase row also has "View payment" (Phase 4, A8), after the row's own link.
+      expect(links).toHaveLength(2);
+      expect(links[0]).toHaveAttribute("href", href);
+      expect(links[1]).toHaveAttribute("href", `/account/payments?examId=${exam.id}`);
     } else {
       expect(links).toHaveLength(1);
       expect(links[0]).toHaveAttribute("href", href);
@@ -64,7 +69,9 @@ describe("each notice kind: its label and where its row opens (S-002, S-004, S-0
 
     // With no exam the label is the row title, and also the kind line under it.
     expect((await screen.findAllByText(bn.kind.PURCHASE_GRANTED)).length).toBeGreaterThan(0);
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/my-modules");
+    const links = screen.getAllByRole("link");
+    expect(links[0]).toHaveAttribute("href", "/my-modules");
+    expect(links[1]).toHaveAttribute("href", "/account/payments");
   });
 
   it("an unknown kind shows the generic label and has no link", async () => {

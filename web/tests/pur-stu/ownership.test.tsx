@@ -73,7 +73,7 @@ describe("module page ownership from the access object (S-003)", () => {
     const { calls } = modulePage(access("NONE", true, null), [examRow("ex-1", 400, access("NONE", true, null))]);
     renderWithProviders(<ModulePage door="mcq" moduleId="m-1" />, { user: fixtures.student });
 
-    expect(await screen.findByRole("button", { name: "পুরো মডিউল কিনুন" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "পুরো প্যাকেজ কিনুন" })).toBeEnabled();
     const paths = calledPaths(calls);
     expect(paths).not.toContain(`GET ${STUDENT_MODULE}`);
     expect(paths).not.toContain(`GET ${STUDENT_MODULE_EXAMS}`);
@@ -87,7 +87,7 @@ describe("module page ownership from the access object (S-003)", () => {
     renderWithProviders(<ModulePage door="mcq" moduleId="m-1" />, { user: fixtures.student });
 
     expect((await screen.findAllByText("অ্যাক্সেস আছে")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "পুরো মডিউল কিনুন" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "পুরো প্যাকেজ কিনুন" })).not.toBeInTheDocument();
     await waitFor(() => expect(calledPaths(calls)).toContain(`GET ${STUDENT_MODULE_EXAMS}`));
   });
 
@@ -98,7 +98,7 @@ describe("module page ownership from the access object (S-003)", () => {
     ]);
     renderWithProviders(<ModulePage door="mcq" moduleId="m-1" />, { user: fixtures.student });
 
-    expect(await screen.findByRole("button", { name: "পুরো মডিউল কিনুন" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "পুরো প্যাকেজ কিনুন" })).toBeEnabled();
     expect(await screen.findByText("অ্যাক্সেস আছে")).toBeInTheDocument();
     expect(screen.getAllByText("কিনুন ›")).toHaveLength(1);
   });
@@ -111,7 +111,7 @@ describe("module page ownership from the access object (S-003)", () => {
     });
     renderWithProviders(<ModulePage door="mcq" moduleId="m-1" />, { user: fixtures.student });
 
-    expect(await screen.findByRole("button", { name: "পুরো মডিউল কিনুন" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "পুরো প্যাকেজ কিনুন" })).toBeDisabled();
   });
 
   it("a priced exam row that is not owned and not buyable does not offer a buy link", async () => {

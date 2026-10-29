@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMyModules, useRoutine, type RoutineRow } from "@/lib/api/exam/catalog";
+import { PopularSection } from "./popular-section";
 import { useSession } from "@/lib/auth/session-context";
 import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
@@ -233,6 +234,8 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
           <div className="grid gap-2.5">{soon.map((row) => <RoutineLine key={row.id} row={row} />)}</div>
         )}
       </section>
+
+      <PopularSection />
 
       <section className="mt-6" aria-labelledby="my-modules">
         <div className="mb-2 flex items-center justify-between">

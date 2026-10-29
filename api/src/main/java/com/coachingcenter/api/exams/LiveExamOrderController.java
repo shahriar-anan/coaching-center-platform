@@ -4,12 +4,17 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,15 +53,18 @@ public class LiveExamOrderController {
 
 	private final AppProperties properties;
 
+	private final LiveExamReceiptPdf receiptPdf;
+
 	public LiveExamOrderController(LiveExamOrderService orders, LiveExamOrderAdminService adminOrders,
 			LiveExamOrderHistoryService history, PermissionChecker permissions, ObjectMapper json,
-			AppProperties properties) {
+			AppProperties properties, LiveExamReceiptPdf receiptPdf) {
 		this.orders = orders;
 		this.adminOrders = adminOrders;
 		this.history = history;
 		this.permissions = permissions;
 		this.json = json;
 		this.properties = properties;
+		this.receiptPdf = receiptPdf;
 	}
 
 	@PostMapping("/api/v1/live-exam-orders")
@@ -76,10 +84,36 @@ public class LiveExamOrderController {
 		return PageResponse.from(adminOrders.list(status, tranId, q, pageable));
 	}
 
+	/** The student's orders, with the optional filters of P1 and P3. Every filter may be left out. */
 	@GetMapping("/api/v1/me/live-exam-orders")
-	public PageResponse<LiveExamOrderHistoryService.OwnOrderRow> mine(@PageableDefault(size = 20) Pageable pageable) {
+	public PageResponse<LiveExamOrderHistoryService.OwnOrderRow> mine(@RequestParam(required = false) List<String> status,
+			@RequestParam(required = false) String scope, @RequestParam(required = false) UUID moduleId,
+			@RequestParam(required = false) UUID examId,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+			@RequestParam(required = false) UUID orderId, @PageableDefault(size = 20) Pageable pageable) {
 		requireStudent();
-		return PageResponse.from(history.list(actorId(), pageable));
+		var filter = new LiveExamOrderHistoryService.OrderFilter(status, scope, moduleId, examId, from, to, orderId);
+		return PageResponse.from(history.list(actorId(), filter, pageable));
+	}
+
+	/** Totals for the payment history summary (P1): paid total, paid count, and orders awaiting payment. */
+	@GetMapping("/api/v1/me/live-exam-orders/summary")
+	public LiveExamOrderHistoryService.OrderSummary summary() {
+		requireStudent();
+		return history.summary(actorId());
+	}
+
+	/** The receipt of the student's own paid order (P4). Any other order is 404. */
+	@GetMapping("/api/v1/me/live-exam-orders/{id}/receipt.pdf")
+	public ResponseEntity<byte[]> receiptPdf(@PathVariable UUID id) {
+		requireStudent();
+		LiveExamOrderHistoryService.Receipt receipt = history.receipt(actorId(), id);
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.contentType(MediaType.APPLICATION_PDF)
+			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + receipt.order().receiptNo() + ".pdf\"")
+			.body(receiptPdf.render(receipt));
 	}
 
 	@GetMapping("/api/v1/live-exam-orders/status")

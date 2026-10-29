@@ -57,6 +57,8 @@ const auth = {
     email: "Email",
     password: "Password",
     passwordHelp: "8 to 72 characters.",
+    confirmPassword: "Confirm password",
+    passwordMismatch: "The passwords do not match.",
     submit: "Create account",
     duplicatePhone: "An account with this phone number already exists.",
     duplicateEmail: "An account with this email already exists.",

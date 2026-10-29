@@ -11,6 +11,7 @@ export function coverSrc(path: string | null | undefined): string | null {
 /**
  * A package's cover in a 16:9 frame. Until the Master Admin uploads an image, the frame shows
  * the brand gradient with the exam type and the title's first letters, so every card looks finished.
+ * `band` is the detail page's cover on a phone: 160 px tall, and 16:9 from lg up (Phase 4, S4.3).
  */
 export function PackageCover({
   src,
@@ -18,6 +19,7 @@ export function PackageCover({
   type,
   title,
   className,
+  band = false,
 }: {
   src: string | null;
   alt: string;
@@ -25,10 +27,11 @@ export function PackageCover({
   type: "MCQ" | "WRITTEN" | null;
   title: string;
   className?: string;
+  band?: boolean;
 }) {
   const initials = title.trim().split(/\s+/).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
   return (
-    <div className={cn("relative aspect-video w-full overflow-hidden bg-band text-on-band", className)}>
+    <div className={cn("relative w-full overflow-hidden bg-band text-on-band", band ? "h-40 lg:aspect-video lg:h-auto" : "aspect-video", className)}>
       {src ? (
         // The cover comes from the API's own host, so it is not run through the image optimiser.
         // eslint-disable-next-line @next/next/no-img-element

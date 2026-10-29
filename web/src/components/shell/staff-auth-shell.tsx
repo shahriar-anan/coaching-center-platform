@@ -32,13 +32,10 @@ export function StaffAuthShell({ children }: { children: ReactNode }) {
       </header>
       <main id="main" className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center px-4 py-10">
         {children}
-      </main>
-      <footer className="border-t border-border px-4 py-5 text-center text-meta text-muted">
-        <p>{t("auth.staffLogin.footer")}</p>
-        <Link href={siteHref("/")} className="font-semibold text-text-accent underline underline-offset-4">
+        <Link href={siteHref("/")} className="mt-6 text-center font-semibold text-text-accent underline underline-offset-4">
           {t("auth.staffLogin.studentSite")}
         </Link>
-      </footer>
+      </main>
     </div>
   );
 }

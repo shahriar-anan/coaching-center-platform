@@ -39,13 +39,13 @@ const landing: typeof bn = {
   batchOpen: "Browse exams",
   batchCallOnly: "Call to enrol",
 
-  numbersModules: "Exam modules",
+  numbersModules: "Exam packages",
   numbersMcq: "MCQ exams",
   numbersWritten: "Written exams",
 
   categoriesTitle: "Exam categories",
   categoriesSubtitle: "Start your journey to success here, with question papers from the best categories!",
-  categoryModules: "{count} modules",
+  categoryModules: "{count} packages",
   categoryFrom: "From {price}",
   categoryNoPrice: "Price to be announced",
   categoryExplore: "Explore",
@@ -57,7 +57,7 @@ const landing: typeof bn = {
   upcomingSubtitle: "Be there on time. You need an account before the exam starts.",
 
   packagesTitle: "Our packages",
-  packagesSubtitle: "Several exams in one module.",
+  packagesSubtitle: "Several exams in one package.",
   packageDetails: "Details",
   packageMcq: "{count} MCQ",
   packageWritten: "{count} written",

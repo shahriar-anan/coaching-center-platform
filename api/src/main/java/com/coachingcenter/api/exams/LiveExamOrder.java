@@ -214,6 +214,42 @@ public class LiveExamOrder {
 	}
 
 
+	/** When the order became paid (V52). Set once, in the transaction that marks it SUCCEEDED. */
+	@Column(name = "paid_at")
+	private Instant paidAt;
+
+	/** The receipt number of a paid order, such as RCPT-2026-000123 (V52). */
+	@Column(name = "receipt_no", length = 24)
+	private String receiptNo;
+
+	public Instant getPaidAt() {
+		return paidAt;
+	}
+
+	public void setPaidAt(Instant paidAt) {
+		this.paidAt = paidAt;
+	}
+
+	public String getReceiptNo() {
+		return receiptNo;
+	}
+
+	public void setReceiptNo(String receiptNo) {
+		this.receiptNo = receiptNo;
+	}
+
+	/** The receipt address the student typed for this order (V54), or null: the account email is used when verified. */
+	@Column(name = "receipt_email", length = 254)
+	private String receiptEmail;
+
+	public String getReceiptEmail() {
+		return receiptEmail;
+	}
+
+	public void setReceiptEmail(String receiptEmail) {
+		this.receiptEmail = receiptEmail;
+	}
+
 	/** Set when Master Admin confirms a pending order after checking the payment (V39). */
 	@Column(name = "confirmed_by")
 	private UUID confirmedBy;

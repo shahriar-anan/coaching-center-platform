@@ -104,9 +104,9 @@ it("lists only the exams of the door's type on a module page", async () => {
 it("offers the whole-module purchase to a signed-out visitor as a login link", async () => {
   renderWithQuery(<ModulePage door="mcq" moduleId="m1" />);
 
-  const buy = await screen.findByRole("link", { name: "Buy whole module" });
+  const buy = await screen.findByRole("link", { name: "Buy whole package" });
   expect(buy.getAttribute("href")).toMatch(/^\/login\?next=/);
-  expect(screen.getByText("Unlocks every exam in this module, including ones added later. Both MCQ and written.")).toBeInTheDocument();
+  expect(screen.getByText("Unlocks every exam in this package, including ones added later. Both MCQ and written.")).toBeInTheDocument();
 });
 
 it("shows the price-not-set sentence and no button when a module has no price", async () => {
@@ -120,5 +120,5 @@ it("shows the price-not-set sentence and no button when a module has no price", 
 
   // The module bar and the exam rows both say it.
   expect((await screen.findAllByText("Price not set yet.")).length).toBeGreaterThan(0);
-  expect(screen.queryByRole("link", { name: "Buy whole module" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Buy whole package" })).not.toBeInTheDocument();
 });

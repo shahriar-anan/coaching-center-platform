@@ -1,73 +1,46 @@
 "use client";
 
-import { useCategoryTree, type CategoryNode, type PublicModule } from "@/lib/api/exam/catalog";
-import { formatNumber, pickText, pickTitle } from "@/lib/format";
+import { useCategoryTree, type CategoryNode } from "@/lib/api/exam/catalog";
+import { formatNumber, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DoorDiscovery } from "./door-discovery";
-import { PackageCard } from "@/components/ui/package/package-card";
-import { coverSrc } from "@/components/ui/package/package-cover";
+import { CategoryExams, ComingSoonCard } from "./category-exams";
 import {
   categoryPath,
+  countBranchExams,
   countModules,
   doorLabelKey,
   doorPath,
   doorType,
   findCategoryPath,
-  firstLine,
-  modulePath,
-  moduleTypeCount,
   type Door,
 } from "./catalog-helpers";
 
+/**
+ * The counts on a category card, in one line: subcategories, then exams, then packages. A zero part is left out. A card
+ * with nothing at all says "Coming soon" (Phase 4, A4).
+ */
 function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
   const { t, locale } = useLocale();
   const modules = countModules(node);
-  const subtitle =
-    modules === 0
-      ? t("catalog.comingSoon")
-      : node.children?.length
-        ? t("catalog.countCategories", { n: formatNumber(node.children.length, locale) })
-        : t("catalog.countModules", { n: formatNumber(modules, locale) });
+  const exams = countBranchExams(node);
+  const parts = [
+    node.children?.length ? t("catalog.countCategories", { n: formatNumber(node.children.length, locale) }) : null,
+    exams > 0 ? t("catalog.countExams", { n: formatNumber(exams, locale) }) : null,
+    modules > 0 ? t("catalog.countModules", { n: formatNumber(modules, locale) }) : null,
+  ].filter((part): part is string => part !== null);
+  const subtitle = parts.length ? parts.join(" · ") : t("catalog.comingSoon");
   return (
     <Card href={categoryPath(door, node.id)}>
       <p className="text-card-title font-bold">{pickTitle(node, locale)}</p>
       <p className="text-body text-muted">{subtitle}</p>
     </Card>
-  );
-}
-
-function ModuleCard({ door, module }: { door: Door; module: PublicModule }) {
-  const { locale } = useLocale();
-  const type = doorType(door);
-  const count = moduleTypeCount(module, type);
-  const description = firstLine(pickText({ ...module }, "description", locale));
-  return (
-    <PackageCard
-      href={modulePath(door, module.id)}
-      cover={coverSrc(module.coverUrl)}
-      type={type}
-      title={pickTitle(module, locale)}
-      summary={description || null}
-      examCount={count ?? 0}
-      price={module.price ?? null}
-    />
-  );
-}
-
-export function ComingSoonCard() {
-  const { t } = useLocale();
-  return (
-    <div className="rounded-card border border-border bg-card p-4">
-      <Pill tone="accent">{t("catalog.comingSoon")}</Pill>
-      <p className="mt-2 text-muted">{t("catalog.comingSoonBody")}</p>
-    </div>
   );
 }
 
@@ -137,7 +110,6 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
   }
   const node = path[path.length - 1];
   const children = [...(node.children ?? [])].sort((a, b) => a.position - b.position);
-  const modules = [...(node.modules ?? [])].sort((a, b) => a.position - b.position);
   const breadcrumbs = [
     { label: t("catalog.home"), href: "/" },
     { label: doorLabel, href: doorPath(door) },
@@ -148,18 +120,17 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
   return (
     <>
       <PageHeader title={pickTitle(node, locale)} breadcrumbs={breadcrumbs} />
-      {children.length === 0 && modules.length === 0 ? (
-        <ComingSoonCard />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {children.map((child) => (
-            <CategoryCard key={child.id} door={door} node={child} />
-          ))}
-          {modules.map((module) => (
-            <ModuleCard key={module.id} door={door} module={module} />
-          ))}
-        </div>
-      )}
+      {children.length > 0 ? (
+        <section className="mb-6 grid gap-3">
+          <h2 className="text-section font-bold">{t("catalog.categoryExams.subcategories")}</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {children.map((child) => (
+              <CategoryCard key={child.id} door={door} node={child} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <CategoryExams categoryId={node.id} door={door} hasChildren={children.length > 0} />
     </>
   );
 }

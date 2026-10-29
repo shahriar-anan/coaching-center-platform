@@ -34,7 +34,7 @@ const result = {
   },
   access: {
     roster: "সরাসরি ভর্তি",
-    module: "মডিউল কেনা",
+    module: "প্যাকেজ কেনা",
     exam: "পরীক্ষা কেনা",
     manual: "প্রশাসক দিয়েছেন",
   },
@@ -67,6 +67,7 @@ const result = {
     tabMarking: "মূল্যায়ন চলছে",
     tabOther: "অন্যান্য",
     emptyOther: "এখানে এখনো কোনো পরীক্ষা নেই।",
+    emptyOfType: "এখানে এখনো কোনো {type} ফলাফল নেই।",
     empty: "এখনো কোনো ফলাফল নেই",
     emptyBody: "পরীক্ষা দেওয়ার পর ফলাফল এখানে দেখা যাবে।",
     emptyAction: "পরীক্ষার রুটিন দেখুন",

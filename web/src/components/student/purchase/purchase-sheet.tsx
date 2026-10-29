@@ -16,18 +16,43 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { IncludedList } from "@/components/student/catalog/included-list";
+import { PriceLine } from "@/components/student/catalog/price-line";
+import { priceLabel } from "@/components/student/catalog/price-view";
+import { ReceiptEmailField } from "@/components/student/purchase/receipt-email-field";
+import { isEmail } from "@/app/(auth)/_components/validate";
+import { useSession } from "@/lib/auth/session-context";
+import type { PriceView } from "@/lib/api/exam/types";
 
 export interface PurchaseItem {
   kind: "exam" | "module";
   id: string;
   title: string;
+  /** The amount the order charges: the effective price after any discount (NR-01, S2.6). */
   price: number;
+  /** The list price, shown struck through beside the price when the item is discounted. */
+  listPrice?: number | null;
+  discountPercent?: number | null;
+  discountEndsAt?: string | null;
+  /** The packages an exam is in, named on the sheet so the student knows where it comes from. */
+  packages?: { id: string; title: string }[];
   /** Door to return to after paying (module purchase). */
   door?: "mcq" | "written";
   /** The package cover path, for the summary card. */
   coverUrl?: string | null;
   /** How many exams the package holds now, for the included list. */
   examCount?: number;
+}
+
+/** The price view the sheet shows: the list price and the charged price, so a discount shows struck through (NR-01, S2.6). */
+export function sheetPriceView(item: PurchaseItem): PriceView {
+  return {
+    price: item.listPrice ?? item.price,
+    discountPercent: item.discountPercent ?? null,
+    discountEndsAt: item.discountEndsAt ?? null,
+    effectivePrice: item.price,
+    free: false,
+    moduleOnly: false,
+  };
 }
 
 export const ORDER_MEMO_PREFIX = "exam-portal.order.";
@@ -40,6 +65,8 @@ export interface OrderMemo {
   title: string;
   /** The amount the student agreed to pay, shown on the success page. */
   amount?: number;
+  /** The order, so the success page can link to its payment and its receipt (Phase 4, S4.6). */
+  orderId?: string;
 }
 
 export function remember(tranId: string, memo: OrderMemo) {
@@ -119,21 +146,39 @@ export function PurchaseSheet({
   const invalidate = useInvalidateCatalog();
   const [problem, setProblem] = useState<Problem | null>(null);
   const [leaving, setLeaving] = useState(false);
+  // The receipt address is per order (Phase 4B): it is typed for this purchase only and is not saved to the profile.
+  const { session } = useSession();
+  const verified = session.status === "authenticated" && Boolean(session.user.emailVerifiedAt);
+  const [receiptEmail, setReceiptEmail] = useState("");
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   function close(next: boolean) {
     if (!next) {
       setProblem(null);
+      setReceiptEmail("");
+      setReceiptError(null);
       start.reset();
     }
     onOpenChange(next);
   }
 
+  function receiptFieldError(message: string) {
+    setReceiptError(message);
+    document.getElementById("receipt-email")?.focus();
+  }
+
   async function pay() {
     setProblem(null);
+    // The address is checked here first, so an invalid one sends no request.
+    const typed = receiptEmail.trim();
+    if (typed && !isEmail(typed)) {
+      receiptFieldError(t("purchase.receipt.invalid"));
+      return;
+    }
+    setReceiptError(null);
     try {
-      const order = await start.mutateAsync(
-        item.kind === "exam" ? { examId: item.id } : { moduleId: item.id },
-      );
+      const target = item.kind === "exam" ? { examId: item.id } : { moduleId: item.id };
+      const order = await start.mutateAsync(typed ? { ...target, receiptEmail: typed } : target);
       if (!order.redirectUrl) {
         setProblem({ kind: "generic" });
         return;
@@ -145,10 +190,15 @@ export function PurchaseSheet({
         door: item.door ?? examMeta?.door ?? null,
         title: item.title,
         amount: item.price,
+        orderId: order.orderId,
       });
       setLeaving(true);
       window.location.assign(order.redirectUrl);
     } catch (error) {
+      if (error instanceof ApiError && error.fieldErrors?.some((detail) => detail.field === "receiptEmail")) {
+        receiptFieldError(t("purchase.receipt.invalid"));
+        return;
+      }
       const next = problemFrom(error);
       if (next.kind === "owned" || next.kind === "price" || next.kind === "missing") {
         void invalidate();
@@ -185,10 +235,15 @@ export function PurchaseSheet({
           />
           <div className="grid min-w-0 gap-1">
             <p className="line-clamp-2 font-bold leading-snug">{item.title}</p>
-            <p className="text-card-title font-extrabold tabular-nums text-text-accent">{formatMoney(item.price, locale)}</p>
+            <PriceLine label={priceLabel(sheetPriceView(item))} size="detail" />
           </div>
         </div>
         <p className="font-semibold">{t(item.kind === "exam" ? "purchase.unlockExam" : "purchase.unlockModule")}</p>
+        {item.kind === "exam" && item.packages && item.packages.length > 0 ? (
+          <p className="text-body text-muted">
+            {t("purchase.inPackages", { titles: item.packages.map((pkg) => pkg.title).join(", ") })}
+          </p>
+        ) : null}
         {item.kind === "module" ? (
           <IncludedList
             items={[
@@ -264,9 +319,20 @@ export function PurchaseSheet({
             {t("catalog.unlocked")}
           </Button>
         ) : (
-          <Button fullWidth loading={busy} onClick={() => void pay()}>
-            {busy ? t("purchase.redirecting") : t("purchase.payWithPrice", { price: formatMoney(item.price, locale) ?? "" })}
-          </Button>
+          <>
+            <ReceiptEmailField
+              value={receiptEmail}
+              error={receiptError ?? undefined}
+              verified={verified}
+              onChange={(value) => {
+                setReceiptEmail(value);
+                setReceiptError(null);
+              }}
+            />
+            <Button fullWidth loading={busy} onClick={() => void pay()}>
+              {busy ? t("purchase.redirecting") : t("purchase.payWithPrice", { price: formatMoney(item.price, locale) ?? "" })}
+            </Button>
+          </>
         )}
         <Button variant="ghost" fullWidth onClick={() => close(false)}>
           {t("purchase.cancel")}

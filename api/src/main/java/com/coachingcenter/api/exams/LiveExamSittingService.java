@@ -131,7 +131,7 @@ public class LiveExamSittingService {
 				participant != null && participant.getAnswerStoredFileName() != null, standing.status().detail(),
 				standing.attempts(),
 				new AccessView(state.granted(), state.source(), state.endsAt() == null ? null : state.endsAt().toString(),
-						state.expired()));
+						state.expired()), shell.coverUrl());
 	}
 
 	/** The first attempt. A student with an open attempt gets it back; one with a finished attempt must use {@link #retake}. */
@@ -800,7 +800,7 @@ public class LiveExamSittingService {
 			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
 			Boolean retakeAvailable, SittingView sitting, Boolean answerStored, String myStatusDetail, int attempts,
-			AccessView access) {
+			AccessView access, String coverUrl) {
 	}
 
 	public record AccessView(boolean granted, String source, String endsAt, boolean expired) {

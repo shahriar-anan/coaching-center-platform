@@ -4,11 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import RegisterPage from "@/app/(auth)/register/page";
 import { apiError, fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
 
-async function fillForm() {
+/** The password label is matched with its asterisk, so the confirm label ("পাসওয়ার্ড নিশ্চিত করুন") is not picked up too. */
+async function fillForm(confirm = "password1") {
   await userEvent.type(screen.getByLabelText(/^নাম/), "রহিম উদ্দিন");
   await userEvent.type(screen.getByLabelText(/^ফোন/), "01711000001");
   await userEvent.type(screen.getByLabelText(/^ইমেইল/), "rahim@example.com");
-  await userEvent.type(screen.getByLabelText(/^পাসওয়ার্ড/, { selector: "input" }), "password1");
+  await userEvent.type(screen.getByLabelText(/^পাসওয়ার্ড\*/, { selector: "input" }), "password1");
+  await userEvent.type(screen.getByLabelText(/^পাসওয়ার্ড নিশ্চিত/, { selector: "input" }), confirm);
 }
 
 beforeEach(() => {
@@ -61,6 +63,48 @@ describe("register", () => {
 
     await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/"));
     expect(verify).toHaveBeenCalled();
+  });
+
+  it("blocks the request when the two passwords differ, and moves focus to the confirm field", async () => {
+    const { calls } = mockApi({ "POST /api/v1/auth/register": { id: "u1" } });
+    renderWithProviders(<RegisterPage />);
+    await fillForm("password2");
+    await userEvent.click(screen.getByRole("button", { name: "অ্যাকাউন্ট খুলুন" }));
+
+    const confirm = screen.getByLabelText(/^পাসওয়ার্ড নিশ্চিত/, { selector: "input" });
+    expect(await screen.findByText("পাসওয়ার্ড দুটি মেলেনি।")).toBeInTheDocument();
+    expect(confirm).toHaveAttribute("aria-invalid", "true");
+    expect(confirm.getAttribute("aria-describedby")).toMatch(/-error/);
+    expect(confirm).toHaveFocus();
+    expect(calls.some((call) => call.path === "/api/v1/auth/register")).toBe(false);
+  });
+
+  it("submits when the passwords match, and the confirm value is not in the request body", async () => {
+    const { calls } = mockApi({ "POST /api/v1/auth/register": { id: "u1" } });
+    const login = vi.fn(async () => fixtures.student);
+    renderWithProviders(<RegisterPage />, { session: { login } });
+    await fillForm("password1");
+    await userEvent.click(screen.getByRole("button", { name: "অ্যাকাউন্ট খুলুন" }));
+
+    expect(await screen.findByText("ইমেইল যাচাই করুন")).toBeInTheDocument();
+    const sent = calls.find((call) => call.path === "/api/v1/auth/register");
+    expect(sent).toBeDefined();
+    const body = sent?.body as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["email", "fullName", "password", "phone"]);
+    expect(body.password).toBe("password1");
+  });
+
+  it("shows and hides the confirm password on its own toggle", async () => {
+    renderWithProviders(<RegisterPage />);
+    await fillForm("password1");
+    const confirm = screen.getByLabelText(/^পাসওয়ার্ড নিশ্চিত/, { selector: "input" });
+    const toggle = confirm.parentElement?.querySelector("button") as HTMLButtonElement;
+    expect(confirm).toHaveAttribute("type", "password");
+    await userEvent.click(toggle);
+    expect(confirm).toHaveAttribute("type", "text");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+    expect(confirm).toHaveAttribute("type", "password");
   });
 
   it("lets the student skip the code and returns them to the exam they came from", async () => {

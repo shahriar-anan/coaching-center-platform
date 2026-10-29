@@ -58,27 +58,40 @@ export interface Notice {
   score: number | null;
   maximum: number | null;
   passed: boolean | null;
+  /** The tab the API files the notice under (N1). */
+  group?: NoticeGroup;
+}
+
+/** The three tabs of the notices page (N1). */
+export type NoticeGroup = "RESULTS" | "EXAMS" | "ANNOUNCEMENTS";
+
+/** Unread notices in all (`count`) and in each tab (`byGroup`). */
+export interface UnreadCounts {
+  count: number;
+  byGroup: Partial<Record<NoticeGroup, number>>;
 }
 
 export const noticeKeys = {
   all: ["notices"] as const,
-  list: (page: number) => ["notices", "list", page] as const,
+  list: (page: number, group: NoticeGroup | null) => ["notices", "list", page, group ?? "ALL"] as const,
   unread: () => ["notices", "unread"] as const,
 };
 
-export function useNotices(page: number) {
+/** One page of a tab, or of every notice when no tab is given. */
+export function useNotices(page: number, group: NoticeGroup | null = null) {
+  const query = group ? `&group=${group}` : "";
   return useQuery({
-    queryKey: noticeKeys.list(page),
-    queryFn: () => apiRequest<PageResponse<Notice>>(`/api/v1/me/notices?page=${page}&size=20`),
+    queryKey: noticeKeys.list(page, group),
+    queryFn: () => apiRequest<PageResponse<Notice>>(`/api/v1/me/notices?page=${page}&size=20${query}`),
     refetchOnWindowFocus: true,
   });
 }
 
-/** Unread count for the bell. Refreshes on focus and every two minutes. */
+/** Unread counts for the bell and the tabs. Refreshes on focus and every two minutes. */
 export function useUnreadCount() {
   return useQuery({
     queryKey: noticeKeys.unread(),
-    queryFn: () => apiRequest<{ count: number }>("/api/v1/me/notices/unread-count"),
+    queryFn: () => apiRequest<UnreadCounts>("/api/v1/me/notices/unread-count"),
     refetchOnWindowFocus: true,
     refetchInterval: 2 * 60 * 1000,
     staleTime: 30_000,
@@ -98,11 +111,15 @@ export function useMarkNoticeRead() {
   });
 }
 
+/** Marks the unread notices of one tab read, or every one when no tab is given (N1). */
 export function useMarkAllNoticesRead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiRequest<{ updated: number }>("/api/v1/me/notices/read-all", { method: "POST", body: {} }),
+    mutationFn: (group: NoticeGroup | null) =>
+      apiRequest<{ updated: number }>(`/api/v1/me/notices/read-all${group ? `?group=${group}` : ""}`, {
+        method: "POST",
+        body: {},
+      }),
     onSuccess: () => invalidateNotices(queryClient),
   });
 }

@@ -48,6 +48,20 @@ export function PaymentsTable({
       cell: (row) => format.formatDateTime(row.createdAt),
     },
     {
+      key: "paidAt",
+      header: t("staffOps.payments.columns.paidAt"),
+      width: "w-36",
+      nowrap: true,
+      cell: (row) => (row.paidAt ? format.formatDateTime(row.paidAt) : "—"),
+    },
+    {
+      key: "receiptNo",
+      header: t("staffOps.payments.columns.receipt"),
+      width: "w-36",
+      nowrap: true,
+      cell: (row) => (row.receiptNo ? <code className="font-latin text-meta">{row.receiptNo}</code> : "—"),
+    },
+    {
       key: "student",
       header: t("staffOps.payments.columns.student"),
       cell: (row) => (

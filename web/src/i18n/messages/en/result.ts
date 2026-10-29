@@ -34,7 +34,7 @@ const result = {
   },
   access: {
     roster: "Added directly",
-    module: "Module purchase",
+    module: "Package purchase",
     exam: "Exam purchase",
     manual: "Added by the centre",
   },
@@ -67,6 +67,7 @@ const result = {
     tabMarking: "Being marked",
     tabOther: "Other",
     emptyOther: "No other exams yet.",
+    emptyOfType: "No {type} results here yet.",
     empty: "No results yet",
     emptyBody: "Your results will appear here after you sit an exam.",
     emptyAction: "See the exam schedule",

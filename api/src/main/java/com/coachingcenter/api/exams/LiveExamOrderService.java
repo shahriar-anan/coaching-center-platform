@@ -8,9 +8,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.coachingcenter.api.auth.StudentPhoneGuard;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.error.FieldErrorDetail;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
 import com.coachingcenter.api.users.User;
@@ -34,6 +37,9 @@ import tools.jackson.databind.JsonNode;
 public class LiveExamOrderService {
 
 	private static final Logger log = LoggerFactory.getLogger(LiveExamOrderService.class);
+
+	/** A plain address check: one @, no spaces, a dot after it. The mail itself is the real test. */
+	private static final Pattern RECEIPT_EMAIL = Pattern.compile("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
 
 	private final LiveExamOrderRepository orders;
 
@@ -83,6 +89,8 @@ public class LiveExamOrderService {
 	public InitiateResult initiate(UUID studentId, JsonNode body) {
 		phones.require(studentId);
 		Instant now = clock.instant();
+		// The receipt address is checked before anything is written, so an invalid one makes no order (Phase 4B).
+		String receiptEmail = readReceiptEmail(body);
 		Target target = readTarget(body, now);
 		rejectOwned(studentId, target, now);
 		if (gateways.getIfAvailable() == null) {
@@ -90,23 +98,26 @@ public class LiveExamOrderService {
 		}
 		Optional<LiveExamOrder> open = findOpen(studentId, target);
 		if (open.isPresent()) {
-			return checkout(open.get(), false, studentId, target.productName());
+			// An open order takes the address typed now: the student may have changed it or skipped it since.
+			LiveExamOrder order = tx.setReceiptEmail(open.get().getId(), receiptEmail);
+			return checkout(order, false, studentId, target.productName());
 		}
 		if (LiveExamOrderBundle.SCOPE.equals(target.scope())) {
 			LiveExamOrderBundle.Inserted inserted = tx.insertBundle(studentId, target.moduleId(), target.examIds(),
-					target.amount(), target.listPrice(), target.discountPercent());
+					target.amount(), target.listPrice(), target.discountPercent(), receiptEmail);
 			return checkout(inserted.order(), inserted.created(), studentId, target.productName());
 		}
 		LiveExamOrder order;
 		try {
 			order = tx.insert(studentId, target.scope(), target.moduleId(), target.examId(), target.amount(),
-					target.listPrice(), target.discountPercent());
+					target.listPrice(), target.discountPercent(), receiptEmail);
 		}
 		catch (DataIntegrityViolationException exception) {
 			if (!isOpenOrderRace(exception)) {
 				throw exception;
 			}
-			order = findOpen(studentId, target).orElseThrow(this::notFound);
+			LiveExamOrder raced = findOpen(studentId, target).orElseThrow(this::notFound);
+			order = tx.setReceiptEmail(raced.getId(), receiptEmail);
 			return checkout(order, false, studentId, target.productName());
 		}
 		return checkout(order, true, studentId, target.productName());
@@ -380,6 +391,19 @@ public class LiveExamOrderService {
 		}
 	}
 
+	/** The receipt address typed at payment (Phase 4B): trimmed and lower-cased, or null when none was typed. */
+	private static String readReceiptEmail(JsonNode body) {
+		if (!present(body, "receiptEmail")) {
+			return null;
+		}
+		String email = body.get("receiptEmail").asText().trim().toLowerCase(Locale.ROOT);
+		if (email.length() > 254 || !RECEIPT_EMAIL.matcher(email).matches()) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+					List.of(new FieldErrorDetail("receiptEmail", "The receipt email is not valid.")));
+		}
+		return email;
+	}
+
 	private static boolean present(JsonNode body, String field) {
 		return body.has(field) && !body.get(field).isNull() && !body.get(field).asText().isBlank();
 	}
@@ -447,7 +471,7 @@ public class LiveExamOrderService {
 	private OrderView view(LiveExamOrder order, String redirectUrl) {
 		return new OrderView(order.getId(), order.getTranId(), order.getStatus(), order.getAmount(), redirectUrl,
 				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order), order.getListPrice(),
-				order.getDiscountPercent());
+				order.getDiscountPercent(), order.getPaidAt(), order.getReceiptNo(), order.getReceiptEmail());
 	}
 
 	/** The exams the order covers: the bundle's list, the one exam, or null for a module (it covers future exams too). */
@@ -478,7 +502,8 @@ public class LiveExamOrderService {
 
 	/** {@code listPrice} and {@code discountPercent} are what the student saw at checkout (R19). */
 	public record OrderView(UUID orderId, String tranId, String status, BigDecimal amount, String redirectUrl,
-			String scope, UUID moduleId, UUID examId, List<UUID> examIds, BigDecimal listPrice, Integer discountPercent) {
+			String scope, UUID moduleId, UUID examId, List<UUID> examIds, BigDecimal listPrice, Integer discountPercent,
+			Instant paidAt, String receiptNo, String receiptEmail) {
 	}
 
 	/**

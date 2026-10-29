@@ -1,9 +1,10 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type {
+  CategoryExam,
   CategoryNode,
   ExamType,
   MyStatus,
@@ -70,7 +71,23 @@ export const catalogKeys = {
     ["catalog", "my-exams", moduleId, examType ?? "ALL"] as const,
   myExam: (id: string) => ["catalog", "my-exam", id] as const,
   routine: () => ["catalog", "routine"] as const,
+  categoryExams: (categoryId: string, examType: ExamType, branch: boolean) =>
+    ["catalog", "category-exams", categoryId, examType, branch] as const,
 };
+
+/** The category exam list's page size (NR-01, S2.1). */
+export const CATEGORY_EXAM_PAGE = 20;
+
+/** The URL of one page of a category exam list. `branch` adds the exams of every subcategory below it. */
+export function categoryExamsUrl(categoryId: string, examType: ExamType, branch: boolean, page: number): string {
+  const params = new URLSearchParams({
+    examType,
+    branch: String(branch),
+    page: String(page),
+    size: String(CATEGORY_EXAM_PAGE),
+  });
+  return `/api/v1/public/live-exam-categories/${categoryId}/exams?${params.toString()}`;
+}
 
 function typeQuery(examType: ExamType | null, extra: Record<string, string> = {}): string {
   const params = new URLSearchParams(extra);
@@ -168,6 +185,21 @@ export type UpcomingExam = PublicExam & {
  * Published modules matching `q` (G12). Only runs once there is text. An older
  * API that ignores `q` returns everything, so the screen filters by title too.
  */
+/**
+ * The exams of one category, a page at a time (NR-01, S2.1). `branch` on lists every subcategory below it; off lists only the
+ * category's own exams. Changing either setting starts a new list.
+ */
+export function useCategoryExams(categoryId: string, examType: ExamType, branch: boolean) {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.categoryExams(categoryId, examType, branch),
+    initialPageParam: 0,
+    staleTime: CATALOG_STALE,
+    queryFn: ({ pageParam, signal }) =>
+      apiRequest<PageResponse<CategoryExam>>(categoryExamsUrl(categoryId, examType, branch, pageParam), { signal }),
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+  });
+}
+
 export function useModuleSearch(q: string) {
   const term = q.trim();
   return useQuery({
@@ -179,6 +211,33 @@ export function useModuleSearch(q: string) {
         `/api/v1/public/live-exam-modules?q=${encodeURIComponent(term)}&size=20`,
         { signal },
       ).then((page) => page.content),
+  });
+}
+
+/**
+ * The popular exams still to come, for the home page (NR-01, S3.1). `upcoming=true` is required by the API, and `popular=true`
+ * keeps the exams marked popular.
+ */
+export function usePopularExams() {
+  return useQuery({
+    queryKey: ["catalog", "popular-exams"] as const,
+    staleTime: 60_000,
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<UpcomingExam>>("/api/v1/public/live-exams?upcoming=true&popular=true&size=6", { signal }).then(
+        (page) => page.content,
+      ),
+  });
+}
+
+/** The popular packages, for the home page (NR-01, S3.1). */
+export function usePopularPackages() {
+  return useQuery({
+    queryKey: ["catalog", "popular-packages"] as const,
+    staleTime: 60_000,
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<PublicModule>>("/api/v1/public/live-exam-modules?popular=true&size=6", { signal }).then(
+        (page) => page.content,
+      ),
   });
 }
 
@@ -222,10 +281,21 @@ export function useCheckoutEnabled() {
   });
 }
 
+/**
+ * How often an exam page re-reads its exam while the exam has not ended. The phase changes when the window ends, and the
+ * page must notice without a reload. Once the phase is ENDED or PRACTICE nothing else can change, so polling stops.
+ */
+const EXAM_PHASE_POLL = 30_000;
+
+export function examPhasePoll(phase: string | undefined): number | false {
+  return phase === "ENDED" || phase === "PRACTICE" ? false : EXAM_PHASE_POLL;
+}
+
 export function usePublicExam(id: string, signedIn = false) {
-  return useQuery({
+  return useQuery<PublicExam>({
     queryKey: [...catalogKeys.publicExam(id), signedIn],
     staleTime: CATALOG_STALE,
+    refetchInterval: (query) => examPhasePoll(query.state.data?.phase),
     queryFn: ({ signal }) => apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
   });
 }
@@ -243,11 +313,17 @@ export function useMyModules(enabled: boolean) {
   });
 }
 
-/** One grant of the student's own (`GET /api/v1/me/live-exam-access`, API-ACCESS). */
+/**
+ * One grant of the student's own (`GET /api/v1/me/live-exam-access`, API-ACCESS). `endsAt` is null for lifetime access and
+ * `expired` is true once it has run out (NR-01, my exams). Both are additive fields, so older rows read as lifetime and live.
+ */
 export interface OwnModuleGrant {
   moduleId: string;
   via: "ROSTER" | "MODULE" | "MANUAL";
   orderId?: string;
+  grantedAt?: string;
+  endsAt?: string | null;
+  expired?: boolean;
 }
 
 export interface OwnExamGrant {
@@ -255,6 +331,9 @@ export interface OwnExamGrant {
   moduleId: string;
   via: "EXAM" | "MANUAL";
   orderId?: string;
+  grantedAt?: string;
+  endsAt?: string | null;
+  expired?: boolean;
 }
 
 /** Every module and exam the signed-in student owns. No paging. */
@@ -270,6 +349,33 @@ export function useMyLiveExamAccess(enabled: boolean) {
     staleTime: CATALOG_STALE,
     enabled,
     queryFn: ({ signal }) => apiRequest<MyLiveExamAccess>("/api/v1/me/live-exam-access", { signal }),
+  });
+}
+
+/**
+ * The public exam rows for the student's own exams, one read per id, signed in so each row carries its access. The public
+ * read works for an expired grant too, where the signed-in read does not (NR-01, my exams).
+ */
+export function usePublicExamsById(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: [...catalogKeys.publicExam(id), true],
+      staleTime: CATALOG_STALE,
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
+    })),
+  });
+}
+
+/** The public package rows for the student's own packages, one read per id (NR-01, my exams). */
+export function usePublicModulesById(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: [...catalogKeys.publicModule(id), true],
+      staleTime: CATALOG_STALE,
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        apiRequest<PublicModule>(`/api/v1/public/live-exam-modules/${id}`, { signal }),
+    })),
   });
 }
 

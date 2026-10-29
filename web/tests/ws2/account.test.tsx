@@ -65,7 +65,8 @@ describe("payments", () => {
     renderWithProviders(<PaymentsPage />, { user: fixtures.student, route: "/account/payments" });
     expect((await screen.findAllByText("সিআরপিসি মডেল টেস্ট"))[0]).toBeInTheDocument();
     expect(screen.getAllByText("সফল")[0]).toBeInTheDocument();
-    expect(screen.getAllByText("TRAN-1")[0]).toBeInTheDocument();
+    // The transaction id is in the order's detail panel (Phase 4, S4.6), not in the table.
+    expect(screen.queryByText("TRAN-1")).not.toBeInTheDocument();
   });
 });
 
@@ -97,14 +98,15 @@ describe("notices", () => {
       "POST /api/v1/me/notices/read-all": { updated: 1 },
     });
     renderWithProviders(<NoticesPage />, { user: fixtures.student, route: "/notices" });
-    await userEvent.click(await screen.findByRole("button", { name: "সবগুলো পড়া হয়েছে" }));
+    await userEvent.click(await screen.findByRole("button", { name: "এই ট্যাবের সব পড়া হয়েছে" }));
     await waitFor(() => expect(calls.calls.some((c) => c.path === "/api/v1/me/notices/read-all")).toBe(true));
   });
 
   it("shows the empty sentence", async () => {
     mockApi({ "GET /api/v1/me/notices": emptyPage });
     renderWithProviders(<NoticesPage />, { user: fixtures.student, route: "/notices" });
-    expect(await screen.findByText("এখনো কোনো নোটিশ নেই।")).toBeInTheDocument();
+    // With no unread notices the page opens on the Exams tab, and that tab's empty sentence shows (Phase 4, S4.5).
+    expect(await screen.findByText("পরীক্ষার কোনো নোটিশ এখনো নেই।")).toBeInTheDocument();
   });
 
   it("shows the unread count on the bell", async () => {

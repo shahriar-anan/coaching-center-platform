@@ -10,23 +10,28 @@ export type TabItem = {
   badge?: number;
 };
 
-/** Tabs with a count badge. Arrow keys move between tabs; the content is rendered by the caller. */
+/**
+ * Tabs with a count badge. Arrow keys move between tabs; the content is rendered by the caller. A row of tabs that does not fit
+ * scrolls sideways by default; `wrap` lets the tabs take a second line instead, so none is cut off (Phase 4, S4.4).
+ */
 export function Tabs({
   tabs,
   value,
   onChange,
   ariaLabel,
+  wrap = false,
 }: {
   tabs: TabItem[];
   value: string;
   onChange: (value: string) => void;
   ariaLabel: string;
+  wrap?: boolean;
 }) {
   return (
     <RadixTabs.Root value={value} onValueChange={onChange}>
       <RadixTabs.List
         aria-label={ariaLabel}
-        className="flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none]"
+        className={cn("flex gap-1 border-b border-border [scrollbar-width:none]", wrap ? "flex-wrap" : "overflow-x-auto")}
       >
         {tabs.map((tab) => (
           <RadixTabs.Trigger

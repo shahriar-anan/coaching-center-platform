@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../helpers";
 import LoginPage from "@/app/(auth)/login/page";
@@ -56,11 +56,11 @@ describe("admin panel sign-in (admin host)", () => {
     expect(screen.getByText(/মাস্টার অ্যাডমিনের পাসওয়ার্ড এখানে রিসেট করা যায় না/)).toBeInTheDocument();
   });
 
-  it("has no student menu, and links to the student site from the footer", () => {
+  it("has no student menu and no footer, and links to the student site", () => {
     staffLogin();
     expect(screen.queryByRole("navigation", { name: "মূল মেনু" })).not.toBeInTheDocument();
-    const footer = screen.getByRole("contentinfo");
-    expect(within(footer).getByRole("link", { name: "শিক্ষার্থীদের সাইটে যান" })).toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "শিক্ষার্থীদের সাইটে যান" })).toBeInTheDocument();
   });
 
   it("is written in English when the language is English", () => {

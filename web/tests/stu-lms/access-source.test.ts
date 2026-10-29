@@ -6,7 +6,7 @@ import { accessSourceKey } from "@/components/student/result/access-source";
 describe("access source labels (my modules)", () => {
   it.each([
     ["ROSTER", "সরাসরি ভর্তি", "Added directly"],
-    ["MODULE", "মডিউল কেনা", "Module purchase"],
+    ["MODULE", "প্যাকেজ কেনা", "Package purchase"],
     ["EXAM", "পরীক্ষা কেনা", "Exam purchase"],
     ["MANUAL", "প্রশাসক দিয়েছেন", "Added by the centre"],
   ])("%s has its label in both languages", (via, bnText, enText) => {

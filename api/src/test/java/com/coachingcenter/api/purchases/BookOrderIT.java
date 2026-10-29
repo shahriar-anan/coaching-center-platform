@@ -33,6 +33,9 @@ import tools.jackson.databind.ObjectMapper;
 @Import(CapturingEmailConfig.class)
 class BookOrderIT extends PostgresIntegrationTest {
 
+	/** A new value each run: transaction references are unique, and the test database keeps rows between runs. */
+	private static final String RUN = UUID.randomUUID().toString().substring(0, 8);
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -82,9 +85,9 @@ class BookOrderIT extends PostgresIntegrationTest {
 					  "phone":"+8801711111111",
 					  "address":"House 1, Road 2",
 					  "method":"BKASH",
-					  "transactionRef":"book-trx-1"
+					  "transactionRef":"book-trx-%s"
 					}
-					"""))
+					""".formatted(RUN)))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.status").value("PLACED"))
 			.andExpect(jsonPath("$.paymentStatus").value("PENDING"));
@@ -97,9 +100,9 @@ class BookOrderIT extends PostgresIntegrationTest {
 					  "paymentMethod":"ONLINE",
 					  "phone":"+8801711111111",
 					  "method":"BKASH",
-					  "transactionRef":"book-trx-2"
+					  "transactionRef":"book-trx-%s"
 					}
-					"""))
+					""".formatted(RUN)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("ADDRESS_REQUIRED"));
 

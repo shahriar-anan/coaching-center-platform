@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.coachingcenter.api.auth.Role;
@@ -31,14 +32,18 @@ public class StudentInboxController {
 		this.permissions = permissions;
 	}
 
+	/** {@code group} is RESULTS, EXAMS or ANNOUNCEMENTS (N1). Absent means every notice, as before. */
 	@GetMapping("/api/v1/me/notices")
-	public PageResponse<StudentInboxService.NoticeView> list(@PageableDefault(size = 20) Pageable pageable) {
-		return PageResponse.from(inbox.list(student(), pageable));
+	public PageResponse<StudentInboxService.NoticeView> list(@RequestParam(required = false) String group,
+			@PageableDefault(size = 20) Pageable pageable) {
+		NoticeGroup tab = NoticeGroup.parse(group);
+		return PageResponse.from(inbox.list(student(), tab, pageable));
 	}
 
+	/** {@code count} is the total unread; {@code byGroup} counts them per tab (N1). */
 	@GetMapping("/api/v1/me/notices/unread-count")
-	public Map<String, Integer> unreadCount() {
-		return Map.of("count", inbox.unreadCount(student()));
+	public StudentInboxService.UnreadCounts unreadCount() {
+		return inbox.unreadCount(student());
 	}
 
 	@PostMapping("/api/v1/me/notices/{id}/read")
@@ -46,9 +51,11 @@ public class StudentInboxController {
 		return inbox.markRead(student(), id);
 	}
 
+	/** Marks every unread notice read, or only the tab named by {@code group} (N1). */
 	@PostMapping("/api/v1/me/notices/read-all")
-	public Map<String, Integer> readAll() {
-		return Map.of("updated", inbox.markAllRead(student()));
+	public Map<String, Integer> readAll(@RequestParam(required = false) String group) {
+		NoticeGroup tab = NoticeGroup.parse(group);
+		return Map.of("updated", inbox.markAllRead(student(), tab));
 	}
 
 	private UUID student() {

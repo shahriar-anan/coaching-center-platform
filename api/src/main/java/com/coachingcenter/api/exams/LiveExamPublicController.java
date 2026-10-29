@@ -36,12 +36,15 @@ public class LiveExamPublicController {
 
 	private final FavouriteService favourites;
 
+	private final ExamCoverService examCovers;
+
 	public LiveExamPublicController(LiveExamPublicService catalog, StudentOwnAccessService access,
-			ModuleCoverService covers, FavouriteService favourites) {
+			ModuleCoverService covers, FavouriteService favourites, ExamCoverService examCovers) {
 		this.catalog = catalog;
 		this.access = access;
 		this.covers = covers;
 		this.favourites = favourites;
+		this.examCovers = examCovers;
 	}
 
 	@GetMapping("/api/v1/public/live-exam-categories")
@@ -52,16 +55,18 @@ public class LiveExamPublicController {
 
 	/**
 	 * The published exams of one category: standalone ones and those in its packages alike (NR-01, B2). {@code mode},
-	 * {@code phase} and {@code popular} filter the list.
+	 * {@code phase} and {@code popular} filter the list. {@code branch} adds the exams of every subcategory below it (NR-01,
+	 * S0.1); without it only the category's own exams are listed.
 	 */
 	@GetMapping("/api/v1/public/live-exam-categories/{id}/exams")
 	public PageResponse<LiveExamPublicService.CategoryExam> categoryExams(@PathVariable UUID id,
 			@RequestParam(required = false) String examType, @RequestParam(required = false) String mode,
 			@RequestParam(required = false) String phase,
 			@RequestParam(required = false, defaultValue = "false") boolean popular,
+			@RequestParam(required = false, defaultValue = "false") boolean branch,
 			@PageableDefault(size = 20) Pageable pageable) {
 		Page<LiveExamPublicService.CategoryExam> page = catalog.categoryExams(id, LiveExamTypeFilter.parse(examType),
-				LiveExamTypeFilter.parseMode(mode), LiveExamTypeFilter.parsePhase(phase), popular, pageable);
+				LiveExamTypeFilter.parseMode(mode), LiveExamTypeFilter.parsePhase(phase), popular, branch, pageable);
 		UUID student = studentId();
 		if (student != null) {
 			Set<UUID> marked = favourites.examIds(student);
@@ -89,22 +94,35 @@ public class LiveExamPublicController {
 
 	/**
 	 * Upcoming exams across the catalog. Only {@code upcoming=true} is served; {@code examType} filters the door. Standalone
-	 * exams are included (NR-01, B2).
+	 * exams are included (NR-01, B2). {@code popular} keeps the popular exams (NR-01, S0.2).
 	 */
 	@GetMapping("/api/v1/public/live-exams")
 	public PageResponse<LiveExamPublicService.UpcomingExam> upcoming(
 			@RequestParam(required = false, defaultValue = "false") boolean upcoming,
-			@RequestParam(required = false) String examType, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String examType,
+			@RequestParam(required = false, defaultValue = "false") boolean popular,
+			@PageableDefault(size = 20) Pageable pageable) {
 		if (!upcoming) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 		}
-		Page<LiveExamPublicService.UpcomingExam> page = catalog.upcoming(LiveExamTypeFilter.parse(examType), pageable);
+		Page<LiveExamPublicService.UpcomingExam> page = catalog.upcoming(LiveExamTypeFilter.parse(examType), popular, pageable);
 		UUID student = studentId();
 		if (student != null) {
 			Set<UUID> marked = favourites.examIds(student);
 			page = page.map(row -> row.withFavourite(marked.contains(row.id())));
 		}
 		return PageResponse.from(page);
+	}
+
+	/** The exam's cover for visitors. Only a published exam has one visible; any other exam is 404 (E1). */
+	@GetMapping("/api/v1/public/live-exams/{id}/cover")
+	public ResponseEntity<InputStreamResource> examCover(@PathVariable UUID id) {
+		ModuleCoverService.CoverFile file = examCovers.openPublished(id);
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
+			.contentType(MediaType.parseMediaType(file.contentType()))
+			.contentLength(file.byteSize())
+			.body(new InputStreamResource(file.body()));
 	}
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}/cover")

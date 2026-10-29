@@ -55,6 +55,11 @@ export function countModules(node: CategoryNode): number {
   return (node.modules ?? []).length + (node.children ?? []).reduce((n, c) => n + countModules(c), 0);
 }
 
+/** The exams of a category and of every category under it (Phase 4, A4). A leaf counts its own exams. */
+export function countBranchExams(node: CategoryNode): number {
+  return (node.exams ?? []).length + (node.children ?? []).reduce((n, c) => n + countBranchExams(c), 0);
+}
+
 export function moduleTypeCount(module: PublicModule, type: ExamType): number | null {
   const value = type === "MCQ" ? module.mcqCount : module.writtenCount;
   return typeof value === "number" ? value : null;
@@ -194,6 +199,25 @@ export function buildIcs(event: { id: string; title: string; start: string; end:
     "END:VCALENDAR",
     "",
   ].join("\r\n");
+}
+
+/**
+ * The status word for an exam in a list, from its window phase (NR-01, S2.2). The list is public, so this is the window only:
+ * the student's own progress shows on the exam page.
+ */
+export function phaseStatus(phase: string): { key: string; tone: PillTone; pulse: boolean } {
+  switch (phase) {
+    case "UNANNOUNCED":
+      return { key: "catalog.phase.UNANNOUNCED", tone: "muted", pulse: false };
+    case "UPCOMING":
+      return { key: "catalog.phase.UPCOMING", tone: "muted", pulse: false };
+    case "LIVE":
+      return { key: "catalog.phase.LIVE", tone: "warn", pulse: true };
+    case "PRACTICE":
+      return { key: "catalog.phase.PRACTICE", tone: "accent", pulse: false };
+    default:
+      return { key: "catalog.phase.ENDED", tone: "muted", pulse: false };
+  }
 }
 
 export function downloadIcs(fileName: string, content: string): void {

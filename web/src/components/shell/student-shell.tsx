@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Receipt, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
+import { SiteFooter, type FooterVariant } from "@/components/shell/site-footer";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { NoticeBell } from "@/components/student/notice-bell";
 import { formatNumber } from "@/lib/format";
@@ -27,9 +28,35 @@ const TABS: TabItem[] = [
   { href: "/account", key: "account", icon: CircleUserRound },
 ];
 
+/**
+ * The student's top bar (S1.1, plan Q2). The bottom bar takes over below the large breakpoint. MCQ and Written are reached
+ * from Home, so they are not in the bar (Phase 4, A2). Their routes stay.
+ */
+const TOP_LINKS: { href: string; key: "home" | "myExams" | "results" | "routine" }[] = [
+  { href: "/", key: "home" },
+  { href: "/my-modules", key: "myExams" },
+  { href: "/results", key: "results" },
+  { href: "/routine", key: "routine" },
+];
+
 /** Routes where the paper is on screen: no tab bar, so it never covers the questions. */
+const SITTING_PATH = /^\/exam\/[^/]+\/sit(\/|$)/;
+
+/** Sign-in and sign-up pages on the student host: copyright and legal links only. */
+const SIGN_IN_PATH = /^\/(login|register|set-phone|activate|code|forgot-password|reset-password)(\/|$)/;
+
 function hidesTabBar(pathname: string): boolean {
-  return /^\/exam\/[^/]+\/sit(\/|$)/.test(pathname);
+  return SITTING_PATH.test(pathname);
+}
+
+/**
+ * Which footer a route shows: none on the exam sitting page (a timed paper, no exits), minimal on
+ * sign-in pages, full everywhere else on the student host. The staff and admin hosts have no footer.
+ */
+export function footerVariant(pathname: string): FooterVariant {
+  if (SITTING_PATH.test(pathname)) return "none";
+  if (SIGN_IN_PATH.test(pathname)) return "minimal";
+  return "full";
 }
 
 /** The tab bar is 3.5 rem plus the safe area. A sticky action bar sits above it (WS9 FN-2). */
@@ -106,8 +133,10 @@ function UserMenu() {
         >
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
+          <MenuLink href="/account/payments" icon={Receipt} label={t("account.payments.link")} />
+          <MenuLink href="/wishlist" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
-          <MenuLink href="/routine" icon={CalendarDays} label={t("catalog.routine.title")} />
+          <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />
           {user.role !== "STUDENT" ? (
             <MenuLink href={staffHome} icon={ListChecks} label={t("common.nav.adminPanel")} external />
           ) : null}
@@ -164,7 +193,7 @@ function TabBar() {
   return (
     <nav
       aria-label={t("common.nav.tabs")}
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       <ul className="mx-auto grid h-14 max-w-[760px] grid-cols-5">
         {TABS.map((tab) => {
@@ -196,6 +225,36 @@ function TabBar() {
                 {tab.key === "notices" && unreadCount > 0 ? (
                   <>{" "}<span className="sr-only">{t("common.unreadNotices", { count: formatNumber(unreadCount, locale) })}</span></>
                 ) : null}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/** The student's top bar, from desktop width up (S1.1). Visitors and staff never see it. */
+function StudentLinks() {
+  const { t } = useLocale();
+  const pathname = usePathname() ?? "/";
+  return (
+    <nav aria-label={t("common.nav.studentMain")} className="hidden min-w-0 flex-1 justify-center lg:flex">
+      <ul className="flex items-center gap-1 text-label font-semibold">
+        {TOP_LINKS.map((link) => {
+          const active = isActive(pathname, link.href);
+          return (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                prefetch
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-11 items-center whitespace-nowrap rounded-control px-3 hover:bg-bg hover:text-text",
+                  active ? "text-text" : "text-muted",
+                )}
+              >
+                {t(`common.nav.${link.key}`)}
               </Link>
             </li>
           );
@@ -246,8 +305,12 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const signedIn = session.status === "authenticated";
   const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
-  const wide = pathname === "/" && !(signedIn && session.user.role === "STUDENT");
+  const student = signedIn && session.user.role === "STUDENT";
+  const wide = pathname === "/" && !student;
   const column = wide ? "max-w-6xl" : "max-w-[760px]";
+  // The top bar needs the wider header from large width up; the content column stays 760 px.
+  const headerColumn = student ? "max-w-[760px] lg:max-w-6xl" : column;
+  const footer = footerVariant(pathname);
 
   return (
     <div
@@ -264,9 +327,10 @@ export function StudentShell({ children }: { children: ReactNode }) {
       </a>
       <OfflineBanner />
       <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
-        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", column)}>
+        <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", headerColumn)}>
           <Logo compact />
           {wide ? <WideNav /> : null}
+          {student ? <StudentLinks /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             <span className="flex items-center gap-1.5 max-[399px]:hidden sm:gap-2">
@@ -284,48 +348,12 @@ export function StudentShell({ children }: { children: ReactNode }) {
           "mx-auto w-full flex-1",
           // The wide landing page sets its own gutters and column per section.
           !wide && "max-w-[760px] px-4 pt-6 pb-10",
-          showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-10",
+          showTabs && "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10",
         )}
       >
         {children}
       </main>
-      <footer className="border-t border-border bg-card">
-        <nav aria-label={t("common.footer.label")} className={cn("mx-auto grid w-full gap-3 px-4 py-6", column)}>
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-meta text-muted">
-            <li>
-              <Link href="/help" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.help")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/about" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.about")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/contact" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.contact")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/terms" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.terms")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/privacy" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.privacy")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/refund" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.refund")}
-              </Link>
-            </li>
-          </ul>
-          <p className="text-meta text-muted">{t("common.footer.copyright")}</p>
-        </nav>
-      </footer>
+      {footer !== "none" ? <SiteFooter variant={footer} width={column} /> : null}
       {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>

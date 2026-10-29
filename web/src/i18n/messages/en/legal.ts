@@ -10,8 +10,8 @@ const legal = {
     sections: {
       buy: {
         title: "Buying and payment",
-        q1: "What do I get when I buy a module?",
-        a1: "Buying a module unlocks every exam in it, MCQ and written. Exams added to the module later are included too.",
+        q1: "What do I get when I buy a package?",
+        a1: "Buying a package unlocks every exam in it, MCQ and written. Exams added to the package later are included too.",
         q2: "Can I buy a single exam?",
         a2: "Yes. Buying one exam unlocks only that exam.",
       },
@@ -83,7 +83,7 @@ const legal = {
   },
   refund: {
     title: "Refund policy",
-    body1: "Purchased modules and exams are digital access. Refund requests are handled by the centre through the payment provider.",
+    body1: "Purchased packages and exams are digital access. Refund requests are handled by the centre through the payment provider.",
     body2: "The final refund policy will be added soon.",
   },
 } satisfies MessageTree;

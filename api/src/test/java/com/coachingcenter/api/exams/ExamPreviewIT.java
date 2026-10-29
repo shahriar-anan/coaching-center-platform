@@ -114,6 +114,26 @@ class ExamPreviewIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void thePublicExamSaysWhetherItsPreviewIsOn() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Preview flag");
+		UUID on = fx.createExam(staff, module, "MCQ", "Flag on", NOON, 40, "\"previewEnabled\":true");
+		fx.question(staff, on, "Stem", 1);
+		fx.publishNew(master, on);
+		UUID off = fx.createExam(staff, module, "MCQ", "Flag off", NOON, 40, null);
+		fx.question(staff, off, "Stem", 1);
+		fx.publishNew(master, off);
+
+		mockMvc.perform(get("/api/v1/public/live-exams/" + on))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.previewEnabled").value(true));
+		mockMvc.perform(get("/api/v1/public/live-exams/" + off))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.previewEnabled").value(false));
+	}
+
+	@Test
 	void aPracticeExamIsPreviewableAtAnyTime() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();

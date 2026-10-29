@@ -45,7 +45,7 @@ it("shows the paid state and the way into the module", async () => {
   renderWithQuery(<PurchaseResult />);
 
   expect(await screen.findByRole("heading", { name: "Unlocked: ১৯তম বিজেএস" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Go to module" })).toHaveAttribute("href", "/mcq/m/m1");
+  expect(screen.getByRole("link", { name: "Go to package" })).toHaveAttribute("href", "/mcq/m/m1");
   expect(apiRequest).toHaveBeenCalledWith(
     "/api/v1/live-exam-orders/status?tranId=tran-1",
     expect.anything(),
@@ -94,7 +94,7 @@ it("explains a missing payment reference without calling the API", () => {
   renderWithQuery(<PurchaseResult />);
 
   expect(
-    screen.getByText("We couldn't find the payment details. Check My modules instead."),
+    screen.getByText("We couldn't find the payment details. Check My exams instead."),
   ).toBeInTheDocument();
   expect(apiRequest).not.toHaveBeenCalled();
 });

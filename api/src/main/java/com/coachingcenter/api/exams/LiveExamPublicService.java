@@ -5,9 +5,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -165,14 +167,15 @@ public class LiveExamPublicService {
 	/**
 	 * Dated exams that have not ended, soonest first, in categories outside the hidden branches. An exam joins the catalog
 	 * through its home category, so a standalone exam is listed too (NR-01, B2). Public like the catalog: no questions and
-	 * no PDFs. Practice exams have no date and are not listed.
+	 * no PDFs. Practice exams have no date and are not listed. {@code popularOnly} keeps the popular exams (NR-01, S0.2).
 	 */
 	@Transactional(readOnly = true)
-	public Page<UpcomingExam> upcoming(String examType, Pageable pageable) {
+	public Page<UpcomingExam> upcoming(String examType, boolean popularOnly, Pageable pageable) {
 		Instant now = clock.instant();
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		List<LiveExam> live = new ArrayList<>(exams.findUpcomingInCatalog(now, catalogHidden(hidden),
 				LiveExamTypeFilter.ANY.equals(examType), examType));
+		live.removeIf(exam -> popularOnly && !exam.isPopular());
 		live.sort(START_ORDER);
 		List<LiveExam> slice = page(live, pageable).getContent();
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
@@ -241,18 +244,23 @@ public class LiveExamPublicService {
 		return examRow(exam, visiblePackages(List.of(exam.getId()), hidden).getOrDefault(exam.getId(), List.of()), viewer);
 	}
 
-	/** The published exams of one category, for the category's exam list (NR-01, B2). */
+	/**
+	 * The published exams of one category, for the category's exam list (NR-01, B2). {@code branch} adds the exams of every
+	 * subcategory below it, at any depth (NR-01, S0.1). Exams in a hidden subcategory stay out.
+	 */
 	@Transactional(readOnly = true)
 	public Page<CategoryExam> categoryExams(UUID categoryId, String examType, String mode, String phase,
-			boolean popularOnly, Pageable pageable) {
+			boolean popularOnly, boolean branch, Pageable pageable) {
 		categories.findByIdAndDeletedAtIsNull(categoryId).orElseThrow(this::notFound);
 		if (visibility.branchHidden(categoryId)) {
 			return Page.empty(pageable);
 		}
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		Instant now = clock.instant();
-		List<LiveExam> candidates = new ArrayList<>(
-				exams.findByCategoryIdAndStatusAndDeletedAtIsNull(categoryId, LiveExam.PUBLISHED));
+		List<LiveExam> candidates = new ArrayList<>(branch
+				? exams.findByCategoryIdInAndStatusAndDeletedAtIsNull(branchOf(categoryId), LiveExam.PUBLISHED)
+				: exams.findByCategoryIdAndStatusAndDeletedAtIsNull(categoryId, LiveExam.PUBLISHED));
+		candidates.removeIf(exam -> hidden.contains(exam.getCategoryId()));
 		candidates.sort(START_ORDER);
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
 				candidates.stream().map(LiveExam::getId).toList(), hidden);
@@ -273,6 +281,25 @@ public class LiveExamPublicService {
 			rows.add(categoryExam(exam, now, packagesByExam.getOrDefault(exam.getId(), List.of())));
 		}
 		return page(rows, pageable);
+	}
+
+	/** The category and every category below it, at any depth (NR-01, S0.1). */
+	private Set<UUID> branchOf(UUID categoryId) {
+		Map<UUID, List<UUID>> childrenOf = new HashMap<>();
+		for (LiveExamCategory category : categories.findByDeletedAtIsNull()) {
+			if (category.getParentId() != null) {
+				childrenOf.computeIfAbsent(category.getParentId(), ignored -> new ArrayList<>()).add(category.getId());
+			}
+		}
+		Set<UUID> branch = new HashSet<>();
+		Deque<UUID> pending = new ArrayDeque<>(List.of(categoryId));
+		while (!pending.isEmpty()) {
+			UUID id = pending.pop();
+			if (branch.add(id)) {
+				pending.addAll(childrenOf.getOrDefault(id, List.of()));
+			}
+		}
+		return branch;
 	}
 
 	private LiveExamModule requireModule(UUID id) {
@@ -344,15 +371,16 @@ public class LiveExamPublicService {
 				exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(),
 				exam.getPaperLanguage(), format(exam.getLiveAt()), format(exam.getEndsAt()), exam.getDurationMinutes(),
 				exam.getPrice(), viewer == null ? null : viewer.exam(exam), exam.getCategoryId(), exam.getMode(),
-				ExamWindow.phase(exam, now), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly(exam, packages)),
-				packageRefs(packages), null);
+				ExamWindow.phase(exam, now), exam.isPopular(), exam.isPreviewEnabled(),
+				ExamPricing.view(exam, now, moduleOnly(exam, packages)), packageRefs(packages), null,
+				ExamCoverService.coverPath(exam));
 	}
 
 	private CategoryExam categoryExam(LiveExam exam, Instant now, List<LiveExamModule> packages) {
 		return new CategoryExam(exam.getId(), exam.getCategoryId(), exam.getExamType(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.getTitleEn(), exam.getTitleBn(), format(exam.getLiveAt()),
 				format(exam.getEndsAt()), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly(exam, packages)),
-				packageRefs(packages), null);
+				packageRefs(packages), null, ExamCoverService.coverPath(exam));
 	}
 
 	private UpcomingExam upcomingRow(LiveExam exam, Instant now, List<LiveExamModule> packages) {
@@ -363,7 +391,7 @@ public class LiveExamPublicService {
 				module == null ? null : module.getTitleEn(), module == null ? null : module.getTitleBn(), exam.getLiveAt(),
 				exam.getEndsAt(), exam.getPrice(), moduleOnly, exam.getCategoryId(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly),
-				packageRefs(packages), null);
+				packageRefs(packages), null, ExamCoverService.coverPath(exam));
 	}
 
 	private Map<UUID, Counts> counts(List<UUID> moduleIds) {
@@ -480,11 +508,11 @@ public class LiveExamPublicService {
 	/** An exam in its category's list: the public row shape without the descriptions and rules. */
 	public record CategoryExam(UUID id, UUID categoryId, String examType, String mode, String phase, String titleEn,
 			String titleBn, String liveAt, String endAt, boolean popular, PriceView pricing,
-			List<LiveExamModuleService.PackageRef> packages, Boolean favourite) {
+			List<LiveExamModuleService.PackageRef> packages, Boolean favourite, String coverUrl) {
 
 		public CategoryExam withFavourite(boolean marked) {
 			return new CategoryExam(id, categoryId, examType, mode, phase, titleEn, titleBn, liveAt, endAt, popular,
-					pricing, packages, marked);
+					pricing, packages, marked, coverUrl);
 		}
 
 	}
@@ -493,11 +521,11 @@ public class LiveExamPublicService {
 	public record UpcomingExam(UUID id, String examType, String titleEn, String titleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, Instant liveAt, Instant endAt, BigDecimal price, boolean moduleOnly,
 			UUID categoryId, String mode, String phase, boolean popular, PriceView pricing,
-			List<LiveExamModuleService.PackageRef> packages, Boolean favourite) {
+			List<LiveExamModuleService.PackageRef> packages, Boolean favourite, String coverUrl) {
 
 		public UpcomingExam withFavourite(boolean marked) {
 			return new UpcomingExam(id, examType, titleEn, titleBn, moduleId, moduleTitleEn, moduleTitleBn, liveAt, endAt,
-					price, moduleOnly, categoryId, mode, phase, popular, pricing, packages, marked);
+					price, moduleOnly, categoryId, mode, phase, popular, pricing, packages, marked, coverUrl);
 		}
 
 	}
@@ -517,12 +545,13 @@ public class LiveExamPublicService {
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String paperLanguage,
 			String liveAt, String endAt, int durationMinutes, BigDecimal price,
 			StudentOwnAccessService.Access access, UUID categoryId, String mode, String phase, boolean popular,
-			PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite) {
+			boolean previewEnabled, PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite,
+			String coverUrl) {
 
 		public PublicExam withFavourite(boolean marked) {
 			return new PublicExam(id, moduleId, examType, titleEn, titleBn, descriptionEn, descriptionBn, rulesEn, rulesBn,
-					paperLanguage, liveAt, endAt, durationMinutes, price, access, categoryId, mode, phase, popular, pricing,
-					packages, marked);
+					paperLanguage, liveAt, endAt, durationMinutes, price, access, categoryId, mode, phase, popular, previewEnabled,
+					pricing, packages, marked, coverUrl);
 		}
 
 	}

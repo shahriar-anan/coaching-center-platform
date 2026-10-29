@@ -64,7 +64,9 @@ class ExamMailQueue {
 		}
 		List<UUID> ids = new ArrayList<>();
 		boolean granted = grants.existsByOrderId(order.getId());
-		if (granted && activeStudent(order.getStudentId()) != null) {
+		User student = activeStudent(order.getStudentId());
+		// No receipt row when there is nowhere to send it: no typed address, and no verified account email (Phase 4B).
+		if (granted && student != null && ExamMailTexts.receiptAddress(order, student) != null) {
 			add(ids, insert(ExamOutboundMail.PAYMENT_RECEIPT, order.getId().toString(), order.getStudentId()));
 		}
 		UUID masterAdmin = granted ? masterAdmin() : null;

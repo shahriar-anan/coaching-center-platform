@@ -39,6 +39,8 @@ const pendingModule: StaffOrderRow = {
   studentCode: "STU-0001",
   createdAt: "2026-10-25T04:00:00Z",
   updatedAt: "2026-10-25T04:00:00Z",
+  paidAt: null,
+  receiptNo: null,
 };
 
 const paidExam: StaffOrderRow = {
