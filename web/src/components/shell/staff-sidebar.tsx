@@ -206,7 +206,10 @@ export function StaffSidebar({
       </div>
       <nav
         aria-label={t("common.nav.main")}
-        className={cn("min-h-0 flex-1 overflow-x-hidden overflow-y-auto", collapsed ? "px-2" : "px-3")}
+        className={cn(
+          "min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          collapsed ? "px-2" : "px-3",
+        )}
       >
         <StaffNavList items={items} collapsed={collapsed} pendingCount={pendingCount} />
       </nav>
