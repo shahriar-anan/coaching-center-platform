@@ -185,3 +185,41 @@ describe("the exam page on the shared layout (Phase 4, S4.3 and S4.4)", () => {
     expect(within(card).getByRole("button", { name: "Continue payment" })).toBeInTheDocument();
   });
 });
+
+describe("the exam cover fallback (Phase 4, E1 and S4.4)", () => {
+  const packageRef = { id: MODULE_ID, titleEn: "BCS Preliminary", titleBn: "BCS Preliminary" };
+  const coverPackage = { ...pkg(null), coverUrl: "/api/v1/public/live-exam-modules/pkg/cover" };
+
+  it("shows the exam's own cover first, then the package cover, then the typed placeholder", async () => {
+    mockApi({
+      [`GET /api/v1/public/live-exams/${EXAM_ID}`]: { ...exam(null), coverUrl: "/api/v1/public/live-exams/own/cover", packages: [packageRef] },
+      [`GET /api/v1/public/live-exam-modules/${MODULE_ID}`]: coverPackage,
+      "GET /api/v1/public/exam-site/status": { checkoutEnabled: true },
+    });
+    renderWithProviders(<ExamPage examId={EXAM_ID} />, { locale: "en" });
+    const own = await screen.findByRole("img", { name: "Cover of CPC Full Mock" });
+    expect(own.getAttribute("src")).toContain("/api/v1/public/live-exams/own/cover");
+  });
+
+  it("falls back to the first package's cover when the exam has none", async () => {
+    mockApi({
+      [`GET /api/v1/public/live-exams/${EXAM_ID}`]: { ...exam(null), coverUrl: null, packages: [packageRef] },
+      [`GET /api/v1/public/live-exam-modules/${MODULE_ID}`]: coverPackage,
+      "GET /api/v1/public/exam-site/status": { checkoutEnabled: true },
+    });
+    renderWithProviders(<ExamPage examId={EXAM_ID} />, { locale: "en" });
+    const fallback = await screen.findByRole("img", { name: "Cover of BCS Preliminary" });
+    expect(fallback.getAttribute("src")).toContain("/api/v1/public/live-exam-modules/pkg/cover");
+  });
+
+  it("shows the typed placeholder, with no image, when neither has a cover", async () => {
+    mockApi({
+      [`GET /api/v1/public/live-exams/${EXAM_ID}`]: { ...exam(null), coverUrl: null, packages: [packageRef] },
+      [`GET /api/v1/public/live-exam-modules/${MODULE_ID}`]: { ...pkg(null), coverUrl: null },
+      "GET /api/v1/public/exam-site/status": { checkoutEnabled: true },
+    });
+    renderWithProviders(<ExamPage examId={EXAM_ID} />, { locale: "en" });
+    await screen.findByRole("heading", { level: 1, name: "CPC Full Mock" });
+    expect(screen.queryByRole("img", { name: /Cover of/ })).not.toBeInTheDocument();
+  });
+});
