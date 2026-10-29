@@ -5,7 +5,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -69,23 +71,33 @@ public class StudentInboxService {
 		this.clock = clock;
 	}
 
+	/** One page of the notices, newest first. {@code group} limits it to one tab (N1); null means every notice. */
 	@Transactional(readOnly = true)
-	public Page<NoticeView> list(UUID studentId, Pageable pageable) {
+	public Page<NoticeView> list(UUID studentId, NoticeGroup group, Pageable pageable) {
 		int size = Math.min(Math.max(pageable.getPageSize(), 1), MAX_SIZE);
 		Pageable page = PageRequest.of(pageable.getPageNumber(), size);
 		MapSqlParameterSource params = new MapSqlParameterSource("me", studentId);
-		Long total = jdbc.queryForObject("select count(*) " + FROM, params, Long.class);
+		String tab = groupClause(group, "n.kind", params);
+		Long total = jdbc.queryForObject("select count(*) " + FROM + tab, params, Long.class);
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
-		List<NoticeView> rows = jdbc.query(SELECT + FROM + " order by n.created_at desc, n.id desc limit :limit offset :offset",
+		List<NoticeView> rows = jdbc.query(SELECT + FROM + tab + " order by n.created_at desc, n.id desc limit :limit offset :offset",
 				params, (rs, number) -> view(rs));
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
 
+	/** Unread notices in all, and in each tab (N1). {@code count} is the total, as before. */
 	@Transactional(readOnly = true)
-	public int unreadCount(UUID studentId) {
-		Integer count = jdbc.queryForObject("select count(*) " + FROM + " and n.read_at is null",
-				new MapSqlParameterSource("me", studentId), Integer.class);
-		return count == null ? 0 : count;
+	public UnreadCounts unreadCount(UUID studentId) {
+		Map<String, Integer> byGroup = new LinkedHashMap<>();
+		for (NoticeGroup group : NoticeGroup.values()) {
+			byGroup.put(group.name(), 0);
+		}
+		jdbc.query("select n.kind, count(*) as total " + FROM + " and n.read_at is null group by n.kind",
+				new MapSqlParameterSource("me", studentId), (rs) -> {
+					byGroup.merge(NoticeGroup.of(rs.getString("kind")).name(), rs.getInt("total"), Integer::sum);
+				});
+		int count = byGroup.values().stream().mapToInt(Integer::intValue).sum();
+		return new UnreadCounts(count, byGroup);
 	}
 
 	@Transactional
@@ -100,10 +112,22 @@ public class StudentInboxService {
 		return jdbc.query(SELECT + FROM + " and n.id = :id", params, (rs, number) -> view(rs)).get(0);
 	}
 
+	/** Marks the student's unread notices read: all of them, or only the tab named (N1). Returns how many changed. */
 	@Transactional
-	public int markAllRead(UUID studentId) {
-		return jdbc.update("update student_notices set read_at = :now where user_id = :me and read_at is null",
-				new MapSqlParameterSource("me", studentId).addValue("now", Timestamp.from(clock.instant())));
+	public int markAllRead(UUID studentId, NoticeGroup group) {
+		MapSqlParameterSource params = new MapSqlParameterSource("me", studentId).addValue("now",
+				Timestamp.from(clock.instant()));
+		String tab = groupClause(group, "kind", params);
+		return jdbc.update("update student_notices set read_at = :now where user_id = :me and read_at is null" + tab, params);
+	}
+
+	/** The condition for one tab, or nothing for all notices. Exams is "not in" the other two tabs' kinds. */
+	private static String groupClause(NoticeGroup group, String column, MapSqlParameterSource params) {
+		if (group == null) {
+			return "";
+		}
+		params.addValue("groupKinds", group.kinds());
+		return " and " + column + (group == NoticeGroup.EXAMS ? " not in" : " in") + " (:groupKinds)";
 	}
 
 	private static NoticeView view(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -137,16 +161,23 @@ public class StudentInboxService {
 						rs.getObject("notice_module_id", UUID.class));
 		return new NoticeView(rs.getObject("id", UUID.class), kind, format(rs.getTimestamp("created_at").toInstant()),
 				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement,
-				rs.getBoolean("updated") ? Boolean.TRUE : null);
+				rs.getBoolean("updated") ? Boolean.TRUE : null, NoticeGroup.of(kind).name());
 	}
 
 	private static String format(Instant instant) {
 		return instant.atZone(DHAKA).format(TIME);
 	}
 
-	/** {@code exam} is null for an announcement, and {@code announcement} is null for every other kind. */
+	/**
+	 * {@code exam} is null for an announcement, and {@code announcement} is null for every other kind. {@code group} is the
+	 * tab the notice sits under (N1).
+	 */
 	public record NoticeView(UUID id, String kind, String createdAt, String readAt, NoticeExam exam, Integer score,
-			Integer maximum, Boolean passed, NoticeAnnouncement announcement, Boolean updated) {
+			Integer maximum, Boolean passed, NoticeAnnouncement announcement, Boolean updated, String group) {
+	}
+
+	/** {@code count} is every unread notice; {@code byGroup} counts them per tab (N1). */
+	public record UnreadCounts(int count, Map<String, Integer> byGroup) {
 	}
 
 	public record NoticeExam(UUID id, UUID moduleId, String examType, String titleEn, String titleBn, String liveAt,

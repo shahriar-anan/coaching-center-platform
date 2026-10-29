@@ -132,6 +132,12 @@ public final class EmailTemplates {
 	 */
 	public static RenderedEmail paymentReceipt(MailContext ctx, MailRecipient who, boolean module, String itemBn, String itemEn,
 			String amount, String channel, String tranId, String when, String openPath) {
+		return paymentReceipt(ctx, who, module, itemBn, itemEn, amount, channel, tranId, when, openPath, null);
+	}
+
+	/** The receipt with the receipt number (P4) on its own line; a null number leaves that line out. */
+	public static RenderedEmail paymentReceipt(MailContext ctx, MailRecipient who, boolean module, String itemBn, String itemEn,
+			String amount, String channel, String tranId, String when, String openPath, String receiptNo) {
 		String first = who == null ? null : who.firstName();
 		String kindBn = module ? "প্যাকেজ" : "পরীক্ষা";
 		String kindEn = module ? "Package" : "Exam";
@@ -146,19 +152,24 @@ public final class EmailTemplates {
 				+ "<div style=\"font-size:40px;line-height:1.2;font-weight:700;color:" + NAVY + ";padding:12px 0 0;\">" + money + "</div>"
 				+ "<div style=\"font-size:12px;letter-spacing:2px;color:" + MUTED + ";padding-top:2px;\">BDT</div>"
 				+ "</td></tr></table>");
-		html.append(facts(List.of(
+		List<String[]> rows = new java.util.ArrayList<>(List.of(
 				new String[] { kindBn, kindEn, esc(itemBn) + "<br><span style=\"color:" + MUTED + ";font-size:13px\">" + esc(itemEn) + "</span>" },
 				new String[] { "পেমেন্টের মাধ্যম", "Paid with", esc(how) },
 				new String[] { "লেনদেন নম্বর", "Transaction",
 						"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(tranId) + "</span>" },
-				new String[] { "তারিখ", "Date", esc(when) + " <span style=\"color:" + MUTED + ";font-size:13px\">(ঢাকা)</span>" })));
+				new String[] { "তারিখ", "Date", esc(when) + " <span style=\"color:" + MUTED + ";font-size:13px\">(ঢাকা)</span>" }));
+		if (receiptNo != null) {
+			rows.add(new String[] { "রসিদ নম্বর", "Receipt number",
+					"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(receiptNo) + "</span>" });
+		}
+		html.append(facts(rows));
 		html.append(button(module ? "আমার পরীক্ষা দেখুন" : "পরীক্ষাটি খুলুন", module ? "See my exams" : "Open the exam", ctx.site(openPath)));
 		html.append(note("আপনার অ্যাক্সেস এখন চালু। রসিদটি সংরক্ষণ করুন; কোনো সমস্যা হলে লেনদেন নম্বরসহ আমাদের জানান।",
 				"Your access is open now. Keep this receipt, and quote the transaction number if you need help."));
 		String text = text("পেমেন্ট রসিদ / Payment receipt", (first == null ? "" : first + ", ") + "ধন্যবাদ! / Thank you for your purchase.",
 				kindBn + " / " + kindEn + ": " + itemBn + " / " + itemEn, "পরিমাণ / Amount: " + plainMoney(amount) + " BDT",
 				"পেমেন্টের মাধ্যম / Paid with: " + how, "লেনদেন / Transaction: " + tranId, "তারিখ / Date: " + when + " (ঢাকা / Dhaka)",
-				"খুলুন / Open: " + ctx.site(openPath));
+				receiptNo == null ? "" : "রসিদ নম্বর / Receipt number: " + receiptNo, "খুলুন / Open: " + ctx.site(openPath));
 		return new RenderedEmail("পেমেন্ট রসিদ · Payment receipt", frame(ctx, "৳" + plainMoney(amount) + " · " + itemBn, html.toString()), text);
 	}
 

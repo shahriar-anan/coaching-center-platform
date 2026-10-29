@@ -715,6 +715,15 @@ public class DemoContentSeed {
 			jdbc.update(INSERT_ORDER, demo('c', order.number()), order.student(), order.scope(), order.module(), order.exam(),
 					new BigDecimal(order.amount()), order.tranId(), order.status(), succeeded ? "DEMO-VAL-" + order.number() : null,
 					succeeded ? "DEMO" : null, ts(order.createdAt()), ts(order.createdAt()));
+			if (succeeded) {
+				// A paid order gets its paid time and a receipt number from the sequence (V52). Only a row with no number yet.
+				jdbc.update("""
+						UPDATE live_exam_orders SET paid_at = created_at,
+						  receipt_no = 'RCPT-' || to_char(created_at AT TIME ZONE 'Asia/Dhaka', 'YYYY') || '-'
+						    || lpad(nextval('live_exam_receipt_seq')::text, 6, '0')
+						WHERE id = ? AND receipt_no IS NULL
+						""", demo('c', order.number()));
+			}
 			if (order.grant()) {
 				boolean module = "MODULE".equals(order.scope());
 				jdbc.update("""

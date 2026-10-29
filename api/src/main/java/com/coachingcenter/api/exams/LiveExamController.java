@@ -2,8 +2,10 @@ package com.coachingcenter.api.exams;
 
 import java.util.UUID;
 
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -36,12 +38,15 @@ public class LiveExamController {
 
 	private final PermissionChecker permissions;
 
+	private final ExamCoverService covers;
+
 	public LiveExamController(LiveExamService exams, LiveExamSittingService sittings, LiveExamRemoval removal,
-			PermissionChecker permissions) {
+			PermissionChecker permissions, ExamCoverService covers) {
 		this.removal = removal;
 		this.exams = exams;
 		this.sittings = sittings;
 		this.permissions = permissions;
+		this.covers = covers;
 	}
 
 	@PostMapping("/api/v1/live-exam-modules/{moduleId}/exams")
@@ -142,6 +147,33 @@ public class LiveExamController {
 			@RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
 		return exams.updateQuestion(id, questionId, body, actorId());
+	}
+
+	/** The exam's cover for staff screens. The public cover route serves published exams only, so a draft shows here. */
+	@GetMapping("/api/v1/live-exams/{id}/cover")
+	public ResponseEntity<InputStreamResource> staffCover(@PathVariable UUID id) {
+		require(Permissions.EXAM_READ);
+		ModuleCoverService.CoverFile file = covers.open(id);
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CACHE_CONTROL, "private, no-cache")
+			.contentType(MediaType.parseMediaType(file.contentType()))
+			.contentLength(file.byteSize())
+			.body(new InputStreamResource(file.body()));
+	}
+
+	/** Replaces the exam's cover (E1). The change is live at once, like the package cover. */
+	@PostMapping(value = "/api/v1/live-exams/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public LiveExamService.ExamView uploadCover(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+		require(Permissions.MODULE_COVER_MANAGE);
+		covers.upload(id, file);
+		return exams.get(id, true, null);
+	}
+
+	@DeleteMapping("/api/v1/live-exams/{id}/cover")
+	public LiveExamService.ExamView removeCover(@PathVariable UUID id) {
+		require(Permissions.MODULE_COVER_MANAGE);
+		covers.remove(id);
+		return exams.get(id, true, null);
 	}
 
 	@PostMapping(value = "/api/v1/live-exams/{id}/question-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

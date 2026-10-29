@@ -107,7 +107,7 @@ class ExamMailTexts {
 		boolean module = !LiveExamOrder.EXAM.equals(order.getScope());
 		RenderedEmail mail = EmailTemplates.paymentReceipt(context, new MailRecipient(student.getEmail(), buyerName, Role.STUDENT), module,
 				titles.bn(), titles.en(), order.getAmount().toPlainString(), order.getPaymentChannel(), order.getTranId(),
-				TIME.format(order.getUpdatedAt()), module ? "/my-modules" : "/exam/" + order.getExamId());
+				TIME.format(order.getUpdatedAt()), module ? "/my-modules" : "/exam/" + order.getExamId(), order.getReceiptNo());
 		return new Prepared(student.getEmail(), mail.subject(), mail.text(), mail.html());
 	}
 
