@@ -20,7 +20,7 @@ const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid content-start gap-0.5">
+    <div className="grid grid-cols-1 content-start gap-0.5">
       <dt className="text-meta text-muted">{label}</dt>
       <dd className="break-words text-label font-bold tabular-nums">{value}</dd>
     </div>
@@ -73,8 +73,8 @@ export function ExamPreview({ examId }: { examId: string }) {
 
   return (
     <div className={cn(detailFrame, "pb-10")}>
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start lg:gap-x-8">
-        <header className="grid min-w-0 content-start gap-4 lg:sticky lg:top-20">
+      <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start lg:gap-x-8">
+        <header className="grid min-w-0 grid-cols-1 content-start gap-4 lg:sticky lg:top-20">
           <div className="flex flex-wrap items-center gap-2">
             <TypePill type={data.examType} />
           </div>
@@ -96,10 +96,10 @@ export function ExamPreview({ examId }: { examId: string }) {
           </Button>
         </header>
 
-        <section className="grid min-w-0 gap-4">
+        <section className="grid min-w-0 grid-cols-1 gap-4">
           <h2 className="text-section font-bold">{t("catalog.preview.questionPaper")}</h2>
           {data.examType === "WRITTEN" ? (
-            <div className="grid justify-items-start gap-3 rounded-card border border-border bg-card p-5">
+            <div className="grid grid-cols-1 justify-items-start gap-3 rounded-card border border-border bg-card p-5">
               {data.hasPaper ? (
                 <Button
                   variant="secondary"
@@ -118,7 +118,7 @@ export function ExamPreview({ examId }: { examId: string }) {
           ) : questions.length === 0 ? (
             <p className="rounded-card border border-dashed border-border bg-card p-5 text-muted">{t("catalog.preview.noQuestions")}</p>
           ) : (
-            <ol className="grid gap-4">
+            <ol className="grid grid-cols-1 gap-4">
               {questions.map((question, index) => (
                 <QuestionCard
                   key={question.id}
@@ -149,13 +149,13 @@ function QuestionCard({
 }) {
   const { t, locale } = useLocale();
   return (
-    <li className="grid min-w-0 gap-3 rounded-card border border-border bg-card p-4">
+    <li className="grid min-w-0 grid-cols-1 gap-3 rounded-card border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-label font-semibold text-muted">{t("sitting.paper.question", { number: formatNumber(number, locale) })}</h3>
         <span className="shrink-0 text-meta text-muted">{t("sitting.paper.marks", { marks: formatNumber(question.marks, locale) })}</span>
       </div>
       <p className={cn("break-words leading-relaxed text-text", stemFace)}>{question.stem}</p>
-      <ul className="grid gap-2">
+      <ul className="grid grid-cols-1 gap-2">
         {question.options.map((option, position) => (
           <li key={option.id} className="flex min-w-0 gap-3 rounded-control border border-border px-3 py-2.5">
             <span className="shrink-0 font-semibold text-muted">{letters[position] ?? formatNumber(position + 1, locale)}</span>
