@@ -12,6 +12,8 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { examPath } from "./catalog-helpers";
+import { paperLanguageLabel } from "./paper-language";
+import { resolvePaperLanguage } from "@/components/student/sitting/mcq-question";
 import { detailFrame } from "./detail-layout";
 import { TypePill } from "./status-pill";
 
@@ -67,8 +69,11 @@ export function ExamPreview({ examId }: { examId: string }) {
   }
 
   const title = pickTitle(data, locale);
-  const stemFace = data.paperLanguage === "BN" ? "font-bn" : "font-latin";
-  const letters = data.paperLanguage === "BN" ? LETTERS_BN : LETTERS_EN;
+  // No paper language (or BOTH) follows the interface for the letters and the script, and no language is named.
+  const paperScript = resolvePaperLanguage(data.paperLanguage, locale);
+  const paperLabel = paperLanguageLabel(data.paperLanguage, t);
+  const stemFace = paperScript === "BN" ? "font-bn" : "font-latin";
+  const letters = paperScript === "BN" ? LETTERS_BN : LETTERS_EN;
   const questions = data.questions ?? [];
 
   return (
@@ -83,10 +88,7 @@ export function ExamPreview({ examId }: { examId: string }) {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-card border border-border bg-card p-5">
             <Fact label={t("catalog.exam.duration")} value={formatDuration(data.durationMinutes, locale)} />
             <Fact label={t("catalog.exam.fullMarks")} value={formatNumber(data.maximum, locale)} />
-            <Fact
-              label={t("catalog.exam.paperLanguage")}
-              value={data.paperLanguage === "EN" ? t("catalog.exam.langEn") : t("catalog.exam.langBn")}
-            />
+            {paperLabel ? <Fact label={t("catalog.exam.paperLanguage")} value={paperLabel} /> : null}
             {data.passPercent !== null ? (
               <Fact label={t("catalog.exam.passMark")} value={t("catalog.exam.passMarkValue", { p: formatNumber(data.passPercent, locale) })} />
             ) : null}

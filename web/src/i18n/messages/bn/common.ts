@@ -214,6 +214,9 @@ const common = {
     linkInvalid: "সম্পূর্ণ ওয়েব ঠিকানা লিখুন, যেমন https://example.com।",
     clearFormatting: "বিন্যাস মুছুন",
   },
+  paperLanguage: {
+    both: "উভয়",
+  },
   notFound: {
     title: "পাতাটি পাওয়া যায়নি",
     body: "ঠিকানাটি ভুল হতে পারে, অথবা পাতাটি সরিয়ে নেওয়া হয়েছে।",

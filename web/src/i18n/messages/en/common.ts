@@ -214,6 +214,9 @@ const common = {
     linkInvalid: "Type a full web address, for example https://example.com.",
     clearFormatting: "Clear formatting",
   },
+  paperLanguage: {
+    both: "Both",
+  },
   notFound: {
     title: "Page not found",
     body: "The address may be wrong, or the page has been moved.",
