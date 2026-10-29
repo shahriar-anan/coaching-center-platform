@@ -199,6 +199,14 @@
   --text-pill--font-weight: 600;
 }
 
+/*
+ * Kalpurush has a smaller x-height than the face it replaces, so Bangla text is scaled to match it. The value is the x-height
+ * the text is scaled to (tune it here: higher is larger). The rule follows the page language, so English is unchanged.
+ */
+html:lang(bn) {
+  font-size-adjust: 0.5;
+}
+
 /* Font families. The faces are self-hosted above, so builds never fetch fonts. */
 :root {
   --font-hind: "Kalpurush";
