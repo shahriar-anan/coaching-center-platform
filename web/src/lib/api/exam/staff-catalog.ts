@@ -98,8 +98,6 @@ export type StaffExam = {
   id: string;
   /** The primary package, or `null` for a standalone exam (NR-01). */
   moduleId: string | null;
-  /** The category of the exam. Any exam can change it (NR-01 UI Step 1 fix). */
-  categoryId?: string | null;
   examType: ExamType;
   /** `null` when no paper language was chosen. Nothing is shown for it. */
   paperLanguage: PaperLanguage | null;

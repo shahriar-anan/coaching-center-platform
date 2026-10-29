@@ -130,7 +130,11 @@ function InstructorPicker({ exam }: { exam: StaffExam }) {
  * The categories as select options, subcategories indented under their parent. An archived category is left out, unless
  * the exam is already in it, so the saved choice still shows.
  */
-function categoryOptions(nodes: CategoryTreeNode[] | undefined, current: string, depth = 0) {
+function categoryOptions(
+  nodes: CategoryTreeNode[] | undefined,
+  current: string,
+  depth = 0,
+): { id: string; depth: number; titleEn: string; titleBn: string }[] {
   return (nodes ?? []).flatMap((node) => [
     ...(node.archived && node.id !== current ? [] : [{ id: node.id, depth, titleEn: node.titleEn, titleBn: node.titleBn }]),
     ...categoryOptions(node.children, current, depth + 1),
