@@ -447,7 +447,7 @@ public class LiveExamOrderService {
 	private OrderView view(LiveExamOrder order, String redirectUrl) {
 		return new OrderView(order.getId(), order.getTranId(), order.getStatus(), order.getAmount(), redirectUrl,
 				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order), order.getListPrice(),
-				order.getDiscountPercent());
+				order.getDiscountPercent(), order.getPaidAt(), order.getReceiptNo());
 	}
 
 	/** The exams the order covers: the bundle's list, the one exam, or null for a module (it covers future exams too). */
@@ -478,7 +478,8 @@ public class LiveExamOrderService {
 
 	/** {@code listPrice} and {@code discountPercent} are what the student saw at checkout (R19). */
 	public record OrderView(UUID orderId, String tranId, String status, BigDecimal amount, String redirectUrl,
-			String scope, UUID moduleId, UUID examId, List<UUID> examIds, BigDecimal listPrice, Integer discountPercent) {
+			String scope, UUID moduleId, UUID examId, List<UUID> examIds, BigDecimal listPrice, Integer discountPercent,
+			Instant paidAt, String receiptNo) {
 	}
 
 	/**
