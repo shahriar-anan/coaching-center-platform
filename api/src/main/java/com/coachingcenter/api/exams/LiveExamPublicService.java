@@ -371,8 +371,9 @@ public class LiveExamPublicService {
 				exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(), exam.getRulesBn(),
 				exam.getPaperLanguage(), format(exam.getLiveAt()), format(exam.getEndsAt()), exam.getDurationMinutes(),
 				exam.getPrice(), viewer == null ? null : viewer.exam(exam), exam.getCategoryId(), exam.getMode(),
-				ExamWindow.phase(exam, now), exam.isPopular(), ExamPricing.view(exam, now, moduleOnly(exam, packages)),
-				packageRefs(packages), null, ExamCoverService.coverPath(exam));
+				ExamWindow.phase(exam, now), exam.isPopular(), exam.isPreviewEnabled(),
+				ExamPricing.view(exam, now, moduleOnly(exam, packages)), packageRefs(packages), null,
+				ExamCoverService.coverPath(exam));
 	}
 
 	private CategoryExam categoryExam(LiveExam exam, Instant now, List<LiveExamModule> packages) {
@@ -544,12 +545,13 @@ public class LiveExamPublicService {
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String paperLanguage,
 			String liveAt, String endAt, int durationMinutes, BigDecimal price,
 			StudentOwnAccessService.Access access, UUID categoryId, String mode, String phase, boolean popular,
-			PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite, String coverUrl) {
+			boolean previewEnabled, PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite,
+			String coverUrl) {
 
 		public PublicExam withFavourite(boolean marked) {
 			return new PublicExam(id, moduleId, examType, titleEn, titleBn, descriptionEn, descriptionBn, rulesEn, rulesBn,
-					paperLanguage, liveAt, endAt, durationMinutes, price, access, categoryId, mode, phase, popular, pricing,
-					packages, marked, coverUrl);
+					paperLanguage, liveAt, endAt, durationMinutes, price, access, categoryId, mode, phase, popular, previewEnabled,
+					pricing, packages, marked, coverUrl);
 		}
 
 	}
