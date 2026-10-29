@@ -52,7 +52,9 @@ const common = {
     linkedin: "LinkedIn",
     youtube: "YouTube",
     copyright: "Copyright © 2026 Symam Law, All Right Reserved",
-    developer: "Developed By Fleeting Trails",
+    developedBy: "Developed by",
+    developerName: "Shahriar Anan",
+    comingSoon: "Coming soon",
   },
   locale: {
     switchLabel: "বাংলায় দেখুন",

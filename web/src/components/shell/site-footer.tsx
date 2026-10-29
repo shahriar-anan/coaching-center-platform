@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { Logo } from "@/components/shell/logo";
+import { Pill } from "@/components/ui/pill";
 import { cn } from "@/components/ui/cn";
 
 /** Which footer a page shows. `none` renders nothing; the route decides it (see `footerVariant`). */
@@ -25,6 +26,11 @@ const HEADING = "text-label font-semibold text-text";
 const ICON = "mt-0.5 size-4 shrink-0 text-text-accent";
 const APP_BUTTON =
   "inline-flex min-h-11 items-center rounded-control border border-border bg-card px-3 text-meta font-medium text-text hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+const APP_BUTTON_OFF =
+  "inline-flex min-h-11 items-center rounded-control border border-dashed border-border px-3 text-meta font-medium text-muted";
+/** The store links stay off until the app is published. Set to true on the day the store pages are live. */
+const APP_AVAILABLE = false;
+const DEVELOPER_URL = "https://www.linkedin.com/in/shahriar-anan-a358562a3/";
 
 /**
  * The site footer. `full` shows the old site's content (contact, company links, app links, social links,
@@ -114,17 +120,33 @@ export function SiteFooter({ variant, width }: { variant: Exclude<FooterVariant,
         </section>
 
         <section aria-labelledby="footer-app" className="grid content-start gap-3">
-          <h2 id="footer-app" className={HEADING}>
-            {t("common.footer.appHeading")}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="footer-app" className={HEADING}>
+              {t("common.footer.appHeading")}
+            </h2>
+            {APP_AVAILABLE ? null : <Pill tone="accent">{t("common.footer.comingSoon")}</Pill>}
+          </div>
           <p className="text-meta text-muted">{t("common.footer.appText")}</p>
           <div className="flex flex-wrap gap-2">
-            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={APP_BUTTON}>
-              {t("common.footer.appStore")}
-            </a>
-            <a href={GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer" className={APP_BUTTON}>
-              {t("common.footer.googlePlay")}
-            </a>
+            {APP_AVAILABLE ? (
+              <>
+                <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={APP_BUTTON}>
+                  {t("common.footer.appStore")}
+                </a>
+                <a href={GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer" className={APP_BUTTON}>
+                  {t("common.footer.googlePlay")}
+                </a>
+              </>
+            ) : (
+              <>
+                <span aria-disabled="true" className={APP_BUTTON_OFF}>
+                  {t("common.footer.appStore")}
+                </span>
+                <span aria-disabled="true" className={APP_BUTTON_OFF}>
+                  {t("common.footer.googlePlay")}
+                </span>
+              </>
+            )}
           </div>
         </section>
       </nav>
@@ -143,7 +165,12 @@ export function SiteFooter({ variant, width }: { variant: Exclude<FooterVariant,
         </nav>
         <div className="grid gap-1 text-meta text-muted sm:justify-items-end">
           <p>{t("common.footer.copyright")}</p>
-          <p>{t("common.footer.developer")}</p>
+          <p>
+            {t("common.footer.developedBy")}{" "}
+            <a href={DEVELOPER_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
+              {t("common.footer.developerName")}
+            </a>
+          </p>
         </div>
       </div>
     </footer>

@@ -44,14 +44,11 @@ describe("site footer, full variant", () => {
 
     expect(within(info).getByRole("heading", { name: "Get Mobile App" })).toBeInTheDocument();
     expect(within(info).getByText(en.footer.appText)).toBeInTheDocument();
-    expect(within(info).getByRole("link", { name: "App Store" })).toHaveAttribute(
-      "href",
-      "https://apps.apple.com/us/app/apple-store/id375380948",
-    );
-    expect(within(info).getByRole("link", { name: "Google Play" })).toHaveAttribute(
-      "href",
-      "https://expo.dev/accounts/abtahi-tajwar/projects/symamlaw-mobile/builds/a0368e73-baf4-4021-8bc6-e59fc962afaa",
-    );
+    expect(within(info).getByText("Coming soon")).toBeInTheDocument();
+    expect(within(info).queryByRole("link", { name: "App Store" })).not.toBeInTheDocument();
+    expect(within(info).queryByRole("link", { name: "Google Play" })).not.toBeInTheDocument();
+    expect(within(info).getByText("App Store")).toHaveAttribute("aria-disabled", "true");
+    expect(within(info).getByText("Google Play")).toHaveAttribute("aria-disabled", "true");
 
     const social = within(footer).getByRole("navigation", { name: "Social media" });
     expect(within(social).getByRole("link", { name: "Facebook" })).toHaveAttribute(
@@ -66,7 +63,11 @@ describe("site footer, full variant", () => {
     expect(within(social).getByRole("link", { name: "YouTube" })).toHaveAttribute("href", "https://youtu.be/ZmrfDj6T5R4?si=aKH4z7RErGn-v7Lr");
 
     expect(within(footer).getByText(en.footer.copyright)).toBeInTheDocument();
-    expect(within(footer).getByText("Developed By Fleeting Trails")).toBeInTheDocument();
+    expect(within(footer).getByText("Developed by")).toBeInTheDocument();
+    expect(within(footer).getByRole("link", { name: "Shahriar Anan" })).toHaveAttribute(
+      "href",
+      "https://www.linkedin.com/in/shahriar-anan-a358562a3/",
+    );
   });
 
   it("shows the same content in Bangla", async () => {
@@ -77,7 +78,11 @@ describe("site footer, full variant", () => {
     expect(within(footer).getByRole("heading", { name: bn.footer.appHeading })).toBeInTheDocument();
     expect(within(footer).getByText(bn.footer.appText)).toBeInTheDocument();
     expect(within(footer).getByText(bn.footer.copyright)).toBeInTheDocument();
-    expect(within(footer).getByText(bn.footer.developer)).toBeInTheDocument();
+    expect(within(footer).getByText(bn.footer.comingSoon)).toBeInTheDocument();
+    expect(within(footer).getByRole("link", { name: bn.footer.developerName })).toHaveAttribute(
+      "href",
+      "https://www.linkedin.com/in/shahriar-anan-a358562a3/",
+    );
     expect(within(footer).getByRole("link", { name: bn.footer.about })).toHaveAttribute("href", "/about");
     expect(within(footer).queryByText("Contact Information")).not.toBeInTheDocument();
   });
@@ -105,7 +110,7 @@ describe("site footer, minimal and none variants", () => {
       expect(links).toEqual(["Terms and conditions", "Return Refund", "Privacy Policy"]);
       expect(within(footer).getByText(en.footer.copyright)).toBeInTheDocument();
       expect(within(footer).queryByText("Contact Information")).not.toBeInTheDocument();
-      expect(within(footer).queryByText("Developed By Fleeting Trails")).not.toBeInTheDocument();
+      expect(within(footer).queryByText("Shahriar Anan")).not.toBeInTheDocument();
     });
   }
 

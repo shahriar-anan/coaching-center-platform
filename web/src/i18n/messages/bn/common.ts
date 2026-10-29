@@ -52,7 +52,9 @@ const common = {
     linkedin: "লিংকডইন",
     youtube: "ইউটিউব",
     copyright: "কপিরাইট © ২০২৬ সাইমাম ল। সর্বস্বত্ব সংরক্ষিত।",
-    developer: "ডেভেলপ করেছে ফ্লিটিং ট্রেইলস",
+    developedBy: "ডেভেলপ করেছেন",
+    developerName: "Shahriar Anan",
+    comingSoon: "শিগগিরই আসছে",
   },
   locale: {
     switchLabel: "Switch to English",
