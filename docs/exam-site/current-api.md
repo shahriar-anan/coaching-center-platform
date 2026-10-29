@@ -364,3 +364,25 @@ All additive. Old clients keep working: every existing field and route is unchan
 
 - The bundle match for `examId` is covered by the SQL only; no IT builds a bundle with several exams in the new filter test.
 - No refunds and no refund states.
+
+## Added 2026-10-29 (NR-01 UI Step 1)
+
+Plan `new-requirements/nr-01-ui/STEP-1-PLAN.md`, slice A1. All additive for old clients, except the two changes below, which the web follows.
+
+### Migrations
+
+- **V55** (`live_exams`): `paper_language` widened to `VARCHAR(8)`, now nullable. The check is replaced (the V30 check was `live_exams_paper_language_check`): `BN`, `EN` or `BOTH`, and null passes. No existing row changes.
+
+### Exams
+
+- `paperLanguage` is `BN | EN | BOTH | null` on the staff exam, the student exam, the public exam and the preview. `null` means no language was chosen: nothing is shown, and the answer letters follow the viewer's interface language (C2).
+- **Create** (`POST /live-exams`, `POST /live-exam-modules/{id}/exams`): `paperLanguage` is optional. Absent or `null` stores `null`. Any other value other than `BN`, `EN` or `BOTH` is `VALIDATION_FAILED`, as is a blank string.
+- **Create** accepts blank or missing `descriptionEn`, `descriptionBn`, `rulesEn` and `rulesBn` (stored as empty strings). Titles stay required. **PATCH still refuses a blank value** for these four fields.
+- **Publish** (`POST /live-exams/{id}/publish`, and the staged publish): with any blank description or rules it is `EXAM_TEXT_REQUIRED` (409), and `fieldErrors` names each blank field (`descriptionEn`, `descriptionBn`, `rulesEn`, `rulesBn`).
+- **PATCH with `"paperLanguage": null`** clears the language. An absent member leaves it as it is.
+- **HTML on save.** The six exam text fields and the two package description fields are sanitized on every save, in the draft path and in the staged path. A value with no tags is plain text and is stored unchanged (line breaks kept). A value with tags keeps only `p br h2 h3 strong em u ul ol li a`, `text-align` on `p h2 h3`, and links with `href` of `http`, `https` or `mailto`, given `rel="nofollow"` (no `target` is kept, so `noopener` is not needed). Scripts, event handlers, images and other tags are removed. Library: OWASP Java HTML Sanitizer `20260924.2` (`api/pom.xml`).
+- The package routes (`/live-exam-modules`) sanitize `descriptionEn` and `descriptionBn` on create and on edit. The legacy `/exam-modules` routes do not (not used by the NR-01 web).
+
+### Known gaps
+
+- The legacy `/exam-modules` routes take package descriptions unsanitized. The web renders them as plain text, so no HTML is shown, but the stored value is not cleaned.

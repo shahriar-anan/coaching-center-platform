@@ -95,6 +95,8 @@ public class LiveExamService {
 
 	private final LiveExamRevisionService staging;
 
+	private final RichTextSanitizer sanitizer;
+
 	public LiveExamService(LiveExamRepository exams, LiveExamQuestionRepository questions,
 			LiveExamOptionRepository options, LiveExamModuleRepository modules, LiveExamCategoryRepository categories,
 			LiveExamAccess access, LiveExamCatalogVisibility visibility, LocalFileStorage files, ExamMailService examMail,
@@ -102,7 +104,7 @@ public class LiveExamService {
 			LiveExamParticipantRepository participants, StudentNoticeWriter notices,
 			LiveExamMemberships memberships, LiveExamQuestionPaperRepository papers,
 			LiveExamInstructorRepository instructors, AdminProfileRepository adminProfiles,
-			LiveExamRevisionService staging) {
+			LiveExamRevisionService staging, RichTextSanitizer sanitizer) {
 		this.exams = exams;
 		this.questions = questions;
 		this.options = options;
@@ -122,6 +124,7 @@ public class LiveExamService {
 		this.instructors = instructors;
 		this.adminProfiles = adminProfiles;
 		this.staging = staging;
+		this.sanitizer = sanitizer;
 	}
 
 	/**
@@ -185,7 +188,7 @@ public class LiveExamService {
 	private void applyEdit(LiveExam exam, JsonNode body, boolean create) {
 		rejectMaximumOnMcq(exam.getExamType(), body);
 		applyText(exam, body, create);
-		if (create || (body.has("paperLanguage") && !body.get("paperLanguage").isNull())) {
+		if (create || body.has("paperLanguage")) {
 			exam.setPaperLanguage(readPaperLanguage(body));
 		}
 		if (body.has("mode") && !body.get("mode").isNull()) {
@@ -229,19 +232,24 @@ public class LiveExamService {
 		}
 	}
 
-	private static void applyText(LiveExam exam, JsonNode body, boolean create) {
+	/**
+	 * The titles and the rich text. A create may leave the description and rules blank (R1); publish refuses them. Both
+	 * the draft and the staged edit come through here, and the rich text is cleaned before it is stored (R3).
+	 */
+	private void applyText(LiveExam exam, JsonNode body, boolean create) {
 		for (String field : List.of("titleEn", "titleBn", "descriptionEn", "descriptionBn", "rulesEn", "rulesBn")) {
 			if (!create && (!body.has(field) || body.get(field).isNull())) {
 				continue;
 			}
-			String value = requiredText(body, field);
+			boolean richText = field.startsWith("description") || field.startsWith("rules");
+			String value = create && richText ? textOrBlank(body, field) : requiredText(body, field);
 			switch (field) {
 				case "titleEn" -> exam.setTitleEn(value);
 				case "titleBn" -> exam.setTitleBn(value);
-				case "descriptionEn" -> exam.setDescriptionEn(value);
-				case "descriptionBn" -> exam.setDescriptionBn(value);
-				case "rulesEn" -> exam.setRulesEn(value);
-				default -> exam.setRulesBn(value);
+				case "descriptionEn" -> exam.setDescriptionEn(sanitizer.clean(value));
+				case "descriptionBn" -> exam.setDescriptionBn(sanitizer.clean(value));
+				case "rulesEn" -> exam.setRulesEn(sanitizer.clean(value));
+				default -> exam.setRulesBn(sanitizer.clean(value));
 			}
 		}
 	}
@@ -556,11 +564,8 @@ public class LiveExamService {
 			throw new ApiException(ErrorCode.PASS_PERCENT_REQUIRED, HttpStatus.CONFLICT,
 					"Publish requires a pass percent from 0 through 100.");
 		}
-		if (!hasText(exam.getDescriptionEn()) || !hasText(exam.getDescriptionBn())
-				|| !hasText(exam.getRulesEn()) || !hasText(exam.getRulesBn())) {
-			throw new ApiException(ErrorCode.EXAM_TEXT_REQUIRED, HttpStatus.CONFLICT,
-					"Publish requires the English and Bangla descriptions and rules.");
-		}
+		LiveExamRevisionService.requireTexts(exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(),
+				exam.getRulesBn());
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
 			if (questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId()).isEmpty()) {
 				throw new ApiException(ErrorCode.QUESTIONS_REQUIRED, HttpStatus.CONFLICT,
@@ -1159,10 +1164,6 @@ public class LiveExamService {
 		return node.intValue();
 	}
 
-	private static boolean hasText(String value) {
-		return value != null && !value.isBlank();
-	}
-
 	private static Integer readPassPercent(JsonNode body, boolean allowNull) {
 		if (!body.has("passPercent") || body.get("passPercent").isNull()) {
 			if (allowNull) {
@@ -1285,12 +1286,23 @@ public class LiveExamService {
 		return node.intValue();
 	}
 
+	/** BN, EN or BOTH; absent or null is no paper language at all (D5, C2). */
 	private static String readPaperLanguage(JsonNode body) {
-		String language = requiredText(body, "paperLanguage");
-		if (!LiveExam.BN.equals(language) && !LiveExam.EN.equals(language)) {
+		JsonNode node = body.get("paperLanguage");
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		String language = node.asText();
+		if (!LiveExam.BN.equals(language) && !LiveExam.EN.equals(language) && !LiveExam.BOTH.equals(language)) {
 			throw validationFailed();
 		}
 		return language;
+	}
+
+	/** A create's rich text may be left out or blank; it is stored as an empty string, because the column is not null. */
+	private static String textOrBlank(JsonNode body, String field) {
+		JsonNode node = body.get(field);
+		return node == null || node.isNull() ? "" : node.asText().trim();
 	}
 
 	private static String requiredText(JsonNode body, String field) {

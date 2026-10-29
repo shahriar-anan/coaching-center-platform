@@ -34,7 +34,8 @@ export interface Me {
 export type ExamType = "MCQ" | "WRITTEN";
 
 /** Selects the question typeface only. */
-export type PaperLanguage = "BN" | "EN";
+/** `null` on an exam means no paper language was chosen: nothing is shown for it (D5, C2). */
+export type PaperLanguage = "BN" | "EN" | "BOTH";
 
 export type CatalogStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
@@ -146,7 +147,7 @@ export interface PublicExam extends Titled {
   descriptionBn: string | null;
   rulesEn: string | null;
   rulesBn: string | null;
-  paperLanguage: PaperLanguage;
+  paperLanguage: PaperLanguage | null;
   /** ISO UTC, or `null` when the date is not set yet. */
   liveAt: string | null;
   endAt: string | null;

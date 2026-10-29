@@ -22,6 +22,7 @@ const staffCatalog = {
   paperLanguage: {
     BN: "বাংলা",
     EN: "ইংরেজি",
+    BOTH: "দুটোই",
   },
   instructorStatus: {
     ACTIVE: "চালু",
@@ -214,8 +215,15 @@ const staffCatalog = {
       WRITTEN: "একটি প্রশ্নপত্রের পিডিএফ, শিক্ষার্থী খাতা জমা দেবে।",
     },
     fieldRequired: "এই ঘরটি পূরণ করুন।",
-    paperLanguagePick: "বেছে নিন",
-    paperLanguageRequired: "প্রশ্নপত্রের ভাষা বেছে নিন।",
+    paperLanguageNotSet: "ঠিক করা হয়নি",
+    placeLabel: "কোথায় যাবে",
+    placePackage: "একটি প্যাকেজে",
+    placeCategory: "শুধু একটি ক্যাটাগরিতে",
+    packagePick: "একটি প্যাকেজ বেছে নিন",
+    categoryPick: "একটি ক্যাটাগরি বেছে নিন",
+    placeRequired: "একটি প্যাকেজ বা ক্যাটাগরি বেছে নিন।",
+    noPackages: "এখনো কোনো প্যাকেজ নেই। আগে একটি প্যাকেজ তৈরি করুন, অথবা একটি ক্যাটাগরি বেছে নিন।",
+    noCategories: "এখনো কোনো ক্যাটাগরি নেই।",
     create: "তৈরি করুন",
     created: "পরীক্ষা তৈরি হয়েছে।",
     columns: {
@@ -544,6 +552,12 @@ const staffCatalog = {
     PRICE_REQUIRED: "এই মডিউল বিক্রির জন্য হলে মূল্য লিখুন।",
     PRICE_NOT_ALLOWED: "মূল্য শুধু মাস্টার অ্যাডমিন ঠিক করতে পারেন।",
     FILE_TOO_LARGE: "ফাইলটি অনেক বড়। ছোট একটি পিডিএফ ফাইল বেছে নিন।",
+    EXAM_WINDOW_INVALID: "শেষ সময় শুরুর পরে হতে হবে, এবং পরীক্ষার সময়ের চেয়ে কম হবে না।",
+    QUESTION_STRUCTURE_LOCKED: "শিক্ষার্থী এই পরীক্ষা শুরু করার পর প্রশ্ন বা অপশন যোগ বা মুছে ফেলা যাবে না।",
+    ANSWER_LOCKED: "এই উত্তর আর বদলানো যাবে না।",
+    PENDING_CHANGES_STALE: "আপনি পড়ার পর এই পরিবর্তনগুলো বদলেছে। আবার পড়ুন।",
+    NO_PENDING_CHANGES: "প্রকাশের জন্য কোনো পরিবর্তন অপেক্ষায় নেই।",
+    EXAM_ALREADY_IN_PACKAGE: "এই পরীক্ষাটি ওই প্যাকেজে আগে থেকেই আছে।",
   },
 };
 
