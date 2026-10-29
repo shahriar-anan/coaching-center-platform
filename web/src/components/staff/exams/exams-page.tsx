@@ -92,7 +92,8 @@ export function ExamsPage() {
     q: params.q || undefined,
   };
   const list = useExamList(filters);
-  const rows = useMemo(() => list.data?.content ?? [], [list.data]);
+  // Every page that has arrived, in the order the server sent them. The groups are formed from all of them.
+  const rows = useMemo(() => list.data?.pages.flatMap((page) => page.content) ?? [], [list.data]);
   const tree = useCategoryTree();
   const packages = useModules({});
 
@@ -263,6 +264,11 @@ export function ExamsPage() {
           {actionError ? (
             <p role="alert" className="text-meta text-danger">
               {actionError}
+            </p>
+          ) : null}
+          {list.isFetchingNextPage ? (
+            <p role="status" className="text-meta text-muted">
+              {t("staffExams.loadingMore")}
             </p>
           ) : null}
           {empty === "empty" ? (

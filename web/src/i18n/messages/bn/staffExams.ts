@@ -6,6 +6,7 @@ const staffExams = {
   new: "নতুন পরীক্ষা",
   searchPlaceholder: "শিরোনাম দিয়ে খুঁজুন",
   loadError: "পরীক্ষাগুলো লোড করা যায়নি। আবার চেষ্টা করুন।",
+  loadingMore: "আরও পরীক্ষা লোড হচ্ছে…",
   retry: "আবার চেষ্টা করুন",
   reset: "ফিল্টার মুছুন",
   filter: {

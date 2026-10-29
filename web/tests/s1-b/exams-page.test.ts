@@ -62,7 +62,7 @@ describe("grouping the exams", () => {
 
 describe("the filters sent to the server", () => {
   it("sends only the filters that are set, the search trimmed, and popular and pending only when on", () => {
-    expect(examListQuery({})).toBe("size=200");
+    expect(examListQuery({})).toBe("page=0&size=200");
     const query = new URLSearchParams(
       examListQuery({ packageId: "p1", type: "MCQ", mode: "LIVE", status: "PUBLISHED", phase: "UPCOMING", q: "  rahim  ", popular: true, pending: false }),
     );

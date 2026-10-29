@@ -1,4 +1,5 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/lib/api/exam/types";
 import type { StaffExam } from "@/lib/api/exam/staff-catalog";
@@ -35,12 +36,15 @@ export type ExamListParams = {
   q?: string;
 };
 
+/** Rows per request for the Exams page. The page then asks for the next page until the server has no more. */
+export const EXAM_LIST_PAGE_SIZE = 200;
+
 /**
- * The query string for `GET /live-exams`. Empty filters are left out; `popular` and `pending` are sent
- * only when they are on. The page asks for up to 200 rows; groups are formed from the rows it gets.
+ * The query string for one page of `GET /live-exams` (zero-based `page`). Empty filters are left out; `popular` and
+ * `pending` are sent only when they are on.
  */
-export function examListQuery(params: ExamListParams): string {
-  const query = new URLSearchParams({ size: "200" });
+export function examListQuery(params: ExamListParams, page = 0): string {
+  const query = new URLSearchParams({ page: String(page), size: String(EXAM_LIST_PAGE_SIZE) });
   for (const key of ["packageId", "categoryId", "type", "mode", "status", "phase"] as const) {
     const value = params[key];
     if (value) {
@@ -60,14 +64,32 @@ export function examListQuery(params: ExamListParams): string {
   return query.toString();
 }
 
-/** The exams the staff member can see, filtered on the server. Rows carry `packages[]` and `pendingChanges`. */
+/** The page after `last`, or `null` when `last` is the final page (an empty result has no pages). */
+export function nextExamListPage(last: Pick<PageResponse<unknown>, "page" | "totalPages">): number | null {
+  return last.page + 1 < last.totalPages ? last.page + 1 : null;
+}
+
+/**
+ * The exams the staff member can see, filtered on the server. Rows carry `packages[]` and `pendingChanges`. The
+ * grouped views need every row of a package or category, so the hook asks for the next page as long as there is one.
+ * Read the rows from `data.pages`.
+ */
 export function useExamList(params: ExamListParams) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: staffExamKeys.list(params),
-    queryFn: () => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exams?${examListQuery(params)}`),
+    queryFn: ({ pageParam }) => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exams?${examListQuery(params, pageParam)}`),
+    initialPageParam: 0,
+    getNextPageParam: (last) => nextExamListPage(last),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
+  const { hasNextPage, isFetchingNextPage, isError, fetchNextPage } = query;
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage && !isError) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
+  return query;
 }
 
 /** After a row action, the Exams list and the catalog's exam lists are read again. */

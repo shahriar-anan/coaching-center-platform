@@ -6,6 +6,7 @@ const staffExams = {
   new: "New exam",
   searchPlaceholder: "Search by title",
   loadError: "The exams could not be loaded. Try again.",
+  loadingMore: "Loading more exams…",
   retry: "Try again",
   reset: "Clear filters",
   filter: {
