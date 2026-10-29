@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
@@ -28,7 +28,7 @@ import { ModuleStudentPreview } from "@/components/staff/catalog/module-student-
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
-import { LocalizedRichText } from "@/components/staff/catalog/localized-rich-text";
+import { RichTextTopics } from "@/components/staff/catalog/rich-text-topics";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TextInput } from "@/components/ui/text-input";
@@ -121,6 +121,10 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const [newCategory, setNewCategory] = useState({ titleEn: "", titleBn: "", parentId: "" });
   const [newCategoryErrors, setNewCategoryErrors] = useState<{ titleEn?: string; titleBn?: string }>({});
   const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  // On the create page nothing is on the server yet, so the description's Save only confirms the text on the page; the
+  // package is created, with that text, by "Create package".
+  const [confirmed, setConfirmed] = useState({ en: "", bn: "" });
   const dirty = JSON.stringify(form) !== JSON.stringify(baseline);
   useUnsavedWarning(dirty);
 
@@ -215,6 +219,10 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     } else if (discount.value === null && form.discountEndsAt) {
       next.discountEndsAt = t("staffCatalog.moduleForm.discountEndNeedsDiscount");
     }
+    // A discount end that is set or changed cannot be in the past; an unchanged one that has run out may stay.
+    if (form.discountEndsAt && form.discountEndsAt !== baseline.discountEndsAt && Date.parse(form.discountEndsAt) < Date.now()) {
+      next.discountEndsAt = t("staffCatalog.moduleForm.discountEndPast");
+    }
     setErrors(next);
     if (Object.keys(next).length > 0 || !price.ok || !discount.ok) {
       return null;
@@ -301,10 +309,27 @@ function DetailsBody({ module }: { module?: StaffModule }) {
 
   const banner = module?.pendingChanges ? <PendingChangesBanner masterAdmin={masterAdmin} /> : null;
 
+  // The form's Save, at the foot of the third column.
+  const saveRow = !readOnly ? (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" loading={save.isPending} disabled={save.isPending || (!creating && !dirty)}>
+          {creating ? t("staffCatalog.moduleForm.create") : t("staffCatalog.moduleForm.save")}
+        </Button>
+        {dirty ? (
+          <span role="status" className="text-meta text-warn">
+            {t("staffCatalog.moduleForm.dirty")}
+          </span>
+        ) : null}
+      </div>
+      {status?.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.moduleForm.stagedHint")}</p> : null}
+    </div>
+  ) : null;
+
   return (
     <div className="grid gap-6">
       {banner}
-      <form id="module-details-form" onSubmit={onSubmit} noValidate className="grid max-w-3xl gap-5">
+      <form ref={formRef} id="module-details-form" onSubmit={onSubmit} noValidate className="grid max-w-5xl gap-5">
         <fieldset disabled={readOnly} className="grid gap-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t("staffCatalog.moduleForm.titleEn")} required error={errors.titleEn}>
@@ -314,19 +339,27 @@ function DetailsBody({ module }: { module?: StaffModule }) {
               <TextInput value={form.titleBn} onChange={(e) => set("titleBn", e.target.value)} />
             </Field>
           </div>
-          <LocalizedRichText
-            title={t("staffCatalog.richText.descriptionTitle")}
-            valueEn={form.descriptionEn}
-            valueBn={form.descriptionBn}
-            onChange={(language, html) =>
-              language === "en"
-                ? set("descriptionEn", richTextValue(html, form.descriptionEn))
-                : set("descriptionBn", richTextValue(html, form.descriptionBn))
-            }
-            errorEn={errors.descriptionEn}
-            errorBn={errors.descriptionBn}
+          <RichTextTopics
+            saving={creating ? false : save.isPending}
+            onSave={() => (creating ? setConfirmed({ en: form.descriptionEn, bn: form.descriptionBn }) : formRef.current?.requestSubmit())}
+            previewNote={t("staffCatalog.richText.previewNoteDescription")}
+            topics={[
+              {
+                title: t("staffCatalog.richText.descriptionTitle"),
+                valueEn: form.descriptionEn,
+                valueBn: form.descriptionBn,
+                savedEn: creating ? confirmed.en : baseline.descriptionEn,
+                savedBn: creating ? confirmed.bn : baseline.descriptionBn,
+                errorEn: errors.descriptionEn,
+                errorBn: errors.descriptionBn,
+                onChange: (language, html) =>
+                  language === "en"
+                    ? set("descriptionEn", richTextValue(html, form.descriptionEn))
+                    : set("descriptionBn", richTextValue(html, form.descriptionBn)),
+              },
+            ]}
           />
-          <div className="grid items-start gap-4 sm:grid-cols-2">
+          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="grid gap-3">
               <Field label={t("staffCatalog.moduleForm.category")} required error={errors.categoryId}>
                 <Select value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
@@ -403,44 +436,40 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                 </div>
               )}
             </div>
+            {/* Three columns from lg: the category, the price, and the discount with the Save button, so there is less to scroll. */}
             {canSetPrice ? (
-              <div className="grid gap-4">
+              <>
                 <Field label={t("staffCatalog.moduleForm.price")} hint={t("staffCatalog.moduleForm.priceHint")} error={errors.price}>
                   <NumberInput inputMode="decimal" min={0} step="0.01" value={form.price} onChange={(e) => set("price", e.target.value)} className="max-w-48" />
                 </Field>
-                <Field label={t("staffCatalog.moduleForm.discountPercent")} hint={t("staffCatalog.moduleForm.discountHint")} error={errors.discountPercent}>
-                  <NumberInput inputMode="numeric" min={1} max={99} step={1} value={form.discountPercent} onChange={(e) => set("discountPercent", e.target.value)} className="max-w-32" />
-                </Field>
-                <Field label={t("staffCatalog.moduleForm.discountEndsAt")} error={errors.discountEndsAt}>
-                  <DateTimeInput
-                    value={form.discountEndsAt}
-                    onChange={(iso) => set("discountEndsAt", iso)}
-                    invalid={Boolean(errors.discountEndsAt)}
-                    disabled={form.discountPercent.trim() === ""}
-                  />
-                </Field>
-              </div>
+                <div className="grid gap-4">
+                  <Field label={t("staffCatalog.moduleForm.discountPercent")} hint={t("staffCatalog.moduleForm.discountHint")} error={errors.discountPercent}>
+                    <NumberInput inputMode="numeric" min={1} max={99} step={1} value={form.discountPercent} onChange={(e) => set("discountPercent", e.target.value)} className="max-w-32" />
+                  </Field>
+                  <Field label={t("staffCatalog.moduleForm.discountEndsAt")} error={errors.discountEndsAt}>
+                    <DateTimeInput
+                      value={form.discountEndsAt}
+                      onChange={(iso) => set("discountEndsAt", iso)}
+                      invalid={Boolean(errors.discountEndsAt)}
+                      disabled={form.discountPercent.trim() === ""}
+                      dateOnly
+                      futureOnly
+                    />
+                  </Field>
+                  {saveRow}
+                </div>
+              </>
             ) : (
-              <div className="grid gap-1">
-                <span className="text-label font-medium text-muted">{t("staffCatalog.moduleForm.price")}</span>
-                <p className="text-body">{formatMoney(priceDisplay) ?? t("staffCatalog.moduleForm.noPrice")}</p>
-                <p className="text-meta text-muted">{t("staffCatalog.moduleForm.priceReadOnly")}</p>
-              </div>
+              <>
+                <div className="grid gap-1">
+                  <span className="text-label font-medium text-muted">{t("staffCatalog.moduleForm.price")}</span>
+                  <p className="text-body">{formatMoney(priceDisplay) ?? t("staffCatalog.moduleForm.noPrice")}</p>
+                  <p className="text-meta text-muted">{t("staffCatalog.moduleForm.priceReadOnly")}</p>
+                </div>
+                <div className="grid gap-4">{saveRow}</div>
+              </>
             )}
           </div>
-          {!readOnly ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" loading={save.isPending} disabled={save.isPending || (!creating && !dirty)}>
-                {creating ? t("staffCatalog.moduleForm.create") : t("staffCatalog.moduleForm.save")}
-              </Button>
-              {dirty ? (
-                <span role="status" className="text-meta text-warn">
-                  {t("staffCatalog.moduleForm.dirty")}
-                </span>
-              ) : null}
-              {status?.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.moduleForm.stagedHint")}</p> : null}
-            </div>
-          ) : null}
         </fieldset>
         {formError ? (
           <p role="alert" className="text-meta text-danger">

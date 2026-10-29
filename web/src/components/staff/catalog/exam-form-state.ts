@@ -125,7 +125,12 @@ function windowErrors(form: ExamFormState): ExamFormErrors {
  * The errors of one section, as message keys. The checks match the API: the window against the duration, a discount
  * from 1 to 99, a free exam with no price or discount, and an access period of at least one day.
  */
-export function examFormErrors(form: ExamFormState, section: ExamSection, context: ExamFormContext): ExamFormErrors {
+export function examFormErrors(
+  form: ExamFormState,
+  section: ExamSection,
+  context: ExamFormContext,
+  saved?: ExamFormState,
+): ExamFormErrors {
   const errors: ExamFormErrors = {};
   if (section === "details") {
     if (!form.titleEn.trim()) {
@@ -185,6 +190,10 @@ export function examFormErrors(form: ExamFormState, section: ExamSection, contex
       }
     } else if (form.discountEndsAt) {
       errors.discountEndsAt = "staffCatalog.examMeta.discountEndNeedsDiscount";
+    }
+    // A discount end that is set or changed cannot be in the past; an unchanged one that has run out may stay.
+    if (form.discountEndsAt && form.discountEndsAt !== saved?.discountEndsAt && Date.parse(form.discountEndsAt) < Date.now()) {
+      errors.discountEndsAt = "staffCatalog.examMeta.discountEndPast";
     }
     if (form.accessDays.trim() !== "") {
       const days = Number(form.accessDays);

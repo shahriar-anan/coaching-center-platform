@@ -20,6 +20,14 @@ type Month = { year: number; month: number };
 
 const EMPTY: Draft = { date: "", time: "", period: "AM" };
 const pad = (n: number) => String(n).padStart(2, "0");
+/** True when a calendar day is before today in Dhaka time. */
+function isBeforeToday(view: { year: number; month: number }, day: number): boolean {
+  const today = dhakaParts(new Date());
+  return (
+    view.year < today.year ||
+    (view.year === today.year && (view.month < today.month || (view.month === today.month && day < today.day)))
+  );
+}
 const HOURS = Array.from({ length: 12 }, (_, i) => pad(i + 1));
 const MINUTES = Array.from({ length: 60 }, (_, i) => pad(i));
 const secondaryButton =
@@ -189,6 +197,8 @@ export function DateTimeInput({
   disabled,
   "aria-describedby": describedBy,
   className,
+  dateOnly,
+  futureOnly,
 }: {
   value: string | null;
   onChange: (iso: string | null) => void;
@@ -198,12 +208,17 @@ export function DateTimeInput({
   disabled?: boolean;
   "aria-describedby"?: string;
   className?: string;
+  /** Asks for a date only. The value is the end of that day in Dhaka time (23:59:59), for an "ends on" date. */
+  dateOnly?: boolean;
+  /** Greys out the days before today in the calendar. The form still checks the value, because a date can be typed. */
+  futureOnly?: boolean;
 }) {
   const { t, locale } = useLocale();
   const { formatDateTime } = useFormat();
   const [draft, setDraft] = useState<Draft>(() => draftFor(value));
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const [view, setView] = useState<Month>(() => monthFor(draft));
   const panelId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -244,17 +259,21 @@ export function DateTimeInput({
   }, [panelOpen]);
 
   function update(next: Draft) {
+    // A date-only field has no time of its own: a date means the last minute of that day, and no date means no value.
+    const base: Draft = dateOnly ? { ...next, time: next.date.trim() ? "11:59" : "", period: "PM" } : next;
     // A typed AM or PM, or a 24-hour time, sets the AM or PM button too.
-    const typed = next.time.trim() ? parseTime(next.time, next.period) : null;
-    const settled = typed ? { ...next, period: typed.period } : next;
+    const typed = base.time.trim() ? parseTime(base.time, base.period) : null;
+    const settled = typed ? { ...base, period: typed.period } : base;
     setDraft(settled);
     const result = instantFor(settled);
     // "Incomplete" is not shown: the field is still being filled in.
     const shown = result.error === "invalidDate" || result.error === "invalidTime" ? result.error : null;
     setError(shown ? t(`common.dateTime.${shown}`) : null);
     if (result.iso) {
-      sent.current = result.iso;
-      onChange(result.iso);
+      // The end of the day includes its last 59 seconds.
+      const iso = dateOnly ? new Date(Date.parse(result.iso) + 59_000).toISOString() : result.iso;
+      sent.current = iso;
+      onChange(iso);
     } else if (isEmpty(settled)) {
       sent.current = null;
       onChange(null);
@@ -280,6 +299,10 @@ export function DateTimeInput({
   function togglePanel() {
     if (!panelOpen) {
       setView(monthFor(draft));
+      // The panel is about 22 rem (350 px) tall. Near the bottom of the window it opens upward, so it never hangs off the
+      // end of the page or covers the buttons under the field.
+      const rect = wrapRef.current?.getBoundingClientRect();
+      setOpenUp(rect ? window.innerHeight - rect.bottom < 370 && rect.top > 370 : false);
     }
     setPanelOpen((open) => !open);
   }
@@ -323,7 +346,7 @@ export function DateTimeInput({
   ];
 
   return (
-    <div ref={wrapRef} className={cn("grid gap-2", className)}>
+    <div ref={wrapRef} className={cn("relative grid gap-2", className)}>
       <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
         {/* The calendar is the date field's own picker, so its button sits beside the typed date. */}
         <div className="flex items-end gap-2 sm:w-56">
@@ -358,6 +381,8 @@ export function DateTimeInput({
             <CalendarDays aria-hidden="true" className="size-5" />
           </button>
         </div>
+        {dateOnly ? null : (
+        <>
         <label className="grid gap-1 text-meta text-muted sm:w-40">
           <span>{t("common.dateTime.time")}</span>
           <input
@@ -399,16 +424,22 @@ export function DateTimeInput({
             })}
           </div>
         </div>
+        </>
+        )}
       </div>
-      {/* The panel opens under the row, from the date's side. The empty wrapper takes no space while it is closed. */}
-      <div className="relative empty:hidden">
+      {/* The panel is anchored to the whole field, below it or above it (see togglePanel), from the date's side. The empty wrapper takes no space while it is closed. */}
+      <div className="empty:hidden">
         {panelOpen ? (
           <div
             id={panelId}
-            className="absolute start-0 top-full z-30 mt-2 grid w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-card border border-border bg-card p-3 shadow-lg sm:w-[min(27rem,calc(100vw-2rem))]"
+            className={cn(
+              "absolute start-0 z-30 grid w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-card border border-border bg-card p-3 shadow-lg",
+              openUp ? "bottom-full mb-2" : "top-full mt-2",
+              !dateOnly && "sm:w-[min(27rem,calc(100vw-2rem))]",
+            )}
           >
-            {/* The calendar on the left and the time columns on the right; stacked on a phone. */}
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            {/* The calendar on the left and the time columns on the right; stacked on a phone. A date-only field has no columns. */}
+            <div className={cn("grid gap-3", !dateOnly && "sm:grid-cols-[minmax(0,1fr)_auto]")}>
             <div className="grid content-start gap-2">
             <div className="flex items-center justify-between gap-2">
               <button
@@ -443,10 +474,12 @@ export function DateTimeInput({
                     key={day}
                     type="button"
                     aria-pressed={selectedDay === day}
+                    disabled={futureOnly && isBeforeToday(view, day)}
                     onClick={() => pickDay(day)}
                     className={cn(
                       "min-h-11 rounded-control text-body font-medium transition-colors sm:min-h-8",
                       selectedDay === day ? "bg-action text-on-action" : "text-text hover:bg-field",
+                      "disabled:cursor-not-allowed disabled:text-muted disabled:opacity-40 disabled:hover:bg-transparent",
                     )}
                   >
                     {digits(String(day))}
@@ -455,6 +488,7 @@ export function DateTimeInput({
               )}
             </div>
             </div>
+            {dateOnly ? null : (
             <div className="grid content-start gap-2 sm:w-44">
               <p className="flex min-h-8 items-center text-label font-semibold text-text">{t("common.dateTime.time")}</p>
               <div className="grid grid-cols-3 gap-1">
@@ -478,6 +512,7 @@ export function DateTimeInput({
               />
               </div>
             </div>
+            )}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex gap-2">
@@ -506,7 +541,7 @@ export function DateTimeInput({
         <p role="alert" className="text-meta text-danger">
           {error}
         </p>
-      ) : complete ? (
+      ) : complete && !dateOnly ? (
         <p className="text-meta text-muted">{t("common.dateTime.starts", { when: formatDateTime(complete) })}</p>
       ) : null}
     </div>

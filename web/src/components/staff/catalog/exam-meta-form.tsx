@@ -80,7 +80,7 @@ export function ExamMetaForm({
     }
     setFormError(null);
     setClash(null);
-    const local = examFormErrors(form, section, context);
+    const local = examFormErrors(form, section, context, saved);
     if (Object.keys(local).length > 0) {
       const messages: ExamFormErrors = {};
       for (const [key, value] of Object.entries(local)) {
