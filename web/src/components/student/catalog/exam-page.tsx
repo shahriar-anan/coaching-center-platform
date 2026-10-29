@@ -216,7 +216,7 @@ export function ExamPage({ examId }: { examId: string }) {
       <ConfigNotice show={checkoutOff} />
 
       <PackageCover
-        src={coverSrc(coverPackage?.coverUrl)}
+        src={coverSrc(data.coverUrl ?? coverPackage?.coverUrl)}
         alt={t("catalog.package.coverAlt", { title: pickTitle(coverPackage ?? data, locale) || title })}
         type={examType === "MCQ" ? "MCQ" : "WRITTEN"}
         title={pickTitle(coverPackage ?? data, locale) || title}

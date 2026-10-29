@@ -136,6 +136,8 @@ export interface CategoryNode extends Titled {
 /** `GET /api/v1/public/live-exams/{id}` and the module exam list. */
 export interface PublicExam extends Titled {
   id: string;
+  /** The exam's own cover path, or null (Phase 4, E1). */
+  coverUrl?: string | null;
   /** The student's access, present when signed in (plan section 8, A1). */
   access?: AccessInfo | null;
   moduleId: string;
