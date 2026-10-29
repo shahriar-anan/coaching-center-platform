@@ -31,6 +31,14 @@ const exam: StaffExam = {
   questions: [],
 };
 
+const written: StaffExam = {
+  ...exam,
+  descriptionEn: "<p>English description</p>",
+  descriptionBn: "<p>বাংলা বিবরণ</p>",
+  rulesEn: "<p>English rules</p>",
+  rulesBn: "<p>বাংলা নিয়ম</p>",
+};
+
 beforeAll(() => {
   // jsdom has no layout; ProseMirror measures text and asks for the element under a click.
   if (!document.elementFromPoint) {
@@ -45,15 +53,24 @@ beforeAll(() => {
   }
 });
 
-describe("description and rules: the box's own Save", () => {
-  it("saves the section from the box and then says the language is saved", async () => {
-    const api = mockApi({
-      [patchPath]: (req: { body: unknown }) => ({ ...exam, ...(req.body as Partial<StaffExam>) }),
-    });
-    renderWithProviders(<ExamMetaForm exam={exam} canEdit onDirtyChange={() => undefined} section="text" />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-    });
+function patches(calls: { method: string; body: unknown }[]) {
+  return calls.filter((call) => call.method === "PATCH");
+}
+
+function renderText(source: StaffExam) {
+  const api = mockApi({
+    [patchPath]: (req: { body: unknown }) => ({ ...source, ...(req.body as Partial<StaffExam>) }),
+  });
+  renderWithProviders(<ExamMetaForm exam={source} canEdit onDirtyChange={() => undefined} section="text" />, {
+    user: fixtures.masterAdmin,
+    locale: "en",
+  });
+  return api;
+}
+
+describe("description and rules section", () => {
+  it("saves from the box's own Save and stays open while a text is still missing", async () => {
+    const api = renderText(exam);
 
     const box = await screen.findByRole("textbox", { name: "Description (English)" });
     await userEvent.click(box);
@@ -63,13 +80,46 @@ describe("description and rules: the box's own Save", () => {
     // The box's Save comes before the section footer's Save in the page.
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
 
-    await waitFor(() => expect(api.calls.filter((call) => call.method === "PATCH")).toHaveLength(1));
-    const body = api.calls.find((call) => call.method === "PATCH")?.body as { descriptionEn?: string };
-    expect(body.descriptionEn).toContain("Read all rules");
-    // The description now shows as students read it, with an Edit button; the rules box has nothing saved and stays open.
-    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Description (English)" })).not.toBeInTheDocument());
-    expect(screen.getByText(/Read all rules/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    await waitFor(() => expect(patches(api.calls)).toHaveLength(1));
+    expect((patches(api.calls)[0].body as { descriptionEn?: string }).descriptionEn).toContain("Read all rules");
+    // Three texts are still missing, so the editors stay.
+    await waitFor(() => expect(screen.queryByText("English: unsaved changes")).not.toBeInTheDocument());
+    expect(screen.getByRole("textbox", { name: "Description (English)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+
+  it("opens as a preview of all four texts when they are all saved, and Edit reopens the editors", async () => {
+    renderText(written);
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    for (const text of ["English description", "বাংলা বিবরণ", "English rules", "বাংলা নিয়ম"]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+    expect(screen.getByText("This is how students will read the description and rules.")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(await screen.findByRole("textbox", { name: "Description (English)" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Rules (English)" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(screen.getByText("English description")).toBeInTheDocument();
+  });
+
+  it("turns into the preview once the last missing text is saved", async () => {
+    const api = renderText({ ...written, rulesBn: null });
+
+    await userEvent.click(await screen.findByRole("button", { name: "বাংলা •" }));
+    const box = await screen.findByRole("textbox", { name: "Rules (বাংলা)" });
+    await userEvent.click(box);
+    await userEvent.keyboard("শেষ নিয়ম");
+
+    const save = screen.getAllByRole("button", { name: "Save" }).find((button) => !button.hasAttribute("disabled"));
+    await userEvent.click(save as HTMLElement);
+
+    await waitFor(() => expect(patches(api.calls)).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(screen.getByText(/শেষ নিয়ম/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 });

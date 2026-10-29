@@ -364,6 +364,7 @@ const staffCatalog = {
     editorLabel: "{title} ({language})",
     save: "Save",
     edit: "Edit",
+    previewNote: "This is how students will read the description and rules.",
     saved: "{language} saved",
     dirty: "{language}: unsaved changes",
     otherDirty: "{language} saved. {other} has unsaved changes",

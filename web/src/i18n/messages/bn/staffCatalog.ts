@@ -368,6 +368,7 @@ const staffCatalog = {
     editorLabel: "{title} ({language})",
     save: "সেভ করুন",
     edit: "এডিট করুন",
+    previewNote: "শিক্ষার্থীরা বিবরণ ও নিয়মাবলি এভাবেই পড়বে।",
     saved: "{language} সেভ হয়েছে",
     dirty: "{language}: পরিবর্তন সেভ হয়নি",
     otherDirty: "{language} সেভ হয়েছে। {other}-এ সেভ না-করা পরিবর্তন আছে",
