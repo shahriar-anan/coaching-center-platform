@@ -32,7 +32,7 @@ export const PdfWatermark = memo(function PdfWatermark({ studentLine }: { studen
           alt=""
           width={390}
           height={451}
-          className="h-auto w-[55%] max-w-none opacity-[0.11] mix-blend-multiply"
+          className="h-auto w-[55%] max-w-none opacity-[0.22] mix-blend-multiply"
         />
       </div>
       {studentLine ? (
