@@ -95,8 +95,8 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 	void branchAddsTheExamsOfEverySubcategoryAtAnyDepth() throws Exception {
 		Set<String> branch = ids(categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true"));
 		assertThat(branch).isEqualTo(subtree(DemoContentSeed.CATEGORY_ROOT));
-		// Exams from the MCQ, written and full-mock subcategories, the standalone written paper, and the discount and popular packages.
-		assertThat(branch).contains(exam(1), exam(6), exam(10), exam(60), exam(62), exam(63));
+		// Exams from the MCQ, written and full-mock subcategories, the standalone written paper and the popular package. The discount offers sit in their own root.
+		assertThat(branch).contains(exam(1), exam(6), exam(10), exam(62), exam(63));
 		// The Bar Council branch is a separate root, so it stays out.
 		assertThat(branch).doesNotContain(exam(30), exam(31));
 		assertThat(ids(categoryExams(DemoContentSeed.CATEGORY_BAR, "&branch=true")))
