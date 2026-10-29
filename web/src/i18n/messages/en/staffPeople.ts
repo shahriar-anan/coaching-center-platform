@@ -198,7 +198,6 @@ const staffPeople = {
     examiner: "Marked by",
     published: "Published",
     noAnswer: "Not submitted · marks cannot be given",
-    watermark: "SYMAMLAW",
     marks: "Marks",
     marksHint: "From 0 to {max}",
     marksRange: "Marks must be from 0 to {max}.",

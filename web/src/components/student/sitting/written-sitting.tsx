@@ -24,8 +24,8 @@ export async function isPdf(file: Blob): Promise<boolean> {
 type Props = {
   exam: StudentExam;
   deadlineAt: string;
-  /** Shown diagonally over the question paper, for example "নাঈম হাসান · S18492017". */
-  watermark: string;
+  /** Printed at the top and bottom of every page of the question paper, for example "নাঈম হাসান · S18492017". */
+  studentLine: string;
   /** Called at the deadline. `hasScript` says whether a script was stored by then. */
   onClosed: (hasScript: boolean) => void;
   /** Called once the student has confirmed and the script is stored. */
@@ -36,7 +36,7 @@ type Props = {
  * The written paper: the question PDF inline (no download), and the answer upload. The student
  * stages a file, then submits it; a later file replaces the earlier one until the deadline.
  */
-export function WrittenSitting({ exam, deadlineAt, watermark, onClosed, onSubmitted }: Props) {
+export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubmitted }: Props) {
   const { t, locale } = useLocale();
   const n = (value: number) => formatNumber(value, locale);
   const [progress, setProgress] = useState(0);
@@ -104,7 +104,7 @@ export function WrittenSitting({ exam, deadlineAt, watermark, onClosed, onSubmit
           {exam.questionPdf ? (
             <PdfViewer
               load={() => apiBlob(questionPdfPath(exam.id))}
-              watermark={watermark}
+              studentLine={studentLine}
               allowDownload={false}
               label={t("sitting.written.paper")}
             />

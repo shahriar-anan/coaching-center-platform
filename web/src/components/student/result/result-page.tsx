@@ -15,6 +15,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { McqQuestion, resolvePaperLanguage, type OptionLabels } from "@/components/student/sitting/mcq-question";
 import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
+import { useUser } from "@/lib/auth/session-context";
 import { useNotice } from "@/lib/notices/use-notice";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -88,6 +89,7 @@ export function ResultPage({ examId }: { examId: string }) {
   const [showScript, setShowScript] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const textSize = usePaperTextSize();
+  const user = useUser();
 
   const header = (
     <PageHeader
@@ -243,6 +245,7 @@ export function ResultPage({ examId }: { examId: string }) {
             <div className="mt-4">
               <PdfViewer
                 load={() => apiBlob(evaluatedPdfPath(examId))}
+                studentLine={user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined}
                 allowDownload={false}
                 label={t("result.written.markedScript")}
               />

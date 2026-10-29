@@ -82,7 +82,6 @@ export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolea
         {viewing ? (
           <PdfViewer
             load={() => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`)}
-            watermark={t("staffCatalog.written.staffWatermark")}
             allowDownload={false}
             fileName={exam.titleBn}
           />

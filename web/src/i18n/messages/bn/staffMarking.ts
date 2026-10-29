@@ -108,13 +108,15 @@ const staffMarking = {
     publishedSelected: "{published}টি প্রকাশ হয়েছে। {failed}টি হয়নি।",
   },
   views: {
-    label: "খাতা ও প্রশ্নপত্র",
+    label: "খাতা, প্রশ্নপত্র ও মূল্যায়িত খাতা",
     answer: "খাতা",
+    evaluated: "মূল্যায়ন",
+    notMarkedTitle: "এখনও মূল্যায়ন হয়নি।",
+    notMarkedBody: "খাতা মূল্যায়ন করে আপলোড করার পর মূল্যায়িত খাতা এখানে দেখা যাবে।",
   },
   questionPaper: {
     title: "প্রশ্নপত্র",
     notAllowed: "এই প্রশ্নপত্র পাওয়া যাচ্ছে না। হয়তো এই পরীক্ষার জন্য কোনো ফাইল আপলোড করা হয়নি, অথবা আপনার অ্যাকাউন্টে এটি দেখার অনুমতি নেই।",
-    watermark: "SYMAMLAW",
   },
   snippets: {
     listLabel: "সংরক্ষিত মন্তব্য",
@@ -162,7 +164,6 @@ const staffMarking = {
     next: "পরের",
     progress: "{total}টির মধ্যে {marked}টি মূল্যায়িত",
     allDone: "এই তালিকার সব খাতা দেখা হয়েছে। তালিকায় ফিরুন",
-    watermark: "SYMAMLAW",
   },
   publish: {
     published: "প্রকাশিত",

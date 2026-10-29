@@ -52,13 +52,12 @@ const SECTION_FORMS = ["exam-details-form", "exam-text-form", "exam-schedule-for
 
 /** A read-only look at the paper as a student sees it: no correct marks, no explanations. */
 function StudentPreview({ exam }: { exam: StaffExam }) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const { formatNumber } = useFormat();
   if (exam.examType === "WRITTEN") {
     return (
       <PdfViewer
         load={() => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`)}
-        watermark={t("staffCatalog.preview.watermark")}
         allowDownload={false}
         fileName={locale === "bn" ? exam.titleBn : exam.titleEn}
       />

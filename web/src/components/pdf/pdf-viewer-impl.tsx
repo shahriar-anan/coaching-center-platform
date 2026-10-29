@@ -15,8 +15,11 @@ import { formatNumber } from "@/lib/format";
 export type PdfViewerProps = {
   /** Fetches the file with the caller's auth, for example `() => apiBlob(path)`. Called again on retry. */
   load: () => Promise<Blob>;
-  /** Drawn diagonally over every page, for example "নাঈম হাসান · S18492017". */
-  watermark?: string;
+  /**
+   * A student's own view only: their name and ID, for example "নাঈম হাসান · S18492017", printed as one
+   * small line at the top and bottom of every page. Staff views leave it out.
+   */
+  studentLine?: string;
   /** Staff answer scripts only. Students never get a download control or the context menu. */
   allowDownload?: boolean;
   /** Name for the downloaded file when `allowDownload` is set. */
@@ -25,7 +28,7 @@ export type PdfViewerProps = {
   label?: string;
 };
 import { PdfSkeleton } from "./pdf-skeleton";
-import { PdfWatermark } from "./pdf-watermark";
+import { PdfWatermark, pageStrip } from "./pdf-watermark";
 import { clampZoom, ZOOM_STEP } from "./zoom";
 
 export const PDF_WORKER_SRC = "/pdf.worker.min.mjs";
@@ -45,7 +48,7 @@ async function openDocument(blob: Blob): Promise<PDFDocumentProxy> {
   return pdfjs.getDocument({ data }).promise;
 }
 
-export function PdfViewerImpl({ load, watermark, allowDownload = false, fileName, label }: PdfViewerProps) {
+export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileName, label }: PdfViewerProps) {
   const { t, locale } = useLocale();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -234,7 +237,8 @@ export function PdfViewerImpl({ load, watermark, allowDownload = false, fileName
         onPointerCancel={onPointerEnd}
         className="h-[70vh] max-h-[880px] min-h-[360px] touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <div ref={contentRef} className="flex origin-top flex-col items-center gap-2">
+        {/* Starts at the left edge and is as wide as the widest page, so a zoomed page scrolls to both sides. Each page centres itself (mx-auto) when it is narrower. */}
+        <div ref={contentRef} className="flex min-w-max origin-top flex-col items-start gap-2">
           {width > 0
             ? Array.from({ length: pageCount }, (_, index) => (
                 <PdfPage
@@ -244,7 +248,7 @@ export function PdfViewerImpl({ load, watermark, allowDownload = false, fileName
                   scale={scale}
                   placeholderWidth={state.baseWidth * scale}
                   placeholderHeight={state.baseHeight * scale}
-                  watermark={watermark}
+                  studentLine={studentLine}
                   root={scroller}
                 />
               ))
@@ -281,7 +285,7 @@ type PageProps = {
   scale: number;
   placeholderWidth: number;
   placeholderHeight: number;
-  watermark?: string;
+  studentLine?: string;
   root: HTMLDivElement | null;
 };
 
@@ -292,7 +296,7 @@ const PdfPage = memo(function PdfPage({
   scale,
   placeholderWidth,
   placeholderHeight,
-  watermark,
+  studentLine,
   root,
 }: PageProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -356,16 +360,18 @@ const PdfPage = memo(function PdfPage({
 
   const width = size?.width ?? placeholderWidth;
   const height = size?.height ?? placeholderHeight;
+  // A student's page has a strip above and below the paper for the name line; the paper sits between them.
+  const strip = pageStrip(studentLine);
 
   return (
     <div
       ref={wrapperRef}
       data-page={pageNumber}
-      className="relative shrink-0 bg-white shadow-sm"
-      style={{ width, height }}
+      className="relative mx-auto shrink-0 bg-white shadow-sm"
+      style={{ width, height: height + 2 * strip }}
     >
-      <canvas ref={canvasRef} className="block h-full w-full" />
-      {watermark ? <PdfWatermark text={watermark} /> : null}
+      <canvas ref={canvasRef} className="absolute left-0 block" style={{ top: strip, width, height }} />
+      <PdfWatermark studentLine={studentLine} />
     </div>
   );
 });

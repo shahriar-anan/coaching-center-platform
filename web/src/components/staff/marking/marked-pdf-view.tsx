@@ -35,7 +35,6 @@ export function MarkedPdfView({ participantId, fileName }: { participantId: stri
           load={() => evaluatedPaperBlob(participantId)}
           allowDownload
           fileName={fileName}
-          watermark={t("staffMarking.form.watermark")}
         />
       </Dialog>
     </Card>

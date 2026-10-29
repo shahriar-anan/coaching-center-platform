@@ -108,13 +108,15 @@ const staffMarking = {
     publishedSelected: "{published} published. {failed} failed.",
   },
   views: {
-    label: "Answer script and question paper",
+    label: "Answer script, question paper and marked script",
     answer: "Answer script",
+    evaluated: "Evaluated",
+    notMarkedTitle: "Not marked yet.",
+    notMarkedBody: "The marked script appears here after it is uploaded.",
   },
   questionPaper: {
     title: "Question paper",
     notAllowed: "This question paper is not available. No file may have been uploaded for this exam yet, or your account may not have access to it.",
-    watermark: "SYMAMLAW",
   },
   snippets: {
     listLabel: "Saved comments",
@@ -162,7 +164,6 @@ const staffMarking = {
     next: "Next",
     progress: "{marked} of {total} marked",
     allDone: "All scripts in this list are marked. Back to the list",
-    watermark: "SYMAMLAW",
   },
   publish: {
     published: "Published",
