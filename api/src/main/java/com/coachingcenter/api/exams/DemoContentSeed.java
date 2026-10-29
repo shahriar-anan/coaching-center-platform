@@ -32,21 +32,22 @@ import com.coachingcenter.api.auth.PhoneNumbers;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.files.LocalFileStorage;
 
-/**
- * The client-review seed: one staff account, one instructor and three students, two root categories with subcategories, four
- * packages, and twenty-minute exams of both kinds. Student A owns the mixed package with two published results, one paper
- * awaiting marking and an 11 PM exam on each of the next seven days; the instructor has four papers to mark. Staging and dev only.
- *
- * <p>Every demo row has a fixed UUID whose first group names its table: {@code a} categories, {@code b} modules, {@code e}
- * exams, {@code f} questions, {@code 9} options, {@code 7} sittings, {@code 5} students, {@code 6} the instructor, {@code 4}
- * the staff account, {@code c} orders, {@code d} grants, {@code 8} the announcement. The cleanup script deletes by those prefixes.
- *
- * <p>The seed only inserts, and only once: when the demo catalog is already there a run does nothing, so the client's marking and
- * purchases are never undone. A second step, the top-up, adds the admin's own cases (draft packages and exams awaiting
- * publish, papers marked but not released, and pending, paid, failed and cancelled payments); it has its own sentinel, so a
- * database seeded by an earlier version gets it without a reset. Dates are set from the run date; a reset is the cleanup
- * script and a new run. Copy in this file is a draft for the client's content review (decision D-d10).
- */
+	/**
+	 * The client-review seed, as section 2 of the client-review staging plan sets it out: one staff account, one instructor and
+	 * three students, the plan's categories with subcategories, and its four packages with twenty-minute MCQ and written exams.
+	 * Student A owns the mixed package with two published results, one paper awaiting marking and an 11 PM exam on each of the
+	 * next seven days; the instructor has four papers to mark. Three extra cases sit on top of the plan: a discounted package and
+	 * exam, a popular package and exam, and a student whose manual grant on a written paper expires. Staging and dev only.
+	 *
+	 * <p>Every demo row has a fixed UUID whose first group names its table: {@code a} categories, {@code b} modules, {@code e}
+	 * exams, {@code f} questions, {@code 9} options, {@code 7} sittings, {@code 5} students, {@code 6} the instructor, {@code 4}
+	 * the staff account, {@code c} orders, {@code d} grants, {@code 8} the announcement. The cleanup script deletes by those prefixes.
+	 *
+	 * <p>The seed only inserts, and only once: when the demo catalog is already there a run does nothing, so the client's marking and
+	 * purchases are never undone. Dates are set from the run date; a reset is the cleanup script and a new run. A database that holds
+	 * rows only an older seed wrote is refused, so the cleanup runs first. Copy in this file is a draft for the client's content review
+	 * (decision D-d10).
+	 */
 @Component
 public class DemoContentSeed {
 
@@ -94,6 +95,9 @@ public class DemoContentSeed {
 
 	static final UUID CATEGORY_BAR_MCQ = demo('a', 6);
 
+	/** The discount package's own root category (NR-01 review). */
+	static final UUID CATEGORY_OFFER = demo('a', 7);
+
 	/** b1: three MCQ exams, owned by nobody. */
 	static final UUID MODULE_MCQ = demo('b', 1);
 
@@ -105,12 +109,6 @@ public class DemoContentSeed {
 
 	/** b4: two Bar Council MCQ exams, owned by nobody. */
 	static final UUID MODULE_BAR = demo('b', 4);
-
-	/** b5: a draft package that is final saved and ready to publish, with a ready and an unfinished draft exam. */
-	static final UUID MODULE_DRAFT_READY = demo('b', 5);
-
-	/** b6: a draft package with nothing in it yet. */
-	static final UUID MODULE_DRAFT_EMPTY = demo('b', 6);
 
 	/** b7: a discounted package, 25 percent off until {@link #DISCOUNT_ENDS} (NR-01 review). */
 	static final UUID MODULE_SALE = demo('b', 7);
@@ -297,9 +295,8 @@ public class DemoContentSeed {
 	}
 
 	/**
-	 * Loads the demo content once. {@code env} reads {@code SEED_DEMO_PASSWORD}; no password is written into code. The seed
-	 * writes no mail rows. Each part is written only when its marker row is missing, so a database holding an older seed gets
-	 * the parts it lacks, and a database holding all of them is left alone.
+	 * Loads the demo content once. {@code env} reads {@code SEED_DEMO_PASSWORD}; no password is written into code. The seed writes no
+	 * mail rows. A database that already holds the catalog is left alone; one holding rows of an older seed is refused first.
 	 */
 	@Transactional
 	public void seed(String[] profiles, Function<String, String> env, Instant now) {
@@ -311,161 +308,40 @@ public class DemoContentSeed {
 		requirePassword("SEED_DEMO_PASSWORD", password);
 		UUID masterAdmin = masterAdmin();
 		refuseOlderCatalog();
-		List<ExamSpec> exams = exams(Schedule.at(now));
-		boolean base = exists("live_exams", spec(exams, 1).id());
-		boolean topUp = exists("live_exam_modules", MODULE_DRAFT_READY);
-		boolean review = exists("live_exam_modules", MODULE_SALE);
-		boolean expired = exists("live_exams", demo('e', 65));
-		boolean reviewOrders = exists("live_exam_orders", demo('c', 12));
-		boolean preview = exists("live_exams", demo('e', 66));
-		if (base && topUp && review && expired && reviewOrders && preview) {
+		if (exists("live_exams", demo('e', 1))) {
 			return;
 		}
 		String hash = passwords.encode(password);
-		if (!base) {
-			for (Account account : ACCOUNTS) {
-				ensureAccount(account, hash, now);
-			}
-			ensureCatalog(exams, now);
-			sittings(exams, now);
-			insertOrders(baseOrders(now));
-			assign(MODULE_WRITTEN, now);
-			assign(MODULE_FULL, now);
-			notices(exams, masterAdmin, now);
+		for (Account account : ACCOUNTS) {
+			ensureAccount(account, hash, now);
 		}
-		if (!topUp) {
-			topUp(now);
-		}
-		if (!review) {
-			reviewCases(hash, now);
-		}
-		if (!expired) {
-			expiredCase(now);
-		}
-		if (!reviewOrders) {
-			insertOrders(reviewStudentOrders(now));
-		}
-		if (!preview) {
-			previewCase(now);
-		}
+		List<ExamSpec> exams = exams(Schedule.at(now));
+		ensureCatalog(exams, now);
+		sittings(exams, now);
+		insertOrders(baseOrders(now));
+		assign(MODULE_WRITTEN, now);
+		assign(MODULE_FULL, now);
+		notices(exams, masterAdmin, now);
 	}
 
 	/**
-	 * The admin's own cases, added on top of the base data: draft packages and exams that wait for the Master Admin to publish,
-	 * two written papers marked but not released (one flagged ready), and payments in every state, including three pending ones.
+	 * The three NR-01 review cases, written with the rest of the catalog: a discounted package and exam (25 percent off until
+	 * {@link #DISCOUNT_ENDS}), a popular package and exam, and a written paper whose access lasts 30 days after its window ends.
+	 * Student D holds a manual grant on that paper. The grant starts before the window ends, so its access ends 30 days after the
+	 * window, and it is open at the run.
 	 */
-	private void topUp(Instant now) {
-		List<ExamSpec> more = topUpExams(Schedule.at(now));
-		module(MODULE_DRAFT_READY, CATEGORY_WRITTEN, "BJS Mains Package (draft)", "বিজেএস মেইনস প্যাকেজ (খসড়া)",
-				"A written and an MCQ paper for the mains round. It is saved and waits for the Master Admin to publish it.",
-				"মেইনস পর্যায়ের একটি রিটেন ও একটি এমসিকিউ পরীক্ষা। এটি সংরক্ষিত আছে এবং মাস্টার অ্যাডমিনের প্রকাশের অপেক্ষায়।",
-				2000, 3, "DRAFT", true, now);
-		module(MODULE_DRAFT_EMPTY, CATEGORY_MCQ, "Judicial Service Mock (draft)", "জুডিশিয়াল সার্ভিস মক (খসড়া)",
-				"A package that has just been started. It has no exams and no price yet.",
-				"সদ্য শুরু করা একটি প্যাকেজ। এখনো কোনো পরীক্ষা বা মূল্য নেই।", null, 4, "DRAFT", false, now);
-		for (ExamSpec spec : more) {
-			exam(spec, now);
-		}
-		ExamSpec e40 = spec(more, 40);
-		ExamSpec e41 = spec(more, 41);
-		Instant e40Start = e40.liveAt();
-		Instant e41Start = e41.liveAt();
-		sitting(new Sitting(demo('7', 7), e40, STUDENT_B, e40Start, 36, true, "ভালো উত্তর, তবে রেফারেন্স আরও লিখুন।", INSTRUCTOR,
-				e40Start.plus(Duration.ofHours(2)), null, true, true), now);
-		// The instructor flagged this one ready; the other draft below is marked but not flagged.
-		jdbc.update("UPDATE live_exam_participants SET ready_for_release_at = ? WHERE id = ?", ts(e40Start.plus(Duration.ofHours(3))),
-				demo('7', 7));
-		sitting(new Sitting(demo('7', 8), e41, STUDENT_A, e41Start, 28, true, "আংশিক উত্তর, বিস্তারিত লিখুন।", INSTRUCTOR,
-				e41Start.plus(Duration.ofHours(2)), null, true, true), now);
-		insertOrders(topUpOrders(now));
-		notices.purchaseGranted(STUDENT_B, demo('e', 30), "EXAM");
-		notices.purchaseGranted(STUDENT_A, demo('e', 2), "EXAM");
-	}
-
-	/**
-	 * The NR-01 review cases, added once: a discounted package and exam, a free exam, a popular package and exam, an exam in two
-	 * packages with no price of its own, a standalone exam in the root category, and a written paper with a question paper whose
-	 * access lasts 30 days. Student D holds an exam grant on that paper, so the grant expires.
-	 */
-	private void reviewCases(String hash, Instant now) {
-		Schedule s = Schedule.at(now);
-		ensureAccount(STUDENT_D_ACCOUNT, hash, now);
-		module(MODULE_SALE, CATEGORY_MCQ, "BJS Discount Package", "বিজেএস ছাড়ের প্যাকেজ",
-				"Two MCQ papers in one package, 25 percent off until 30 November. Use it to check the list and the effective price.",
-				"একটি প্যাকেজে দুটি এমসিকিউ পরীক্ষা; ৩০ নভেম্বর পর্যন্ত ২৫ শতাংশ ছাড়। তালিকা মূল্য ও কার্যকর মূল্য যাচাইয়ের জন্য।",
-				1000, 1, now);
-		module(MODULE_POPULAR, CATEGORY_MCQ, "BJS Popular Package", "বিজেএস জনপ্রিয় প্যাকেজ",
-				"A package marked popular, with one popular paper and one paper that also sits in the discount package.",
-				"জনপ্রিয় হিসেবে চিহ্নিত একটি প্যাকেজ; এতে একটি জনপ্রিয় পরীক্ষা এবং ছাড়ের প্যাকেজেও থাকা একটি পরীক্ষা আছে।", 900, 2, now);
+	private void reviewCases(Instant now) {
 		jdbc.update("UPDATE live_exam_modules SET discount_percent = 25, discount_ends_at = ? WHERE id = ?", ts(DISCOUNT_ENDS),
 				MODULE_SALE);
+		jdbc.update("UPDATE live_exams SET discount_percent = 25, discount_ends_at = ? WHERE id = ?", ts(DISCOUNT_ENDS),
+				demo('e', 60));
 		jdbc.update("UPDATE live_exam_modules SET popular = true WHERE id = ?", MODULE_POPULAR);
-		List<ExamSpec> exams = List.of(
-				mcq(60, MODULE_SALE, "Discount MCQ", "ছাড়ের এমসিকিউ",
-						"A priced MCQ paper in the discount package: 400 taka, 25 percent off until 30 November.",
-						"ছাড়ের প্যাকেজের একটি এমসিকিউ পরীক্ষা: ৪০০ টাকা, ৩০ নভেম্বর পর্যন্ত ২৫ শতাংশ ছাড়।", s.at23(9), "400.00",
-						DemoContentSeedQuestions.CPC, false),
-				mcq(61, null, "Free MCQ", "বিনামূল্যের এমসিকিউ",
-						"A free MCQ paper in the root category. It has no price and no package, so any signed-in student can start it.",
-						"একটি বিনামূল্যের এমসিকিউ পরীক্ষা। এর কোনো মূল্য বা প্যাকেজ নেই; লগ-ইন করা যে কোনো শিক্ষার্থী শুরু করতে পারে।",
-						s.at23(10), null, CRPC, false),
-				written(62, null, "Written with question paper", "প্রশ্নপত্রসহ রিটেন",
-						"A standalone written paper with a question paper. Access lasts 30 days after the window ends.",
-						"প্রশ্নপত্রসহ একটি স্বতন্ত্র রিটেন পরীক্ষা। উইন্ডো শেষ হওয়ার ৩০ দিন পর্যন্ত অ্যাক্সেস থাকে।", s.at23(11), "300.00"),
-				mcq(63, MODULE_POPULAR, "Popular MCQ", "জনপ্রিয় এমসিকিউ",
-						"A popular MCQ paper in the popular package.", "জনপ্রিয় প্যাকেজের একটি জনপ্রিয় এমসিকিউ পরীক্ষা।", s.at23(12),
-						"300.00", PENAL, false),
-				mcq(64, MODULE_SALE, "Two-package MCQ", "দুই প্যাকেজের এমসিকিউ",
-						"An MCQ paper in two packages, with no price of its own. Buy either package to sit it.",
-						"দুই প্যাকেজে থাকা একটি এমসিকিউ পরীক্ষা, এর নিজস্ব মূল্য নেই। যে কোনো একটি প্যাকেজ কিনে এটি দেওয়া যাবে।", s.at23(13),
-						null, concat(EVIDENCE, DemoContentSeedQuestions.EVIDENCE_EXTRA), false));
-		for (ExamSpec spec : exams) {
-			exam(spec, now);
-		}
-		jdbc.update("UPDATE live_exams SET discount_percent = 25, discount_ends_at = ? WHERE id = ?", ts(DISCOUNT_ENDS), demo('e', 60));
-		jdbc.update("UPDATE live_exams SET is_free = true WHERE id = ?", demo('e', 61));
-		jdbc.update("UPDATE live_exams SET access_days = 30 WHERE id = ?", demo('e', 62));
 		jdbc.update("UPDATE live_exams SET popular = true WHERE id = ?", demo('e', 63));
-		addToPackage(64, MODULE_POPULAR, now);
+		jdbc.update("UPDATE live_exams SET access_days = 30 WHERE id = ?", demo('e', 62));
 		jdbc.update("""
 				INSERT INTO live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)
 				VALUES (?, ?, 'EXAM', NULL, ?, NULL, ?, 'MANUAL') ON CONFLICT (id) DO NOTHING
 				""", demo('d', 20), STUDENT_D, demo('e', 62), ts(now));
-	}
-
-	/**
-	 * The expired case (NR-01 follow-up F1), added once: a written paper whose window ended ten days ago, with seven days of access,
-	 * and student D's manual grant made thirty days ago. The access ended three days ago, so the exam reads as expired for D.
-	 */
-	private void expiredCase(Instant now) {
-		Schedule s = Schedule.at(now);
-		exam(written(65, null, "Expired written paper", "মেয়াদ শেষ রিটেন",
-				"A written paper whose access has ended. Student 4 holds a grant on it that has expired.",
-				"মেয়াদ শেষ হওয়া একটি রিটেন পরীক্ষা। এর জন্য তানভীর হাসানের অনুমোদনের মেয়াদ শেষ হয়েছে।", s.at23(-10), "300.00"), now);
-		jdbc.update("UPDATE live_exams SET access_days = 7 WHERE id = ?", demo('e', 65));
-		jdbc.update("""
-				INSERT INTO live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)
-				VALUES (?, ?, 'EXAM', NULL, ?, NULL, ?, 'MANUAL') ON CONFLICT (id) DO NOTHING
-				""", demo('d', 21), STUDENT_D, demo('e', 65), ts(now.minus(Duration.ofDays(30))));
-	}
-
-	/**
-	 * The preview case (C10', P-b), added once: a standalone MCQ paper whose window ended five days ago, with preview on. A signed-in
-	 * student opens its paper from the exam page, and the correct options stay hidden.
-	 */
-	private void previewCase(Instant now) {
-		Schedule s = Schedule.at(now);
-		exam(mcq(66, null, "Preview MCQ", "প্রিভিউ এমসিকিউ",
-				"A finished MCQ paper with preview on. Open the paper from the exam page; the correct answers stay hidden.",
-				"একটি শেষ হওয়া এমসিকিউ পরীক্ষা, প্রিভিউ চালু আছে। পরীক্ষার পাতা থেকে প্রশ্নপত্র দেখুন; সঠিক উত্তর লুকানো থাকে।",
-				s.at23(-5), "300.00", PENAL, false), now);
-		jdbc.update("UPDATE live_exams SET preview_enabled = true WHERE id = ?", demo('e', 66));
-	}
-
-	/** An exam in one more package. Its membership id is the exam's number plus 100, so it cannot clash with the first one. */
-	private void addToPackage(int examNo, UUID module, Instant now) {
-		jdbc.update("INSERT INTO live_exam_package_exams (id, module_id, exam_id, position, added_at) VALUES (?, ?, ?, ?, ?)"
-				+ " ON CONFLICT DO NOTHING", demo('1', examNo + 100L), module, demo('e', examNo), examNo, ts(now));
 	}
 
 	static void refuseProduction(String[] profiles) {
@@ -496,11 +372,19 @@ public class DemoContentSeed {
 		return found.get(0);
 	}
 
-	/** Exams e4, e5, e13 and e14 belong to the earlier fourteen-exam demo; its student ids overlap this seed's. */
+	/**
+	 * Refuses a database that holds rows only an older seed wrote: the fourteen-exam demo's exams e4, e5, e13 and e14 (their student
+	 * ids overlap this seed's), and the exams and draft packages of the earlier versions. Run demo-cleanup.sql first.
+	 */
 	private void refuseOlderCatalog() {
-		for (int number : new int[] { 4, 5, 13, 14 }) {
+		for (int number : new int[] { 4, 5, 13, 14, 40, 41, 50, 51, 52, 53, 61, 64, 65, 66 }) {
 			if (exists("live_exams", demo('e', number))) {
 				throw new IllegalStateException("A demo row from an older seed is in live_exams; run demo-cleanup.sql first.");
+			}
+		}
+		for (int number : new int[] { 5, 6 }) {
+			if (exists("live_exam_modules", demo('b', number))) {
+				throw new IllegalStateException("A demo row from an older seed is in live_exam_modules; run demo-cleanup.sql first.");
 			}
 		}
 	}
@@ -537,6 +421,7 @@ public class DemoContentSeed {
 		category(CATEGORY_FULL, CATEGORY_ROOT, "Full mock", "ফুল মক (এমসিকিউ + রিটেন)", 2, now);
 		category(CATEGORY_BAR, null, "Bar Council Exam", "বার কাউন্সিল এক্সাম", 1, now);
 		category(CATEGORY_BAR_MCQ, CATEGORY_BAR, "MCQ practice", "এমসিকিউ প্র্যাকটিস", 0, now);
+		category(CATEGORY_OFFER, null, "Discount offers", "ছাড়ের অফার", 2, now);
 		module(MODULE_MCQ, CATEGORY_MCQ, "BJS Preliminary MCQ Package", "বিজেএস প্রিলিমিনারি এমসিকিউ প্যাকেজ",
 				"Three MCQ papers for the preliminary round: civil and criminal procedure and the penal code. Each paper is one "
 						+ "timed sitting of twenty minutes.",
@@ -557,9 +442,16 @@ public class DemoContentSeed {
 		module(MODULE_BAR, CATEGORY_BAR_MCQ, "Bar Council MCQ Package", "বার কাউন্সিল এমসিকিউ প্যাকেজ",
 				"Two MCQ practice papers for the Bar Council exam.", "বার কাউন্সিল পরীক্ষার জন্য দুটি এমসিকিউ অনুশীলন পরীক্ষা।", 1200, 0,
 				now);
+		module(MODULE_SALE, CATEGORY_OFFER, "BJS Discount Package", "বিজেএস ছাড়ের প্যাকেজ",
+				"One MCQ paper in this package, 25 percent off until 30 November. Use it to check the list and the effective price.",
+				"এই প্যাকেজে একটি এমসিকিউ পরীক্ষা; ৩০ নভেম্বর পর্যন্ত ২৫ শতাংশ ছাড়। তালিকা মূল্য ও কার্যকর মূল্য যাচাইয়ের জন্য।", 1000, 0, now);
+		module(MODULE_POPULAR, CATEGORY_MCQ, "BJS Popular Package", "বিজেএস জনপ্রিয় প্যাকেজ",
+				"A package marked popular, holding one popular MCQ paper. Use it to check the popular filter on the package list.",
+				"জনপ্রিয় হিসেবে চিহ্নিত একটি প্যাকেজ, এতে একটি জনপ্রিয় এমসিকিউ পরীক্ষা। প্যাকেজ তালিকার জনপ্রিয় ফিল্টার যাচাইয়ের জন্য।", 900, 1, now);
 		for (ExamSpec spec : exams) {
 			exam(spec, now);
 		}
+		reviewCases(now);
 	}
 
 	private void category(UUID id, UUID parent, String titleEn, String titleBn, int position, Instant now) {
@@ -708,45 +600,6 @@ public class DemoContentSeed {
 				new Order(4, "DEMO-PKG-B1-C", STUDENT_C, "MODULE", MODULE_MCQ, null, "1500.00", "FAILED", paid, false));
 	}
 
-	/**
-	 * Payments in every other state. The three pending orders are older than a day on purpose: the payment recheck job only
-	 * looks at orders from the last 24 hours, so it leaves these for the Master Admin to confirm or fail by hand.
-	 */
-	private static List<Order> topUpOrders(Instant now) {
-		return List.of(
-				new Order(5, "DEMO-EXM-E30-B", STUDENT_B, "EXAM", MODULE_BAR, demo('e', 30), "250.00", "SUCCEEDED",
-						now.minus(Duration.ofHours(5)), true),
-				new Order(6, "DEMO-EXM-E2-A", STUDENT_A, "EXAM", MODULE_MCQ, demo('e', 2), "300.00", "SUCCEEDED",
-						now.minus(Duration.ofHours(3)), true),
-				new Order(7, "DEMO-EXM-E31-A", STUDENT_A, "EXAM", MODULE_BAR, demo('e', 31), "250.00", "CANCELLED",
-						now.minus(Duration.ofHours(8)), false),
-				new Order(8, "DEMO-PKG-B4-B", STUDENT_B, "MODULE", MODULE_BAR, null, "1200.00", "FAILED",
-						now.minus(Duration.ofHours(6)), false),
-				new Order(9, "DEMO-PKG-B1-C2", STUDENT_C, "MODULE", MODULE_MCQ, null, "1500.00", "INITIATED",
-						now.minus(Duration.ofDays(3)), false),
-				new Order(10, "DEMO-EXM-E1-B", STUDENT_B, "EXAM", MODULE_MCQ, demo('e', 1), "300.00", "INITIATED",
-						now.minus(Duration.ofHours(26)), false),
-				new Order(11, "DEMO-PKG-B4-A", STUDENT_A, "MODULE", MODULE_BAR, null, "1200.00", "INITIATED",
-						now.minus(Duration.ofDays(2)), false));
-	}
-
-	/**
-	 * The review student's own payments in the three states the review needs (NR-01 review, S4.8): a pending exam order and a pending
-	 * package order, both older than a day so the recheck job leaves them; a failed package order; and a cancelled discounted
-	 * package. None of them grants access, so the student's access is the same as before.
-	 */
-	private static List<Order> reviewStudentOrders(Instant now) {
-		return List.of(
-				new Order(12, "DEMO-EXM-E60-D", STUDENT_D, "EXAM", MODULE_SALE, demo('e', 60), "300.00", "INITIATED",
-						now.minus(Duration.ofDays(2)), false),
-				new Order(13, "DEMO-PKG-B8-D", STUDENT_D, "MODULE", MODULE_POPULAR, null, "900.00", "INITIATED",
-						now.minus(Duration.ofDays(3)), false),
-				new Order(14, "DEMO-EXM-E63-D", STUDENT_D, "EXAM", MODULE_POPULAR, demo('e', 63), "300.00", "FAILED",
-						now.minus(Duration.ofDays(5)), false),
-				new Order(15, "DEMO-PKG-B7-D", STUDENT_D, "MODULE", MODULE_SALE, null, "750.00", "CANCELLED",
-						now.minus(Duration.ofDays(6)), false));
-	}
-
 	private void insertOrders(List<Order> orders) {
 		for (Order order : orders) {
 			boolean succeeded = "SUCCEEDED".equals(order.status());
@@ -798,8 +651,8 @@ public class DemoContentSeed {
 				VALUES (?, ?, ?, ?, ?, 'ALL', NULL, ?, ?) ON CONFLICT (id) DO NOTHING
 				""", ANNOUNCEMENT, "Demo announcement", "ডেমো ঘোষণা", "This is demo copy for the client review: the notice box and the bell.",
 				"এটি ক্লায়েন্ট রিভিউয়ের জন্য ডেমো ঘোষণা।", masterAdmin, ts(now));
-		for (Account student : STUDENTS) {
-			jdbc.update(INSERT_ANNOUNCEMENT_NOTICE, UUID.randomUUID(), ANNOUNCEMENT, ts(now), ANNOUNCEMENT, student.id());
+		for (UUID student : List.of(STUDENT_A, STUDENT_B, STUDENT_C)) {
+			jdbc.update(INSERT_ANNOUNCEMENT_NOTICE, UUID.randomUUID(), ANNOUNCEMENT, ts(now), ANNOUNCEMENT, student);
 		}
 	}
 
@@ -876,32 +729,20 @@ public class DemoContentSeed {
 					? mcq(19 + day, MODULE_FULL, titleEn, titleBn, descEn, descBn, s.at23(day), "300.00", dailyLists.get(day - 1), false)
 					: written(19 + day, MODULE_FULL, titleEn, titleBn, descEn, descBn, s.at23(day), "500.00"));
 		}
-		return exams;
-	}
 
-	/** The top-up exams: two earlier written papers (published), and four drafts that wait for the Master Admin. */
-	List<ExamSpec> topUpExams(Schedule s) {
-		List<Question> evidence = concat(EVIDENCE, DemoContentSeedQuestions.EVIDENCE_EXTRA);
-		return List.of(
-				written(40, MODULE_WRITTEN, "Penal written (earlier paper)", "পেনাল কোড রিটেন (আগের পরীক্ষা)",
-						"An earlier written paper on the Penal Code, 1860.", "দণ্ডবিধি, ১৮৬০-এর ওপর আগের একটি রিটেন পরীক্ষা।", s.at23(-3), "500.00"),
-				written(41, MODULE_FULL, "Evidence written (full)", "সাক্ষ্য আইন রিটেন (পূর্ণ)",
-						"An earlier written paper on the Evidence Act, 1872, from the full mock package.",
-						"সাক্ষ্য আইন, ১৮৭২-এর ওপর আগের একটি রিটেন পরীক্ষা, ফুল মক প্যাকেজের অংশ।", s.at23(-4), "500.00"),
-				written(50, MODULE_DRAFT_READY, "Constitution written (mains)", "সংবিধান রিটেন (মেইনস)",
-						"A written paper on the Constitution for the mains round.", "মেইনস পর্যায়ের জন্য সংবিধানের ওপর রিটেন পরীক্ষা।",
-						s.at23(12), "500.00").asDraft(true),
-				mcq(51, MODULE_DRAFT_READY, "Evidence MCQ (mains)", "সাক্ষ্য আইন এমসিকিউ (মেইনস)",
-						"Ten questions on the Evidence Act, 1872, for the mains round.",
-						"মেইনস পর্যায়ের জন্য সাক্ষ্য আইন, ১৮৭২-এর ওপর দশটি প্রশ্ন।", s.at23(13), "300.00", evidence, false).asDraft(false),
-				mcq(52, MODULE_MCQ, "Penal MCQ (new)", "পেনাল কোড এমসিকিউ (নতুন)",
-						"Ten new questions on the Penal Code, 1860. Saved and ready for the Master Admin to publish.",
-						"দণ্ডবিধি, ১৮৬০-এর ওপর দশটি নতুন প্রশ্ন। সংরক্ষিত এবং মাস্টার অ্যাডমিনের প্রকাশের অপেক্ষায়।", s.at23(8), "300.00", PENAL,
-						false).asDraft(true),
-				written(53, MODULE_WRITTEN, "Evidence written (new)", "সাক্ষ্য আইন রিটেন (নতুন)",
-						"A new written paper on the Evidence Act. The question paper and the date are still missing.",
-						"সাক্ষ্য আইনের ওপর একটি নতুন রিটেন পরীক্ষা। প্রশ্নপত্র ও তারিখ এখনো বাকি।", null, "500.00").asDraft(false)
-						.withoutPaper());
+		// The three NR-01 review cases on top of the plan (see reviewCases): a discounted MCQ, a written paper for the expiring grant
+		// and a popular MCQ.
+		exams.add(mcq(60, MODULE_SALE, "Discount MCQ", "ছাড়ের এমসিকিউ",
+				"A priced MCQ paper in the discount package: 400 taka, 25 percent off until 30 November.",
+				"ছাড়ের প্যাকেজের একটি এমসিকিউ পরীক্ষা: ৪০০ টাকা, ৩০ নভেম্বর পর্যন্ত ২৫ শতাংশ ছাড়।", s.at23(9), "400.00",
+				DemoContentSeedQuestions.CPC, false));
+		exams.add(written(62, null, "Written with question paper", "প্রশ্নপত্রসহ রিটেন",
+				"A standalone written paper with a question paper. Access lasts 30 days after the window ends.",
+				"প্রশ্নপত্রসহ একটি স্বতন্ত্র রিটেন পরীক্ষা। উইন্ডো শেষ হওয়ার ৩০ দিন পর্যন্ত অ্যাক্সেস থাকে।", s.at23(11), "300.00"));
+		exams.add(mcq(63, MODULE_POPULAR, "Popular MCQ", "জনপ্রিয় এমসিকিউ",
+				"A popular MCQ paper in the popular package.", "জনপ্রিয় প্যাকেজের একটি জনপ্রিয় এমসিকিউ পরীক্ষা।", s.at23(12), "300.00",
+				PENAL, false));
+		return exams;
 	}
 
 	private static boolean passedMcq(int score) {
@@ -986,18 +827,6 @@ public class DemoContentSeed {
 		UUID id() {
 			return DemoContentSeed.demo('e', number);
 		}
-
-		ExamSpec withoutPaper() {
-			return new ExamSpec(number, module, type, titleEn, titleBn, descEn, descBn, rulesEn, rulesBn, price, false, released,
-					liveAt, questions, draft, finalSaved);
-		}
-
-		/** The same exam as a draft that students cannot see yet; {@code saved} marks it ready for the Master Admin to publish. */
-		ExamSpec asDraft(boolean saved) {
-			return new ExamSpec(number, module, type, titleEn, titleBn, descEn, descBn, rulesEn, rulesBn, price, questionPdf, released,
-					liveAt, questions, true, saved);
-		}
-
 	}
 
 	static Question q(String stem, String explanation, int correctIndex, String... options) {

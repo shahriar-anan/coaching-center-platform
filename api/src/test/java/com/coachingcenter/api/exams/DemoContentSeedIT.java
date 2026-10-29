@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -124,12 +123,13 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	@Test
 	void theCategoriesAndPackagesHaveTheirShape() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
+		// The plan's two root categories and the discount one, and four subcategories.
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_categories WHERE id::text LIKE ? AND parent_id IS NULL",
-				Integer.class, DEMO_CATEGORY)).isEqualTo(2);
+				Integer.class, DEMO_CATEGORY)).isEqualTo(3);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_categories WHERE id::text LIKE ? AND parent_id IS NOT NULL",
 				Integer.class, DEMO_CATEGORY)).isEqualTo(4);
 		for (UUID module : List.of(DemoContentSeed.MODULE_MCQ, DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL,
-				DemoContentSeed.MODULE_BAR)) {
+				DemoContentSeed.MODULE_BAR, DemoContentSeed.MODULE_POPULAR)) {
 			assertThat(jdbc.queryForObject("""
 					SELECT count(*) FROM live_exam_modules m JOIN live_exam_categories c ON c.id = m.category_id
 					WHERE m.id = ? AND c.parent_id IS NOT NULL AND length(m.description_en) > 0 AND length(m.description_bn) > 0
@@ -138,33 +138,92 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		}
 		assertThat(examCount(DemoContentSeed.MODULE_MCQ, "MCQ")).isEqualTo(3);
 		assertThat(examCount(DemoContentSeed.MODULE_MCQ, "WRITTEN")).isZero();
-		assertThat(examCount(DemoContentSeed.MODULE_WRITTEN, "WRITTEN")).isEqualTo(5);
+		assertThat(examCount(DemoContentSeed.MODULE_WRITTEN, "WRITTEN")).isEqualTo(4);
 		assertThat(examCount(DemoContentSeed.MODULE_WRITTEN, "MCQ")).isZero();
 		assertThat(examCount(DemoContentSeed.MODULE_FULL, "MCQ")).isEqualTo(5);
-		assertThat(examCount(DemoContentSeed.MODULE_FULL, "WRITTEN")).isEqualTo(6);
+		assertThat(examCount(DemoContentSeed.MODULE_FULL, "WRITTEN")).isEqualTo(5);
 		assertThat(examCount(DemoContentSeed.MODULE_BAR, "MCQ")).isEqualTo(2);
+		assertThat(examCount(DemoContentSeed.MODULE_SALE, "MCQ")).isEqualTo(1);
+		assertThat(examCount(DemoContentSeed.MODULE_POPULAR, "MCQ")).isEqualTo(1);
+		// Every exam is twenty minutes, MCQ and written alike (R8).
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND duration_minutes <> 20",
 				Integer.class, DEMO_EXAM)).isZero();
+		// Two exams have no date (e3 and e9), and one has no price (e3).
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND live_at IS NULL", Integer.class,
-				DEMO_EXAM)).isEqualTo(3);
-		// The base data has one exam with no price (Penal MCQ); the review adds a free exam and a two-package exam with none of their own.
+				DEMO_EXAM)).isEqualTo(2);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND price IS NULL", Integer.class,
-				DEMO_EXAM)).isEqualTo(3);
+				DEMO_EXAM)).isEqualTo(1);
 	}
 
 	@Test
-	void onlyThePreviewExamHasPreviewOnAndItsPaperHasTenQuestions() {
+	void everyMcqPaperHasTenQuestionsOfFiveMarksAndNoPreviewIsOn() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(jdbc.queryForList("SELECT id FROM live_exams WHERE preview_enabled AND id::text LIKE ?", UUID.class, DEMO_EXAM))
-			.containsExactly(DemoContentSeed.demo('e', 66));
-		// A standalone MCQ paper whose window has ended, so the preview is open; its answers are not released.
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND preview_enabled", Integer.class,
+				DEMO_EXAM)).isZero();
+		// Twelve MCQ papers, ten questions each, five marks a question: fifty full marks, and a pass at forty percent.
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND exam_type = 'MCQ'", Integer.class,
+				DEMO_EXAM)).isEqualTo(12);
+		assertThat(jdbc.queryForList("""
+				SELECT e.id FROM live_exams e WHERE e.id::text LIKE ? AND e.exam_type = 'MCQ'
+				  AND (SELECT count(*) FROM live_exam_questions q WHERE q.exam_id = e.id) <> 10
+				""", UUID.class, DEMO_EXAM)).isEmpty();
 		assertThat(jdbc.queryForObject("""
-				SELECT exam_type = 'MCQ' AND module_id IS NULL AND status = 'PUBLISHED' AND title_en = 'Preview MCQ'
-				  AND ends_at < ? AND answers_released_at IS NULL
+				SELECT count(*) FROM live_exam_questions q JOIN live_exams e ON e.id = q.exam_id
+				WHERE e.exam_type = 'MCQ' AND e.id::text LIKE ? AND q.marks <> 5
+				""", Integer.class, DEMO_EXAM)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND pass_percent <> 40", Integer.class,
+				DEMO_EXAM)).isZero();
+	}
+
+	@Test
+	void theDiscountPopularAndExpiringGrantCasesAreSetUp() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		// Discount: a package in its own root category, 25 percent off until 30 November, with one 400-taka MCQ paper 25 percent off.
+		assertThat(jdbc.queryForObject("""
+				SELECT m.discount_percent = 25 AND m.discount_ends_at = ? AND m.category_id = ? AND c.parent_id IS NULL
+				FROM live_exam_modules m JOIN live_exam_categories c ON c.id = m.category_id WHERE m.id = ?
+				""", Boolean.class, Timestamp.from(DemoContentSeed.DISCOUNT_ENDS), DemoContentSeed.CATEGORY_OFFER,
+				DemoContentSeed.MODULE_SALE)).isTrue();
+		assertThat(jdbc.queryForObject("""
+				SELECT price = 400 AND discount_percent = 25 AND discount_ends_at = ? AND module_id = ? AND exam_type = 'MCQ'
 				FROM live_exams WHERE id = ?
-				""", Boolean.class, java.sql.Timestamp.from(NOW), DemoContentSeed.demo('e', 66))).isTrue();
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_questions WHERE exam_id = ?", Integer.class,
-				DemoContentSeed.demo('e', 66))).isEqualTo(10);
+				""", Boolean.class, Timestamp.from(DemoContentSeed.DISCOUNT_ENDS), DemoContentSeed.MODULE_SALE,
+				DemoContentSeed.demo('e', 60))).isTrue();
+		// Popular: one package and one paper marked popular, the paper inside that package.
+		assertThat(jdbc.queryForObject("SELECT popular FROM live_exam_modules WHERE id = ?", Boolean.class,
+				DemoContentSeed.MODULE_POPULAR)).isTrue();
+		assertThat(jdbc.queryForObject("""
+				SELECT popular AND price = 300 AND module_id = ? FROM live_exams WHERE id = ?
+				""", Boolean.class, DemoContentSeed.MODULE_POPULAR, DemoContentSeed.demo('e', 63))).isTrue();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND popular", Integer.class, DEMO_EXAM))
+			.isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_modules WHERE id::text LIKE ? AND popular", Integer.class,
+				DEMO_MODULE)).isEqualTo(1);
+	}
+
+	@Test
+	void theExpiringGrantHoldsOnAWrittenPaperAndEndsThirtyDaysAfterItsWindow() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		// Student D has no orders; the one grant is the manual grant on the standalone written paper e62.
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ?", Integer.class,
+				DemoContentSeed.STUDENT_D)).isZero();
+		assertThat(jdbc.queryForObject("""
+				SELECT count(*) FROM live_exam_grants WHERE student_id = ? AND source = 'MANUAL' AND scope = 'EXAM'
+				  AND exam_id = ? AND order_id IS NULL AND revoked_at IS NULL
+				""", Integer.class, DemoContentSeed.STUDENT_D, DemoContentSeed.demo('e', 62))).isEqualTo(1);
+		assertThat(jdbc.queryForObject("""
+				SELECT exam_type = 'WRITTEN' AND module_id IS NULL AND access_days = 30 AND duration_minutes = 20
+				FROM live_exams WHERE id = ?
+				""", Boolean.class, DemoContentSeed.demo('e', 62))).isTrue();
+		// The window runs 23:00 to 23:20 Dhaka on 7 November 2026, so access runs out 30 days later, at 23:20 Dhaka on 7 December.
+		assertThat(jdbc.queryForObject("SELECT ends_at FROM live_exams WHERE id = ?", Timestamp.class,
+				DemoContentSeed.demo('e', 62)).toInstant()).isEqualTo(Instant.parse("2026-11-07T17:20:00Z"));
+		assertThat(jdbc.queryForObject("SELECT ends_at + interval '30 days' FROM live_exams WHERE id = ?", Timestamp.class,
+				DemoContentSeed.demo('e', 62)).toInstant()).isEqualTo(Instant.parse("2026-12-07T17:20:00Z"));
+		// The grant starts before the window ends, so the window end is the anchor that counts.
+		assertThat(jdbc.queryForObject("""
+				SELECT g.created_at < e.ends_at FROM live_exam_grants g JOIN live_exams e ON e.id = g.exam_id WHERE g.id = ?
+				""", Boolean.class, DemoContentSeed.demo('d', 20))).isTrue();
 	}
 
 	@Test
@@ -248,174 +307,66 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void paymentsAreInEveryStateAndOnlyPaidOnesGrantAccess() {
+	void paymentsAreFourOfThePlanAndOnlyPaidOnesGrantAccess() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(15);
-		assertThat(orderCount("SUCCEEDED")).isEqualTo(5);
-		assertThat(orderCount("FAILED")).isEqualTo(3);
-		assertThat(orderCount("CANCELLED")).isEqualTo(2);
-		assertThat(orderCount("INITIATED")).isEqualTo(5);
-		// Only a paid order carries a grant.
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(7);
+		// Three paid orders (A's package, B's package and C's paper) and C's failed package. No pending order is left for the recheck job.
+		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(4);
+		assertThat(orderCount("SUCCEEDED")).isEqualTo(3);
+		assertThat(orderCount("FAILED")).isEqualTo(1);
+		assertThat(orderCount("CANCELLED")).isZero();
+		assertThat(orderCount("INITIATED")).isZero();
+		// Three grants from paid orders, and the review's manual grant.
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(4);
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_grants g JOIN live_exam_orders o ON o.id = g.order_id
 				WHERE g.id::text LIKE ? AND o.status <> 'SUCCEEDED'
 				""", Integer.class, DEMO_GRANT)).isZero();
+		assertThat(grantCount(DemoContentSeed.STUDENT_A, null, DemoContentSeed.MODULE_FULL)).isEqualTo(1);
 		assertThat(grantCount(DemoContentSeed.STUDENT_B, null, DemoContentSeed.MODULE_WRITTEN)).isEqualTo(1);
-		assertThat(grantCount(DemoContentSeed.STUDENT_B, DemoContentSeed.demo('e', 30), null)).isEqualTo(1);
-		assertThat(grantCount(DemoContentSeed.STUDENT_A, DemoContentSeed.demo('e', 2), null)).isEqualTo(1);
 		assertThat(grantCount(DemoContentSeed.STUDENT_C, DemoContentSeed.demo('e', 6), null)).isEqualTo(1);
 		assertThat(grantCount(DemoContentSeed.STUDENT_C, null, DemoContentSeed.MODULE_MCQ)).isZero();
 	}
 
 	@Test
-	void theReviewStudentHasAPendingFailedAndCancelledPaymentAndNoAccessFromThem() {
+	void theCatalogHoldsNoDraftsAndNoPaperWaitsForRelease() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ? AND status = 'INITIATED' AND id::text LIKE ?",
-				Integer.class, DemoContentSeed.STUDENT_D, DEMO_ORDER)).isEqualTo(2);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ? AND status = 'FAILED' AND id::text LIKE ?",
-				Integer.class, DemoContentSeed.STUDENT_D, DEMO_ORDER)).isEqualTo(1);
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE student_id = ? AND status = 'CANCELLED' AND id::text LIKE ?",
-				Integer.class, DemoContentSeed.STUDENT_D, DEMO_ORDER)).isEqualTo(1);
-		// Only a paid order grants access, so none of the review student's four orders has a grant.
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_grants WHERE student_id = ? AND order_id IS NOT NULL",
-				Integer.class, DemoContentSeed.STUDENT_D)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_modules WHERE id::text LIKE ? AND status <> 'PUBLISHED'",
+				Integer.class, DEMO_MODULE)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND status <> 'PUBLISHED'", Integer.class,
+				DEMO_EXAM)).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_participants WHERE id::text LIKE ? AND ready_for_release_at IS NOT NULL",
+				Integer.class, DEMO_PARTICIPANT)).isZero();
 	}
 
 	@Test
-	void thePendingPaymentsAreOlderThanADaySoTheRecheckJobLeavesThemForTheMasterAdmin() {
+	void theNoticesAndTheAnnouncementAreWrittenOncePerPlanStudent() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		// The recheck job reads open orders from the last 24 hours only, so none of these is touched by it.
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = 'INITIATED'
-				  AND created_at < ?
-				""", Integer.class, DEMO_ORDER, java.sql.Timestamp.from(NOW.minus(Duration.ofHours(24))))).isEqualTo(5);
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = 'INITIATED'
-				  AND (val_id IS NOT NULL OR payment_channel IS NOT NULL)
-				""", Integer.class, DEMO_ORDER)).isZero();
-		// One open order per student and target, so the buy button still finds the open one.
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM (SELECT student_id, coalesce(exam_id, module_id) AS target FROM live_exam_orders
-				  WHERE id::text LIKE ? AND status = 'INITIATED' GROUP BY 1, 2 HAVING count(*) > 1) d
-				""", Integer.class, DEMO_ORDER)).isZero();
-	}
-
-	@Test
-	void draftPackagesAndExamsAwaitThePublishOfTheMasterAdmin() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		// Two draft packages: b5 saved and ready, b6 only started.
-		assertThat(jdbc.queryForObject("SELECT status = 'DRAFT' AND finally_saved AND price IS NOT NULL FROM live_exam_modules WHERE id = ?",
-				Boolean.class, DemoContentSeed.MODULE_DRAFT_READY)).isTrue();
-		assertThat(jdbc.queryForObject("SELECT status = 'DRAFT' AND NOT finally_saved AND price IS NULL FROM live_exam_modules WHERE id = ?",
-				Boolean.class, DemoContentSeed.MODULE_DRAFT_EMPTY)).isTrue();
-		assertThat(examCountIn(DemoContentSeed.MODULE_DRAFT_EMPTY)).isZero();
-		assertThat(examCountIn(DemoContentSeed.MODULE_DRAFT_READY)).isEqualTo(2);
-		// Four draft exams: ready and unfinished, in a draft package and in published ones.
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND status = 'DRAFT'", Integer.class,
-				DEMO_EXAM)).isEqualTo(4);
-		assertThat(draft(50)).containsEntry("finally_saved", true).containsEntry("has_paper", true);
-		assertThat(draft(51)).containsEntry("finally_saved", false).containsEntry("questions", 10L);
-		assertThat(draft(52)).containsEntry("finally_saved", true).containsEntry("questions", 10L).containsEntry("module",
-				DemoContentSeed.MODULE_MCQ);
-		assertThat(draft(53)).containsEntry("finally_saved", false).containsEntry("has_paper", false).containsEntry("live_at", null);
-		// Students see none of it: the public reads take published rows only.
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exams e JOIN live_exam_modules m ON m.id = e.module_id
-				WHERE e.id::text LIKE ? AND e.status = 'PUBLISHED' AND m.status = 'DRAFT'
-				""", Integer.class, DEMO_EXAM)).isZero();
-	}
-
-	@Test
-	void twoWrittenPapersAreMarkedButNotReleasedAndOneIsFlaggedReady() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		for (int sitting : new int[] { 7, 8 }) {
-			assertThat(jdbc.queryForObject("""
-					SELECT status = 'SUBMITTED' AND score IS NOT NULL AND evaluated_at IS NOT NULL AND published_at IS NULL
-					  AND evaluated_stored_file_name IS NOT NULL AND answer_stored_file_name IS NOT NULL
-					FROM live_exam_participants WHERE id = ?
-					""", Boolean.class, DemoContentSeed.demo('7', sitting))).isTrue();
-		}
-		assertThat(jdbc.queryForObject("SELECT ready_for_release_at IS NOT NULL FROM live_exam_participants WHERE id = ?", Boolean.class,
-				DemoContentSeed.demo('7', 7))).isTrue();
-		assertThat(jdbc.queryForObject("SELECT ready_for_release_at IS NULL FROM live_exam_participants WHERE id = ?", Boolean.class,
-				DemoContentSeed.demo('7', 8))).isTrue();
-		// The instructor's four papers still waiting for a mark are unchanged.
-		assertThat(jdbc.queryForObject("""
-				SELECT count(*) FROM live_exam_participants p JOIN live_exams e ON e.id = p.exam_id
-				WHERE e.exam_type = 'WRITTEN' AND p.status = 'SUBMITTED' AND p.evaluated_at IS NULL AND p.id::text LIKE ?
-				""", Integer.class, DEMO_PARTICIPANT)).isEqualTo(4);
-	}
-
-	@Test
-	void aDatabaseSeededBeforeTheTopUpGetsItWithoutLosingTheBaseData() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		// Make the base marking visible work: the instructor has since marked one paper, which a rerun must not undo.
-		jdbc.update("UPDATE live_exam_participants SET score = 41, evaluated_at = now() WHERE id = ?", DemoContentSeed.demo('7', 4));
-		removeTopUp();
-		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(6);
-		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(4);
-
-		seed.seed(new String[] { "dev" }, env(), NOW.plus(Duration.ofHours(5)));
-
-		assertCatalog();
-		assertThat(jdbc.queryForObject("SELECT score FROM live_exam_participants WHERE id = ?", Integer.class, DemoContentSeed.demo('7', 4)))
-			.isEqualTo(41);
-		// The base exams keep their dates; only the top-up is dated from the later run.
-		assertThat(jdbc.queryForObject("SELECT (live_at AT TIME ZONE 'Asia/Dhaka')::date::text FROM live_exams WHERE id = ?", String.class,
-				DemoContentSeed.demo('e', 20))).isEqualTo("2026-10-28");
-	}
-
-	private int orderCount(String status) {
-		return jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = ?", Integer.class,
-				DEMO_ORDER, status);
-	}
-
-	private int examCountIn(UUID module) {
-		return jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE module_id = ?", Integer.class, module);
-	}
-
-	private Map<String, Object> draft(int number) {
-		return jdbc.queryForMap("""
-				SELECT e.finally_saved, e.live_at, e.module_id AS module, e.question_stored_file_name IS NOT NULL AS has_paper,
-				       (SELECT count(*) FROM live_exam_questions q WHERE q.exam_id = e.id) AS questions
-				FROM live_exams e WHERE e.id = ? AND e.status = 'DRAFT'
-				""", DemoContentSeed.demo('e', number));
-	}
-
-	/** Puts the database back to what an earlier version of the seed left: the base data without the top-up. */
-	private void removeTopUp() {
-		UUID[] exams = { DemoContentSeed.demo('e', 40), DemoContentSeed.demo('e', 41), DemoContentSeed.demo('e', 50),
-				DemoContentSeed.demo('e', 51), DemoContentSeed.demo('e', 52), DemoContentSeed.demo('e', 53) };
-		jdbc.update("DELETE FROM live_exam_participants WHERE id IN (?, ?)", DemoContentSeed.demo('7', 7), DemoContentSeed.demo('7', 8));
-		jdbc.update("DELETE FROM live_exam_grants WHERE id IN (?, ?)", DemoContentSeed.demo('d', 5), DemoContentSeed.demo('d', 6));
-		for (int order = 5; order <= 15; order++) {
-			jdbc.update("DELETE FROM live_exam_orders WHERE id = ?", DemoContentSeed.demo('c', order));
-		}
-		for (UUID exam : exams) {
-			jdbc.update("DELETE FROM live_exam_options WHERE question_id IN (SELECT id FROM live_exam_questions WHERE exam_id = ?)", exam);
-			jdbc.update("DELETE FROM live_exam_questions WHERE exam_id = ?", exam);
-			jdbc.update("UPDATE live_exams SET question_paper_id = NULL WHERE id = ?", exam);
-			jdbc.update("DELETE FROM live_exam_question_papers WHERE exam_id = ?", exam);
-			jdbc.update("DELETE FROM live_exam_package_exams WHERE exam_id = ?", exam);
-			jdbc.update("DELETE FROM live_exams WHERE id = ?", exam);
-		}
-		jdbc.update("DELETE FROM live_exam_modules WHERE id IN (?, ?)", DemoContentSeed.MODULE_DRAFT_READY,
-				DemoContentSeed.MODULE_DRAFT_EMPTY);
-	}
-
-	@Test
-	void theNoticesAndTheAnnouncementAreWrittenOncePerStudent() {
-		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "PURCHASE_GRANTED")).isEqualTo(2);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "PURCHASE_GRANTED")).isEqualTo(1);
 		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "MCQ_SCORE")).isEqualTo(1);
 		assertThat(noticeOf(DemoContentSeed.STUDENT_A, "WRITTEN_RESULT")).isEqualTo(1);
-		assertThat(noticeOf(DemoContentSeed.STUDENT_B, "PURCHASE_GRANTED")).isEqualTo(2);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_B, "PURCHASE_GRANTED")).isEqualTo(1);
 		assertThat(noticeOf(DemoContentSeed.STUDENT_C, "PURCHASE_GRANTED")).isEqualTo(1);
+		// The one announcement reaches A, B and C; the review student gets none.
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM announcements WHERE id = ?", Integer.class, DemoContentSeed.ANNOUNCEMENT))
 			.isEqualTo(1);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE announcement_id = ?", Integer.class,
-				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(4);
+				DemoContentSeed.ANNOUNCEMENT)).isEqualTo(3);
+		assertThat(noticeOf(DemoContentSeed.STUDENT_D, "ANNOUNCEMENT")).isZero();
+		assertThat(noticeCount()).isEqualTo(8);
+	}
+
+	@Test
+	void aDatabaseWithRowsOfAnOlderSeedIsRefusedUntilCleanup() {
+		seed.seed(new String[] { "dev" }, env(), NOW);
+		// A draft package that only the earlier seed wrote (b5) makes a run refuse, so demo-cleanup.sql runs first.
+		jdbc.update("""
+				INSERT INTO live_exam_modules (id, category_id, title_en, title_bn, description_en, description_bn, access_mode,
+				  status, finally_saved, position, price, created_at, updated_at)
+				VALUES (?, ?, 'Old draft', 'পুরোনো', 'Old draft', 'পুরোনো', 'MANUAL', 'DRAFT', false, 9, NULL, now(), now())
+				""", DemoContentSeed.demo('b', 5), DemoContentSeed.CATEGORY_MCQ);
+		assertThatThrownBy(() -> seed.seed(new String[] { "dev" }, env(), NOW))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("demo-cleanup.sql");
 	}
 
 	@Test
@@ -469,23 +420,31 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	}
 
 	private void assertCatalog() {
-		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(6);
-		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(8);
-		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(32);
-		// Seventeen MCQ exams of ten questions (fifteen published, two drafts), four options each.
-		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(170);
+		// The plan's content and the three cases: 22 exams in 6 packages, 7 categories, 4 students, 4 orders, 6 sittings, 8 notices.
+		assertThat(count("live_exam_categories", DEMO_CATEGORY)).isEqualTo(7);
+		assertThat(count("live_exam_modules", DEMO_MODULE)).isEqualTo(6);
+		assertThat(count("live_exams", DEMO_EXAM)).isEqualTo(22);
+		// Twelve MCQ papers of ten questions (fifty full marks each), four options each.
+		assertThat(count("live_exam_questions", DEMO_QUESTION)).isEqualTo(120);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_options WHERE question_id::text LIKE ?", Integer.class,
-				DEMO_QUESTION)).isEqualTo(680);
-		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(8);
+				DEMO_QUESTION)).isEqualTo(480);
+		assertThat(count("live_exam_participants", DEMO_PARTICIPANT)).isEqualTo(6);
 		assertThat(count("users", DEMO_STUDENT)).isEqualTo(4);
-		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(15);
-		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(7);
+		assertThat(count("live_exam_orders", DEMO_ORDER)).isEqualTo(4);
+		assertThat(count("live_exam_grants", DEMO_GRANT)).isEqualTo(4);
+		assertThat(count("announcements", DEMO_ANNOUNCEMENT)).isEqualTo(1);
+		assertThat(noticeCount()).isEqualTo(8);
 	}
 
 	/** Published exams only: the draft exams are counted by their own test. */
 	private int examCount(UUID module, String type) {
 		return jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE module_id = ? AND exam_type = ? AND status = 'PUBLISHED'",
 				Integer.class, module, type);
+	}
+
+	private int orderCount(String status) {
+		return jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE id::text LIKE ? AND status = ?", Integer.class,
+				DEMO_ORDER, status);
 	}
 
 	private int grantCount(UUID student, UUID exam, UUID module) {
