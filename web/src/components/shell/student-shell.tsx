@@ -9,6 +9,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
+import { SiteFooter } from "@/components/shell/site-footer";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { NoticeBell } from "@/components/student/notice-bell";
 import { formatNumber } from "@/lib/format";
@@ -336,43 +337,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
       >
         {children}
       </main>
-      <footer className="border-t border-border bg-card">
-        <nav aria-label={t("common.footer.label")} className={cn("mx-auto grid w-full gap-3 px-4 py-6", column)}>
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-meta text-muted">
-            <li>
-              <Link href="/help" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.help")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/about" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.about")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/contact" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.contact")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/terms" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.terms")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/privacy" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.privacy")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/refund" prefetch={false} className="hover:text-text hover:underline">
-                {t("common.footer.refund")}
-              </Link>
-            </li>
-          </ul>
-          <p className="text-meta text-muted">{t("common.footer.copyright")}</p>
-        </nav>
-      </footer>
+      <SiteFooter variant="full" width={column} />
       {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>
