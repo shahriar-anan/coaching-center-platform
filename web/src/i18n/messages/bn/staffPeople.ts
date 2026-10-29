@@ -89,7 +89,7 @@ const staffPeople = {
       text: "পরীক্ষার নাম",
       textPlaceholder: "পরীক্ষার নাম দিয়ে খুঁজুন",
     },
-    sort: { date: "তারিখ", title: "নাম", sitting: "ফলাফল ও মূল্যায়ন সংখ্যা" },
+    sort: { date: "তারিখ", title: "নাম", sitting: "অংশগ্রহণ সংখ্যা" },
     type: { MCQ: "এমসিকিউ", WRITTEN: "রিটেন" },
     columns: {
       exam: "পরীক্ষা",

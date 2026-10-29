@@ -131,14 +131,19 @@ export function ExamsPage() {
     setConfirming({ action, exam });
   }
 
-  function runConfirmed() {
+  // The dialog stays open until this resolves; a failure is shown on the page, not thrown.
+  async function runConfirmed() {
     if (!confirming) {
       return;
     }
     const { action, exam } = confirming;
     setConfirming(null);
     const mutation = action === "withdraw" ? withdraw : remove;
-    mutation.mutate(exam.id, { onError: () => setActionError(t("staffExams.actionFailed")) });
+    try {
+      await mutation.mutateAsync(exam.id);
+    } catch {
+      setActionError(t("staffExams.actionFailed"));
+    }
   }
 
   function closeDialog(open: boolean) {
