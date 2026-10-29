@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.coachingcenter.api.auth.Role;
 import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.common.error.ApiException;
@@ -270,8 +271,10 @@ public class LiveExamResultsService {
 	 * a percentage of the counted results. {@code live}, {@code archived}, {@code retake} and {@code practice} count every
 	 * attempt of that kind; {@code practiceParticipants} is the legacy count of every attempt that is not the live one.
 	 */
-	public record Summary(int participants, int submitted, int failedToSubmit, Double averageScore, BigDecimal highestScore,
-			BigDecimal lowestScore, int passCount, Double passRate, int practiceParticipants, int live, int archived,
+	public record Summary(int participants, int submitted, int failedToSubmit,
+			@JsonInclude(JsonInclude.Include.ALWAYS) Double averageScore, @JsonInclude(JsonInclude.Include.ALWAYS) BigDecimal highestScore,
+			@JsonInclude(JsonInclude.Include.ALWAYS) BigDecimal lowestScore, int passCount,
+			@JsonInclude(JsonInclude.Include.ALWAYS) Double passRate, int practiceParticipants, int live, int archived,
 			int retake, int practice) {
 	}
 
