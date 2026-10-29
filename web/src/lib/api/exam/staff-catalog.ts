@@ -86,6 +86,8 @@ export type StaffQuestion = {
   marks: number;
   explanation: string | null;
   position: number;
+  /** True when several options are correct (NR-01). Absent on older rows, which are single-answer. */
+  multipleAnswer?: boolean;
   options: StaffQuestionOption[];
 };
 
@@ -232,6 +234,8 @@ export type QuestionInput = {
   marks: number;
   explanation: string | null;
   position?: number;
+  /** One correct option when false; at least one when true (NR-01). */
+  multipleAnswer?: boolean;
   options: { text: string; correct: boolean }[];
 };
 
