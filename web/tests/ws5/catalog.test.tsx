@@ -204,7 +204,7 @@ describe("MCQ editor", () => {
 
   it("asks for exactly one correct option and clears the previous one", async () => {
     renderWithProviders(
-      <QuestionEditor examId={mcqExam.id} nextPosition={3} open onOpenChange={() => undefined} />,
+      <QuestionEditor examId={mcqExam.id} nextPosition={3} open onOpenChange={() => undefined} structureLocked={false} onStructureLocked={() => undefined} />,
       { user: fixtures.masterAdmin },
     );
     await userEvent.click(screen.getByRole("button", { name: "প্রশ্ন সেভ করুন" }));
