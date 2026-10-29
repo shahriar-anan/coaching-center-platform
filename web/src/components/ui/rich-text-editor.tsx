@@ -93,6 +93,7 @@ export function RichTextEditor({
   invalid,
   disabled,
   className,
+  hideLabel,
 }: {
   value: string;
   onChange: (html: string) => void;
@@ -100,6 +101,8 @@ export function RichTextEditor({
   invalid?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Keeps the label for screen readers only, when the caller shows its own heading above. */
+  hideLabel?: boolean;
 }) {
   const { t } = useLocale();
   const labelId = useId();
@@ -200,7 +203,7 @@ export function RichTextEditor({
 
   return (
     <div className={cn("grid gap-2", className)}>
-      <span id={labelId} className="text-meta text-muted">
+      <span id={labelId} className={hideLabel ? "sr-only" : "text-label font-semibold text-text"}>
         {label}
       </span>
       <div

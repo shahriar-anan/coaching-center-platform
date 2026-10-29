@@ -1,40 +1,38 @@
 "use client";
 
 import { useLocale } from "@/i18n/locale-context";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
-import { plainExcerpt } from "@/lib/format/rich-text";
+import { LocalizedRichText } from "@/components/staff/catalog/localized-rich-text";
 import { richTextValue, type SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
 
-/** The four rich text fields: the description and the rules, in both languages, one under the other (plan 7.2, section 2). */
+/** The description and the rules: one rich text box each, with an English / বাংলা switch (plan 7.2, section 2). */
 export function ExamTextFields({ form, set, errors }: SectionFieldsProps) {
   const { t } = useLocale();
-  const fields = [
-    { key: "descriptionEn", label: t("staffCatalog.examMeta.descriptionEn") },
-    { key: "descriptionBn", label: t("staffCatalog.examMeta.descriptionBn") },
-    { key: "rulesEn", label: t("staffCatalog.examMeta.rulesEn") },
-    { key: "rulesBn", label: t("staffCatalog.examMeta.rulesBn") },
-  ] as const;
   return (
     <>
-      {fields.map((field) => (
-        <div key={field.key} className="grid gap-1.5">
-          <RichTextEditor
-            label={field.label}
-            value={form[field.key]}
-            onChange={(html) => set(field.key, richTextValue(html, form[field.key]))}
-            invalid={Boolean(errors[field.key])}
-          />
-          {errors[field.key] ? (
-            <p role="alert" className="text-meta text-danger">
-              {errors[field.key]}
-            </p>
-          ) : null}
-          <p className="text-meta text-muted">
-            <span className="font-medium">{t("staffCatalog.examMeta.plainPreview")}: </span>
-            {plainExcerpt(form[field.key], 240) || t("staffCatalog.examMeta.plainPreviewEmpty")}
-          </p>
-        </div>
-      ))}
+      <LocalizedRichText
+        title={t("staffCatalog.richText.descriptionTitle")}
+        valueEn={form.descriptionEn}
+        valueBn={form.descriptionBn}
+        onChange={(language, html) =>
+          language === "en"
+            ? set("descriptionEn", richTextValue(html, form.descriptionEn))
+            : set("descriptionBn", richTextValue(html, form.descriptionBn))
+        }
+        errorEn={errors.descriptionEn}
+        errorBn={errors.descriptionBn}
+      />
+      <LocalizedRichText
+        title={t("staffCatalog.richText.rulesTitle")}
+        valueEn={form.rulesEn}
+        valueBn={form.rulesBn}
+        onChange={(language, html) =>
+          language === "en"
+            ? set("rulesEn", richTextValue(html, form.rulesEn))
+            : set("rulesBn", richTextValue(html, form.rulesBn))
+        }
+        errorEn={errors.rulesEn}
+        errorBn={errors.rulesBn}
+      />
     </>
   );
 }

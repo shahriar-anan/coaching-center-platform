@@ -358,6 +358,15 @@ const staffCatalog = {
       actions: "কাজ",
     },
   },
+  richText: {
+    languageLabel: "ভাষা",
+    english: "English",
+    bangla: "বাংলা",
+    empty: "এখনো কিছু লেখা হয়নি",
+    descriptionTitle: "বিবরণ",
+    rulesTitle: "নিয়মাবলি",
+    editorLabel: "{title} ({language})",
+  },
   examMeta: {
     end: "শেষ",
     endHint: "শুরুর পর কমপক্ষে পরীক্ষার সময় পরে।",

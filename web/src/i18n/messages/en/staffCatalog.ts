@@ -354,6 +354,15 @@ const staffCatalog = {
       actions: "Actions",
     },
   },
+  richText: {
+    languageLabel: "Language",
+    english: "English",
+    bangla: "বাংলা",
+    empty: "Nothing written yet",
+    descriptionTitle: "Description",
+    rulesTitle: "Rules",
+    editorLabel: "{title} ({language})",
+  },
   examMeta: {
     end: "End",
     endHint: "At least the duration after the start.",

@@ -123,10 +123,11 @@ describe("rich text editor toolbar", () => {
     await waitFor(() => expect(bold).toBeEnabled());
     await userEvent.click(screen.getByRole("textbox"));
     await userEvent.click(bold);
-    expect(bold).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(bold).toHaveAttribute("aria-pressed", "true"));
     await userEvent.keyboard("Read");
 
-    expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining("<strong>Read</strong>"));
+    // The editor reports on the next update, which can lag under load.
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining("<strong>Read</strong>")));
   });
 
   it("makes a bulleted list from the paragraph", async () => {

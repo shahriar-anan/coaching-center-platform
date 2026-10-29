@@ -28,7 +28,7 @@ import { ModuleStudentPreview } from "@/components/staff/catalog/module-student-
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { LocalizedRichText } from "@/components/staff/catalog/localized-rich-text";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TextInput } from "@/components/ui/text-input";
@@ -314,20 +314,18 @@ function DetailsBody({ module }: { module?: StaffModule }) {
               <TextInput value={form.titleBn} onChange={(e) => set("titleBn", e.target.value)} />
             </Field>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <RichTextEditor
-              label={t("staffCatalog.moduleForm.descriptionEn")}
-              value={form.descriptionEn}
-              onChange={(html) => set("descriptionEn", richTextValue(html, form.descriptionEn))}
-              invalid={Boolean(errors.descriptionEn)}
-            />
-            <RichTextEditor
-              label={t("staffCatalog.moduleForm.descriptionBn")}
-              value={form.descriptionBn}
-              onChange={(html) => set("descriptionBn", richTextValue(html, form.descriptionBn))}
-              invalid={Boolean(errors.descriptionBn)}
-            />
-          </div>
+          <LocalizedRichText
+            title={t("staffCatalog.richText.descriptionTitle")}
+            valueEn={form.descriptionEn}
+            valueBn={form.descriptionBn}
+            onChange={(language, html) =>
+              language === "en"
+                ? set("descriptionEn", richTextValue(html, form.descriptionEn))
+                : set("descriptionBn", richTextValue(html, form.descriptionBn))
+            }
+            errorEn={errors.descriptionEn}
+            errorBn={errors.descriptionBn}
+          />
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <div className="grid gap-3">
               <Field label={t("staffCatalog.moduleForm.category")} required error={errors.categoryId}>
