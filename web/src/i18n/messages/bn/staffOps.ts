@@ -11,13 +11,14 @@ const staffOps = {
     tranIdPlaceholder: "লেনদেন নম্বর দিয়ে খুঁজুন",
     statusLabel: "অবস্থা",
     status: {
-      all: "সব অবস্থা",
+      all: "সব",
       pending: "অপেক্ষমাণ",
       paid: "সফল",
       failed: "ব্যর্থ",
       cancelled: "বাতিল",
     },
     columns: {
+      date: "তারিখ",
       time: "সময়",
       student: "শিক্ষার্থী",
       phone: "ফোন",
@@ -28,9 +29,10 @@ const staffOps = {
       status: "অবস্থা",
       access: "চালু",
       tranId: "লেনদেন নম্বর",
-      paidAt: "পরিশোধের সময়",
-      receipt: "রসিদ নম্বর",
+      actions: "কাজ",
     },
+    /** The second line of the Date cell on a paid order. Draft Bangla: to be reviewed. */
+    paidLine: "পরিশোধিত {time}",
     scope: {
       module: "প্যাকেজ",
       exam: "পরীক্ষা",

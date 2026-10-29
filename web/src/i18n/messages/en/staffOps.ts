@@ -11,13 +11,14 @@ const staffOps = {
     tranIdPlaceholder: "Search by transaction id",
     statusLabel: "Status",
     status: {
-      all: "All statuses",
+      all: "All",
       pending: "Pending",
       paid: "Paid",
       failed: "Failed",
       cancelled: "Cancelled",
     },
     columns: {
+      date: "Date",
       time: "Time",
       student: "Student",
       phone: "Phone",
@@ -28,15 +29,16 @@ const staffOps = {
       status: "Status",
       access: "Access",
       tranId: "Transaction id",
-      paidAt: "Paid on",
-      receipt: "Receipt number",
+      actions: "Actions",
     },
+    /** The second line of the Date cell on a paid order, for example "Paid 28 Oct 2026, 10:05 am". */
+    paidLine: "Paid {time}",
     scope: {
       module: "Package",
       exam: "Exam",
     },
     access: {
-      awaitingGateway: "Access opens once the gateway confirms",
+      awaitingGateway: "Opens once payment is confirmed",
       wholeModule: "Covers later exams in this module too",
       thisExam: "This exam only",
       noAccess: "No access given",
