@@ -204,9 +204,14 @@ export function RichTextEditor({
         {label}
       </span>
       <div
-        className={cn("grid gap-2 rounded-control border bg-field p-2 focus-within:border-accent", controlBorder(invalid))}
+        className={cn("grid overflow-hidden rounded-control border bg-field focus-within:border-accent", controlBorder(invalid))}
       >
-        <div role="toolbar" aria-label={t("common.richText.toolbar")} className="flex flex-wrap items-center gap-1">
+        {/* One box, like the old site's editor: the toolbar sits above a rule and the writing area below it. */}
+        <div
+          role="toolbar"
+          aria-label={t("common.richText.toolbar")}
+          className="flex flex-wrap items-center gap-1 border-b border-border-control bg-card px-2 py-1.5"
+        >
           <Tool
             label={t("common.richText.heading2")}
             icon={<Heading2 aria-hidden="true" className="size-5" />}
@@ -349,7 +354,9 @@ export function RichTextEditor({
             ) : null}
           </div>
         ) : null}
-        <EditorContent editor={editor} />
+        <div className="min-h-40 px-4 py-3 text-body [&_.ProseMirror]:min-h-32 [&_.ProseMirror]:outline-none">
+          <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   );
