@@ -17,8 +17,8 @@ export interface MyOrder {
   status: PaymentStatus;
   amount: number;
   currency: string;
-  /** "MODULE" or "EXAM". */
-  scope: "MODULE" | "EXAM";
+  /** "MODULE", "EXAM", or "BUNDLE" (a package bought as a whole, with its exams). */
+  scope: "MODULE" | "EXAM" | "BUNDLE";
   moduleId: string | null;
   moduleTitleEn: string | null;
   moduleTitleBn: string | null;
@@ -29,20 +29,83 @@ export interface MyOrder {
   paymentChannel: string | null;
   /** ISO UTC. */
   createdAt: string;
+  /** The price the student saw, and the discount, when there was one (R19). */
+  listPrice: number | null;
+  discountPercent: number | null;
+  /** ISO UTC, set once the order is paid (P2). Null before. */
+  paidAt: string | null;
+  /** RCPT-<year>-<6 digits>, set once the order is paid (P4). Null before. */
+  receiptNo: string | null;
+}
+
+/** The list filters (P1). Every field is optional; an empty one is left out of the query. */
+export interface OrderFilter {
+  status?: PaymentStatus | "";
+  scope?: "MODULE" | "EXAM" | "BUNDLE" | "";
+  from?: string;
+  to?: string;
+  examId?: string;
+  moduleId?: string;
+  orderId?: string;
+}
+
+/** The totals for the summary strip (P1). */
+export interface OrderSummary {
+  totalPaid: number;
+  currency: string;
+  paidCount: number;
+  pendingCount: number;
 }
 
 export const accountKeys = {
-  orders: (page: number) => ["account", "orders", page] as const,
+  orders: (page: number, filter: OrderFilter = {}) => ["account", "orders", page, filter] as const,
+  summary: () => ["account", "orders", "summary"] as const,
 };
 
-export function useMyOrders(page: number) {
+/** The query string for a filter. Empty values are left out, so an unfiltered list has no filter in its URL. */
+export function orderFilterQuery(filter: OrderFilter): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filter)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? `&${query}` : "";
+}
+
+export function useMyOrders(page: number, filter: OrderFilter = {}) {
   return useQuery({
-    queryKey: accountKeys.orders(page),
+    queryKey: accountKeys.orders(page, filter),
     queryFn: () =>
-      apiRequest<PageResponse<MyOrder>>(`/api/v1/me/live-exam-orders?page=${page}&size=20`),
+      apiRequest<PageResponse<MyOrder>>(`/api/v1/me/live-exam-orders?page=${page}&size=20${orderFilterQuery(filter)}`),
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
+}
+
+/** One order by id, through the list (P3): zero or one row, with its titles. */
+export function useMyOrder(orderId: string | null) {
+  return useQuery({
+    queryKey: accountKeys.orders(0, { orderId: orderId ?? "" }),
+    queryFn: () =>
+      apiRequest<PageResponse<MyOrder>>(`/api/v1/me/live-exam-orders?page=0&size=1&orderId=${orderId}`),
+    enabled: Boolean(orderId),
+    staleTime: 0,
+  });
+}
+
+/** Paid total, paid and pending counts (P1), for the summary strip. */
+export function useMyOrderSummary() {
+  return useQuery({
+    queryKey: accountKeys.summary(),
+    queryFn: () => apiRequest<OrderSummary>("/api/v1/me/live-exam-orders/summary"),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** The receipt PDF of a paid order (P4). It needs the bearer token, so it is fetched as a blob and saved by the caller. */
+export function receiptPdfPath(orderId: string): string {
+  return `/api/v1/me/live-exam-orders/${orderId}/receipt.pdf`;
 }
 
 export function useChangePassword() {

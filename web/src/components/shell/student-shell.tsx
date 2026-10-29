@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Star, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Receipt, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
@@ -117,6 +117,7 @@ function UserMenu() {
         >
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
+          <MenuLink href="/account/payments" icon={Receipt} label={t("account.payments.link")} />
           <MenuLink href="/wishlist" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
           <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />

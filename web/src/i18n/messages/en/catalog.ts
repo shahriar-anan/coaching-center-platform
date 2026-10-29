@@ -215,6 +215,7 @@ const catalog: typeof bn = {
     emptyExams: "No exams yet",
     emptyExamsBody: "Exams you buy or are given will show here.",
     emptyExamsOfType: "No {type} exams in your list yet.",
+    viewPayment: "View payment",
     emptyPackages: "No packages yet",
     emptyPackagesBody: "Packages you buy or are given will show here.",
     detailsMissing: "Details are not available",

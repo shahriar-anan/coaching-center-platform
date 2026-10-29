@@ -57,6 +57,20 @@ function TitleText({ title, pending, href }: { title: string; pending: boolean; 
   );
 }
 
+/** "View payment" for a row bought with an order (Phase 4, S4.6). A roster or manual grant has no order, so no link. */
+function PaymentLink({ orderId }: { orderId: string }) {
+  const { t } = useLocale();
+  return (
+    <Link
+      href={`/account/payments?order=${encodeURIComponent(orderId)}`}
+      prefetch={false}
+      className="font-semibold text-accent underline underline-offset-4"
+    >
+      {t("catalog.myExams.viewPayment")}
+    </Link>
+  );
+}
+
 function ExamRow({ grant, exam, pending }: { grant: OwnExamGrant; exam: PublicExam | undefined; pending: boolean }) {
   const { t, locale } = useLocale();
   const sourceKey = accessSourceKey(grant.via);
@@ -70,6 +84,7 @@ function ExamRow({ grant, exam, pending }: { grant: OwnExamGrant; exam: PublicEx
           {exam ? <TypePill type={exam.examType} /> : null}
           <AccessBadge end={accessEnd(grant)} />
           {sourceKey ? <Pill tone="muted">{t(sourceKey)}</Pill> : null}
+          {grant.orderId ? <PaymentLink orderId={grant.orderId} /> : null}
         </div>
       </Card>
     </li>
@@ -88,6 +103,7 @@ function PackageRow({ grant, pkg, pending }: { grant: OwnModuleGrant; pkg: Publi
         <div className="mt-2 flex flex-wrap items-center gap-2 text-meta">
           <AccessBadge end={accessEnd(grant)} />
           {sourceKey ? <Pill tone="muted">{t(sourceKey)}</Pill> : null}
+          {grant.orderId ? <PaymentLink orderId={grant.orderId} /> : null}
         </div>
       </Card>
     </li>
@@ -147,7 +163,11 @@ export function MyExamsPage() {
 
   return (
     <>
-      <PageHeader title={t("catalog.myExams.title")} breadcrumbs={crumbs} />
+      <PageHeader
+        title={t("catalog.myExams.title")}
+        breadcrumbs={crumbs}
+        actions={<Link href="/account/payments" prefetch={false} className="font-semibold text-accent underline underline-offset-4">{t("account.payments.link")}</Link>}
+      />
       <Tabs
         ariaLabel={t("catalog.myExams.title")}
         tabs={[

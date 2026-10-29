@@ -213,6 +213,7 @@ const catalog = {
     emptyExams: "এখনো কোনো পরীক্ষা নেই",
     emptyExamsBody: "কেনা বা পাওয়া পরীক্ষা এখানে দেখা যাবে।",
     emptyExamsOfType: "তালিকায় এখনো কোনো {type} পরীক্ষা নেই।",
+    viewPayment: "পেমেন্ট দেখুন",
     emptyPackages: "এখনো কোনো প্যাকেজ নেই",
     emptyPackagesBody: "কেনা বা পাওয়া প্যাকেজ এখানে দেখা যাবে।",
     detailsMissing: "বিস্তারিত পাওয়া যাচ্ছে না",
