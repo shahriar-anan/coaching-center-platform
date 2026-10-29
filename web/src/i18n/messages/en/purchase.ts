@@ -74,6 +74,8 @@ const purchase: typeof bn = {
     cancelledBody: "No money was taken.",
     tryAgain: "Try again",
     amountPaid: "Amount paid",
+    viewPayment: "View payment",
+    downloadReceipt: "Download receipt",
     receipts: "View receipts",
     failedHelp: "Need help? Call {phone}.",
     pendingWhat: "This usually takes under a minute. If you leave this page, access still appears in My exams once payment is confirmed.",
@@ -87,6 +89,14 @@ const purchase: typeof bn = {
     signIn: "Log in",
     signingIn: "Logging in…",
     signInFailed: "Email/phone or password is incorrect.",
+  },
+  /** The lines on a package or exam buy card: a bought item and a payment still open (Phase 4, S4.4 and S4.6). */
+  lines: {
+    purchased: "Purchased {date}",
+    paid: "Paid",
+    viewPayment: "View payment",
+    waiting: "Payment waiting",
+    cancel: "Cancel",
   },
 };
 

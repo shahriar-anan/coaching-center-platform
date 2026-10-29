@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import type { ExamType, PackageRef, PriceView, Titled } from "@/lib/api/exam/types";
+import { cn } from "@/components/ui/cn";
 import { Pill } from "@/components/ui/pill";
 import { examPath, phaseStatus } from "./catalog-helpers";
 import { FavouriteButton } from "./favourite-button";
@@ -33,17 +34,19 @@ export function ExamRow({
   /** The Wish List button. It sits outside the link, because a button cannot live inside a link. */
   favourite?: ReactNode;
 }) {
+  // The Wish List mark is 44 px in the top-right corner (Phase 4, S4.4). The text keeps the free width, and only the lines
+  // under the mark step in from the end, so nothing sits beneath it.
   return (
-    <div className="group flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent">
+    <div className="group relative flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent">
       <Link href={href} prefetch className="flex min-h-11 min-w-0 flex-1 items-center gap-3">
-        <span className="min-w-0 flex-1">
+        <span className={cn("min-w-0 flex-1", favourite && "pe-11")}>
           {meta ? <span className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-meta text-muted">{meta}</span> : null}
           <span className="line-clamp-1 block text-card-title font-bold group-hover:text-text-accent">{title}</span>
           {summary ? <span className="mt-1 line-clamp-2 block text-body leading-relaxed text-muted">{summary}</span> : null}
         </span>
-        <span className="shrink-0 text-end">{right}</span>
+        <span className={cn("shrink-0 text-end", favourite && "pt-11")}>{right}</span>
       </Link>
-      {favourite ? <span className="shrink-0">{favourite}</span> : null}
+      {favourite}
     </div>
   );
 }
@@ -94,9 +97,10 @@ export function CatalogExamRow({ exam }: { exam: ExamRowFields }) {
     : t("catalog.dateTbd");
   const href = examPath(exam.id);
   const packages = exam.packages ?? [];
+  // The Wish List mark sits in the top-right corner (Phase 4, S4.4): the text and the status column step in or down under it.
   return (
     <div className="group relative flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent">
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0 flex-1 pe-11">
         <span className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-meta text-muted">
           <TypePill type={exam.examType} />
           {exam.popular ? <Pill tone="accent">{t("catalog.popular.badge")}</Pill> : null}
@@ -115,7 +119,7 @@ export function CatalogExamRow({ exam }: { exam: ExamRowFields }) {
           </span>
         ) : null}
       </span>
-      <span className="grid shrink-0 justify-items-end gap-1.5 text-end">
+      <span className="grid shrink-0 justify-items-end gap-1.5 pt-11 text-end">
         <Pill tone={status.tone} pulse={status.pulse}>
           {t(status.key)}
         </Pill>

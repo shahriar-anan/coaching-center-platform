@@ -51,9 +51,10 @@ export function PackageLinkCard({
   const { t, locale } = useLocale();
   const title = pkg ? pickTitle(pkg, locale) : pickTitle(fallback, locale);
   const examCount = (pkg?.mcqCount ?? 0) + (pkg?.writtenCount ?? 0);
+  // The Wish List mark is in the top-right corner (Phase 4, S4.4), so the text keeps clear of it.
   return (
     <div className="group relative flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 pe-11">
         <p className="flex min-w-0 flex-wrap items-center gap-2">
           {popular ? <Pill tone="accent">{t("catalog.popular.badge")}</Pill> : null}
           <Link href={href} prefetch={false} className="text-card-title font-bold after:absolute after:inset-0 after:content-[''] group-hover:text-text-accent">

@@ -72,6 +72,8 @@ const purchase = {
     cancelledBody: "আপনার কোনো টাকা কাটা হয়নি।",
     tryAgain: "আবার চেষ্টা করুন",
     amountPaid: "পরিশোধিত টাকা",
+    viewPayment: "পেমেন্ট দেখুন",
+    downloadReceipt: "রসিদ নামান",
     receipts: "রসিদ দেখুন",
     failedHelp: "সাহায্য দরকার? কল করুন {phone}।",
     pendingWhat: "সাধারণত এক মিনিটের কম সময় লাগে। পাতাটি বন্ধ করলেও পেমেন্ট নিশ্চিত হলে অ্যাক্সেস “আমার পরীক্ষা”-এ দেখা যাবে।",
@@ -85,6 +87,14 @@ const purchase = {
     signIn: "লগইন করুন",
     signingIn: "লগইন হচ্ছে…",
     signInFailed: "ইমেইল/ফোন অথবা পাসওয়ার্ড সঠিক নয়।",
+  },
+  /** The lines on a package or exam buy card: a bought item and a payment still open (Phase 4, S4.4 and S4.6). */
+  lines: {
+    purchased: "কেনা হয়েছে {date}",
+    paid: "পরিশোধিত",
+    viewPayment: "পেমেন্ট দেখুন",
+    waiting: "পেমেন্ট বাকি আছে",
+    cancel: "বাতিল করুন",
   },
 };
 

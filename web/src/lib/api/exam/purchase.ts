@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
+import type { MyOrder } from "@/lib/api/exam/account";
 
 export type PaymentState = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 
@@ -21,7 +22,8 @@ export interface PaymentStatus {
   examName: string;
 }
 
-export type PurchaseTarget = { examId: string } | { moduleId: string };
+/** What an order is for: one exam, one package, or the exams of a bundle (plan 8). */
+export type PurchaseTarget = { examId: string } | { moduleId: string } | { examIds: string[] };
 
 export const purchaseKeys = {
   all: ["purchase"] as const,
@@ -47,6 +49,7 @@ export function useBundleOrder() {
 }
 
 export function useCancelOrder() {
+  const client = useQueryClient();
   return useMutation({
     retry: false,
     mutationFn: (orderId: string) =>
@@ -54,7 +57,33 @@ export function useCancelOrder() {
         method: "POST",
         body: {},
       }),
+    // The payment history and the open-order lines on the detail pages are asked again.
+    onSettled: () => client.invalidateQueries({ queryKey: ["account", "orders"] }),
   });
+}
+
+/** The order fields a payment needs to be paid again (the list row, P1). */
+export type ResumableOrder = Pick<MyOrder, "orderId" | "scope" | "moduleId" | "examId">;
+
+/**
+ * The target to post again to pay an open order (S4.6). An exam or package order posts its own id; a bundle posts its exam ids,
+ * which the order read gives. The API answers with the same open order and a fresh gateway redirect, so no new order is made.
+ */
+export async function pendingTarget(order: ResumableOrder): Promise<PurchaseTarget> {
+  if (order.scope === "EXAM" && order.examId) return { examId: order.examId };
+  if (order.scope === "MODULE" && order.moduleId) return { moduleId: order.moduleId };
+  const detail = await apiRequest<{ examIds: string[] }>(`/api/v1/live-exam-orders/${order.orderId}`);
+  return { examIds: detail.examIds };
+}
+
+/** Pays an open order again: posts its target and goes to the gateway page the answer names. Throws when there is no page. */
+export function useResumeOrder() {
+  const start = useStartOrder();
+  return async (order: ResumableOrder) => {
+    const next = await start.mutateAsync(await pendingTarget(order));
+    if (!next.redirectUrl) throw new Error("no gateway page");
+    window.location.assign(next.redirectUrl);
+  };
 }
 
 const POLL_MS = 3000;

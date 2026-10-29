@@ -31,7 +31,7 @@ describe("the favourite toggle (S3.3)", () => {
     await waitFor(() => expect(calls.some((call) => call.method === "DELETE" && call.path === "/api/v1/me/favourites/packages/m1")).toBe(true));
   });
 
-  it("goes back to its last state, with a message, when the API refuses the change", async () => {
+  it("goes back to its last state, and says so in a toast, when the API refuses the change", async () => {
     mockApi({ "PUT /api/v1/me/favourites/exams/e1": () => apiError(500, "INTERNAL_ERROR", "boom") });
     renderWithProviders(<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" />, {
       user: fixtures.student,
@@ -40,7 +40,9 @@ describe("the favourite toggle (S3.3)", () => {
 
     const mark = screen.getByRole("button", { name: "Wish List" });
     await userEvent.click(mark);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save. Try again.");
+    // The message is a toast (Phase 4, S4.4), so it is not an inline alert beside the mark.
+    expect(await screen.findByText("Could not save. Try again.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mark).toHaveAttribute("aria-pressed", "false");
   });
 

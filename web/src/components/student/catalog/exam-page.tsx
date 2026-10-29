@@ -11,6 +11,7 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
+import { OpenOrderLine, PurchasedLine, useBoughtGrant } from "@/components/student/purchase/order-lines";
 import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
@@ -29,6 +30,7 @@ import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useNotice } from "@/lib/notices/use-notice";
+import { DetailLayout } from "./detail-layout";
 import { doorLabelKey, doorPath, examPath, type Door } from "./catalog-helpers";
 import { ExamPackages } from "./exam-packages";
 import { FavouriteButton } from "./favourite-button";
@@ -67,7 +69,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const [buying, setBuying] = useState(false);
   const [starting, setStarting] = useState<"live" | "retake" | null>(null);
   const [actionOffscreen, setActionOffscreen] = useState(false);
-  const actionRef = useRef<HTMLDivElement | null>(null);
+  const actionRef = useRef<HTMLElement | null>(null);
   const checkoutOff = useCheckoutEnabled().data === false;
 
   const { toast } = useToast();
@@ -77,6 +79,8 @@ export function ExamPage({ examId }: { examId: string }) {
   // asked for once the student owns this exam, so a visitor or a non-owner makes no such request.
   const examAccess = resolveAccess(exam.data?.access);
   const mine = useMyExam(examId, isStudent && examAccess.owned);
+  // The purchase of this exam, when the student bought it (S4.6): its date and a link to the payment.
+  const bought = useBoughtGrant({ examId }, isStudent && examAccess.owned);
 
   async function copyLink() {
     try {
@@ -142,6 +146,7 @@ export function ExamPage({ examId }: { examId: string }) {
   const charged = chargedAmount(pricing, data.price);
   const expiresAt = data.access?.expiresAt ?? null;
   const endedAccess = isStudent && !ownsExam && Boolean(expiresAt);
+  // The cover: the exam's own, then its first package's, then the typed placeholder (Phase 4, E1 and S4.4).
   const coverPackage = packageReads[0]?.data;
   const crumbs = [
     { label: t("catalog.home"), href: "/" },
@@ -215,42 +220,61 @@ export function ExamPage({ examId }: { examId: string }) {
       <Breadcrumbs items={crumbs} />
       <ConfigNotice show={checkoutOff} />
 
-      <PackageCover
-        src={coverSrc(data.coverUrl ?? coverPackage?.coverUrl)}
-        alt={t("catalog.package.coverAlt", { title: pickTitle(coverPackage ?? data, locale) || title })}
-        type={examType === "MCQ" ? "MCQ" : "WRITTEN"}
-        title={pickTitle(coverPackage ?? data, locale) || title}
-        className="mt-3 aspect-auto h-28 rounded-card md:h-40"
-      />
-
-      <header className="mt-4 grid gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <TypePill type={examType} />
-          {data.popular ? <Pill tone="accent">{t("catalog.popular.badge")}</Pill> : null}
-          {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
-          {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
-        </div>
-        <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
-        <p className="text-body text-muted">{timingLine}</p>
-        {ownsExam && expiresAt ? (
-          <p className="text-body font-semibold text-muted">
-            {t("catalog.exam.accessUntil", { date: formatDate(expiresAt, locale, { year: "auto" }) })}
-          </p>
-        ) : null}
-        {endedAccess && expiresAt ? (
-          <p className="text-body font-semibold text-warn">
-            {t("catalog.exam.accessEnded", { date: formatDate(expiresAt, locale, { year: "auto" }) })}
-          </p>
-        ) : null}
-        {status === "SUBMITTED" && owned?.sitting?.submittedAt ? (
-          <p className="text-body font-semibold text-ok">
-            {t("catalog.exam.submittedLine", { time: formatTime(owned.sitting.submittedAt, locale), deadline: formatTime(owned.sitting.deadlineAt, locale) })}
-          </p>
-        ) : null}
-      </header>
-
-      <section className="mt-5 grid gap-5 rounded-card border border-border bg-card p-5">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-4">
+      <DetailLayout
+        header={
+          <header className="relative grid gap-2 pe-12">
+            <div className="flex flex-wrap items-center gap-2">
+              <TypePill type={examType} />
+              {data.popular ? <Pill tone="accent">{t("catalog.popular.badge")}</Pill> : null}
+              {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
+              {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
+            </div>
+            <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
+            <p className="text-body text-muted">{timingLine}</p>
+            {status === "SUBMITTED" && owned?.sitting?.submittedAt ? (
+              <p className="text-body font-semibold text-ok">
+                {t("catalog.exam.submittedLine", { time: formatTime(owned.sitting.submittedAt, locale), deadline: formatTime(owned.sitting.deadlineAt, locale) })}
+              </p>
+            ) : null}
+            <FavouriteButton kind="exam" id={examId} initial={data.favourite} next={examPath(examId)} />
+          </header>
+        }
+        card={
+          <section ref={actionRef} aria-label={title} className="grid gap-4 rounded-card border border-border bg-card p-5">
+            <div className="grid gap-1">
+              <span className="text-meta font-semibold uppercase tracking-wide text-muted">{t("catalog.exam.price")}</span>
+              <PriceLine label={label} size="detail" />
+            </div>
+            {ownsExam && expiresAt ? (
+              <p className="text-body font-semibold text-muted">
+                {t("catalog.exam.accessUntil", { date: formatDate(expiresAt, locale, { year: "auto" }) })}
+              </p>
+            ) : null}
+            {endedAccess && expiresAt ? (
+              <p className="text-body font-semibold text-warn">
+                {t("catalog.exam.accessEnded", { date: formatDate(expiresAt, locale, { year: "auto" }) })}
+              </p>
+            ) : null}
+            {ownsExam && bought ? <PurchasedLine grant={bought} /> : null}
+            {primary}
+            {isStudent && !ownsExam ? <OpenOrderLine filter={{ examId }} enabled /> : null}
+            <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
+              {t("catalog.exam.copyLink")}
+            </Button>
+          </section>
+        }
+        cover={
+          <PackageCover
+            band
+            src={coverSrc(data.coverUrl ?? coverPackage?.coverUrl)}
+            alt={t("catalog.package.coverAlt", { title: pickTitle(coverPackage ?? data, locale) || title })}
+            type={examType === "MCQ" ? "MCQ" : "WRITTEN"}
+            title={pickTitle(coverPackage ?? data, locale) || title}
+            className="rounded-card"
+          />
+        }
+      >
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-card border border-border bg-card p-5 md:grid-cols-3">
           <Fact label={t("catalog.exam.duration")} value={formatDuration(data.durationMinutes, locale)} />
           <Fact
             label={t("catalog.exam.start")}
@@ -258,30 +282,9 @@ export function ExamPage({ examId }: { examId: string }) {
             sub={endsAt ? `${t("catalog.exam.end")}: ${formatTime(endsAt, locale)}` : undefined}
           />
           <Fact label={t("catalog.exam.paperLanguage")} value={data.paperLanguage === "EN" ? t("catalog.exam.langEn") : t("catalog.exam.langBn")} />
-          {owned && owned.maximum ? (
-            <Fact label={t("catalog.exam.fullMarks")} value={formatNumber(owned.maximum, locale)} />
-          ) : (
-            <div className="grid content-start gap-0.5">
-              <dt className="text-meta text-muted">{t("catalog.exam.price")}</dt>
-              <dd>
-                <PriceLine label={label} size="detail" />
-              </dd>
-            </div>
-          )}
+          {owned && owned.maximum ? <Fact label={t("catalog.exam.fullMarks")} value={formatNumber(owned.maximum, locale)} /> : null}
         </dl>
 
-        <div ref={actionRef} className="grid gap-2 border-t border-border pt-5">
-          {primary}
-          <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
-            {t("catalog.exam.copyLink")}
-          </Button>
-          <div className="flex justify-center">
-            <FavouriteButton kind="exam" id={examId} initial={data.favourite} next={examPath(examId)} />
-          </div>
-        </div>
-      </section>
-
-      <div className="mt-7 grid gap-7">
         {description ? (
           <Section title={t("catalog.exam.description")}>
             <p className="whitespace-pre-line leading-relaxed text-muted">{description}</p>
@@ -315,7 +318,7 @@ export function ExamPage({ examId }: { examId: string }) {
             <ExamPackages door={door} packages={packageRefs} reads={packageReads} />
           </Section>
         ) : null}
-      </div>
+      </DetailLayout>
 
       {showBar ? (
         <div

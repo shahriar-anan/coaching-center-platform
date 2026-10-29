@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api/client";
+import { apiBlob, apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { Me, PageResponse } from "@/lib/api/exam/types";
 
@@ -103,9 +103,34 @@ export function useMyOrderSummary() {
   });
 }
 
+/**
+ * The student's open (pending) order for one package or exam, if there is one (P1: `moduleId` or `examId` with `status=PENDING`).
+ * A pending bundle counts for each of its exams. Only asked for a signed-in student who does not own the item yet.
+ */
+export function useOpenOrder(filter: { moduleId?: string; examId?: string }, enabled: boolean) {
+  const scoped: OrderFilter = { ...filter, status: "PENDING" };
+  return useQuery({
+    queryKey: accountKeys.orders(0, scoped),
+    queryFn: () => apiRequest<PageResponse<MyOrder>>(`/api/v1/me/live-exam-orders?page=0&size=1${orderFilterQuery(scoped)}`),
+    enabled,
+    staleTime: 0,
+  });
+}
+
 /** The receipt PDF of a paid order (P4). It needs the bearer token, so it is fetched as a blob and saved by the caller. */
 export function receiptPdfPath(orderId: string): string {
   return `/api/v1/me/live-exam-orders/${orderId}/receipt.pdf`;
+}
+
+/** Saves the receipt PDF of a paid order as a file (P4). Throws when the download fails; the caller shows the message. */
+export async function downloadReceiptPdf(orderId: string, fileName: string): Promise<void> {
+  const blob = await apiBlob(receiptPdfPath(orderId));
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${fileName}.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function useChangePassword() {

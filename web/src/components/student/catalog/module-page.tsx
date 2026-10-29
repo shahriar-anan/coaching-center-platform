@@ -13,10 +13,12 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
+import { OpenOrderLine, PurchasedLine, useBoughtGrant } from "@/components/student/purchase/order-lines";
 import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
 import { BundleSelection } from "./bundle-selection";
+import { DetailLayout } from "./detail-layout";
 import { PriceLine } from "./price-line";
 import { chargedAmount, priceLabel, pricingOf } from "./price-view";
 import { bundleOrders } from "@/lib/config";
@@ -95,6 +97,8 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const moduleAccess = resolveAccess(moduleQuery.data?.access);
   const anyExamOwned = (exams.data ?? []).some((exam) => resolveAccess(exam.access).owned);
   const myExams = useMyModuleExams(moduleId, type, isStudent && (moduleAccess.owned || anyExamOwned));
+  // The purchase of this package, when the student bought it (S4.6): its date and a link to the payment.
+  const bought = useBoughtGrant({ moduleId }, isStudent && moduleAccess.owned);
   const [buying, setBuying] = useState(false);
   const [tab, setTab] = useState<ModuleTab>("exams");
   const [buyOffscreen, setBuyOffscreen] = useState(false);
@@ -220,161 +224,174 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       <Breadcrumbs items={breadcrumbs} />
       <ConfigNotice show={checkoutOff} />
 
-      <div className="mt-4 grid gap-5">
-        <PackageCover
-          src={coverSrc(data.coverUrl)}
-          alt={t("catalog.package.coverAlt", { title })}
-          type={type}
-          title={title}
-          className="rounded-card"
-        />
+      <DetailLayout
+        header={
+          <header className="relative grid gap-2 pe-12">
+            <div className="flex flex-wrap items-center gap-2">
+              <Pill tone="muted">{doorLabel}</Pill>
+              {moduleOwned ? <Pill tone="ok">✓ {t("catalog.unlocked")}</Pill> : null}
+            </div>
+            <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
+            <p className="text-body text-muted">{summaryLine}</p>
+            <FavouriteButton kind="package" id={moduleId} initial={data.favourite} next={modulePath(door, moduleId)} />
+          </header>
+        }
+        card={
+          <section
+            ref={buyRef}
+            aria-label={t("catalog.buyModule")}
+            className="grid gap-4 rounded-card border border-border bg-card p-5"
+          >
+            {moduleOwned ? (
+              <>
+                <ProgressBar done={mine.filter((e) => isDone(e.myStatus)).length} total={mine.length} />
+                {bought ? <PurchasedLine grant={bought} /> : null}
+              </>
+            ) : price === null || price === undefined ? (
+              <p className="text-muted">{t("catalog.priceNotSet")}</p>
+            ) : (
+              <>
+                <div className="grid gap-1">
+                  <span className="text-meta font-semibold uppercase tracking-wide text-muted">{t("catalog.buyModule")}</span>
+                  <PriceLine label={priceLabel(pricingOf(data.pricing, price))} size="detail" />
+                </div>
+                <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
+                <IncludedList items={included} />
+                {buyAction(true)}
+                <OpenOrderLine filter={{ moduleId }} enabled={isStudent} />
+              </>
+            )}
+          </section>
+        }
+        cover={
+          <PackageCover
+            band
+            src={coverSrc(data.coverUrl)}
+            alt={t("catalog.package.coverAlt", { title })}
+            type={type}
+            title={title}
+            className="rounded-card"
+          />
+        }
+      >
+        <div className="grid gap-5">
+          {/* The tabs wrap at 320 px, so "About" is never cut off at the edge (Phase 4, S4.4). */}
+          <Tabs
+            tabs={tabItems}
+            value={activeTab}
+            onChange={(value) => setTab(value as ModuleTab)}
+            ariaLabel={t("catalog.tabs.label")}
+            wrap
+          />
 
-        <header className="grid gap-2">
-          <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
-          <p className="text-body text-muted">{summaryLine}</p>
-        </header>
+          <div>
+            {activeTab === "exams" ? (
+              list.length === 0 ? (
+                <EmptyState
+                  title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
+                  body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
+                />
+              ) : bundleOrders && isStudent ? (
+                <BundleSelection
+                  disabled={checkoutOff}
+                  items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: chargedAmount(exam.pricing, exam.price), owned: resolveAccess(exam.access).owned }))}
+                />
+              ) : (
+                <ul className="grid gap-3">
+                  {list.map((exam) => {
+                    const summary = firstLine(pickText({ ...exam }, "description", locale));
+                    const examAccess = resolveAccess(exam.access);
+                    return (
+                      <li key={exam.id} className="min-w-0">
+                        <ExamRow
+                          href={examPath(exam.id)}
+                          title={pickTitle(exam, locale)}
+                          meta={
+                            <>
+                              <TypePill type={exam.examType} />
+                              <span className="tabular-nums">{exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}</span>
+                            </>
+                          }
+                          summary={summary || null}
+                          right={
+                            exam.mine?.myStatus ? (
+                              <ExamStatusPill
+                                status={exam.mine.myStatus}
+                                examType={exam.examType}
+                                retakeAvailable={exam.mine.retakeAvailable}
+                              />
+                            ) : examAccess.via ? (
+                              <AccessBadge via={examAccess.via} />
+                            ) : exam.price !== null && exam.price !== undefined ? (
+                              <span className="grid justify-items-end gap-0.5 text-meta">
+                                <PriceLine label={priceLabel(pricingOf(exam.pricing, exam.price))} />
+                                <span className="font-semibold text-text-accent">{t("catalog.buy")} ›</span>
+                              </span>
+                            ) : (
+                              <span className="block max-w-28 text-end text-meta text-muted">{t("catalog.priceNotSet")}</span>
+                            )
+                          }
+                          favourite={<FavouriteButton kind="exam" id={exam.id} initial={exam.favourite} next={examPath(exam.id)} />}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : null}
 
-        <section
-          ref={buyRef}
-          aria-label={t("catalog.buyModule")}
-          className="grid gap-4 rounded-card border border-border bg-card p-5"
-        >
-          {moduleOwned ? (
-            <>
-              <Pill tone="ok">✓ {t("catalog.unlocked")}</Pill>
-              <ProgressBar done={mine.filter((e) => isDone(e.myStatus)).length} total={mine.length} />
-            </>
-          ) : price === null || price === undefined ? (
-            <p className="text-muted">{t("catalog.priceNotSet")}</p>
-          ) : (
-            <>
-              <div className="grid gap-1">
-                <span className="text-meta font-semibold uppercase tracking-wide text-muted">{t("catalog.buyModule")}</span>
-                <PriceLine label={priceLabel(pricingOf(data.pricing, price))} size="detail" />
-              </div>
-              <p className="text-body text-muted">{t("catalog.buyModuleCovers")}</p>
-              <IncludedList items={included} />
-              {buyAction(true)}
-            </>
-          )}
-        </section>
-      </div>
-
-      <div className="mt-6">
-        <Tabs
-          tabs={tabItems}
-          value={activeTab}
-          onChange={(value) => setTab(value as ModuleTab)}
-          ariaLabel={t("catalog.tabs.label")}
-        />
-      </div>
-
-      <div className="mt-5">
-        {activeTab === "exams" ? (
-          list.length === 0 ? (
-            <EmptyState
-              title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
-              body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
-            />
-          ) : bundleOrders && isStudent ? (
-            <BundleSelection
-              disabled={checkoutOff}
-              items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: chargedAmount(exam.pricing, exam.price), owned: resolveAccess(exam.access).owned }))}
-            />
-          ) : (
-            <ul className="grid gap-3">
-              {list.map((exam) => {
-                const summary = firstLine(pickText({ ...exam }, "description", locale));
-                const examAccess = resolveAccess(exam.access);
-                return (
-                  <li key={exam.id} className="min-w-0">
-                    <ExamRow
-                      href={examPath(exam.id)}
-                      title={pickTitle(exam, locale)}
-                      meta={
-                        <>
-                          <TypePill type={exam.examType} />
-                          <span className="tabular-nums">{exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}</span>
-                        </>
-                      }
-                      summary={summary || null}
-                      right={
-                        exam.mine?.myStatus ? (
-                          <ExamStatusPill
-                            status={exam.mine.myStatus}
-                            examType={exam.examType}
-                            retakeAvailable={exam.mine.retakeAvailable}
-                          />
-                        ) : examAccess.via ? (
-                          <AccessBadge via={examAccess.via} />
-                        ) : exam.price !== null && exam.price !== undefined ? (
-                          <span className="grid justify-items-end gap-0.5 text-meta">
-                            <PriceLine label={priceLabel(pricingOf(exam.pricing, exam.price))} />
-                            <span className="font-semibold text-text-accent">{t("catalog.buy")} ›</span>
-                          </span>
-                        ) : (
-                          <span className="block max-w-28 text-end text-meta text-muted">{t("catalog.priceNotSet")}</span>
-                        )
-                      }
-                      favourite={<FavouriteButton kind="exam" id={exam.id} initial={exam.favourite} next={examPath(exam.id)} />}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        ) : null}
-
-        {activeTab === "routine" ? (
-          list.length === 0 ? (
-            <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
-          ) : (
-            <>
-              <ul className="grid gap-3 md:hidden">
-                {list.map((exam) => (
-                  <li key={exam.id} className="grid gap-1 rounded-card border border-border bg-card p-4">
-                    <span className="text-label font-bold tabular-nums">
-                      {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
-                    </span>
-                    <span className="text-body text-muted tabular-nums">
-                      {exam.liveAt && exam.endAt ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}` : "—"}
-                    </span>
-                    <span className="font-semibold">{pickTitle(exam, locale)}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="hidden overflow-hidden rounded-card border border-border bg-card md:block">
-                <table className="w-full border-collapse text-body">
-                  <thead>
-                    <tr className="text-start text-meta uppercase tracking-wide text-muted">
-                      <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colExam")}</th>
-                      <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colDate")}</th>
-                      <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colTime")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+            {activeTab === "routine" ? (
+              list.length === 0 ? (
+                <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
+              ) : (
+                <>
+                  <ul className="grid gap-3 md:hidden">
                     {list.map((exam) => (
-                      <tr key={exam.id} className="border-t border-border">
-                        <td className="px-4 py-3 font-semibold">{pickTitle(exam, locale)}</td>
-                        <td className="px-4 py-3 tabular-nums">
+                      <li key={exam.id} className="grid gap-1 rounded-card border border-border bg-card p-4">
+                        <span className="text-label font-bold tabular-nums">
                           {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                        </span>
+                        <span className="text-body text-muted tabular-nums">
                           {exam.liveAt && exam.endAt ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}` : "—"}
-                        </td>
-                      </tr>
+                        </span>
+                        <span className="font-semibold">{pickTitle(exam, locale)}</span>
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )
-        ) : null}
+                  </ul>
+                  <div className="hidden overflow-hidden rounded-card border border-border bg-card md:block">
+                    <table className="w-full border-collapse text-body">
+                      <thead>
+                        <tr className="text-start text-meta uppercase tracking-wide text-muted">
+                          <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colExam")}</th>
+                          <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colDate")}</th>
+                          <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colTime")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {list.map((exam) => (
+                          <tr key={exam.id} className="border-t border-border">
+                            <td className="px-4 py-3 font-semibold">{pickTitle(exam, locale)}</td>
+                            <td className="px-4 py-3 tabular-nums">
+                              {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                              {exam.liveAt && exam.endAt ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )
+            ) : null}
 
-        {activeTab === "about" && description ? (
-          <p className="whitespace-pre-line text-body leading-relaxed text-muted">{description}</p>
-        ) : null}
-      </div>
+            {activeTab === "about" && description ? (
+              <p className="whitespace-pre-line text-body leading-relaxed text-muted">{description}</p>
+            ) : null}
+          </div>
+        </div>
+      </DetailLayout>
 
       {showBar ? (
         <div
