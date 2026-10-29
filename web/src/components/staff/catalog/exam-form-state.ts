@@ -306,9 +306,9 @@ function plainAsHtml(text: string): string {
 }
 
 /**
- * The value to keep for what the rich text editor reports. On mount the editor reports the stored value in its own
- * shape: an empty document as "<p></p>", and a plain text row as one paragraph per line. Neither is a change, so the
- * stored value is kept, and the section stays clean until someone types.
+ * The value to keep for what the rich text editor reports. An emptied editor reports "<p></p>", stored as "". A plain
+ * text row that the editor re-shapes into one paragraph per line keeps its stored text, so typing a character and then
+ * deleting it does not mark the section changed. (The editor no longer reports the stored value when it opens.)
  */
 export function richTextValue(reported: string, previous: string): string {
   if (reported.replace(/<\/?p>|<br\s*\/?>|\s/g, "") === "") {

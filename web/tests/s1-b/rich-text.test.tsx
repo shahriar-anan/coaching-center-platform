@@ -142,4 +142,47 @@ describe("rich text editor toolbar", () => {
     expect(within(screen.getByRole("textbox")).getByRole("list")).toHaveTextContent("Rule one");
     expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining("<ul><li><p>Rule one</p></li></ul>"));
   });
+
+  it("does not report the stored HTML when it opens, so the section stays clean", async () => {
+    const onChange = vi.fn();
+    renderWithProviders(<RichTextEditor value="<p>Stored <strong>rule</strong></p>" onChange={onChange} label="Rules" />, {
+      user: fixtures.masterAdmin,
+    });
+
+    const bold = await screen.findByRole("button", { name: "গাঢ়" });
+    await waitFor(() => expect(bold).toBeEnabled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole("textbox")).toHaveTextContent("Stored rule");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not report plain text that the editor re-shapes into paragraphs when it opens", async () => {
+    const onChange = vi.fn();
+    renderWithProviders(<RichTextEditor value={"Line one\nLine two"} onChange={onChange} label="Rules" />, {
+      user: fixtures.masterAdmin,
+    });
+
+    const bold = await screen.findByRole("button", { name: "গাঢ়" });
+    await waitFor(() => expect(bold).toBeEnabled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not report a value that the parent sets from outside, and reports what is typed after it", async () => {
+    const onChange = vi.fn();
+    const { rerender } = renderWithProviders(<RichTextEditor value="<p>First</p>" onChange={onChange} label="Rules" />, {
+      user: fixtures.masterAdmin,
+    });
+    const bold = await screen.findByRole("button", { name: "গাঢ়" });
+    await waitFor(() => expect(bold).toBeEnabled());
+
+    rerender(<RichTextEditor value="<p>Loaded from the server</p>" onChange={onChange} label="Rules" />);
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveTextContent("Loaded from the server"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("textbox"));
+    await userEvent.keyboard("!");
+    expect(onChange).toHaveBeenCalled();
+  });
 });

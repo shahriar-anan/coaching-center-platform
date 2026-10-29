@@ -136,8 +136,10 @@ export function RichTextEditor({
     editor.commands.setContent(htmlFromStored(value), { emitUpdate: false });
   }, [editor, value]);
 
+  // Tiptap's setEditable emits an update by default, which reported the stored value as a change when the field opened.
+  // The false stops that emit: a change of editability is not an edit.
   useEffect(() => {
-    editor?.setEditable(!disabled);
+    editor?.setEditable(!disabled, false);
   }, [editor, disabled]);
 
   // Which formats are on at the cursor, so the toolbar shows them pressed. Re-read on every change.
