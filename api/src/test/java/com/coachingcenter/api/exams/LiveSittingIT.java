@@ -1506,7 +1506,10 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		UUID marked = seed("STUDENT");
 		UUID unmarked = seed("STUDENT");
 		mark(master, published, marked);
-		mark(master, draftModule, marked);
+		// A student can only be added to a published package now, so the row on the draft package is written directly,
+		// as it would stand after a package was unpublished (its existing rows stay).
+		new JdbcTemplate(dataSource).update("insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())",
+			draftModule, marked);
 		String student = token(marked);
 
 		mockMvc.perform(get("/api/v1/me/exam-routine").header("Authorization", "Bearer " + student))

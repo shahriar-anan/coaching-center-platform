@@ -178,7 +178,6 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 		UUID student = seed("STUDENT", "Revoked Student");
 		String learner = token(student);
 		UUID module = module(system, "Revoke");
-		publish(system, module);
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + learner))
 			.andExpect(status().isNotFound());
 
@@ -231,7 +230,6 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 		UUID other = seed("STUDENT", "Second Buyer");
 		String learner = token(buyer);
 		UUID module = module(system, "Stuck");
-		publish(system, module);
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 		UUID confirmed = pendingOrder(jdbc, buyer, module);
 		UUID rejected = pendingOrder(jdbc, other, module);
@@ -682,7 +680,10 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 					""".formatted(categoryId, title)))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		// Direct enrollment needs a published package, so the test package is published as it is made.
+		publish(token, id);
+		return id;
 	}
 
 	private UUID exam(String token, UUID module) throws Exception {
@@ -698,7 +699,20 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 					"""))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		// Direct enrollment needs a published exam: give it one question, save it finally, and publish it as Master Admin.
+		mockMvc.perform(post("/api/v1/live-exams/" + id + "/questions").header("Authorization", "Bearer " + token)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"stem":"Two plus two","marks":2,"explanation":"Because","options":[{"text":"Yes","correct":true},{"text":"No","correct":false}]}
+					"""))
+			.andExpect(status().isCreated());
+		mockMvc.perform(post("/api/v1/live-exams/" + id + "/final-save").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + id + "/publish")
+			.header("Authorization", "Bearer " + token(seed("MASTER_ADMIN", "Exam Master"))))
+			.andExpect(status().isOk());
+		return id;
 	}
 
 	private static String body(UUID student, String scope, UUID module, UUID exam, String reason) {

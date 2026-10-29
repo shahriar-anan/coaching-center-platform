@@ -79,4 +79,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			""")
 	java.util.List<User> findStudentsByName(@Param("name") String name);
 
+	/** Students whose name or student code contains the text (ignoring case), for the add-by-search of a roster or a grant. */
+	@Query("""
+			SELECT u FROM User u, StudentProfile p
+			WHERE p.userId = u.id AND u.deletedAt IS NULL AND u.role = 'STUDENT'
+			  AND (lower(p.fullName) LIKE lower(concat('%', :text, '%'))
+			       OR lower(p.studentCode) LIKE lower(concat('%', :text, '%')))
+			ORDER BY p.fullName, u.id
+			""")
+	java.util.List<User> findStudentsByNameOrCode(@Param("text") String text);
+
 }

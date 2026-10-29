@@ -98,12 +98,12 @@ public class LiveExamRosterService {
 				return List.of();
 			}
 		}
-		return users.findStudentsByName(q).stream().map(this::match).toList();
+		return users.findStudentsByNameOrCode(q).stream().map(this::match).toList();
 	}
 
 	@Transactional
 	public StudentMatch mark(UUID moduleId, UUID studentId) {
-		requireModule(moduleId);
+		requirePublished(moduleId);
 		User student = requireStudent(studentId);
 		if (!roster.existsByModuleIdAndStudentId(moduleId, studentId)) {
 			LiveExamRoster row = new LiveExamRoster();
@@ -211,6 +211,14 @@ public class LiveExamRosterService {
 
 	private void requireModule(UUID moduleId) {
 		modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
+	}
+
+	/** A student can be added directly only to a published package (archived, draft or withdrawn ones refuse new enrollments; existing rows stay). */
+	private void requirePublished(UUID moduleId) {
+		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
+		if (!LiveExamModule.PUBLISHED.equals(module.getStatus())) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Direct enrollment needs a published package.");
+		}
 	}
 
 	private StudentMatch match(User user) {

@@ -70,15 +70,15 @@ public class LiveExamGrantAdminService {
 				throw validationFailed();
 			}
 			moduleId = request.moduleId();
-			if (modules.findByIdAndDeletedAtIsNull(moduleId).isEmpty()) {
-				throw notFound();
-			}
+			LiveExamModule target = modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
+			requirePublished(LiveExamModule.PUBLISHED.equals(target.getStatus()));
 		}
 		else if (LiveExamOrder.EXAM.equals(scope)) {
 			if (request.examId() == null) {
 				throw validationFailed();
 			}
 			exam = exams.findByIdAndDeletedAtIsNull(request.examId()).orElseThrow(this::notFound);
+			requirePublished(LiveExam.PUBLISHED.equals(exam.getStatus()));
 			// An exam grant names no package (R5). A package named here must be one the exam is in now.
 			if (request.moduleId() != null && !memberships.activeModuleIds(exam.getId()).contains(request.moduleId())) {
 				throw validationFailed();
@@ -169,4 +169,11 @@ public class LiveExamGrantAdminService {
 			UUID grantedBy, String reason, Instant createdAt, Instant revokedAt, UUID revokedBy, String revokeReason) {
 	}
 
+
+	/** Direct enrollment is only for a published exam or package. Existing grants stay when one is archived or unpublished. */
+	private static void requirePublished(boolean published) {
+		if (!published) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Direct enrollment needs a published exam or package.");
+		}
+	}
 }

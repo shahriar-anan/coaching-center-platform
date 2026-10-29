@@ -250,6 +250,39 @@ class LiveRosterIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
 	}
 
+	@Test
+	void theAddSearchFindsAStudentByTheStudentCodeShownOnTheirAccount() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID module = publishModule(master, "By code");
+		Student student = seedStudent("Code Finder");
+		String code = new JdbcTemplate(dataSource).queryForObject(
+				"select student_code from student_profiles where user_id = ?", String.class, student.id());
+
+		JsonNode matches = search(master, module, code);
+		assertThat(matches).hasSize(1);
+		assertThat(matches.get(0).get("id").asText()).isEqualTo(student.id().toString());
+	}
+
+	@Test
+	void directEnrollmentIsRefusedOnAPackageThatIsNotPublished() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID category = createCategory(master, "Draft roster cat");
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"categoryId":"%s","titleEn":"Draft roster","titleBn":"খসড়া","descriptionEn":"d","descriptionBn":"বি"}
+					""".formatted(category)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID draft = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
+		Student student = seedStudent("Refused Draft");
+
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + draft + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + student.id() + "\"}"))
+			.andExpect(status().isBadRequest());
+		assertThat(marked(draft, student.id())).isFalse();
+	}
+
 	private UUID publishModule(String token, String title) throws Exception {
 		UUID category = createCategory(token, title + " cat");
 		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + token)
