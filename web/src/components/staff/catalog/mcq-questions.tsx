@@ -102,7 +102,7 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
       ) : (
         <ol className="grid gap-3">
           {questions.map((question, index) => (
-            <li key={question.id} id={`question-${question.id}`} className="grid scroll-mt-24 gap-3 rounded-card border border-border bg-card p-4">
+            <li key={question.id} id={`question-${question.id}`} className="grid scroll-mt-24 gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-meta text-muted">

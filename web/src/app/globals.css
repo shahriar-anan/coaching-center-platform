@@ -204,6 +204,7 @@
   /* Softened from pure white and cream so the cards read as paper on the page (decided 29 October 2026). */
   --bg: #efebe1;
   --card: #faf8f3;
+  --card-shadow: none;
   --text: #14213d;
   --muted: #5d6578;
   --accent: #c8962e;
@@ -231,8 +232,10 @@
 
 /* Admin panel, light. */
 [data-surface="staff"] {
-  --bg: #f4f6f8;
+  /* A cooler, deeper page than the first light value, so the white cards separate from it; the card shadow adds the edge. */
+  --bg: #e6ebf1;
   --card: #ffffff;
+  --card-shadow: 0 1px 2px rgb(28 36 48 / 0.08), 0 3px 10px rgb(28 36 48 / 0.06);
   --text: #1c2430;
   --muted: #5c6b7a;
   --border: #b4bfcc;

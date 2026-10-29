@@ -135,7 +135,7 @@ function ExamCard({
     ...(price ? [[labels.price, price] as [string, string]] : []),
   ];
   return (
-    <li className="grid gap-3 rounded-card border border-border bg-card p-4">
+    <li className="grid gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
       <p className="font-semibold">{title}</p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-meta">
         {facts.map(([term, value]) => (

@@ -354,7 +354,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                   ) : null}
                 </div>
               ) : (
-                <div role="group" aria-label={t("staffCatalog.moduleForm.newCategoryHeading")} className="grid gap-4 rounded-card border border-border bg-card p-4">
+                <div role="group" aria-label={t("staffCatalog.moduleForm.newCategoryHeading")} className="grid gap-4 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
                   <h3 className="text-label font-semibold">{t("staffCatalog.moduleForm.newCategoryHeading")}</h3>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label={t("staffCatalog.categoryForm.titleEn")} required error={newCategoryErrors.titleEn}>
@@ -484,7 +484,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
       {module && role.canManageCover ? <CoverUploader module={module} /> : null}
 
       {module && !readOnly && role.canAuthor ? (
-        <section aria-labelledby="module-publish-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card p-5">
+        <section aria-labelledby="module-publish-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="module-publish-heading" className="text-card-title font-semibold">
               {t("staffCatalog.moduleForm.publishHeading")}

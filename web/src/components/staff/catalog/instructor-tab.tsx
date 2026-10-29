@@ -95,7 +95,7 @@ function InstructorPicker({ moduleId, open, onOpenChange }: { moduleId: string; 
             ) : null}
             <ul className="grid gap-3">
               {(directory.data?.content ?? []).map((r) => (
-                <li key={r.id} className="grid gap-3 rounded-card border border-border bg-card p-4">
+                <li key={r.id} className="grid gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="grid min-w-0 gap-0.5">
                       <p className="font-semibold break-words">{r.fullName ?? "—"}</p>
@@ -150,7 +150,7 @@ export function InstructorTab({ moduleId }: { moduleId: string }) {
   return (
     <div className="grid gap-4">
       {person ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-4">
           <div>
             <p className="font-medium">{person.name}</p>
             <p className="text-meta text-muted" dir="ltr">{person.phone ?? ""}</p>

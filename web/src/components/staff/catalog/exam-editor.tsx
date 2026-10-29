@@ -173,7 +173,7 @@ function NextStepCard({ moduleId, canAssign }: { moduleId: string | null; canAss
   const { t } = useLocale();
   const choice = "grid min-h-11 gap-1 rounded-control border border-border-control bg-field p-4 hover:border-muted";
   return (
-    <section aria-labelledby="exam-next-heading" className="grid gap-4 rounded-card border border-border bg-card p-5">
+    <section aria-labelledby="exam-next-heading" className="grid gap-4 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
       <div className="grid gap-1">
         <h2 id="exam-next-heading" className="text-card-title font-semibold">
           {t("staffCatalog.next.heading")}
@@ -392,7 +392,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
 
           <SectionBlock id="exam-publish" number={numberFor(5)} title={t("staffCatalog.sections.publish")} state={sectionState.publish}>
             {canEdit ? (
-              <section aria-labelledby="exam-checklist-heading" className="grid max-w-3xl gap-3 rounded-card border border-border bg-card p-5">
+              <section aria-labelledby="exam-checklist-heading" className="grid max-w-3xl gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
                 <h3 id="exam-checklist-heading" className="text-label font-semibold">
                   {t("staffCatalog.checklist.heading")}
                 </h3>

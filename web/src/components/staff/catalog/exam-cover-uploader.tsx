@@ -61,7 +61,7 @@ export function ExamCoverUploader({ exam }: { exam: StaffExam }) {
   }
 
   return (
-    <section aria-labelledby="exam-cover-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card p-5">
+    <section aria-labelledby="exam-cover-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
       <h3 id="exam-cover-heading" className="text-card-title font-semibold">
         {t("catalog.package.cover.heading")}
       </h3>
