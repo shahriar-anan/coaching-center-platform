@@ -146,7 +146,7 @@ function NoticeRow({ notice, tab, onOpen }: { notice: Notice; tab: NoticeGroup; 
           {startsAt ? <span>{t("notices.startsAt", { time: formatDateTime(startsAt, locale) })}</span> : null}
           {hasScore ? (
             <Pill tone="muted">
-              {t("notices.score", { score: formatNumber(notice.score, locale), max: formatNumber(notice.maximum, locale) })}
+              {t("notices.score", { score: formatNumber(notice.score ?? 0, locale), max: formatNumber(notice.maximum ?? 0, locale) })}
             </Pill>
           ) : null}
           {isMissing(notice.passed) ? null : (

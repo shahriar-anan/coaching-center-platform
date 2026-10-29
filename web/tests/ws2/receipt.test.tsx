@@ -18,6 +18,10 @@ const order = {
   examTitleBn: "বিজেএস মক ১",
   paymentChannel: "bKash",
   createdAt: "2026-11-01T04:30:00Z",
+  listPrice: null,
+  discountPercent: null,
+  paidAt: null,
+  receiptNo: null,
 };
 
 describe("payment receipt", () => {

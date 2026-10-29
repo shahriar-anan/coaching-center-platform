@@ -113,7 +113,7 @@ function AccessLine({ orderId }: { orderId: string }) {
   }
   const end = accessEnd(grant);
   if (end.kind === "expired") {
-    return <span>{t("account.payments.detail.accessExpired", { date: formatDate(grant.endsAt, locale, { year: "auto" }) })}</span>;
+    return <span>{t("account.payments.detail.accessExpired", { date: formatDate(grant.endsAt ?? "", locale, { year: "auto" }) })}</span>;
   }
   if (end.kind === "lifetime") {
     return <span>{t("account.payments.detail.accessLifetime")}</span>;
@@ -171,11 +171,13 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
     }
   }
 
-  function cancelOrder() {
-    cancel.mutate(order.orderId, {
-      onSuccess: () => toast({ title: t("account.payments.detail.cancelled"), tone: "ok" }),
-      onError: () => toast({ title: t("common.states.errorBody"), tone: "danger" }),
-    });
+  async function cancelOrder() {
+    try {
+      await cancel.mutateAsync(order.orderId);
+      toast({ title: t("account.payments.detail.cancelled"), tone: "ok" });
+    } catch {
+      toast({ title: t("common.states.errorBody"), tone: "danger" });
+    }
   }
 
   return (

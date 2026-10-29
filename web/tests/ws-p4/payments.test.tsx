@@ -2,7 +2,6 @@ import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import PaymentsPage from "@/app/(site)/account/payments/page";
 import {
-  NO_FILTERS,
   actionsFor,
   hasDiscount,
   hasFilters,
