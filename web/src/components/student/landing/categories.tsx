@@ -4,6 +4,7 @@ import { formatMoney, pickTitle } from "@/lib/format";
 import { useCategoryTree } from "@/lib/api/exam/catalog";
 import { useLocale } from "@/i18n/locale-context";
 import { categoryCards } from "@/components/student/landing/landing-data";
+import { DoorIcon } from "@/components/student/door-icon";
 
 /**
  * The hero's way in: the mockup's two doors, MCQ and written, under the old
@@ -21,7 +22,7 @@ export function HeroCategories() {
           href="/mcq"
           className="block rounded-card border border-border bg-card p-5 text-center transition hover:-translate-y-0.5 hover:border-accent"
         >
-          <span aria-hidden="true" className="block text-3xl">✅</span>
+          <DoorIcon kind="mcq" />
           <span className="mt-1 block text-title font-bold">{t("home.doorMcqTitle")}</span>
           <span className="block text-meta text-muted">{t("home.doorMcqSub")}</span>
         </Link>
@@ -29,7 +30,7 @@ export function HeroCategories() {
           href="/written"
           className="block rounded-card border border-border bg-card p-5 text-center transition hover:-translate-y-0.5 hover:border-accent"
         >
-          <span aria-hidden="true" className="block text-3xl">✍️</span>
+          <DoorIcon kind="written" />
           <span className="mt-1 block text-title font-bold">{t("home.doorWrittenTitle")}</span>
           <span className="block text-meta text-muted">{t("home.doorWrittenSub")}</span>
         </Link>

@@ -10,6 +10,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { Button } from "@/components/ui/button";
 import { DoorActions } from "@/components/student/catalog/door-actions";
+import { DoorIcon } from "@/components/student/door-icon";
 import { Card } from "@/components/ui/card";
 import { Countdown } from "@/components/ui/countdown";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -84,7 +85,7 @@ function Doors() {
         href="/mcq"
         className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
       >
-        <span aria-hidden className="block text-4xl">✅</span>
+        <DoorIcon kind="mcq" className="size-12" />
         <span className="mt-1 block text-title font-bold">{t("home.doorMcqTitle")}</span>
         <span className="block text-meta text-muted">{t("home.doorMcqSub")}</span>
       </Link>
@@ -92,7 +93,7 @@ function Doors() {
         href="/written"
         className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
       >
-        <span aria-hidden className="block text-4xl">✍️</span>
+        <DoorIcon kind="written" className="size-12" />
         <span className="mt-1 block text-title font-bold">{t("home.doorWrittenTitle")}</span>
         <span className="block text-meta text-muted">{t("home.doorWrittenSub")}</span>
       </Link>
