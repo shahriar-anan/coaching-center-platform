@@ -87,8 +87,9 @@ Phase A writes `footer-old-site.md` in the scratchpad and reports the table and 
 - Commit: Phase A has no repo change. Phase B commits: the copy and keys; the variant rule and the page wiring; the tests. Each commit message ends with `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
 - Do not start or stop servers. The owner's servers are stopped; the coordinator starts them for checking.
 
-## 9. Open questions for the owner
+## 9. Owner decisions (answers, 2026-10-29)
 
-1. Confirm the page matrix in section 4, especially: no footer on the sitting page, and minimal footer on login and register.
-2. Should the footer also show on the staff login page (`StaffAuthShell` currently has none)? Default: no.
-3. Bangla for the old site's English-only items: keep as draft, or leave the English? Default: keep the draft and list the items.
+1. Page matrix: confirmed as in section 4. Full footer on public and student pages; minimal footer (copyright and legal links) on login, register and the other student sign-in pages; no footer on the exam sitting page.
+2. Staff login page and every staff and admin page: no footer. This is final.
+3. Bilingual: the footer keeps both Bangla and English. The footer follows the locale the visitor picks, as the rest of the site does. Every footer item has an English and a Bangla text. Where the old site has English only, write a Bangla draft, keep it in the catalogue, and list it in the report as a draft for the client to confirm. Do not leave a footer item in English only.
+4. Decisions were based on the ed-tech research in section 3, as the owner asked.
