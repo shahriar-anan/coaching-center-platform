@@ -47,9 +47,11 @@ export function PaymentsTable({
       key: "date",
       header: t("staffOps.payments.columns.date"),
       mobileLabel: t("staffOps.payments.columns.date"),
+      width: "w-52",
+      nowrap: true,
       cell: (row) => (
-        <span className="grid gap-0.5">
-          <span>{format.formatDateTime(row.createdAt)}</span>
+        <span className="grid gap-1.5">
+          <span className="font-medium">{format.formatDateTime(row.createdAt)}</span>
           {row.status === "SUCCEEDED" && row.paidAt ? (
             <span className="text-meta text-muted">
               {t("staffOps.payments.paidLine", { time: format.formatDateTime(row.paidAt) })}
@@ -63,15 +65,16 @@ export function PaymentsTable({
       key: "student",
       header: t("staffOps.payments.columns.student"),
       mobileLabel: t("staffOps.payments.columns.student"),
+      width: "w-56",
       cell: (row) => (
-        <span className="grid gap-0.5">
+        <span className="grid gap-1.5">
           <Link
             href={`/staff/students/${row.studentId}`}
-            className="font-medium text-text underline-offset-4 hover:underline"
+            className="font-semibold text-text underline-offset-4 hover:underline"
           >
             {row.studentName ?? t("staffOps.payments.unnamed")}
           </Link>
-          <span className="font-latin text-meta tabular-nums text-muted">{row.studentPhone}</span>
+          <span className="whitespace-nowrap font-latin text-meta tabular-nums text-muted">{row.studentPhone}</span>
         </span>
       ),
     },
@@ -86,11 +89,13 @@ export function PaymentsTable({
       header: t("staffOps.payments.columns.amount"),
       mobileLabel: t("staffOps.payments.columns.amount"),
       align: "end",
+      width: "w-48",
+      nowrap: true,
       cell: (row) => (
-        <span className="grid justify-items-end gap-0.5">
-          <span className="font-medium tabular-nums">{format.formatMoney(row.amount)}</span>
+        <span className="grid justify-items-end gap-1.5">
+          <span className="text-body font-semibold tabular-nums">{format.formatMoney(row.amount)}</span>
           {row.paymentChannel ? <span className="text-meta text-muted">{row.paymentChannel}</span> : null}
-          <span className="break-all font-latin text-meta tabular-nums text-muted">{row.tranId}</span>
+          <span className="font-latin text-meta tabular-nums text-muted">{row.tranId}</span>
         </span>
       ),
     },
@@ -98,6 +103,8 @@ export function PaymentsTable({
       key: "status",
       header: t("staffOps.payments.columns.status"),
       mobileLabel: t("staffOps.payments.columns.status"),
+      width: "w-28",
+      nowrap: true,
       cell: (row) => {
         const key = paymentStatusKey(row.status);
         return <Pill tone={paymentStatusTone(key)}>{t(`staffOps.payments.status.${key}`)}</Pill>;
@@ -147,10 +154,10 @@ function ProductName({ row }: { row: StaffOrderRow }) {
   const scope = t(`staffOps.payments.scope.${scopeKey(row.scope)}`);
   const access = t(`staffOps.payments.access.${accessCopyKey(row)}`);
   return (
-    <span className="grid max-w-56 gap-0.5">
+    <span className="grid max-w-80 gap-1">
       <Link
         href={`/staff/payments/${encodeURIComponent(row.tranId)}`}
-        className="font-medium text-text underline-offset-4 hover:underline"
+        className="font-semibold text-text underline-offset-4 hover:underline"
       >
         <span className="line-clamp-2">{title}</span>
       </Link>

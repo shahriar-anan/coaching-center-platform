@@ -10,7 +10,10 @@ import { DirectEnrolment, type FoundStudent } from "@/components/staff/enrol/dir
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Opened from a student's page with `?student=<id>`, the list starts with that student already on it. */
+/**
+ * Opened from a student's page with `?student=<id>`, the list starts with that student already on it. Opened from a
+ * package or exam menu with `?package=<id>` or `?exam=<id>`, that target is already chosen.
+ */
 function EnrolRoute() {
   const params = useSearchParams();
   const studentId = params?.get("student") ?? null;
@@ -25,11 +28,13 @@ function EnrolRoute() {
     return <Skeleton variant="card" count={2} />;
   }
   const examId = params?.get("exam") ?? undefined;
+  const packageId = params?.get("package") ?? undefined;
   return (
     <DirectEnrolment
-      key={`${studentId ?? "none"}-${examId ?? "any"}`}
+      key={`${studentId ?? "none"}-${examId ?? "any"}-${packageId ?? "any"}`}
       initialStudents={student.data ? [student.data] : []}
       initialExamId={examId}
+      initialPackageId={packageId}
     />
   );
 }

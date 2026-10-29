@@ -73,8 +73,9 @@ class ExamMailIT extends PostgresIntegrationTest {
 		Student active = student("ACTIVE");
 		Student inactive = student("INACTIVE");
 		Student stranger = student("ACTIVE");
-		roster.mark(fixture.moduleId, active.id);
-		roster.mark(fixture.moduleId, inactive.id);
+		// The package is still a draft here, and direct enrollment refuses drafts, so the roster rows are written directly.
+		jdbc.update("insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())", fixture.moduleId, active.id);
+		jdbc.update("insert into live_exam_roster (module_id, student_id, created_at) values (?, ?, now())", fixture.moduleId, inactive.id);
 		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isZero();
 
 		exams.publish(fixture.examId);

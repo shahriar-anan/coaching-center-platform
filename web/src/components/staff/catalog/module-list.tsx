@@ -57,9 +57,16 @@ export function ModuleList() {
 
   const rowMenu = (m: StaffModule) => {
     const items: RowMenuItem[] = [{ label: t("staffCatalog.rowMenu.edit"), href: `/staff/modules/${m.id}` }];
+    if (role.canManageRoster) {
+      items.push({ label: t("staffCatalog.rowMenu.students"), href: `/staff/enrolments?package=${m.id}` });
+    }
     items.push({ label: t("staffCatalog.rowMenu.exams"), href: `/staff/modules/${m.id}?tab=exams` });
     if (role.canManageRoster) {
-      items.push({ label: t("staffCatalog.rowMenu.roster"), href: `/staff/modules/${m.id}?tab=roster` });
+      items.push({
+        label: t("staffCatalog.rowMenu.roster"),
+        href: `/staff/enrol?package=${m.id}`,
+        disabled: m.status !== "PUBLISHED",
+      });
     }
     if (role.canAssignInstructor) {
       items.push({ label: t("staffCatalog.rowMenu.instructor"), href: `/staff/modules/${m.id}?tab=instructor` });

@@ -47,6 +47,7 @@ const staffExams = {
     leaderboard: "মেধাতালিকা",
     copy: "কপি করুন",
     withdraw: "প্রত্যাহার",
+    students: "শিক্ষার্থী",
     enrol: "সরাসরি ভর্তি",
     delete: "মুছুন",
     also: "আরও {count}টি প্যাকেজে আছে",

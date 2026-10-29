@@ -80,43 +80,20 @@ describe("StudentAccessSection", () => {
     expect(screen.queryByRole("button", { name: "হাতে অ্যাক্সেস দিন" })).not.toBeInTheDocument();
   });
 
-  it("asks for a reason before it grants access by hand", async () => {
-    const { calls } = mockApi({
-      [`GET /api/v1/students/${studentId}/live-exam-access`]: access,
-      "GET /api/v1/live-exam-modules": modules,
-    });
-    renderWithProviders(<StudentAccessSection studentId={studentId} studentName="রহিম" />, {
-      user: fixtures.masterAdmin,
-    });
-    const user = userEvent.setup();
-
-    await screen.findAllByText("হাতে দেওয়া");
-    await user.click(screen.getByRole("button", { name: "হাতে অ্যাক্সেস দিন" }));
-    await user.click(screen.getByRole("button", { name: "অ্যাক্সেস দিন" }));
-
-    expect(await screen.findByText("একটি প্যাকেজ বাছুন।")).toBeInTheDocument();
-    expect(screen.getByText("কারণ লিখতে হবে।")).toBeInTheDocument();
-    expect(calls.some((call) => call.method === "POST")).toBe(false);
-  });
-
-  it("shows the mapped message when the grant already exists", async () => {
+  it("sends Master Admin to the direct enrolment screen for this student", async () => {
     mockApi({
       [`GET /api/v1/students/${studentId}/live-exam-access`]: access,
       "GET /api/v1/live-exam-modules": modules,
-      "POST /api/v1/live-exam-grants": apiError(409, "GRANT_ALREADY_ACTIVE", "Already granted."),
     });
     renderWithProviders(<StudentAccessSection studentId={studentId} studentName="রহিম" />, {
       user: fixtures.masterAdmin,
     });
-    const user = userEvent.setup();
 
     await screen.findAllByText("হাতে দেওয়া");
-    await user.click(screen.getByRole("button", { name: "হাতে অ্যাক্সেস দিন" }));
-    await user.selectOptions(screen.getByLabelText(/^প্যাকেজ/), modules.content[0].id);
-    await user.type(screen.getByLabelText(/^কারণ/), "ভর্তির জন্য");
-    await user.click(screen.getByRole("button", { name: "অ্যাক্সেস দিন" }));
-
-    expect(await screen.findByText("এই শিক্ষার্থীর এই প্যাকেজ বা পরীক্ষায় অ্যাক্সেস আগে থেকেই আছে।")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "হাতে অ্যাক্সেস দিন" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(`/staff/enrol?student=${studentId}`),
+    );
   });
 
   it("shows the error state when the list cannot load", async () => {

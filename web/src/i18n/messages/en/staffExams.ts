@@ -47,6 +47,7 @@ const staffExams = {
     leaderboard: "Leaderboard",
     copy: "Copy",
     withdraw: "Withdraw",
+    students: "Students",
     enrol: "Direct enrolment",
     delete: "Delete",
     also: "Also in {count} packages",

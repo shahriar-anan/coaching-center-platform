@@ -164,7 +164,7 @@ export function StaffQuickSearch() {
         onFocus={() => setOpen(true)}
         onBlur={close}
         onKeyDown={onKeyDown}
-        className="min-h-10 w-full rounded-control border border-border bg-card ps-9 pe-3 text-body text-text placeholder:text-muted focus:border-accent"
+        className="min-h-10 w-full rounded-control border border-border-control bg-card ps-9 pe-3 text-body text-text placeholder:text-muted focus:border-accent"
       />
       {showList ? (
         <div

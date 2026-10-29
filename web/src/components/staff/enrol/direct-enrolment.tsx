@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SearchInput } from "@/components/ui/search-input";
 import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { EnrolledList } from "@/components/staff/enrol/enrolled-list";
 
 /** A student as the staff students list shows them. The code, phone and email are what an admin recognises. */
 export type FoundStudent = {
@@ -53,7 +54,7 @@ function useStudentFinder(text: string) {
 function StudentLine({ student }: { student: FoundStudent }) {
   return (
     <span className="grid gap-0.5">
-      <span className="font-medium text-text">{student.fullName}</span>
+      <span className="font-bold text-text">{student.fullName}</span>
       <span className="text-meta text-muted" dir="ltr">
         {[student.studentCode, student.phone, student.email].filter(Boolean).join(" · ")}
       </span>
@@ -64,15 +65,24 @@ function StudentLine({ student }: { student: FoundStudent }) {
 /**
  * Master Admin only: add students to a list, one search at a time, then enrol everyone on the list in one go with a
  * reason. A package or an exam is chosen first, and only published ones can be chosen. Each student gets their own result.
+ * A package or exam passed in from its menu is chosen already.
  */
-export function DirectEnrolment({ initialStudents, initialExamId }: { initialStudents: FoundStudent[]; initialExamId?: string }) {
+export function DirectEnrolment({
+  initialStudents,
+  initialPackageId,
+  initialExamId,
+}: {
+  initialStudents: FoundStudent[];
+  initialPackageId?: string;
+  initialExamId?: string;
+}) {
   const { t } = useLocale();
   const { pickTitle, formatNumber } = useFormat();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [scope, setScope] = useState<Scope>(initialExamId ? "EXAM" : "PACKAGE");
-  const [targetId, setTargetId] = useState(initialExamId ?? "");
+  const [targetId, setTargetId] = useState(initialExamId ?? initialPackageId ?? "");
   const [text, setText] = useState("");
   const [list, setList] = useState<FoundStudent[]>(initialStudents);
   const [reason, setReason] = useState("");
@@ -195,9 +205,9 @@ export function DirectEnrolment({ initialStudents, initialExamId }: { initialStu
           ) : found.length === 0 ? (
             <p className="text-meta text-muted">{t("common.search.noResults")}</p>
           ) : (
-            <ul className="grid divide-y divide-border rounded-control border border-border">
+            <ul className="grid gap-2">
               {found.map((student) => (
-                <li key={student.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+                <li key={student.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-control bg-card px-4 py-3 shadow-sm">
                   <StudentLine student={student} />
                   {inList.has(student.id) ? (
                     <span className="inline-flex items-center gap-1 text-meta text-ok-text">
@@ -229,11 +239,11 @@ export function DirectEnrolment({ initialStudents, initialExamId }: { initialStu
           {list.length === 0 ? (
             <p className="rounded-control border border-dashed border-border p-4 text-meta text-muted">{t("staffAdmin.enrol.listEmpty")}</p>
           ) : (
-            <ul className="grid divide-y divide-border rounded-control border border-border">
+            <ul className="grid gap-2">
               {list.map((student) => {
                 const outcome = outcomes[student.id];
                 return (
-                  <li key={student.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <li key={student.id} className="flex items-center justify-between gap-3 rounded-control border border-border-control bg-card px-4 py-3 shadow-sm">
                     <div className="grid min-w-0 gap-0.5">
                       <StudentLine student={student} />
                       {outcome && !outcome.ok ? (
@@ -267,6 +277,14 @@ export function DirectEnrolment({ initialStudents, initialExamId }: { initialStu
           </div>
         </Card>
       </form>
+
+      {/* Below both columns: who is already on the chosen package or exam, newest first, so a student just enrolled is at the top. */}
+      {targetId ? (
+        <Card as="section" padding="md" className="grid gap-4 lg:col-span-2">
+          <h2 className="text-card-title font-semibold">{t("staffAdmin.enrol.enrolledHeading")}</h2>
+          <EnrolledList scope={scope === "PACKAGE" ? "MODULE" : "EXAM"} targetId={targetId} />
+        </Card>
+      ) : null}
 
     </div>
   );

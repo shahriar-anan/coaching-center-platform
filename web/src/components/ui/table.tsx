@@ -45,14 +45,14 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
     <>
       <div className="hidden overflow-x-auto rounded-card border border-border-control bg-card sm:block">
         <table className="w-full min-w-[32rem] border-collapse text-body">
-          <thead className="sticky top-0 bg-card">
-            <tr className="border-b border-border-control text-start text-muted">
+          <thead className="sticky top-0 bg-bg">
+            <tr className="border-b border-border-control text-start text-text">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
                   className={cn(
-                    "px-3 py-2.5 font-medium",
+                    "px-4 py-3 text-meta font-semibold",
                     col.width,
                     col.nowrap && "whitespace-nowrap",
                     col.align === "end" ? "text-end" : "text-start",
@@ -68,13 +68,16 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty }: 
               <tr
                 key={rowKey(row)}
                 onClick={clickable ? () => onRowClick?.(row) : undefined}
-                className={cn("border-b border-border last:border-0", clickable && "cursor-pointer hover:bg-bg")}
+                className={cn(
+                  "border-b border-border-control/60 last:border-0 even:bg-bg hover:bg-accent/10",
+                  clickable && "cursor-pointer",
+                )}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
                     className={cn(
-                      "px-3 py-2.5 align-middle",
+                      "px-4 py-4 align-middle",
                       col.width,
                       col.nowrap && "whitespace-nowrap",
                       col.align === "end" ? "text-end" : "text-start",

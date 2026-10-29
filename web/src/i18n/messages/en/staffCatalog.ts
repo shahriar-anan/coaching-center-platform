@@ -671,6 +671,7 @@ const staffCatalog = {
   rowMenu: {
     label: "Actions for {name}",
     edit: "Edit",
+    students: "Students",
     exams: "Exams",
     roster: "Direct enrolment",
     instructor: "Teacher",

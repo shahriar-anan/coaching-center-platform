@@ -215,55 +215,55 @@ html:lang(bn) {
   --font-inter: "Inter";
 }
 
-/* Student site, light. */
+/* Student site, light. White cards on a pale cool page, slate text, the logo's navy for the primary action and gold only
+   for accents (the current-item bar, badges, the wordmark). Every text pair is AA or better. */
 :root,
 [data-surface="site"] {
-  /* Softened from pure white and cream so the cards read as paper on the page (decided 29 October 2026). */
-  --bg: #efebe1;
-  --card: #faf8f3;
-  --card-shadow: none;
-  --text: #14213d;
-  --muted: #5d6578;
+  --bg: #e3e8f0;
+  --card: #ffffff;
+  --card-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 2px 8px rgb(15 23 42 / 0.05);
+  --text: #0f172a;
+  --muted: #475569;
   --accent: #c8962e;
-  --accent-text: #8a5f12;
+  --accent-text: #7a5410;
   --on-accent: #14213d;
-  --border: #d9d3c3;
-  /* Field and table-frame edges. The student site keeps its current value this round. */
-  --border-control: #cfc8b6;
-  --field: #faf8f3;
-  --warn: #c2410c;
-  --warn-fill: #e8590c;
+  --border: #cbd5e1;
+  /* Field and table-frame edges: 4.8:1 on the card and 3.9:1 on the page, above the 3:1 WCAG 1.4.11 line. */
+  --border-control: #64748b;
+  --field: #ffffff;
+  --warn: #b03a0a;
+  --warn-fill: #b03a0a;
   --ok: #2f9e44;
-  --ok-text: #1f7a4d;
+  --ok-text: #1a6b42;
   --danger: #b42318;
   --radius-card-value: 16px;
   --radius-control-value: 12px;
-  --action: #c8962e;
-  --on-action: #14213d;
+  --action: #14213d;
+  --on-action: #ffffff;
   /* Navy band on the landing page: the logo's navy, with cream text. */
   --band: #14213d;
   --on-band: #f6f4ee;
-  /* Text on the warn fill (unread badges). White reads on the orange in both themes. */
+  /* Text on the warn fill (unread badges): 6.1:1 on the darker orange. */
   --on-warn: #ffffff;
 }
 
-/* Admin panel, light. */
+/* Admin panel, light. A cool slate page with white cards and the navy action. Secondary text is slate-700: near-black,
+   and still a clear step below the slate-900 body text. */
 [data-surface="staff"] {
-  /* A cooler, deeper page than the first light value, so the white cards separate from it; the card shadow adds the edge. */
-  --bg: #e6ebf1;
+  --bg: #e2e8f0;
   --card: #ffffff;
-  --card-shadow: 0 1px 2px rgb(28 36 48 / 0.08), 0 3px 10px rgb(28 36 48 / 0.06);
-  --text: #1c2430;
-  --muted: #5c6b7a;
-  --border: #b4bfcc;
-  /* 3.4:1 on white and 3.2:1 on the page, so a field edge is visible at rest (WCAG 1.4.11). */
-  --border-control: #7f8c9b;
+  --card-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 2px 8px rgb(15 23 42 / 0.05);
+  --text: #0f172a;
+  --muted: #334155;
+  --border: #e2e8f0;
+  /* Field edges: 4.8:1 on white and 4.3:1 on the page (WCAG 1.4.11 asks for 3:1). */
+  --border-control: #64748b;
   --field: #ffffff;
   --action: #1f4e79;
   --on-action: #ffffff;
   --danger: #9b2c2c;
   --ok: #1f7a4d;
-  --ok-text: #1f7a4d;
+  --ok-text: #186a40;
   /* Warning text: 5.4:1 on the admin page (was 4.5:1, just under the line). The fill keeps the old colour. */
   --warn: #8a5c00;
   --warn-fill: #9a6700;

@@ -120,7 +120,7 @@ describe("placement: student page", () => {
     mockApi(studentRoutes());
     renderStudentPage(fixtures.masterAdmin);
 
-    expect(await screen.findByRole("button", { name: "হাতে অ্যাক্সেস দিন" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "হাতে অ্যাক্সেস দিন" })).toBeInTheDocument();
     expect((await screen.findAllByRole("button", { name: "অ্যাক্সেস বাতিল" })).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "সরাসরি ভর্তিতে যোগ করুন" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "নিষ্ক্রিয় করুন" })).toBeInTheDocument();

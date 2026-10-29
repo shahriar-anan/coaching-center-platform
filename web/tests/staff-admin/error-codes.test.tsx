@@ -27,7 +27,7 @@ const modules = {
 };
 
 describe("unknown error codes on the admin screens", () => {
-  it("the grant form shows the generic message, not the raw code", async () => {
+  it("the grant link opens the enrol screen, so no grant form is shown here", async () => {
     mockApi({
       [`GET /api/v1/students/${studentId}/live-exam-access`]: access,
       "GET /api/v1/live-exam-modules": modules,
@@ -37,14 +37,9 @@ describe("unknown error codes on the admin screens", () => {
       user: fixtures.masterAdmin,
       locale: "bn",
     });
-    const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: bnStaffAdmin.access.grantOpen }));
-    await user.selectOptions(screen.getByLabelText(/^প্যাকেজ/), modules.content[0].id);
-    await user.type(screen.getByLabelText(/^কারণ/), "ভর্তির জন্য");
-    await user.click(screen.getByRole("button", { name: bnStaffAdmin.grant.submit }));
-
-    expect(await screen.findByText(bnStaffAdmin.errors.generic)).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: bnStaffAdmin.access.grantOpen })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^কারণ/)).not.toBeInTheDocument();
     expect(screen.queryByText(new RegExp(RAW_CODE))).not.toBeInTheDocument();
     expect(screen.queryByText(new RegExp(RAW_TEXT))).not.toBeInTheDocument();
   });

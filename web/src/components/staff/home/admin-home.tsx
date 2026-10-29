@@ -70,7 +70,7 @@ function SummaryCards({ showPayments }: { showPayments: boolean }) {
       {cards.map((card) => (
         <li key={card.key}>
           <Card href={card.href} className="h-full">
-            <p className="text-meta text-muted">{card.label}</p>
+            <p className="text-meta font-bold text-muted">{card.label}</p>
             <p className="mt-1 text-section font-semibold tabular-nums">{formatNumber(card.value)}</p>
           </Card>
         </li>

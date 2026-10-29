@@ -147,7 +147,7 @@ describe("access matrix: student page", () => {
     expect((await screen.findAllByRole("button", { name: bnStaffAdmin.access.revoke })).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: bnStaffAdmin.account.suspend })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: bnStaffAdmin.account.deleteAction })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: bnStaffAdmin.access.grantOpen })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: bnStaffAdmin.access.grantOpen })).toBeInTheDocument();
   });
 
   it("System Admin sees the access rows and can suspend, but has no grant control and no delete", async () => {

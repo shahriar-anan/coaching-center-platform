@@ -47,8 +47,18 @@ const staffAdmin = {
     grantOpen: "হাতে অ্যাক্সেস দিন",
     paymentLink: "পেমেন্ট দেখুন",
   },
+  enrolments: {
+    title: "ভর্তি হওয়া শিক্ষার্থী",
+    noTarget: "কোনো প্যাকেজ বা পরীক্ষার মেনু থেকে এই তালিকা খুলুন।",
+    empty: "এখনো কোনো শিক্ষার্থী ভর্তি হননি।",
+    total: "{count} জন ভর্তি",
+    more: "আরও দেখুন",
+    source: { ORDER: "কেনা", MANUAL: "হাতে যোগ", BUNDLE: "বান্ডল", ROSTER: "রোস্টারে" },
+    addedOn: "ভর্তি {date}",
+  },
   enrol: {
     title: "সরাসরি ভর্তি",
+    enrolledHeading: "৪. আগে থেকে ভর্তি আছেন",
     targetHeading: "১. কোথায় ভর্তি করবেন বেছে নিন",
     scope: "ভর্তি করুন",
     scopePackage: "একটি প্যাকেজে",

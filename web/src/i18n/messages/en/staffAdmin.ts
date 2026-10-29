@@ -47,8 +47,18 @@ const staffAdmin = {
     grantOpen: "Grant access by hand",
     paymentLink: "View payment",
   },
+  enrolments: {
+    title: "Enrolled students",
+    noTarget: "Open this list from a package or an exam menu.",
+    empty: "No students are enrolled yet.",
+    total: "{count} enrolled",
+    more: "Show more",
+    source: { ORDER: "Bought", MANUAL: "Added by hand", BUNDLE: "Bundle", ROSTER: "On the roster" },
+    addedOn: "Enrolled {date}",
+  },
   enrol: {
     title: "Direct enrolment",
+    enrolledHeading: "4. Already enrolled",
     targetHeading: "1. Choose what to enrol into",
     scope: "Enrol into",
     scopePackage: "A package",

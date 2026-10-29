@@ -1,11 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { Logo } from "@/components/shell/logo";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/components/ui/cn";
+
+/**
+ * The footer is a navy band, the logo's colour, so it closes the page. The footer's own classes read the page tokens,
+ * so this sets the tokens for the footer only: light text on navy, and a slightly lighter panel for the app buttons.
+ */
+const footerTone = {
+  backgroundColor: "var(--band)",
+  "--bg": "#1d2d4d",
+  "--card": "#1d2d4d",
+  "--field": "#1d2d4d",
+  "--text": "#f6f4ee",
+  "--muted": "#c3cbd9",
+  "--accent": "#e7c066",
+  "--accent-text": "#e7c066",
+  "--border": "#2c3e61",
+  "--border-control": "#3a4f77",
+  // The footer logo uses the dark-background variant and its wordmark colours from the sidebar tokens.
+  "--sidebar-text": "#f6f4ee",
+  "--sidebar-accent": "#e7c066",
+} as CSSProperties;
 
 /** Which footer a page shows. `none` renders nothing; the route decides it (see `footerVariant`). */
 export type FooterVariant = "full" | "minimal" | "none";
@@ -48,7 +69,7 @@ export function SiteFooter({ variant, width }: { variant: Exclude<FooterVariant,
 
   if (variant === "minimal") {
     return (
-      <footer className="border-t border-border bg-card">
+      <footer className="border-t border-border-control" style={footerTone}>
         <nav
           aria-label={t("common.footer.label")}
           className={cn("mx-auto flex w-full flex-wrap items-center justify-between gap-x-5 gap-y-1 px-4 py-2", width)}
@@ -69,13 +90,13 @@ export function SiteFooter({ variant, width }: { variant: Exclude<FooterVariant,
   }
 
   return (
-    <footer className="border-t border-border bg-card">
+    <footer className="border-t border-border-control" style={footerTone}>
       <nav
         aria-label={t("common.footer.label")}
         className={cn("mx-auto grid w-full gap-x-10 gap-y-6 px-4 py-6 sm:grid-cols-2 xl:grid-cols-4", width)}
       >
         <div className="grid content-start gap-3">
-          <Logo />
+          <Logo tone="rail" />
         </div>
 
         <section aria-labelledby="footer-contact" className="grid content-start gap-3">

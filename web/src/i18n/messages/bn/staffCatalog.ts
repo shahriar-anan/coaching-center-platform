@@ -675,6 +675,7 @@ const staffCatalog = {
   rowMenu: {
     label: "{name}-এর কাজ",
     edit: "সম্পাদনা করুন",
+    students: "শিক্ষার্থী",
     exams: "পরীক্ষা",
     roster: "সরাসরি ভর্তি",
     instructor: "শিক্ষক",

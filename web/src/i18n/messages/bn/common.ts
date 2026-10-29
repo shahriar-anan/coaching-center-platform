@@ -97,6 +97,10 @@ const common = {
     awaitingMarking: "{count}টি খাতা মূল্যায়ন বাকি",
     awaitingPublish: "{count}টি ফলাফল প্রকাশ বাকি",
   },
+  studentNavGroup: {
+    study: "পড়াশোনা",
+    personal: "ব্যক্তিগত",
+  },
   staffNavGroup: {
     overview: "সারসংক্ষেপ",
     catalog: "ক্যাটালগ",

@@ -97,6 +97,10 @@ const common = {
     awaitingMarking: "{count} scripts awaiting marking",
     awaitingPublish: "{count} results awaiting publish",
   },
+  studentNavGroup: {
+    study: "Study",
+    personal: "Personal",
+  },
   staffNavGroup: {
     overview: "Overview",
     catalog: "Catalog",

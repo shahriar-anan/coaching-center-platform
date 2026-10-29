@@ -2,18 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, Receipt, Star, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
+import {
+  currentStudentNavCollapsed,
+  setStudentNavCollapsed,
+  StudentSidebar,
+  subscribeStudentNavCollapsed,
+} from "@/components/shell/student-sidebar";
 import { SiteFooter, type FooterVariant } from "@/components/shell/site-footer";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { NoticeBell } from "@/components/student/notice-bell";
 import { formatNumber } from "@/lib/format";
 import { useUnreadCount } from "@/lib/api/exam/notices";
+import { IconButton } from "@/components/ui/icon-button";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { cn } from "@/components/ui/cn";
@@ -41,6 +48,52 @@ const TOP_LINKS: { href: string; key: "home" | "myExams" | "results" | "routine"
 
 /** Routes where the paper is on screen: no tab bar, so it never covers the questions. */
 const SITTING_PATH = /^\/exam\/[^/]+\/sit(\/|$)/;
+
+/** Exam pages (the paper, the detail pages and the MCQ and Written lists): the side menu stays off them. */
+const EXAM_PATH = /^\/(exam|mcq|written)(\/|$)/;
+
+/** Scrolling down this far (px) hides the header; scrolling back up a few px shows it again. */
+const HIDE_AFTER = 64;
+const SCROLL_STEP = 6;
+
+/**
+ * Hides the header while the page scrolls down and shows it as soon as the page scrolls up, as most sites do. Near the
+ * top it always shows. `reveal` shows it again, for keyboard focus moving into the header.
+ */
+function useHeaderHidden() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    let frame = 0;
+    function decide() {
+      frame = 0;
+      const y = window.scrollY;
+      if (y < HIDE_AFTER) {
+        setHidden(false);
+        last = y;
+        return;
+      }
+      if (Math.abs(y - last) < SCROLL_STEP) {
+        return;
+      }
+      setHidden(y > last);
+      last = y;
+    }
+    function onScroll() {
+      if (frame === 0) {
+        frame = window.requestAnimationFrame(decide);
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, []);
+  return { hidden, reveal: () => setHidden(false) };
+}
 
 /** Sign-in and sign-up pages on the student host: copyright and legal links only. */
 const SIGN_IN_PATH = /^\/(login|register|set-phone|activate|code|forgot-password|reset-password)(\/|$)/;
@@ -102,7 +155,7 @@ function UserMenu() {
   const { session, logout } = useSession();
   if (session.status !== "authenticated") {
     // The old site's single pill: log in, a divider, sign up.
-    const half = "inline-flex h-full items-center px-3 hover:bg-black/10 sm:px-4";
+    const half = "inline-flex h-full items-center px-3 hover:bg-white/15 sm:px-4";
     return (
       <span className="inline-flex h-11 shrink-0 items-center overflow-hidden rounded-full bg-action text-label font-semibold text-on-action">
         <Link href="/login" prefetch={false} className={half}>
@@ -238,11 +291,11 @@ function TabBar() {
 }
 
 /** The student's top bar, from desktop width up (S1.1). Visitors and staff never see it. */
-function StudentLinks() {
+function StudentLinks({ className }: { className?: string }) {
   const { t } = useLocale();
   const pathname = usePathname() ?? "/";
   return (
-    <nav aria-label={t("common.nav.studentMain")} className="hidden min-w-0 flex-1 justify-center lg:flex">
+    <nav aria-label={t("common.nav.studentMain")} className={cn("hidden min-w-0 flex-1 justify-center lg:flex", className)}>
       <ul className="flex items-center gap-1 text-label font-semibold">
         {TOP_LINKS.map((link) => {
           const active = isActive(pathname, link.href);
@@ -267,7 +320,7 @@ function StudentLinks() {
   );
 }
 
-/** Landing-page links, from tablet width up. */
+/** Landing-page links, from 1280 px up. Below that the bar keeps only the logo and the controls, so the links never wrap. */
 function WideNav() {
   const { t } = useLocale();
   // The old site's main menu. "Features" is now "Exams". Items without an exam-site page
@@ -283,8 +336,8 @@ function WideNav() {
     { href: "/resources", label: t("landing.navResources") },
   ];
   return (
-    <nav aria-label={t("landing.navLabel")} className="hidden flex-1 justify-center md:flex">
-      <ul className="flex items-center gap-6 text-label font-semibold text-muted">
+    <nav aria-label={t("landing.navLabel")} className="hidden min-w-0 flex-1 justify-center xl:flex">
+      <ul className="flex items-center gap-4 whitespace-nowrap text-label font-semibold text-muted">
         {links.map((link) => (
           <li key={link.label}>
             <Link href={link.href} prefetch={false} className="hover:text-text">
@@ -314,15 +367,28 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const roomy = !wide && !DETAIL_PATH.test(pathname);
   const column = wide ? "max-w-6xl" : roomy ? "max-w-5xl" : "max-w-[760px]";
   // The top bar needs the wider header from large width up; the content column stays 760 px on detail pages.
-  const headerColumn = student ? "max-w-[760px] lg:max-w-5xl" : column;
+  // The landing page's eight links need a wider bar than the content column, so its header takes the full 1280 px.
+  // With the side menu showing, the header fills the column beside it, so its toggle sits at the menu's edge.
+  const sidebarApplies = student && !EXAM_PATH.test(pathname);
+  const headerColumn = student
+    ? sidebarApplies
+      ? "max-w-none"
+      : "max-w-[760px] lg:max-w-5xl"
+    : wide
+      ? "max-w-7xl"
+      : column;
   const footer = footerVariant(pathname);
+  // The side menu is for signed-in students outside the exam pages, from desktop width up. On the server and on the
+  // first render the menu is expanded; the browser then reads the stored choice, as the staff menu does.
+  const collapsed = useSyncExternalStore(subscribeStudentNavCollapsed, currentStudentNavCollapsed, () => false);
+  const header = useHeaderHidden();
 
   return (
     <div
       data-surface="site"
       data-tabbar={showTabs ? "true" : undefined}
       style={showTabs ? tabBarVars : undefined}
-      className="flex min-h-dvh flex-col bg-bg text-text"
+      className="flex min-h-dvh bg-bg text-text"
     >
       <a
         href="#main"
@@ -330,12 +396,30 @@ export function StudentShell({ children }: { children: ReactNode }) {
       >
         {t("common.nav.skipToContent")}
       </a>
+      {sidebarApplies ? <StudentSidebar collapsed={collapsed} /> : null}
+      <div className="flex min-w-0 flex-1 flex-col">
       <OfflineBanner />
-      <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
+      <header
+        onFocus={header.reveal}
+        className={cn(
+          "sticky top-0 z-20 border-b border-border-control bg-card/95 backdrop-blur transition-transform duration-200 motion-reduce:transition-none",
+          header.hidden && "-translate-y-full",
+        )}
+      >
         <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", headerColumn)}>
-          <Logo compact />
+          {sidebarApplies ? (
+            <IconButton
+              label={collapsed ? t("common.staffNav.expand") : t("common.staffNav.collapse")}
+              icon={collapsed ? <PanelLeftOpen aria-hidden="true" className="size-5" /> : <PanelLeftClose aria-hidden="true" className="size-5" />}
+              aria-expanded={!collapsed}
+              onClick={() => setStudentNavCollapsed(!collapsed)}
+              className="hidden shrink-0 lg:inline-flex"
+            />
+          ) : null}
+          {/* The side menu carries the logo from desktop width up, so the header shows it only where there is no menu. */}
+          <Logo compact className={cn(wide && "xl:shrink-0", sidebarApplies && "lg:hidden")} />
           {wide ? <WideNav /> : null}
-          {student ? <StudentLinks /> : null}
+          {student ? <StudentLinks className={sidebarApplies ? "lg:hidden" : undefined} /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             <span className="flex items-center gap-1.5 max-[399px]:hidden sm:gap-2">
@@ -360,6 +444,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
         {roomy && !SITTING_PATH.test(pathname) ? <div className="mx-auto w-full max-w-3xl">{children}</div> : children}
       </main>
       {footer !== "none" ? <SiteFooter variant={footer} width={wide ? "max-w-6xl" : "max-w-5xl"} /> : null}
+      </div>
       {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>

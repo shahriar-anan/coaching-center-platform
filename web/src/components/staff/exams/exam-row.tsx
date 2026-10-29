@@ -44,6 +44,7 @@ export function ExamRow({
 
   const items: RowMenuItem[] = [
     { label: t("staffExams.row.results"), href: `/staff/exams/${exam.id}/results` },
+    ...(isMasterAdmin ? [{ label: t("staffExams.row.students"), href: `/staff/enrolments?exam=${exam.id}` }] : []),
     { label: t("staffExams.row.leaderboard"), href: `/staff/exams/${exam.id}/leaderboard` },
   ];
   if (canCopy) {
