@@ -150,7 +150,7 @@ function TimeColumn({
       ref={list}
       role="group"
       aria-label={label}
-      className="relative grid max-h-40 content-start gap-1 overflow-y-auto pe-1 sm:max-h-[15.5rem]"
+      className="relative grid max-h-40 content-start gap-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:max-h-[15.5rem]"
     >
       {options.map((option) => {
         const chosen = option.value === selected;
@@ -455,7 +455,9 @@ export function DateTimeInput({
               )}
             </div>
             </div>
-            <div className="grid grid-cols-3 gap-1 sm:w-44">
+            <div className="grid content-start gap-2 sm:w-44">
+              <p className="flex min-h-8 items-center text-label font-semibold text-text">{t("common.dateTime.time")}</p>
+              <div className="grid grid-cols-3 gap-1">
               <TimeColumn
                 label={t("common.dateTime.chooseHour")}
                 options={hourOptions}
@@ -474,6 +476,7 @@ export function DateTimeInput({
                 selected={draft.period}
                 onPick={(period) => pickPeriod(period === "PM" ? "PM" : "AM")}
               />
+              </div>
             </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
