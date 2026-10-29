@@ -196,7 +196,7 @@ class PaymentHistoryIT extends PostgresIntegrationTest {
 		byte[] pdf = receiptPdf.render(receipt);
 		assertThat(new String(pdf, 0, 5, java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
 		String text = text(pdf);
-		assertThat(text).contains(receiptNo(paid.orderId()), "Payment receipt", "Exam Portal", "BDT 1000.00",
+		assertThat(text).contains(receiptNo(paid.orderId()), "PAYMENT RECEIPT", "Symam Law", "BDT 1,000.00",
 				paid.tranId(), paid.orderId().toString());
 	}
 
