@@ -166,3 +166,11 @@ Commits `d491ef3` (API) and `58e6d2d` (web). No schema change, no env change.
 Tests before the release: API full suite 664 tests, 0 failures (including `BookOrderIT` and `CoursePurchaseIT`, which passed in this run); web 160 files and 1053 tests pass; lint 0 errors in the changed files (3 errors remain in `staff/enrolments/page.tsx` and `student-shell.tsx`, untouched).
 
 Not yet checked in a browser on the live hosts: the confirm field and the logout landing.
+
+## Website fix, 30 October 2026: staff logout
+
+Commit `58668e0`. Web only; API unchanged. Build `ZrRKZ2d9tiT6_I-cIKWyW`, package SHA-256 `5675c85007847363682f9aa155cc9fade1cda7e01bca4ae7f77f4e0b46543e92`, swapped in at 10:22 UTC; previous release `/opt/coaching-web.before-20261030-102213`.
+
+Fix: after a staff logout the admin goes to the admin login instead of `/`, which redirected back to `/staff` and left the page on a loading screen until a reload. Students still go home.
+
+Checks: web typecheck, lint and suite pass (160 files, 1054 tests). Not yet checked in a browser: staff logout from the dashboard.
