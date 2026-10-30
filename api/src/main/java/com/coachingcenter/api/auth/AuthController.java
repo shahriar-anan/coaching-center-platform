@@ -59,7 +59,9 @@ public class AuthController {
 	public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request,
 			@RequestHeader(value = "X-Client-Type", required = false) String clientType, HttpServletRequest http) {
 		ClientType client = ClientType.fromHeader(clientType);
-		AuthService.IssuedTokens tokens = auth.login(request.identifier(), request.password(), client, http.getRemoteAddr(),
+		// The real visitor address (Nginx sends it), so one person's failures do not lock an account for everyone.
+		AuthService.IssuedTokens tokens = auth.login(request.identifier(), request.password(), client,
+				MailSendLimiter.clientAddress(http),
 				http.getHeader(HttpHeaders.USER_AGENT));
 		return tokenResponse(client, tokens);
 	}
@@ -68,7 +70,8 @@ public class AuthController {
 	public ResponseEntity<TokenResponse> refresh(@RequestBody(required = false) RefreshRequest request,
 			@RequestHeader(value = "X-Client-Type", required = false) String clientType, HttpServletRequest http) {
 		ClientType client = ClientType.fromHeader(clientType);
-		AuthService.IssuedTokens tokens = auth.refresh(presentedRefresh(client, request, http), client, http.getRemoteAddr(),
+		AuthService.IssuedTokens tokens = auth.refresh(presentedRefresh(client, request, http), client,
+				MailSendLimiter.clientAddress(http),
 				http.getHeader(HttpHeaders.USER_AGENT));
 		return tokenResponse(client, tokens);
 	}
@@ -85,8 +88,8 @@ public class AuthController {
 	}
 
 	@PostMapping("/auth/change-password")
-	public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
-		auth.changePassword(currentUser().userId(), request.currentPassword(), request.newPassword());
+	public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request, HttpServletRequest http) {
+		auth.changePassword(currentUser().userId(), request.currentPassword(), request.newPassword(), refreshCookie(http));
 		return ResponseEntity.noContent().build();
 	}
 
@@ -156,6 +159,18 @@ public class AuthController {
 
 	private ResponseCookie clearedCookie() {
 		return RefreshCookies.clear();
+	}
+
+	/** The web refresh cookie, sent with every call under /api/v1/auth; null when there is none. */
+	private static String refreshCookie(HttpServletRequest http) {
+		if (http.getCookies() != null) {
+			for (Cookie cookie : http.getCookies()) {
+				if (REFRESH_COOKIE.equals(cookie.getName())) {
+					return cookie.getValue();
+				}
+			}
+		}
+		return null;
 	}
 
 	private String presentedRefresh(ClientType client, RefreshRequest request, HttpServletRequest http) {

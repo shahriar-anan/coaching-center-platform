@@ -22,6 +22,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import com.coachingcenter.api.PostgresIntegrationTest;
 
+import jakarta.servlet.http.Cookie;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(CapturingEmailConfig.class)
@@ -102,6 +104,48 @@ class PasswordIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void changePasswordKeepsThisSessionAndEndsTheOthers() throws Exception {
+		String phone = registerAndPhone(uniquePhone());
+		MvcResult here = webLogin(phone, "password1");
+		MvcResult elsewhere = webLogin(phone, "password1");
+		Cookie hereCookie = here.getResponse().getCookie(AuthController.REFRESH_COOKIE);
+
+		mockMvc.perform(post("/api/v1/auth/change-password").header("Authorization", "Bearer " + json(here, "accessToken"))
+			.cookie(hereCookie)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"currentPassword":"password1","newPassword":"newpassword1"}
+					"""))
+			.andExpect(status().isNoContent());
+
+		webRefresh(hereCookie).andExpect(status().isOk());
+		webRefresh(elsewhere.getResponse().getCookie(AuthController.REFRESH_COOKIE)).andExpect(status().isUnauthorized());
+		webLoginAttempt(phone, "password1").andExpect(status().isUnauthorized());
+		webLoginAttempt(phone, "newpassword1").andExpect(status().isOk());
+		Integer audited = new JdbcTemplate(dataSource).queryForObject("""
+				SELECT count(*) FROM audit_log a JOIN users u ON u.id = a.entity_id
+				WHERE a.action = 'PASSWORD_CHANGED' AND u.phone = ?
+				""", Integer.class, phone);
+		assertThat(audited).isEqualTo(1);
+	}
+
+	@Test
+	void changePasswordWithoutTheCookieEndsEverySession() throws Exception {
+		String phone = registerAndPhone(uniquePhone());
+		MvcResult web = webLogin(phone, "password1");
+		String mobileAccess = json(login(phone), "accessToken");
+
+		mockMvc.perform(post("/api/v1/auth/change-password").header("Authorization", "Bearer " + mobileAccess)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"currentPassword":"password1","newPassword":"newpassword1"}
+					"""))
+			.andExpect(status().isNoContent());
+
+		webRefresh(web.getResponse().getCookie(AuthController.REFRESH_COOKIE)).andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void adminSurfaceDoesNotAcceptOrReturnAPassword() throws Exception {
 		String access = masterAccess();
 		mockMvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + access)
@@ -158,6 +202,26 @@ class PasswordIT extends PostgresIntegrationTest {
 					""".formatted(phone)))
 			.andExpect(status().isOk())
 			.andReturn();
+	}
+
+	private MvcResult webLogin(String phone, String password) throws Exception {
+		return webLoginAttempt(phone, password).andExpect(status().isOk()).andReturn();
+	}
+
+	private org.springframework.test.web.servlet.ResultActions webLoginAttempt(String phone, String password)
+			throws Exception {
+		return mockMvc.perform(post("/api/v1/auth/login").header("X-Client-Type", "web")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"identifier":"%s","password":"%s"}
+					""".formatted(phone, password)));
+	}
+
+	private org.springframework.test.web.servlet.ResultActions webRefresh(Cookie cookie) throws Exception {
+		return mockMvc.perform(post("/api/v1/auth/refresh").header("X-Client-Type", "web")
+			.cookie(cookie)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"));
 	}
 
 	private static String json(MvcResult result, String field) throws Exception {

@@ -246,14 +246,29 @@ public class AuthService {
 		return nextStudentCode();
 	}
 
+	/**
+	 * Changes the own password and ends the account's other sessions. The session that made the change keeps
+	 * going when its refresh token is given (the web cookie); without one every session ends.
+	 */
 	@Transactional
-	public void changePassword(UUID userId, String currentPassword, String newPassword) {
+	public void changePassword(UUID userId, String currentPassword, String newPassword, String presentedRefresh) {
 		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(this::unauthenticated);
 		if (user.getPasswordHash() == null || !passwords.matches(currentPassword, user.getPasswordHash())) {
 			throw new ApiException(ErrorCode.CURRENT_PASSWORD_INVALID, HttpStatus.BAD_REQUEST,
 					"Current password is incorrect.");
 		}
 		user.setPasswordHash(passwords.encode(newPassword));
+		RefreshToken current = presentedRefresh == null ? null
+				: refreshTokens.findByTokenHash(hasher.sha256(presentedRefresh))
+					.filter(token -> token.getUserId().equals(userId) && token.getRevokedAt() == null)
+					.orElse(null);
+		if (current != null) {
+			refreshTokens.revokeOtherFamilies(userId, current.getFamilyId(), Instant.now());
+		}
+		else {
+			refreshTokens.revokeAllForUser(userId, Instant.now());
+		}
+		audit.record(AuditRecorder.PASSWORD_CHANGED, user.getId());
 		sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
 	}
 

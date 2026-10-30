@@ -21,6 +21,8 @@ public class AuditRecorder {
 
 	public static final String PASSWORD_RESET = "PASSWORD_RESET";
 
+	public static final String PASSWORD_CHANGED = "PASSWORD_CHANGED";
+
 	public static final String PHONE_CHANGED = "PHONE_CHANGED";
 
 	public static final String GOOGLE_ACCOUNT_CREATED = "GOOGLE_ACCOUNT_CREATED";

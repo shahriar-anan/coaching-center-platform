@@ -122,6 +122,33 @@ class AuthLoginIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("LOGIN_LOCKED"));
 	}
 
+	@Test
+	void lockoutCountsTheVisitorNginxReportsNotTheProxy() throws Exception {
+		String phone = uniquePhone();
+		register("Proxy User", phone, emailOf(phone));
+		String wrong = """
+				{"identifier":"%s","password":"wrong-password"}
+				""".formatted(phone);
+		for (int attempt = 0; attempt < 3; attempt++) {
+			mockMvc.perform(post("/api/v1/auth/login").header("X-Client-Type", "mobile")
+				.header("X-Real-IP", "203.0.113.7")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(wrong)).andExpect(status().isUnauthorized());
+		}
+		mockMvc.perform(post("/api/v1/auth/login").header("X-Client-Type", "mobile")
+			.header("X-Real-IP", "203.0.113.7")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(wrong))
+			.andExpect(jsonPath("$.code").value("LOGIN_LOCKED"));
+		mockMvc.perform(post("/api/v1/auth/login").header("X-Client-Type", "mobile")
+			.header("X-Real-IP", "198.51.100.20")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"identifier":"%s","password":"password1"}
+					""".formatted(phone)))
+			.andExpect(status().isOk());
+	}
+
 	private static String uniquePhone() {
 		int suffix = java.util.concurrent.ThreadLocalRandom.current().nextInt(100000000, 999999999);
 		return "+8801" + suffix;
