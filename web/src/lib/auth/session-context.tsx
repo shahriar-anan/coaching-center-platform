@@ -15,7 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, onSessionLost } from "@/lib/api/client";
 import { setAccessToken } from "@/lib/auth/token-store";
 import type { Me } from "@/lib/api/exam/types";
-import { onSiteHost, onStaffHost, staffHome, studentHome } from "@/lib/config";
+import { onSiteHost, onStaffHost, staffHome, staffLogin, studentHome } from "@/lib/config";
 
 export type SessionState =
   | { status: "loading"; user?: undefined }
@@ -116,6 +116,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signedOutAt = useRef<string | null>(null);
   const pathname = usePathname();
   const signedIn = useRef(false);
+  const signedInRole = useRef<Me["role"] | null>(null);
 
   useEffect(() => {
     if (signedOutAt.current !== null && pathname !== signedOutAt.current) {
@@ -126,7 +127,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     signedIn.current = session.status === "authenticated";
-  }, [session.status]);
+    signedInRole.current = session.status === "authenticated" ? session.user.role : null;
+  }, [session]);
 
   useEffect(() => {
     onSessionLost(() => {
@@ -227,10 +229,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     queryClient.clear();
     setSessionExpired(false);
+    // Staff go straight to the admin login: on the admin host "/" redirects to
+    // /staff, so logging out from /staff would otherwise land on the same path.
+    const target = signedInRole.current && signedInRole.current !== "STUDENT" ? staffLogin : studentHome;
     signedOutAt.current = window.location.pathname;
     setSignedOut(true);
     setSession({ status: "anonymous" });
-    router.replace("/");
+    go(router, target);
   }, [queryClient, router]);
 
   const refreshMe = useCallback(async () => {
