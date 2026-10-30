@@ -10,15 +10,41 @@ import { apiError, fixtures, mockApi, renderWithProviders } from "../helpers";
 const emptyPage = { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 };
 
 describe("account password", () => {
-  it("keeps a wrong current password inline and keeps the values", async () => {
+  it("keeps a wrong old password inline and keeps the values", async () => {
     mockApi({ "POST /api/v1/auth/change-password": () => apiError(400, "CURRENT_PASSWORD_INVALID") });
     renderWithProviders(<AccountPage />, { user: fixtures.student, route: "/account" });
     await userEvent.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
-    await userEvent.type(screen.getByLabelText(/বর্তমান পাসওয়ার্ড/), "old-password");
-    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড/), "new-password1");
+    await userEvent.type(screen.getByLabelText(/পুরনো পাসওয়ার্ড/), "old-password");
+    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/), "new-password1");
+    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড নিশ্চিত করুন/), "new-password1");
     await userEvent.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
-    expect(await screen.findByText("বর্তমান পাসওয়ার্ডটি সঠিক নয়।")).toBeInTheDocument();
-    expect(screen.getByLabelText(/বর্তমান পাসওয়ার্ড/)).toHaveValue("old-password");
+    expect(await screen.findByText("পুরনো পাসওয়ার্ডটি সঠিক নয়।")).toBeInTheDocument();
+    expect(screen.getByLabelText(/পুরনো পাসওয়ার্ড/)).toHaveValue("old-password");
+  });
+
+  it("does not send a new password that the confirmation does not match", async () => {
+    const api = mockApi({ "POST /api/v1/auth/change-password": () => undefined });
+    renderWithProviders(<AccountPage />, { user: fixtures.student, route: "/account" });
+    await userEvent.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
+    await userEvent.type(screen.getByLabelText(/পুরনো পাসওয়ার্ড/), "old-password");
+    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/), "new-password1");
+    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড নিশ্চিত করুন/), "new-pasword1");
+    await userEvent.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
+    expect(await screen.findByText("নতুন পাসওয়ার্ড দুটি মেলেনি।")).toBeInTheDocument();
+    expect(api.calls.some((call) => call.path === "/api/v1/auth/change-password")).toBe(false);
+  });
+
+  it("sends only the old and new password when both new fields match", async () => {
+    const api = mockApi({ "POST /api/v1/auth/change-password": () => undefined });
+    renderWithProviders(<AccountPage />, { user: fixtures.student, route: "/account" });
+    await userEvent.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
+    await userEvent.type(screen.getByLabelText(/পুরনো পাসওয়ার্ড/), "old-password");
+    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/), "new-password1");
+    await userEvent.type(screen.getByLabelText(/নতুন পাসওয়ার্ড নিশ্চিত করুন/), "new-password1");
+    await userEvent.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
+    expect(await screen.findByText("পাসওয়ার্ড বদলানো হয়েছে।")).toBeInTheDocument();
+    const sent = api.calls.find((call) => call.path === "/api/v1/auth/change-password");
+    expect(sent?.body).toEqual({ currentPassword: "old-password", newPassword: "new-password1" });
   });
 });
 

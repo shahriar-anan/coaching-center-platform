@@ -11,8 +11,8 @@ import { Pill } from "@/components/ui/pill";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/errors";
+import { PasswordChangeForm } from "@/components/password-change-form";
 import {
-  useChangePassword,
   useChangePhone,
   useResendEmailVerification,
   useVerifyEmail,
@@ -23,64 +23,15 @@ function codeOf(error: unknown): string | null {
   return error instanceof ApiError ? error.code : null;
 }
 
-/** Change password: the current password, then a new one of 8 to 72 characters. */
+/** Change password: old, new and confirm new (the shared form), in its own card. */
 export function PasswordForm() {
   const { t } = useLocale();
-  const { toast } = useToast();
-  const change = useChangePassword();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [currentError, setCurrentError] = useState<string | undefined>();
-  const [nextError, setNextError] = useState<string | undefined>();
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setCurrentError(undefined);
-    setNextError(undefined);
-    if (next.length < 8 || next.length > 72) {
-      setNextError(t("staffOps.account.newPasswordHint"));
-      return;
-    }
-    try {
-      await change.mutateAsync({ currentPassword: current, newPassword: next });
-      setCurrent("");
-      setNext("");
-      toast({ title: t("staffOps.account.passwordChanged"), tone: "ok" });
-    } catch (error) {
-      if (codeOf(error) === "CURRENT_PASSWORD_INVALID") {
-        setCurrentError(t("staffOps.account.currentPasswordWrong"));
-        return;
-      }
-      setNextError(t("common.error.body"));
-    }
-  }
-
   return (
     <Card>
       <h2 className="text-section text-text">{t("staffOps.account.passwordTitle")}</h2>
-      <form className="mt-4 grid gap-4" onSubmit={submit} noValidate>
-        <Field label={t("staffOps.account.currentPassword")} error={currentError} required>
-          <PasswordInput
-            autoComplete="current-password"
-            value={current}
-            onChange={(event) => setCurrent(event.target.value)}
-            invalid={Boolean(currentError)}
-          />
-        </Field>
-        <Field label={t("staffOps.account.newPassword")} hint={t("staffOps.account.newPasswordHint")} error={nextError} required>
-          <PasswordInput
-            autoComplete="new-password"
-            value={next}
-            onChange={(event) => setNext(event.target.value)}
-            invalid={Boolean(nextError)}
-          />
-        </Field>
-        <div>
-          <Button type="submit" loading={change.isPending}>
-            {t("staffOps.account.changePassword")}
-          </Button>
-        </div>
-      </form>
+      <div className="mt-4">
+        <PasswordChangeForm />
+      </div>
     </Card>
   );
 }

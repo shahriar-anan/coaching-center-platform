@@ -22,7 +22,7 @@ import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { codeOf, CODE_DEAD, FormError, focusFirst } from "@/app/(auth)/_components/auth-ui";
-import { PasswordForm } from "@/app/(site)/account/_components/password-form";
+import { PasswordChangeForm } from "@/components/password-change-form";
 import { PhoneDialog } from "@/app/(site)/account/_components/phone-dialog";
 
 export default function AccountPage() {
@@ -230,7 +230,7 @@ function AccountView() {
         </h2>
         <Card padding="lg">
           {passwordOpen ? (
-            <PasswordForm onDone={() => setPasswordOpen(false)} />
+            <PasswordChangeForm onDone={() => setPasswordOpen(false)} />
           ) : (
             <Button variant="secondary" fullWidth onClick={() => setPasswordOpen(true)}>
               {t("account.password.change")}

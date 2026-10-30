@@ -224,13 +224,6 @@ export function useLeaderboard(examId: string) {
 }
 
 /** Account calls. A changed phone returns `MeView`; the session is refreshed by the caller. */
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: (body: { currentPassword: string; newPassword: string }) =>
-      apiRequest<void>("/api/v1/auth/change-password", { method: "POST", body }),
-  });
-}
-
 export function useChangePhone() {
   return useMutation({
     mutationFn: (body: { currentPassword: string; phone: string }) =>

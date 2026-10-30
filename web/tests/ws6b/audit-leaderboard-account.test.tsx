@@ -122,15 +122,16 @@ describe("staff leaderboard", () => {
 });
 
 describe("staff account", () => {
-  it("changes the password with the current one, and says so", async () => {
+  it("changes the password with the old one, and says so", async () => {
     const user = userEvent.setup();
     const api = mockApi({
       "POST /api/v1/auth/change-password": () => undefined,
     });
     renderWithProviders(<AccountPage />, { user: fixtures.systemAdmin, route: "/staff/account" });
 
-    await user.type(screen.getByLabelText(/বর্তমান পাসওয়ার্ড/), "old-password");
-    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড/), "new-password-1");
+    await user.type(screen.getByLabelText(/পুরনো পাসওয়ার্ড/), "old-password");
+    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/), "new-password-1");
+    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড নিশ্চিত করুন/), "new-password-1");
     await user.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
 
     expect(await screen.findByText("পাসওয়ার্ড বদলানো হয়েছে।")).toBeInTheDocument();
@@ -143,11 +144,26 @@ describe("staff account", () => {
     const api = mockApi({});
     renderWithProviders(<AccountPage />, { user: fixtures.instructor, route: "/staff/account" });
 
-    await user.type(screen.getByLabelText(/বর্তমান পাসওয়ার্ড/), "old-password");
-    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড/), "short");
+    await user.type(screen.getByLabelText(/পুরনো পাসওয়ার্ড/), "old-password");
+    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/), "short");
+    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড নিশ্চিত করুন/), "short");
     await user.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
 
-    await waitFor(() => expect(screen.getByLabelText(/নতুন পাসওয়ার্ড/)).toHaveAttribute("aria-invalid", "true"));
+    await waitFor(() => expect(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/)).toHaveAttribute("aria-invalid", "true"));
+    expect(api.calls.some((call) => call.path === "/api/v1/auth/change-password")).toBe(false);
+  });
+
+  it("refuses a confirmation that does not match, so a typo cannot lock the Master Admin out", async () => {
+    const user = userEvent.setup();
+    const api = mockApi({});
+    renderWithProviders(<AccountPage />, { user: fixtures.masterAdmin, route: "/staff/account" });
+
+    await user.type(screen.getByLabelText(/পুরনো পাসওয়ার্ড/), "old-password");
+    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড(?!\s*নিশ্চিত)/), "new-password-1");
+    await user.type(screen.getByLabelText(/নতুন পাসওয়ার্ড নিশ্চিত করুন/), "new-pasword-1");
+    await user.click(screen.getByRole("button", { name: "পাসওয়ার্ড বদলান" }));
+
+    expect(await screen.findByText("নতুন পাসওয়ার্ড দুটি মেলেনি।")).toBeInTheDocument();
     expect(api.calls.some((call) => call.path === "/api/v1/auth/change-password")).toBe(false);
   });
 });

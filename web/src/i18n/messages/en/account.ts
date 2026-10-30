@@ -29,12 +29,14 @@ const account = {
   password: {
     title: "Password",
     change: "Change password",
-    current: "Current password",
+    current: "Old password",
     next: "New password",
     nextHelp: "8 to 72 characters.",
+    confirm: "Confirm new password",
+    mismatch: "The new passwords do not match.",
     submit: "Change password",
     saved: "Your password has changed.",
-    wrongCurrent: "The current password is not correct.",
+    wrongCurrent: "The old password is not correct.",
     lengthError: "The new password must be 8 to 72 characters.",
   },
   phoneDialog: {

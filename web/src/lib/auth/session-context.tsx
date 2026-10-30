@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, onSessionLost } from "@/lib/api/client";
 import { setAccessToken } from "@/lib/auth/token-store";
@@ -33,6 +33,12 @@ export type SessionContextValue = {
   session: SessionState;
   /** True after the API dropped a session that was signed in. */
   sessionExpired: boolean;
+  /**
+   * True from a logout until the next route change. Guards do not send the
+   * visitor to the login page meanwhile, so logout lands on home and the next
+   * login does not return to the page the student logged out from.
+   */
+  signedOut: boolean;
   login: (identifier: string, password: string, options?: LoginOptions) => Promise<Me>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -106,7 +112,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<SessionState>({ status: "loading" });
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
+  const signedOutAt = useRef<string | null>(null);
+  const pathname = usePathname();
   const signedIn = useRef(false);
+
+  useEffect(() => {
+    if (signedOutAt.current !== null && pathname !== signedOutAt.current) {
+      signedOutAt.current = null;
+      setSignedOut(false);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     signedIn.current = session.status === "authenticated";
@@ -170,6 +186,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       queryClient.clear();
       setSessionExpired(false);
+      signedOutAt.current = null;
+      setSignedOut(false);
       setSession({ status: "authenticated", user });
       if (options.redirect !== false) {
         const next =
@@ -209,6 +227,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     queryClient.clear();
     setSessionExpired(false);
+    signedOutAt.current = window.location.pathname;
+    setSignedOut(true);
     setSession({ status: "anonymous" });
     router.replace("/");
   }, [queryClient, router]);
@@ -219,8 +239,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ session, sessionExpired, login, logout, refreshMe, acceptToken }),
-    [session, sessionExpired, login, logout, refreshMe, acceptToken],
+    () => ({ session, sessionExpired, signedOut, login, logout, refreshMe, acceptToken }),
+    [session, sessionExpired, signedOut, login, logout, refreshMe, acceptToken],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

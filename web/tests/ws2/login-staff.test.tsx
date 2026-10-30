@@ -12,6 +12,7 @@ vi.mock("@/lib/auth/session-context", async (importOriginal) => {
     useSession: () => ({
       session: { status: "anonymous" },
       sessionExpired: false,
+      signedOut: false,
       login: vi.fn(),
       logout: vi.fn(),
       refreshMe: vi.fn(),

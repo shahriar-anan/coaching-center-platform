@@ -22,6 +22,7 @@ function sessionValue(user: Me | null | undefined): SessionContextValue {
   return {
     session: user ? { status: "authenticated", user } : { status: "anonymous" },
     sessionExpired: false,
+    signedOut: false,
     login: async () => {
       throw new Error("login is not available in tests");
     },

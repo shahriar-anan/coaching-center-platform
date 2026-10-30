@@ -105,12 +105,13 @@ function useLoginRedirect(active: boolean) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { sessionExpired } = useSession();
+  const { sessionExpired, signedOut } = useSession();
   useEffect(() => {
-    if (active) {
+    // After a logout the visitor is on the way home; no login page, no `next`.
+    if (active && !signedOut) {
       router.replace(loginRedirect(pathname ?? "/", searchParams?.toString() ?? "", sessionExpired));
     }
-  }, [active, pathname, router, searchParams, sessionExpired]);
+  }, [active, pathname, router, searchParams, sessionExpired, signedOut]);
 }
 
 function GuardLoading() {
