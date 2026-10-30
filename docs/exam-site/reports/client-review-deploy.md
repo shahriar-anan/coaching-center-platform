@@ -154,3 +154,15 @@ Rollback: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coachin
 | Website | stop `coaching-web`, swap `/opt/coaching-web.old` back, restore `coaching-web.service.prev`, `daemon-reload`, start. |
 | Nginx | restore `coaching.prev` and remove `sites-enabled/coaching-admin`, the snippet, the gate file and the htpasswd file; `nginx -t`; reload. |
 | Seed data | `demo-cleanup.sql` in one transaction. |
+
+## API and website update, 30 October 2026: password change and logout
+
+Commits `d491ef3` (API) and `58e6d2d` (web). No schema change, no env change.
+
+- **API** jar SHA-256 `7f7c3f14a5707264dd8601900a2b7f1a28a5e026306ae7c250f0889cf6d18605`, installed at 10:11 UTC. Previous jar kept as `/opt/coaching-api/api.jar.before-pwsessions-20261030-101111`. Started in about 24 s; refresh without a cookie returns 401; no errors in the startup log. Changes: a password change ends the account's other sessions (keeps the one that made the change); the change is audited as `PASSWORD_CHANGED`; lockout counts the visitor address Nginx reports.
+- **Website** build `Z7uc2Z9bJrQUU8myR1zCy`, package SHA-256 `cd9d40a5e2e07c5396259a523c4af9b4d4660a696220e62dc2dc4f65ea8343f7`, swapped in at 10:13 UTC; previous release `/opt/coaching-web.before-20261030-101312`. Changes: one password form for students and staff with Old password, New password, Confirm new password; logout lands on home and the next login does too.
+- **Master Admin password** set on the server from `MASTER_ADMIN_PASSWORD` in the env file (backup `/var/backups/coaching/coaching-pre-mapw-20261030-095439.dump`). Sign-in through the API checked: HTTP 200.
+
+Tests before the release: API full suite 664 tests, 0 failures (including `BookOrderIT` and `CoursePurchaseIT`, which passed in this run); web 160 files and 1053 tests pass; lint 0 errors in the changed files (3 errors remain in `staff/enrolments/page.tsx` and `student-shell.tsx`, untouched).
+
+Not yet checked in a browser on the live hosts: the confirm field and the logout landing.
