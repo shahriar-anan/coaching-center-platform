@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useLocale } from "@/i18n/locale-context";
-import { useRole } from "@/lib/auth/guards";
+import { RequireStaff, useRole } from "@/lib/auth/guards";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,12 +13,14 @@ function ModulesPage() {
   const role = useRole();
   return (
     <>
-      <PageHeader
-        title={t("staffCatalog.modules.title")}
-        breadcrumbs={[{ label: t("staffCatalog.nav.home"), href: "/staff" }, { label: t("staffCatalog.modules.title") }]}
-        actions={role.canAuthor ? <Button href="/staff/modules/new">{t("staffCatalog.modules.new")}</Button> : undefined}
-      />
-      <ModuleList />
+      <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
+        <PageHeader
+          title={t("staffCatalog.modules.title")}
+          breadcrumbs={[{ label: t("staffCatalog.nav.home"), href: "/staff" }, { label: t("staffCatalog.modules.title") }]}
+          actions={role.canAuthor ? <Button href="/staff/modules/new">{t("staffCatalog.modules.new")}</Button> : undefined}
+        />
+        <ModuleList />
+      </RequireStaff>
     </>
   );
 }

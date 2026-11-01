@@ -81,7 +81,7 @@ const common = {
     categories: "ক্যাটাগরি",
     modules: "প্যাকেজ",
     exams: "পরীক্ষা",
-    myExams: "আমার পরীক্ষা",
+    myExams: "আমার এক্সাম",
     participation: "ফলাফল ও মূল্যায়ন",
     submissions: "খাতা জমা",
     students: "শিক্ষার্থী",
