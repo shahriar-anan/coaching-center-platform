@@ -54,7 +54,7 @@ import {
   modulePath,
   type Door,
 } from "./catalog-helpers";
-import { ExamRow } from "./exam-row";
+import { PackageExamCard } from "./exam-row";
 import { examInView } from "./exam-view";
 import { ExamViewTabs, examViewEmptyKey, useExamViewParam } from "./exam-view-tabs";
 import { FavouriteButton } from "./favourite-button";
@@ -332,7 +332,7 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
                     const examAccess = resolveAccess(exam.access);
                     return (
                       <li key={exam.id} className="min-w-0">
-                        <ExamRow
+                        <PackageExamCard
                           href={examPath(exam.id)}
                           title={pickTitle(exam, locale)}
                           meta={
@@ -387,7 +387,7 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
                       </li>
                     ))}
                   </ul>
-                  <div className="hidden overflow-hidden rounded-card border border-border bg-card md:block">
+                  <div className="hidden overflow-hidden rounded-card border border-border bg-card md:block md:max-w-2xl">
                     <table className="w-full table-fixed border-collapse text-start text-body">
                       <thead>
                         <tr className="text-start text-meta uppercase tracking-wide text-muted">

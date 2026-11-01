@@ -108,3 +108,44 @@ export function CatalogExamRow({ exam }: { exam: ExamRowFields }) {
     </div>
   );
 }
+
+/**
+ * One exam in a package's exam list. Two columns: the type, date, title and a short summary on the left; the price, the
+ * buy or status line, and the Wish List mark on the right, aligned to the top. The whole card is the link (a stretched link),
+ * and the Wish List mark sits above it.
+ */
+export function PackageExamCard({
+  href,
+  title,
+  meta,
+  summary,
+  right,
+  favourite,
+}: {
+  href: string;
+  title: string;
+  meta: ReactNode;
+  summary?: string | null;
+  right: ReactNode;
+  favourite?: ReactNode;
+}) {
+  return (
+    <div className="group relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent hover:bg-text/[0.06]">
+      <div className="grid min-w-0 gap-1.5">
+        <div className="flex flex-wrap items-center gap-2 text-meta text-muted">{meta}</div>
+        <Link
+          href={href}
+          prefetch={false}
+          className="line-clamp-2 text-body font-semibold leading-snug after:absolute after:inset-0 after:content-[''] group-hover:text-text-accent"
+        >
+          {title}
+        </Link>
+        {summary ? <p className="line-clamp-2 text-meta leading-relaxed text-muted">{summary}</p> : null}
+      </div>
+      <div className="relative z-10 flex flex-col items-end gap-2 text-end">
+        {favourite}
+        <div className="grid justify-items-end gap-1 whitespace-nowrap text-meta">{right}</div>
+      </div>
+    </div>
+  );
+}
