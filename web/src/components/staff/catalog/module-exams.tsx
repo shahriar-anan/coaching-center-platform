@@ -369,7 +369,7 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
 
   return (
     <div className="grid gap-4">
-      {published ? <p className="text-meta text-muted">{t("staffCatalog.moduleExams.stagedNote")}</p> : null}
+      {published && !role.canPublishExam ? <p className="text-meta text-muted">{t("staffCatalog.moduleExams.stagedNote")}</p> : null}
       {role.canAuthor ? (
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={() => setAdding(true)}>

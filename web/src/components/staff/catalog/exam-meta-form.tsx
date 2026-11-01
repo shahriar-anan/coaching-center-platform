@@ -132,7 +132,7 @@ export function ExamMetaForm({
         <p role="status" className={dirty ? "text-meta text-warn" : "text-meta text-muted"}>
           {dirty ? t("staffCatalog.examMeta.dirty") : t("staffCatalog.examMeta.savedStatus")}
         </p>
-        {exam.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.stagedHint")}</p> : null}
+        {exam.status === "PUBLISHED" && !role.canPublishExam ? <p className="text-meta text-muted">{t("staffCatalog.examMeta.stagedHint")}</p> : null}
       </div>
       <Button type="submit" loading={save.isPending} disabled={save.isPending || !dirty}>
         {t("staffCatalog.examMeta.save")}

@@ -324,7 +324,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
           </span>
         ) : null}
       </div>
-      {status?.status === "PUBLISHED" ? <p className="text-meta text-muted">{t("staffCatalog.moduleForm.stagedHint")}</p> : null}
+      {status?.status === "PUBLISHED" && !role.canPublishExam ? <p className="text-meta text-muted">{t("staffCatalog.moduleForm.stagedHint")}</p> : null}
     </div>
   ) : null;
 
