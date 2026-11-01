@@ -240,6 +240,15 @@ export function ResultPage({ examId }: { examId: string }) {
         <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
       ) : null}
 
+      {!written && exam.data?.retakeAvailable === true ? (
+        <Card>
+          <p className="text-body text-muted">{t("result.page.retakeNote")}</p>
+          <Button className="mt-3" href={`/exam/${examId}/sit?start=retake`}>
+            {t("result.page.retake")}
+          </Button>
+        </Card>
+      ) : null}
+
       {notSubmitted ? <p className="text-body font-semibold text-text">{t("result.written.couldNotFinish")}</p> : null}
       {notSubmitted ? <p className="text-body text-muted">{t("result.written.notSubmitted")}</p> : null}
 

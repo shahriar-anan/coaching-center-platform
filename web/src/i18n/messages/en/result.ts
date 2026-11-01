@@ -5,6 +5,8 @@ const result = {
     notSat: "You did not take this exam.",
     notReady: "Your result will be ready when time runs out.",
     backToExam: "Back to the exam",
+    retake: "Retake exam",
+    retakeNote: "You can sit this exam again.",
     leaderboard: "See the merit list",
     practice: "Practice attempt · not on the merit list",
   },
