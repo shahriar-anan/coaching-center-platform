@@ -137,20 +137,21 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID module = publishModule(token(seed("SYSTEM_ADMIN", "Staff")), "Assign");
 		Instructor first = instructor(master, "First Instructor");
 		Instructor second = instructor(master, "Second Instructor");
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
+		UUID exam = writtenExam(token(seed("SYSTEM_ADMIN", "Paper")), module);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
 					{"instructorId":"%s"}
 					""".formatted(first.id())))
 			.andExpect(status().isCreated());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
 					{"instructorId":"%s"}
 					""".formatted(second.id())))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("INSTRUCTOR_ALREADY_ASSIGNED"));
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + system)
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
 					{"instructorId":"%s"}
@@ -158,7 +159,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
-		UUID exam = writtenExam(token(seed("SYSTEM_ADMIN", "Paper")), module);
 		Student student = seedStudent("Submitted Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -178,8 +178,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID assigned = publishModule(staff, "Assigned");
 		UUID other = publishModule(staff, "Other");
 		Instructor instructor = instructor(master, "Module Instructor");
-		assign(master, assigned, instructor.id());
-		UUID assignedExam = writtenExam(staff, assigned);
+		UUID assignedExam = writtenExam(staff, assigned, instructor.id());
 		UUID otherExam = writtenExam(staff, other);
 		Student one = seedStudent("Assigned Student");
 		Student two = seedStudent("Other Student");
@@ -214,8 +213,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Missing");
 		Instructor instructor = instructor(master, "Marker");
-		assign(master, module, instructor.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, instructor.id());
 		Student submitted = seedStudent("Has PDF");
 		Student missing = seedStudent("No PDF");
 		mark(master, module, submitted.id());
@@ -274,8 +272,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Marks");
 		Instructor instructor = instructor(master, "Nadia Rahman");
-		assign(master, module, instructor.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, instructor.id());
 		Student higher = seedStudent("Higher Paper");
 		Student lower = seedStudent("Lower Paper");
 		mark(master, module, higher.id());
@@ -462,9 +459,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID assigned = publishModule(staff, "Kept Module");
 		UUID other = publishModule(staff, "Other Module");
 		Instructor instructor = instructor(master, "List Instructor");
-		assign(master, assigned, instructor.id());
 		// A package lists for an instructor only once one of its exams is theirs (R3), so the package needs an exam.
-		writtenExam(staff, assigned);
+		writtenExam(staff, assigned, instructor.id());
 
 		JsonNode page = json.readTree(mockMvc.perform(get("/api/v1/live-exam-modules")
 			.header("Authorization", "Bearer " + instructor.token()))
@@ -487,9 +483,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID elsewhere = publishModule(staff, "Elsewhere");
 		Instructor marker = instructor(master, "Sheet Marker");
 		Instructor other = instructor(master, "Other Marker");
-		assign(master, module, marker.id());
-		assign(master, elsewhere, other.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
+		writtenExam(staff, elsewhere, other.id());
 		Student student = seedStudent("Sheet Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -534,8 +529,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID module = publishModule(staff, "Marked reads");
 		Instructor marker = instructor(master, "Marked Marker");
 		Instructor stranger = instructor(master, "Stranger Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Marked Read Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -571,8 +565,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Unpublished marks");
 		Instructor marker = instructor(master, "Draft Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student marked = seedStudent("Unpublished Student");
 		Student unmarked = seedStudent("Unmarked Student");
 		mark(master, module, marked.id());
@@ -612,8 +605,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Visible");
 		Instructor marker = instructor(master, "Visible Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Visible Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -645,8 +637,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Comments");
 		Instructor marker = instructor(master, "Comment Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Comment Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -833,8 +824,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Unsent");
 		Instructor marker = instructor(master, "Deadline Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student stored = seedStudent("Stored Sheet");
 		Student missing = seedStudent("Missing Sheet");
 		mark(master, module, stored.id());
@@ -881,8 +871,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Keep sheet");
 		Instructor marker = instructor(master, "Keep Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student stored = seedStudent("Kept Sheet");
 		mark(master, module, stored.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -924,8 +913,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID module = publishModule(staff, "First save");
 		Instructor marker = instructor(master, "First Marker");
 		Instructor stranger = instructor(master, "Other Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("First Sheet");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -970,8 +958,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Ready flag");
 		Instructor marker = instructor(master, "Ready Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student done = seedStudent("Ready Done");
 		Student waiting = seedStudent("Ready Waiting");
 		mark(master, module, done.id());
@@ -1048,8 +1035,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Correction count");
 		Instructor marker = instructor(master, "Count Corrector");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Correction Count");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -1087,8 +1073,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Release gate");
 		Instructor marker = instructor(master, "Gate Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student first = seedStudent("Gate First");
 		Student second = seedStudent("Gate Second");
 		Student missed = seedStudent("Gate Missed");
@@ -1134,8 +1119,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Correction file");
 		Instructor marker = instructor(master, "File Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("File Sheet");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -1177,8 +1161,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Direct");
 		Instructor marker = instructor(master, "Direct Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student stored = seedStudent("Direct Stored");
 		Student missing = seedStudent("Direct Missing");
 		mark(master, module, stored.id());
@@ -1251,8 +1234,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID writtenModule = publishModule(system, "Count written");
 		UUID mcqModule = publishModule(system, "Count mcq");
 		Instructor marker = instructor(master, "Count Marker");
-		assign(master, writtenModule, marker.id());
-		UUID written = writtenExam(system, writtenModule);
+		UUID written = writtenExam(system, writtenModule, marker.id());
 		Paper paper = mcq(system, mcqModule);
 		Student submitted = seedStudent("Submitted");
 		Student missed = seedStudent("Missed");
@@ -1335,8 +1317,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID mine = publishModule(system, "Scope mine");
 		UUID other = publishModule(system, "Scope other");
 		Instructor marker = instructor(master, "Scope Marker");
-		assign(master, mine, marker.id());
-		UUID mineExam = writtenExam(system, mine);
+		UUID mineExam = writtenExam(system, mine, marker.id());
 		UUID otherExam = writtenExam(system, other);
 
 		JsonNode asMarker = participation(marker.token());
@@ -1413,10 +1394,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID other = publishModule(system, "Summary other");
 		Instructor marker = instructor(master, "Summary Marker");
 		Instructor stranger = instructor(master, "Summary Stranger");
-		assign(master, mine, marker.id());
-		assign(master, other, stranger.id());
-		UUID mineExam = writtenExam(system, mine);
-		UUID otherExam = writtenExam(system, other);
+		UUID mineExam = writtenExam(system, mine, marker.id());
+		UUID otherExam = writtenExam(system, other, stranger.id());
 		Student one = seedStudent("Summary one");
 		Student two = seedStudent("Summary two");
 		Student three = seedStudent("Summary three");
@@ -1517,8 +1496,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Notice written");
 		Instructor marker = instructor(master, "Notice Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Notice Writer");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -2007,8 +1985,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID module = publishModule(staff, "Unassign");
 		Instructor first = instructor(master, "First Marker");
 		Instructor second = instructor(master, "Second Marker");
-		assign(master, module, first.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, first.id());
 		Student student = seedStudent("Unassign Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -2020,18 +1997,19 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + first.token()))
 			.andExpect(status().isOk());
 
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"instructorId\":\"" + second.id() + "\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("INSTRUCTOR_ALREADY_ASSIGNED"));
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master))
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
-		assertThat(new JdbcTemplate(dataSource).queryForObject("select count(*) from live_exam_instructors where module_id = ?", Integer.class, module))
-			.isZero();
-		assertThat(new JdbcTemplate(dataSource).queryForObject(
-				"select count(*) from audit_log where action = 'LIVE_EXAM_INSTRUCTOR_UNASSIGN' and entity_id = ?",
-				Integer.class, module)).isEqualTo(1);
+		// The exam is published, so the cleared teacher keeps the exam until the Master Admin publishes the removal (NR-01, E31).
+		assertThat(new JdbcTemplate(dataSource).queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam))
+			.as("the removal waits for publish").isEqualTo(first.id());
+		publishStaged(master, exam);
+		assertThat(new JdbcTemplate(dataSource).queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam))
+			.as("the removal is live after publish").isNull();
 
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions")
 			.header("Authorization", "Bearer " + first.token()))
@@ -2045,7 +2023,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$[0].score").value(6))
 			.andExpect(jsonPath("$[0].evaluatorName").value("First Marker"));
 
-		assign(master, module, second.id());
+		assignExam(master, exam, second.id());
+		publishStaged(master, exam);
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions")
 			.header("Authorization", "Bearer " + second.token()))
 			.andExpect(status().isOk())
@@ -2063,27 +2042,29 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void unassignNeedsAnAssignmentAnExistingModuleAndTheMasterAdmin() throws Exception {
+	void unassignNeedsAnAssignedTeacherAnExistingExamAndTheMasterAdmin() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String system = token(seed("SYSTEM_ADMIN", "Admin"));
 		UUID module = publishModule(system, "Unassign guard");
 		Instructor marker = instructor(master, "Guard Marker");
+		UUID exam = writtenExam(system, module);
 
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master))
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNotFound());
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + UUID.randomUUID() + "/instructor")
+		mockMvc.perform(delete("/api/v1/live-exams/" + UUID.randomUUID() + "/instructor")
 			.header("Authorization", "Bearer " + master))
 			.andExpect(status().isNotFound());
 
-		assign(master, module, marker.id());
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + system))
+		assignExam(master, exam, marker.id());
+		publishStaged(master, exam);
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + system))
 			.andExpect(status().isForbidden());
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + marker.token()))
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + marker.token()))
 			.andExpect(status().isForbidden());
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor"))
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor"))
 			.andExpect(status().isUnauthorized());
-		assertThat(new JdbcTemplate(dataSource).queryForObject("select count(*) from live_exam_instructors where module_id = ?", Integer.class, module))
-			.isEqualTo(1);
+		assertThat(new JdbcTemplate(dataSource).queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam))
+			.isEqualTo(marker.id());
 	}
 
 	@Test
@@ -2093,8 +2074,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Publish gate");
 		Instructor marker = instructor(master, "Publish Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Publish Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -2160,8 +2140,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Second publish");
 		Instructor marker = instructor(master, "Second Marker");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Second Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -2223,8 +2202,23 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		return new Instructor(UUID.fromString(body.get("id").asText()), access);
 	}
 
-	private void assign(String master, UUID moduleId, UUID instructorId) throws Exception {
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + moduleId + "/instructor").header("Authorization", "Bearer " + master)
+	/** Publishes what is staged on a published exam, as the Master Admin does after reading its change list (NR-01, E31). */
+	private void publishStaged(String master, UUID exam) throws Exception {
+		String revision = json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/pending-changes")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString()).get("revisionId").asText();
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"revisionId\":\"" + revision + "\"}"))
+			.andExpect(status().isOk());
+	}
+
+	/** Assigns the teacher to one exam (D6). A published exam takes the change as a staged edit until it is published. */
+	private void assignExam(String master, UUID examId, UUID instructorId) throws Exception {
+		mockMvc.perform(post("/api/v1/live-exams/" + examId + "/instructor").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
 					{"instructorId":"%s"}
@@ -2234,6 +2228,11 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 
 
 	private UUID writtenExam(String staff, UUID module) throws Exception {
+		return writtenExam(staff, module, null);
+	}
+
+	/** A published written exam; with {@code instructor}, that teacher is set on it while it is still a draft. */
+	private UUID writtenExam(String staff, UUID module, UUID instructor) throws Exception {
 		MvcResult created = mockMvc
 			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -2253,6 +2252,10 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
+		if (instructor != null) {
+			// The teacher is set on the exam itself while it is a draft, so it is live when the exam is published (D6).
+			assignExam(masterToken(), exam, instructor);
+		}
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + masterToken()))
 			.andExpect(status().isOk());
 		return exam;
@@ -2651,8 +2654,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID module = publishModule(master, "Paper read");
 		Instructor marker = instructor(master, "Marker");
 		Instructor stranger = instructor(master, "Stranger");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(master, module);
+		UUID exam = writtenExam(master, module, marker.id());
 
 		assertPaperReadable(master, exam);
 		assertPaperReadable(system, exam);
@@ -2674,8 +2676,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID module = publishModule(staff, "Marking context");
 		Instructor marker = instructor(master, "Context Instructor");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		Student student = seedStudent("Context Student");
 		mark(master, module, student.id());
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -2701,11 +2702,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.evaluatedAt").isNotEmpty())
 			.andExpect(jsonPath("$.publishedAt").doesNotExist());
 
+		// The package carries no teacher; the teacher is the exam's own (D6).
+		assertThat(new JdbcTemplate(dataSource).queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam))
+			.isEqualTo(marker.id());
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.instructor.id").value(marker.id().toString()))
-			.andExpect(jsonPath("$.instructor.name").value("Context Instructor"))
-			.andExpect(jsonPath("$.instructor.phone").isNotEmpty())
+			.andExpect(jsonPath("$.instructor").doesNotExist())
 			.andExpect(jsonPath("$.categoryPath.length()").value(1))
 			.andExpect(jsonPath("$.categoryPath[0].titleEn").value("Marking context cat"))
 			.andExpect(jsonPath("$.writtenCount").value(1))
@@ -2743,8 +2745,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		UUID module = publishModule(staff, "Feed");
 		UUID other = publishModule(staff, "Feed other");
 		Instructor marker = instructor(master, "Feed Instructor");
-		assign(master, module, marker.id());
-		UUID exam = writtenExam(staff, module);
+		UUID exam = writtenExam(staff, module, marker.id());
 		UUID otherExam = writtenExam(staff, other);
 		Student alpha = seedStudent("Feed Alpha");
 		Student beta = seedStudent("Feed Beta");
@@ -2854,7 +2855,6 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.questions.length()").value(1))
 			.andExpect(jsonPath("$.questions[0].stem").value("Ten"));
 		Instructor marker = instructor(master, "Copy Instructor");
-		assign(master, module, marker.id());
 		mockMvc.perform(post("/api/v1/live-exams/" + paper.examId() + "/copy").header("Authorization", "Bearer " + marker.token()))
 			.andExpect(status().isForbidden());
 	}

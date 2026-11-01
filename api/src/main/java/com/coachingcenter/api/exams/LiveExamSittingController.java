@@ -57,6 +57,15 @@ public class LiveExamSittingController {
 		return PageResponse.from(exams.routine(actorId(), pageable));
 	}
 
+	/** Every exam the student has sat, one row each, newest first. {@code examType} narrows it to MCQ or WRITTEN. */
+	@GetMapping("/api/v1/me/exam-results")
+	public PageResponse<LiveExamSittingService.MyExamResult> myResults(
+			@RequestParam(value = "examType", required = false) String examType,
+			@PageableDefault(size = 20) Pageable pageable) {
+		requireStudent();
+		return sittings.myResults(actorId(), examType, pageable);
+	}
+
 	@PostMapping("/api/v1/live-exams/{id}/take")
 	public LiveExamSittingService.TakeView take(@PathVariable UUID id, @RequestBody(required = false) JsonNode body) {
 		requireStudent();

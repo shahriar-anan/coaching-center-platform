@@ -48,17 +48,20 @@ public class StaffExamListService {
 
 	private final AdminProfileRepository adminProfiles;
 
+	private final LiveExamParticipantRepository participants;
+
 	private final Clock clock;
 
 	public StaffExamListService(LiveExamRepository exams, LiveExamPackageExamRepository links,
 			LiveExamModuleRepository modules, LiveExamQuestionRepository questions, LiveExamRevisionRepository revisions,
-			AdminProfileRepository adminProfiles, Clock clock) {
+			AdminProfileRepository adminProfiles, LiveExamParticipantRepository participants, Clock clock) {
 		this.exams = exams;
 		this.links = links;
 		this.modules = modules;
 		this.questions = questions;
 		this.revisions = revisions;
 		this.adminProfiles = adminProfiles;
+		this.participants = participants;
 		this.clock = clock;
 	}
 
@@ -86,14 +89,16 @@ public class StaffExamListService {
 		Map<UUID, List<LiveExamModuleService.PackageRef>> packages = packagesOf(ids);
 		Map<UUID, Integer> questionCounts = new HashMap<>();
 		Set<UUID> pending = new HashSet<>();
+		Set<UUID> released = new HashSet<>();
 		if (!ids.isEmpty()) {
 			for (Object[] row : questions.countByExamIds(ids)) {
 				questionCounts.put((UUID) row[0], ((Number) row[1]).intValue());
 			}
 			pending.addAll(revisions.findExamIdsIn(ids));
+			released.addAll(participants.findReleasedExamIds(ids));
 		}
 		Map<UUID, String> names = instructorNames(page.getContent());
-		return page.map(exam -> row(exam, now, packages, questionCounts, pending, names));
+		return page.map(exam -> row(exam, now, packages, questionCounts, pending, released, names));
 	}
 
 	/** Every live package of each exam, oldest membership first. A deleted package is left out. */
@@ -130,15 +135,18 @@ public class StaffExamListService {
 	}
 
 	private StaffExamRow row(LiveExam exam, Instant now, Map<UUID, List<LiveExamModuleService.PackageRef>> packages,
-			Map<UUID, Integer> questionCounts, Set<UUID> pending, Map<UUID, String> names) {
+			Map<UUID, Integer> questionCounts, Set<UUID> pending, Set<UUID> released, Map<UUID, String> names) {
 		Instructor instructor = exam.getInstructorId() == null ? null
 				: new Instructor(exam.getInstructorId(), names.get(exam.getInstructorId()));
+		// The same gate as the leaderboard: an MCQ exam has no release step; a written exam opens once a paper is released.
+		boolean resultsReleased = !LiveExam.WRITTEN.equals(exam.getExamType()) || released.contains(exam.getId());
 		return new StaffExamRow(exam.getId(), exam.getTitleEn(), exam.getTitleBn(), exam.getExamType(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.getStatus(), exam.getLiveAt(), exam.getEndsAt(), exam.getDurationMinutes(),
 				ExamPricing.view(exam, now, false), exam.isPopular(), pending.contains(exam.getId()),
 				packages.getOrDefault(exam.getId(), List.of()), exam.getCategoryId(),
 				questionCounts.getOrDefault(exam.getId(), 0),
-				exam.getQuestionPaperId() != null || exam.getQuestionStoredFileName() != null, instructor);
+				exam.getQuestionPaperId() != null || exam.getQuestionStoredFileName() != null, instructor,
+				resultsReleased);
 	}
 
 	private static String status(String value) {
@@ -198,7 +206,7 @@ public class StaffExamListService {
 	public record StaffExamRow(UUID id, String titleEn, String titleBn, String examType, String mode, String phase,
 			String status, Instant liveAt, Instant endAt, int durationMinutes, PriceView pricing, boolean popular,
 			boolean pendingChanges, List<LiveExamModuleService.PackageRef> packages, UUID categoryId,
-			int questionCount, boolean hasPaper, Instructor instructor) {
+			int questionCount, boolean hasPaper, Instructor instructor, boolean resultsReleased) {
 	}
 
 }

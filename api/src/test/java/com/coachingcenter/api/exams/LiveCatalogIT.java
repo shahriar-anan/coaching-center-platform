@@ -386,6 +386,118 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 		assertThat(moduleIds(allModules(student))).doesNotContain(literature, thermo);
 	}
 
+	@Test
+	void aRestoredPackageGoesBackToDraftAndStudentsSeeItOnlyAfterANewFinalSaveAndPublish() throws Exception {
+		String system = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		String instructor = token(seed("INSTRUCTOR"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		UUID category = createCategory(system, "Restore package shelf", "প্যাকেজ তাক", null, null);
+		UUID module = createModule(system, category, "Restore package", "ফেরত প্যাকেজ", null);
+		finalSave(system, module);
+		publish(system, module);
+		mark(module, studentId);
+		assertThat(moduleIds(moduleList(student, category))).containsExactly(module);
+
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		assertThat(moduleIds(moduleList(student, category))).isEmpty();
+
+		// Restore is the Master Admin's, exactly like archive.
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/restore").header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/restore").header("Authorization", "Bearer " + instructor))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"))
+			.andExpect(jsonPath("$.finallySaved").value(false));
+		assertThat(moduleIds(moduleList(student, category))).isEmpty();
+
+		// Publish needs a final save again.
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + system))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("FINAL_SAVE_REQUIRED"));
+		finalSave(system, module);
+		publish(system, module);
+		assertThat(moduleIds(moduleList(student, category))).containsExactly(module);
+		assertThat(auditCount("LIVE_EXAM_MODULE_RESTORE", module)).isEqualTo(1);
+	}
+
+	@Test
+	void restoreOfAPackageIsRefusedWhenItIsNotArchivedOrSitsUnderAnArchivedCategory() throws Exception {
+		String system = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID category = createCategory(system, "Refused package shelf", "নাকচ তাক", null, null);
+		UUID module = createModule(system, category, "Not archived package", "আর্কাইভ নয়", null);
+
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NOT_ARCHIVED"));
+
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + category + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CATEGORY_ARCHIVED"));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"));
+	}
+
+	@Test
+	void aRestoredCategoryReappearsWithItsPackagesAndRestoringItAgainIsRefused() throws Exception {
+		String system = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		String instructor = token(seed("INSTRUCTOR"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		UUID shelf = createCategory(system, "Restore shelf", "ফেরত তাক", null, null);
+		UUID module = createModule(system, shelf, "Shelf package", "তাকের প্যাকেজ", null);
+		finalSave(system, module);
+		publish(system, module);
+		mark(module, studentId);
+
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NOT_ARCHIVED"));
+
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		assertThat(moduleIds(moduleList(student, shelf))).isEmpty();
+
+		// Restore is the Master Admin's, exactly like archive.
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/restore").header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/restore").header("Authorization", "Bearer " + instructor))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/restore").header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/api/v1/live-exam-categories/" + shelf).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.archived").value(false));
+		assertThat(find(tree(master), shelf).get("archived").asBoolean()).isFalse();
+		assertThat(moduleIds(moduleList(student, shelf))).containsExactly(module);
+
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NOT_ARCHIVED"));
+		assertThat(auditCount("LIVE_EXAM_CATEGORY_RESTORE", shelf)).isEqualTo(1);
+	}
+
+	private long auditCount(String action, UUID entity) {
+		Integer count = new JdbcTemplate(dataSource).queryForObject(
+				"select count(*) from audit_log where action = ? and entity_id = ?", Integer.class, action, entity);
+		return count == null ? 0 : count;
+	}
+
 	private UUID createCategory(String token, String titleEn, String titleBn, UUID parentId, Integer position)
 			throws Exception {
 		String parent = parentId == null ? "" : "\"parentId\":\"%s\",".formatted(parentId);

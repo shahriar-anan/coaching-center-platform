@@ -321,6 +321,61 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 		assertThat(position.get("belowPass").asBoolean()).isFalse();
 	}
 
+	/**
+	 * The instructor gets 404 on a written exam's board until a paper is released; the Master Admin reads it before release.
+	 * The exam's {@code resultsReleased} flag follows the same gate.
+	 */
+	@Test
+	void anInstructorGetsNoWrittenBoardUntilReleaseButMasterAdminDoes() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID instructorId = seed("INSTRUCTOR");
+		String instructor = token(instructorId);
+		UUID module = publishModule(staff, "Instructor board");
+		UUID exam = writtenExam(staff, master, module, instructorId);
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.resultsReleased").value(false));
+
+		UUID studentId = seed("STUDENT");
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"studentId":"%s"}
+					""".formatted(studentId)))
+			.andExpect(status().isCreated());
+		String student = token(studentId);
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf")
+			.file(new MockMultipartFile("file", "answer.pdf", "application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isNoContent());
+		clock.set(Instant.parse("2026-10-20T06:55:00Z"));
+		UUID participant = new JdbcTemplate(dataSource).queryForObject(
+				"select id from live_exam_participants where exam_id = ? and student_id = ?", UUID.class, exam, studentId);
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation")
+			.file(new MockMultipartFile("file", "mark.pdf", "application/pdf", compressiblePdf()))
+			.param("marks", "6")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard").header("Authorization", "Bearer " + instructor))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + participant + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard").header("Authorization", "Bearer " + instructor))
+			.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.resultsReleased").value(true));
+	}
+
 	/** A null position is left out of the JSON, so it is either missing or null. */
 	private boolean absentPosition(String body) throws Exception {
 		JsonNode position = json.readTree(body).path("position");
@@ -353,6 +408,11 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 
 	/** A published written exam with a paper, window 06:00 to 06:40 UTC, maximum 10, pass at 5. */
 	private UUID writtenExam(String staff, String master, UUID module) throws Exception {
+		return writtenExam(staff, master, module, null);
+	}
+
+	/** As above; with {@code instructor}, that teacher is set on the exam while it is a draft (D6). */
+	private UUID writtenExam(String staff, String master, UUID module, UUID instructor) throws Exception {
 		MvcResult created = mockMvc
 			.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -372,6 +432,11 @@ class LeaderboardPositionIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk());
+		if (instructor != null) {
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
+				.contentType(MediaType.APPLICATION_JSON).content("{\"instructorId\":\"" + instructor + "\"}"))
+				.andExpect(status().isCreated());
+		}
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk());
 		return exam;

@@ -493,8 +493,9 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 		String learner = token(seed("STUDENT", "Listener"));
 		UUID module = module(system, "Refused news");
 		String allJson = announcementJson("Hello", "", "", "", "ALL", null);
+		// System Admins may send too (plan section 7). The send is a check of the permission only, so it stays out of the counts.
 		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + system)
-			.contentType(MediaType.APPLICATION_JSON).content(allJson)).andExpect(status().isForbidden());
+			.contentType(MediaType.APPLICATION_JSON).content(allJson)).andExpect(status().isCreated());
 		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + teacher)
 			.contentType(MediaType.APPLICATION_JSON).content(allJson)).andExpect(status().isForbidden());
 		mockMvc.perform(post("/api/v1/announcements").header("Authorization", "Bearer " + learner)
@@ -596,8 +597,9 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.content[0].id").value(rosteredAnnouncement.toString()));
 
+		// System Admins may read the history too (plan section 7: LIVE_EXAM_ANNOUNCE is granted to them as well).
 		mockMvc.perform(get("/api/v1/announcements").header("Authorization", "Bearer " + system))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk());
 		mockMvc.perform(get("/api/v1/announcements").header("Authorization", "Bearer " + teacher))
 			.andExpect(status().isForbidden());
 		mockMvc.perform(get("/api/v1/announcements").header("Authorization", "Bearer " + learner))

@@ -37,7 +37,7 @@ class LiveExamReceiptPdf {
 	// The company block. It matches the footer in web/src/i18n/messages/en/common.ts; change it here only.
 	private static final String COMPANY_NAME = "Symam Law";
 
-	private static final String COMPANY_TAGLINE = "ExamPortal: online law exams";
+	private static final String COMPANY_TAGLINE = "Online law exams";
 
 	private static final String COMPANY_WEBSITE = "symamlaw.com";
 
@@ -306,7 +306,7 @@ class LiveExamReceiptPdf {
 	private static void footer(Sheet sheet) throws IOException {
 		sheet.centre(744, REGULAR, 8.5f, GREY, "This is a computer-generated receipt. No signature is required.");
 		sheet.rule(LEFT, RIGHT, 758, DIVIDER, 0.8f);
-		sheet.centre(778, BOLD, 11, INK, "Thank you for choosing " + COMPANY_NAME + " ExamPortal!");
+		sheet.centre(778, BOLD, 11, INK, "Thank you for choosing " + COMPANY_NAME + "!");
 		sheet.centre(794, REGULAR, 8.5f, GREY,
 				"For support, email " + COMPANY_EMAIL + " or call " + COMPANY_PHONE + ".");
 	}

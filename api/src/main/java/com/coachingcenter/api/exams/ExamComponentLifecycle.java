@@ -8,14 +8,15 @@ final class ExamComponentLifecycle {
 	private ExamComponentLifecycle() {
 	}
 
-	static String derive(PaperComponent component) {
+	/** The lifecycle at {@code at}, which the caller takes from the application clock. */
+	static String derive(PaperComponent component, Instant at) {
 		if (!component.isScheduled()) {
 			return "DRAFT";
 		}
 		if (component.getStartsAt() == null || component.getEndsAt() == null) {
 			return "DRAFT";
 		}
-		Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+		Instant now = at.truncatedTo(ChronoUnit.MILLIS);
 		if (now.isBefore(component.getStartsAt())) {
 			return "SCHEDULED";
 		}

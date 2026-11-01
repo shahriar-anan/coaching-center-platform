@@ -77,17 +77,23 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_CATEGORY_ARCHIVE = "LIVE_EXAM_CATEGORY_ARCHIVE";
 
+	public static final String LIVE_EXAM_CATEGORY_RESTORE = "LIVE_EXAM_CATEGORY_RESTORE";
+
 	public static final String LIVE_EXAM_CATEGORY_ENTITY = "LIVE_EXAM_CATEGORY";
 
 	public static final String LIVE_EXAM_MODULE_DELETE = "LIVE_EXAM_MODULE_DELETE";
 
 	public static final String LIVE_EXAM_MODULE_ARCHIVE = "LIVE_EXAM_MODULE_ARCHIVE";
 
+	public static final String LIVE_EXAM_MODULE_RESTORE = "LIVE_EXAM_MODULE_RESTORE";
+
 	public static final String LIVE_EXAM_MODULE_ENTITY = "LIVE_EXAM_MODULE";
 
 	public static final String LIVE_EXAM_DELETE = "LIVE_EXAM_DELETE";
 
 	public static final String LIVE_EXAM_ARCHIVE = "LIVE_EXAM_ARCHIVE";
+
+	public static final String LIVE_EXAM_RESTORE = "LIVE_EXAM_RESTORE";
 
 	public static final String LIVE_EXAM_QUESTION_DELETE = "LIVE_EXAM_QUESTION_DELETE";
 
@@ -135,9 +141,21 @@ public class AuditRecorder {
 
 	public static final String ANNOUNCEMENT_SENT = "ANNOUNCEMENT_SENT";
 
+	public static final String ANNOUNCEMENT_WITHDRAWN = "ANNOUNCEMENT_WITHDRAWN";
+
 	public static final String ANNOUNCEMENT_ENTITY = "ANNOUNCEMENT";
 
 	public static final String LIVE_EXAM_GRANT_ENTITY = "LIVE_EXAM_GRANT";
+
+	public static final String LIVE_EXAM_REVIEW_APPROVE = "LIVE_EXAM_REVIEW_APPROVE";
+
+	public static final String LIVE_EXAM_REVIEW_HIDE = "LIVE_EXAM_REVIEW_HIDE";
+
+	public static final String LIVE_EXAM_REVIEW_FEATURE = "LIVE_EXAM_REVIEW_FEATURE";
+
+	public static final String LIVE_EXAM_REVIEW_UNFEATURE = "LIVE_EXAM_REVIEW_UNFEATURE";
+
+	public static final String LIVE_EXAM_REVIEW_ENTITY = "LIVE_EXAM_REVIEW";
 
 	private final AuditLogRepository auditLogs;
 

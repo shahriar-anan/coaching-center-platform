@@ -159,6 +159,13 @@ public class LiveExamModuleController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/api/v1/live-exam-modules/{id}/restore")
+	public ResponseEntity<Void> restore(@PathVariable UUID id) {
+		require(Permissions.EXAM_DELETE);
+		modules.restore(id);
+		return ResponseEntity.noContent().build();
+	}
+
 	private void require(String permission) {
 		if (!permissions.has(permission)) {
 			throw denied();

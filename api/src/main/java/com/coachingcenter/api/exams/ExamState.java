@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * The editable state of an exam: its settings, its proposed paper and its questions with their options. A published exam's
  * staged edit is stored as this, as JSON, in {@code live_exam_revisions.payload} (NR-01, E31). The same shape is read from
@@ -66,6 +68,13 @@ public class ExamState {
 	/** The question paper version this state points at (a written exam). */
 	public UUID paperId;
 
+	/**
+	 * The instructor who marks the exam (NR-01, R3). Null when none is set. Always written, even when null, so a staged removal
+	 * is told apart from a revision staged before this field existed (see {@code LiveExamRevisionService#readRevision}).
+	 */
+	@JsonInclude(JsonInclude.Include.ALWAYS)
+	public UUID instructorId;
+
 	public List<QuestionState> questions = new ArrayList<>();
 
 	/** The settings and the paper pointer of an exam row. The questions are loaded separately. */
@@ -99,6 +108,7 @@ public class ExamState {
 		negativeMarks = exam.getNegativeMarks();
 		answersChangeable = exam.isAnswersChangeable();
 		previewEnabled = exam.isPreviewEnabled();
+		instructorId = exam.getInstructorId();
 	}
 
 	/** Writes the settings onto an exam. The paper pointer and the questions are applied by the publish step. */
@@ -127,6 +137,7 @@ public class ExamState {
 		exam.setNegativeMarks(negativeMarks);
 		exam.setAnswersChangeable(answersChangeable);
 		exam.setPreviewEnabled(previewEnabled);
+		exam.setInstructorId(instructorId);
 	}
 
 	/** The sum of the question marks (an MCQ exam's maximum). */

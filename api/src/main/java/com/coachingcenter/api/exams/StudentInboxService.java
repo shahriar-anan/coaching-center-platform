@@ -36,7 +36,7 @@ public class StudentInboxService {
 
 	/**
 	 * An exam notice needs its live exam and module, not deleted. An announcement has no exam: it shows for everyone, or
-	 * for the module it names while that module is not deleted.
+	 * for the module it names while that module is not deleted. A withdrawn announcement shows nowhere (plan section 6).
 	 */
 	private static final String FROM = """
 			from student_notices n
@@ -47,6 +47,7 @@ public class StudentInboxService {
 			where n.user_id = :me
 			  and (n.exam_id is null or e.id is not null)
 			  and (coalesce(e.module_id, n.module_id) is null or m.id is not null)
+			  and (a.id is null or a.withdrawn_at is null)
 			""";
 
 	private static final String SELECT = """
@@ -56,7 +57,7 @@ public class StudentInboxService {
 			    and x.kind = 'WRITTEN_RESULT' and x.created_at < n.created_at) as updated,
 			  n.module_id as notice_module_id, a.id as announcement_id, a.title_en as announcement_title_en,
 			  a.title_bn as announcement_title_bn, a.body_en as announcement_body_en, a.body_bn as announcement_body_bn,
-			  a.audience as announcement_audience,
+			  a.audience as announcement_audience, a.exam_id as announcement_exam_id,
 			  case when e.exam_type = 'WRITTEN' then coalesce(e.written_maximum, 0)
 			    else (select coalesce(sum(q.marks), 0) from live_exam_questions q
 			          where q.exam_id = e.id and q.deleted_at is null) end as maximum
@@ -117,8 +118,10 @@ public class StudentInboxService {
 	public int markAllRead(UUID studentId, NoticeGroup group) {
 		MapSqlParameterSource params = new MapSqlParameterSource("me", studentId).addValue("now",
 				Timestamp.from(clock.instant()));
-		String tab = groupClause(group, "kind", params);
-		return jdbc.update("update student_notices set read_at = :now where user_id = :me and read_at is null" + tab, params);
+		String tab = groupClause(group, "n.kind", params);
+		// Only the notices the inbox shows: a withdrawn or deleted-target notice is not marked.
+		return jdbc.update("update student_notices set read_at = :now where read_at is null and id in (select n.id " + FROM
+				+ tab + ")", params);
 	}
 
 	/** The condition for one tab, or nothing for all notices. Exams is "not in" the other two tabs' kinds. */
@@ -150,7 +153,8 @@ public class StudentInboxService {
 		}
 		Timestamp readAt = rs.getTimestamp("read_at");
 		UUID examId = rs.getObject("exam_id", UUID.class);
-		NoticeExam exam = examId == null ? null
+		// An announcement names its exam in the announcement part, so its exam part stays empty, as it always was.
+		NoticeExam exam = examId == null || "ANNOUNCEMENT".equals(kind) ? null
 				: new NoticeExam(examId, rs.getObject("module_id", UUID.class), rs.getString("exam_type"),
 						rs.getString("title_en"), rs.getString("title_bn"), start, end);
 		UUID announcementId = rs.getObject("announcement_id", UUID.class);
@@ -158,7 +162,7 @@ public class StudentInboxService {
 				: new NoticeAnnouncement(announcementId, rs.getString("announcement_title_en"),
 						rs.getString("announcement_title_bn"), rs.getString("announcement_body_en"),
 						rs.getString("announcement_body_bn"), rs.getString("announcement_audience"),
-						rs.getObject("notice_module_id", UUID.class));
+						rs.getObject("notice_module_id", UUID.class), rs.getObject("announcement_exam_id", UUID.class));
 		return new NoticeView(rs.getObject("id", UUID.class), kind, format(rs.getTimestamp("created_at").toInstant()),
 				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement,
 				rs.getBoolean("updated") ? Boolean.TRUE : null, NoticeGroup.of(kind).name());
@@ -184,9 +188,11 @@ public class StudentInboxService {
 			String endAt) {
 	}
 
-	/** {@code moduleId} is set only for an announcement sent to one module. */
+	/**
+	 * {@code moduleId} is set only for an announcement sent to one package, and {@code examId} only for one sent to one exam.
+	 */
 	public record NoticeAnnouncement(UUID id, String titleEn, String titleBn, String bodyEn, String bodyBn, String audience,
-			UUID moduleId) {
+			UUID moduleId, UUID examId) {
 	}
 
 }

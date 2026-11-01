@@ -42,33 +42,6 @@ public class LiveExamEvaluationController {
 		this.permissions = permissions;
 	}
 
-	/**
-	 * Sets the package's default instructor. {@code applyToExams} (default true, which is what the current screen relies
-	 * on) also sets every exam already in the package; send false to set the default for new exams only.
-	 */
-	@PostMapping("/api/v1/live-exam-modules/{moduleId}/instructor")
-	public ResponseEntity<LiveExamEvaluationService.Assignment> assign(@PathVariable UUID moduleId,
-			@RequestBody JsonNode body) {
-		require(Permissions.LIVE_EXAM_ASSIGN);
-		JsonNode instructorId = body.get("instructorId");
-		if (instructorId == null || instructorId.isNull() || instructorId.asText().isBlank()) {
-			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
-		}
-		JsonNode apply = body.get("applyToExams");
-		boolean applyToExams = apply == null || apply.isNull() || apply.asBoolean();
-		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(evaluations.assign(moduleId, UUID.fromString(instructorId.asText()), applyToExams));
-	}
-
-	/** Clears the package default. With {@code applyToExams} (default true) it also clears the exams that held that instructor. */
-	@DeleteMapping("/api/v1/live-exam-modules/{moduleId}/instructor")
-	public ResponseEntity<Void> unassign(@PathVariable UUID moduleId,
-			@RequestParam(value = "applyToExams", defaultValue = "true") boolean applyToExams) {
-		require(Permissions.LIVE_EXAM_ASSIGN);
-		evaluations.unassign(moduleId, applyToExams);
-		return ResponseEntity.noContent().build();
-	}
-
 	@PostMapping("/api/v1/live-exams/{id}/instructor")
 	public ResponseEntity<LiveExamInstructorService.Assignment> assignToExam(@PathVariable UUID id,
 			@RequestBody JsonNode body) {
@@ -189,6 +162,18 @@ public class LiveExamEvaluationController {
 		return ResponseEntity.ok()
 			.contentType(MediaType.APPLICATION_PDF)
 			.body(evaluations.evaluatedPdf(id, actor().userId(), attempt));
+	}
+
+	/** The student's own submitted answer script. {@code attempt} picks an attempt; without it, the latest one. */
+	@GetMapping("/api/v1/live-exams/{id}/answer-pdf")
+	public ResponseEntity<byte[]> studentAnswerPdf(@PathVariable UUID id,
+			@RequestParam(value = "attempt", required = false) Integer attempt) {
+		if (!permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
+			throw denied();
+		}
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.body(evaluations.studentAnswerPdf(id, actor().userId(), attempt));
 	}
 
 	private void require(String permission) {

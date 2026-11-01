@@ -107,6 +107,15 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_FAVOURITE = "LIVE_EXAM_FAVOURITE";
 
+	/** Write a review of an exam or package the student has sat. The student only. */
+	public static final String LIVE_EXAM_REVIEW_WRITE = "LIVE_EXAM_REVIEW_WRITE";
+
+	/** Read the review queue, and approve, hide or feature reviews. System Admins and the Master Admin. */
+	public static final String LIVE_EXAM_REVIEW_MODERATE = "LIVE_EXAM_REVIEW_MODERATE";
+
+	/** Read the reviews of the instructor's own exams. Read only. */
+	public static final String LIVE_EXAM_REVIEW_READ = "LIVE_EXAM_REVIEW_READ";
+
 	private Permissions() {
 	}
 

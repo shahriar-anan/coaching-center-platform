@@ -19,6 +19,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.coachingcenter.api.auth.StudentPhoneGuard;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.web.PageResponse;
 import com.coachingcenter.api.files.LocalFileStorage;
 
 import tools.jackson.databind.JsonNode;
@@ -35,6 +40,9 @@ import tools.jackson.databind.JsonNode;
 public class LiveExamSittingService {
 
 	static final long MAX_PDF_BYTES = 80L * 1024 * 1024;
+
+	/** The most exams one page of {@link #myResults} holds, whatever the client asks for. */
+	private static final int MAX_RESULT_PAGE = 50;
 
 	private static final ZoneId DHAKA = ZoneId.of("Asia/Dhaka");
 
@@ -74,13 +82,18 @@ public class LiveExamSittingService {
 
 	private final StudentNoticeWriter notices;
 
+	private final LiveExamMemberships memberships;
+
+	private final LiveExamModuleRepository modules;
+
 	public LiveExamSittingService(LiveExamService exams, LiveExamRepository examRepository,
 			LiveExamQuestionRepository questions, LiveExamOptionRepository options,
 			LiveExamParticipantRepository participants, LiveExamAnswerRepository answers,
 			LiveExamAnswerConfirmationRepository confirmations, LiveExamQuestionPaperRepository papers,
 			LiveExamRetakeGrantRepository retakeGrants, LiveExamAccess access, LiveExamLeaderboardService leaderboards,
 			LiveExamStudentStanding standings, LocalFileStorage files, PdfCompressor pdfs, Clock clock,
-			StudentPhoneGuard phones, StudentNoticeWriter notices) {
+			StudentPhoneGuard phones, StudentNoticeWriter notices, LiveExamMemberships memberships,
+			LiveExamModuleRepository modules) {
 		this.exams = exams;
 		this.examRepository = examRepository;
 		this.questions = questions;
@@ -98,6 +111,8 @@ public class LiveExamSittingService {
 		this.clock = clock;
 		this.phones = phones;
 		this.notices = notices;
+		this.memberships = memberships;
+		this.modules = modules;
 	}
 
 	@Transactional
@@ -115,12 +130,21 @@ public class LiveExamSittingService {
 		boolean mcq = LiveExam.MCQ.equals(exam.getExamType());
 		List<StudentQuestion> questionViews = null;
 		Boolean questionPdf = null;
-		// A finished MCQ attempt shows the key and the explanations at once (D21), while a running one shows neither.
-		if (participant != null && mcq && (open || posted)) {
-			questionViews = questionViews(examId, participant.getId(), posted);
+		// A running MCQ attempt shows its questions without the key. A submitted one shows the key and the explanations at once
+		// (ReviewRule); reviewOpensAt is no longer sent.
+		if (participant != null && mcq) {
+			if (posted) {
+				if (ReviewRule.open(exam, participant, now)) {
+					questionViews = questionViews(examId, participant.getId(), true);
+				}
+			}
+			else if (open) {
+				questionViews = questionViews(examId, participant.getId(), false);
+			}
 		}
+		// A written sitting offers its paper only until an answer script is stored: the upload is the submission.
 		if (open && LiveExam.WRITTEN.equals(exam.getExamType()) && paperFile(exam, participant.getQuestionPaperId()) != null) {
-			questionPdf = true;
+			questionPdf = participant.getAnswerStoredFileName() == null;
 		}
 		AccessState state = standing.access();
 		return new StudentExam(shell.id(), shell.moduleId(), shell.examType(), shell.paperLanguage(), shell.titleEn(),
@@ -131,7 +155,7 @@ public class LiveExamSittingService {
 				participant != null && participant.getAnswerStoredFileName() != null, standing.status().detail(),
 				standing.attempts(),
 				new AccessView(state.granted(), state.source(), state.endsAt() == null ? null : state.endsAt().toString(),
-						state.expired()), shell.coverUrl());
+						state.expired()), shell.coverUrl(), null);
 	}
 
 	/** The first attempt. A student with an open attempt gets it back; one with a finished attempt must use {@link #retake}. */
@@ -279,10 +303,11 @@ public class LiveExamSittingService {
 		else {
 			postIfDue(participant, exam);
 		}
-		boolean mcq = LiveExam.MCQ.equals(exam.getExamType());
-		// MCQ: the answers and explanations come with the result, as soon as it is posted (D21).
-		List<StudentQuestion> questionViews = mcq && participant.getSubmittedAt() != null
-				? questionViews(examId, participant.getId(), true) : null;
+		// MCQ: the score and the questions with the key and the explanations come at once after submit (ReviewRule).
+		Instant now = clock.instant();
+		boolean submittedMcq = LiveExam.MCQ.equals(exam.getExamType()) && participant.getSubmittedAt() != null;
+		boolean reviewOpen = submittedMcq && ReviewRule.open(exam, participant, now);
+		List<StudentQuestion> questionViews = reviewOpen ? questionViews(examId, participant.getId(), true) : null;
 		BigDecimal score = McqScoring.plain(participant.getScore());
 		Boolean passed = participant.getPassed();
 		String comment = participant.getComment();
@@ -300,9 +325,11 @@ public class LiveExamSittingService {
 					.map(found -> new LiveExamEvaluationService.RetakeGrantView(found.getId(), found.getUsedParticipantId() != null))
 					.orElse(null)
 				: null;
+		boolean answerPdf = LiveExam.WRITTEN.equals(exam.getExamType()) && participant.getAnswerStoredFileName() != null;
 		return new ReviewedResult(score, maximum(exam), passed, participant.getStatus(), questionViews, comment,
 				evaluatedPdf, LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
-				participant.getAttemptNo(), leaderboards.positionOf(exam, participant), grant);
+				participant.getAttemptNo(), leaderboards.positionOf(exam, participant), grant, exam.getTitleEn(),
+				exam.getTitleBn(), exam.getExamType(), exam.getPassPercent(), answerPdf, null);
 	}
 
 	/** The student's own attempts, oldest first. */
@@ -328,6 +355,65 @@ public class LiveExamSittingService {
 					showScore ? McqScoring.plain(participant.getScore()) : null, showScore ? participant.getPassed() : null));
 		}
 		return views;
+	}
+
+	/**
+	 * The exams the student has sat, one row each from the latest attempt, newest first. Only the caller's own attempts are
+	 * read. A deleted exam is left out; an archived or unpublished one stays, so a posted result stays readable. A due MCQ
+	 * attempt that is not yet posted is posted first, as {@link #attempts} does; the release rule is {@link #resultVisible}.
+	 */
+	@Transactional
+	public PageResponse<MyExamResult> myResults(UUID studentId, String examType, Pageable pageable) {
+		String type = LiveExamTypeFilter.parse(examType);
+		Pageable window = PageRequest.of(pageable.getPageNumber(), Math.min(pageable.getPageSize(), MAX_RESULT_PAGE));
+		Page<UUID> examIds = participants.findSatExamIds(studentId, type, window);
+		Map<UUID, LiveExam> examById = new HashMap<>();
+		examRepository.findAllById(examIds.getContent()).forEach(exam -> examById.put(exam.getId(), exam));
+		// The attempts are oldest first, so the last one of each exam is its latest.
+		Map<UUID, List<LiveExamParticipant>> attemptsByExam = new HashMap<>();
+		if (!examIds.isEmpty()) {
+			for (LiveExamParticipant own : participants.findByStudentIdAndExamIdInAndDeletedAtIsNull(studentId,
+					examIds.getContent())) {
+				attemptsByExam.computeIfAbsent(own.getExamId(), ignored -> new ArrayList<>()).add(own);
+			}
+		}
+		Instant now = clock.instant();
+		List<MyExamResult> rows = new ArrayList<>();
+		for (UUID examId : examIds) {
+			LiveExam exam = examById.get(examId);
+			List<LiveExamParticipant> own = attemptsByExam.getOrDefault(examId, List.of());
+			if (exam == null || own.isEmpty()) {
+				continue;
+			}
+			LiveExamParticipant latest = own.get(own.size() - 1);
+			// Only an attempt not yet posted is scored here. A posted one is already scored, and a rescore on every list would cost.
+			if (latest.getSubmittedAt() == null) {
+				postIfDue(latest, exam);
+			}
+			LiveExamStudentStatus.Result status = LiveExamStudentStatus.of(exam, latest, now);
+			boolean visible = resultVisible(exam, latest);
+			LiveExamModule module = memberships.primaryModuleId(exam.getId())
+				.flatMap(modules::findByIdAndDeletedAtIsNull)
+				.orElse(null);
+			rows.add(new MyExamResult(exam.getId(), exam.getTitleEn(), exam.getTitleBn(), exam.getExamType(),
+					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
+					module == null ? null : module.getTitleBn(), exam.getLiveAt() == null ? null : format(exam.getLiveAt()),
+					exam.getPassPercent(), status.status(), status.detail(), LiveExamParticipant.legacyKind(latest.getKind()),
+					own.size(), latest.getSubmittedAt() == null ? null : format(latest.getSubmittedAt()), visible,
+					visible ? McqScoring.plain(latest.getScore()) : null, maximum(exam), visible ? latest.getPassed() : null));
+		}
+		return PageResponse.from(new PageImpl<>(rows, window, examIds.getTotalElements()));
+	}
+
+	/**
+	 * Whether the student may see this attempt's score now: an MCQ once submitted, a written script once published or when it
+	 * failed to submit. The same rule as {@link #result} and {@link #attempts}.
+	 */
+	private static boolean resultVisible(LiveExam exam, LiveExamParticipant participant) {
+		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+			return LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus()) || participant.getPublishedAt() != null;
+		}
+		return participant.getSubmittedAt() != null;
 	}
 
 	@Transactional
@@ -361,6 +447,10 @@ public class LiveExamSittingService {
 			.orElse(null);
 		if (participant == null || !clock.instant().isBefore(participant.getDeadlineAt())) {
 			throw notFound();
+		}
+		// The answer script is the submission: once it is stored the paper is no longer offered while the sitting is open.
+		if (participant.getAnswerStoredFileName() != null) {
+			throw notOpen();
 		}
 		String stored = paperFile(exam, participant.getQuestionPaperId());
 		if (stored == null) {
@@ -548,9 +638,8 @@ public class LiveExamSittingService {
 	}
 
 	/**
-	 * {@code reveal} adds the correct options and explanations: only once the student's own attempt is posted (D21). The
-	 * exam's "answers released" switch is no longer read (P-d). A student mid-sitting reads the published rows, so a reload
-	 * shows new wording (R17).
+	 * {@code reveal} adds the correct options and explanations. Callers pass true only when the review is open ({@link ReviewRule}),
+	 * never for a running attempt. A student mid-sitting reads the published rows, so a reload shows new wording (R17).
 	 */
 	private List<StudentQuestion> questionViews(UUID examId, UUID participantId, boolean reveal) {
 		Map<UUID, Set<UUID>> selected = new HashMap<>();
@@ -710,7 +799,7 @@ public class LiveExamSittingService {
 				|| LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus())) {
 			throw new ApiException(ErrorCode.DEADLINE_PASSED, HttpStatus.CONFLICT, "The sitting deadline has passed.");
 		}
-		// A submitted MCQ shows its key at once, so it can no longer change.
+		// A submitted MCQ is final (its key is already shown after submit), so it can no longer change.
 		if (participant.getSubmittedAt() != null) {
 			throw new ApiException(ErrorCode.ANSWER_ALREADY_SUBMITTED, HttpStatus.CONFLICT, "The attempt was already submitted.");
 		}
@@ -793,14 +882,16 @@ public class LiveExamSittingService {
 
 	/**
 	 * {@code myStatus} is the legacy status the current web knows; {@code myStatusDetail} also carries ARCHIVED_OPEN,
-	 * PRACTICE_OPEN and EXPIRED. {@code sitting} is the latest attempt; {@code attempts} counts them.
+	 * PRACTICE_OPEN and EXPIRED. {@code sitting} is the latest attempt; {@code attempts} counts them. {@code questions} carries
+	 * the key for a submitted MCQ. {@code reviewOpensAt} is always null now (the review opens at submit); the field stays in the
+	 * contract and is left out of the JSON.
 	 */
 	public record StudentExam(UUID id, UUID moduleId, String examType, String paperLanguage, String titleEn,
 			String titleBn, String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt,
 			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
 			Boolean retakeAvailable, SittingView sitting, Boolean answerStored, String myStatusDetail, int attempts,
-			AccessView access, String coverUrl) {
+			AccessView access, String coverUrl, String reviewOpensAt) {
 	}
 
 	public record AccessView(boolean granted, String source, String endsAt, boolean expired) {
@@ -829,9 +920,17 @@ public class LiveExamSittingService {
 			int attemptNo, LiveExamLeaderboardService.Position position) {
 	}
 
+	/**
+	 * The attempt's result. The exam's own titles, type and pass percent come with it, so the result page can still show the
+	 * result when the exam read refuses an archived or unpublished exam (the posted result stays readable). {@code answerPdf}
+	 * says the attempt has a submitted answer script (never for MCQ). {@code questions} (the key and the explanations) is left
+	 * out only for an MCQ that is not submitted. {@code reviewOpensAt} is always null now (the review opens at submit).
+	 */
 	public record ReviewedResult(BigDecimal score, int maximum, Boolean passed, String status, List<StudentQuestion> questions,
 			String comment, Boolean evaluatedPdf, String kind, String attemptKind, int attemptNo,
-			LiveExamLeaderboardService.Position position, LiveExamEvaluationService.RetakeGrantView retakeGrant) {
+			LiveExamLeaderboardService.Position position, LiveExamEvaluationService.RetakeGrantView retakeGrant,
+			String examTitleEn, String examTitleBn, String examType, Integer passPercent, boolean answerPdf,
+			String reviewOpensAt) {
 	}
 
 	/** One of the student's attempts. New route, so it carries {@code attemptKind} alone. */
@@ -840,6 +939,17 @@ public class LiveExamSittingService {
 	}
 
 	public record SavedAnswer(UUID questionId, List<UUID> optionIds, boolean confirmed) {
+	}
+
+	/**
+	 * One exam the student has sat, from its latest attempt. {@code status} and {@code detail} are the same values the exam
+	 * read gives ({@link LiveExamStudentStatus}). {@code score} and {@code passed} are set only when {@code resultVisible}; the
+	 * maximum is always there. {@code kind} is the legacy LIVE or RETAKE.
+	 */
+	public record MyExamResult(UUID examId, String titleEn, String titleBn, String examType, UUID moduleId,
+			String moduleTitleEn, String moduleTitleBn, String liveAt, Integer passPercent, String status, String detail,
+			String kind, int attempts, String submittedAt, boolean resultVisible, BigDecimal score, int maximum,
+			Boolean passed) {
 	}
 
 }

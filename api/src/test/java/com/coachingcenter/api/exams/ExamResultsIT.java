@@ -137,7 +137,7 @@ class ExamResultsIT extends PostgresIntegrationTest {
 
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + written + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(evalJson(q1, q2, 0, 6, "Nice work")))
 			.andExpect(status().isOk())
@@ -153,21 +153,21 @@ class ExamResultsIT extends PostgresIntegrationTest {
 
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + written + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(evalJson(q1, q2, -1, 4, "x")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("MARKS_OUT_OF_RANGE"));
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + written + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(evalJson(q1, q2, 2, 7, "high")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("MARKS_OUT_OF_RANGE"));
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + written + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"feedback":"missing","marks":[{"submissionQuestionId":"%s","marks":1}]}
@@ -176,7 +176,7 @@ class ExamResultsIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("MARKS_OUT_OF_RANGE"));
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + written + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"feedback":"extra","marks":[{"submissionQuestionId":"%s","marks":1},{"submissionQuestionId":"%s","marks":1},{"submissionQuestionId":"%s","marks":1}]}
@@ -191,7 +191,7 @@ class ExamResultsIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("RESULTS_NOT_PUBLISHED"));
 
 		mockMvc.perform(post("/api/v1/exam-components/" + mcqHidden + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isNoContent());
 		mockMvc
 			.perform(get("/api/v1/catalog/exam-modules/" + module + "/papers/" + dualPaper + "/result")
@@ -201,12 +201,12 @@ class ExamResultsIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.passed").doesNotExist());
 
 		mockMvc.perform(post("/api/v1/exam-components/" + written + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isNoContent());
 
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + written + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(evalJson(q1, q2, 1, 1, "Late")))
 			.andExpect(status().isConflict())
@@ -258,10 +258,10 @@ class ExamResultsIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.passed").value(true));
 
 		mockMvc.perform(post("/api/v1/exam-components/" + mcqOnly + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isNoContent());
 		mockMvc.perform(post("/api/v1/exam-components/" + mcqOnly + "/results/unpublish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isNoContent());
 		mockMvc
 			.perform(get("/api/v1/catalog/exam-modules/" + module + "/components/" + mcqOnly + "/result")
@@ -314,7 +314,7 @@ class ExamResultsIT extends PostgresIntegrationTest {
 				"select id from written_submissions where component_id = ? and status = 'DRAFT'", UUID.class, draftWritten);
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + draftWritten + "/submissions/" + draftId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"feedback\":\"no\",\"marks\":[]}"))
 			.andExpect(status().isConflict())
@@ -328,13 +328,13 @@ class ExamResultsIT extends PostgresIntegrationTest {
 			UUID next = submissionQuestionId(id, 1);
 			mockMvc
 				.perform(post("/api/v1/exam-components/" + draftWritten + "/submissions/" + id + "/evaluation")
-					.header("Authorization", "Bearer " + system)
+					.header("Authorization", "Bearer " + master)
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(evalJson(first, next, 2, 4, "Done")))
 				.andExpect(status().isOk());
 		}
 		mockMvc.perform(post("/api/v1/exam-components/" + draftWritten + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isNoContent());
 		mockMvc
 			.perform(get("/api/v1/catalog/exam-modules/" + module + "/components/" + draftWritten + "/result")
@@ -363,7 +363,7 @@ class ExamResultsIT extends PostgresIntegrationTest {
 		UUID mcq = setupMcq(paper, false);
 		addMcqQuestions(mcq);
 		mockMvc.perform(post("/api/v1/exam-components/" + mcq + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("COMPONENT_NOT_ENDED"));
 
@@ -371,9 +371,21 @@ class ExamResultsIT extends PostgresIntegrationTest {
 		addWrittenQuestions(w);
 		submitWrittenOn(w);
 		mockMvc.perform(post("/api/v1/exam-components/" + w + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("RESULTS_NOT_READY"));
+	}
+
+	/** The legacy release route is the Master Admin's alone: a System Admin gets 403 on it. */
+	@Test
+	void aSystemAdminCannotPublishWrittenResults() throws Exception {
+		UUID paper = createPaper();
+		UUID w = setupWritten(paper);
+		addWrittenQuestions(w);
+		submitWrittenOn(w);
+		mockMvc.perform(post("/api/v1/exam-components/" + w + "/results/publish").header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 	}
 
 	private String evalJson(UUID q1, UUID q2, int m1, int m2, String feedback) {

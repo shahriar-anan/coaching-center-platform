@@ -101,6 +101,93 @@ class LiveExamArchiveIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("EXAM_ARCHIVED"));
 	}
 
+	@Test
+	void aRestoredExamGoesBackToDraftAndStudentsSeeItOnlyAfterANewFinalSaveAndPublish() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		String systemAdmin = token(seed("SYSTEM_ADMIN"));
+		UUID module = publishModule(master, "Restore module");
+		UUID exam = createMcqExam(master, module, "Restore me", "ফিরিয়ে আনি");
+		addQuestion(master, exam);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		assertThat(publicStatus(exam)).isEqualTo(404);
+
+		// Restore is the Master Admin's, exactly like archive.
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/restore").header("Authorization", "Bearer " + systemAdmin))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"))
+			.andExpect(jsonPath("$.finallySaved").value(false));
+		assertThat(publicStatus(exam)).isEqualTo(404);
+		assertThat(publicModuleExamIds(module)).doesNotContain(exam);
+		assertThat(auditCount("LIVE_EXAM_RESTORE", exam)).isEqualTo(1);
+
+		// Publish needs a final save again.
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("FINAL_SAVE_REQUIRED"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/final-save").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("PUBLISHED"));
+		assertThat(publicStatus(exam)).isEqualTo(200);
+	}
+
+	@Test
+	void restoreIsRefusedForAnExamThatIsNotArchivedAndForOneUnderAnArchivedCategory() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(master, "Restore refused module");
+		UUID draft = createMcqExam(master, module, "Still a draft", "এখনও খসড়া");
+		mockMvc.perform(post("/api/v1/live-exams/" + draft + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NOT_ARCHIVED"));
+
+		UUID shelf = createCategory(master, "Restore shelf", "ফেরত তাক");
+		UUID shelfModule = moduleIn(master, shelf, "Shelf module");
+		UUID shelfExam = createMcqExam(master, shelfModule, "Shelf exam", "তাকের পরীক্ষা");
+		mockMvc.perform(post("/api/v1/live-exams/" + shelfExam + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + shelf + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/v1/live-exams/" + shelfExam + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CATEGORY_ARCHIVED"));
+		mockMvc.perform(get("/api/v1/live-exams/" + shelfExam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"));
+	}
+
+	@Test
+	void anInstructorAndAStudentCannotRestoreAnExam() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(master, "Restore role module");
+		UUID exam = createMcqExam(master, module, "Role exam", "ভূমিকার পরীক্ষা");
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		String instructor = token(seed("INSTRUCTOR"));
+		String student = token(seed("STUDENT"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/restore").header("Authorization", "Bearer " + instructor))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/restore").header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"));
+	}
+
+	private long auditCount(String action, UUID entity) {
+		Integer count = new JdbcTemplate(dataSource).queryForObject(
+				"select count(*) from audit_log where action = ? and entity_id = ?", Integer.class, action, entity);
+		return count == null ? 0 : count;
+	}
+
 	private int publicStatus(UUID exam) throws Exception {
 		return mockMvc.perform(get("/api/v1/public/live-exams/" + exam)).andReturn().getResponse().getStatus();
 	}
@@ -131,6 +218,17 @@ class LiveExamArchiveIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
 		return module;
+	}
+
+	private UUID moduleIn(String token, UUID category, String title) throws Exception {
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + token)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"categoryId":"%s","titleEn":"%s","titleBn":"মডিউল","descriptionEn":"d","descriptionBn":"বি"}
+					""".formatted(category, title)))
+			.andExpect(status().isCreated())
+			.andReturn();
+		return UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
 	}
 
 	private UUID createCategory(String token, String titleEn, String titleBn) throws Exception {

@@ -57,6 +57,8 @@ class ExamAnalyticsIT extends PostgresIntegrationTest {
 
 	private String system;
 
+	private String master;
+
 	private String student;
 
 	private UUID module;
@@ -68,6 +70,7 @@ class ExamAnalyticsIT extends PostgresIntegrationTest {
 	@BeforeEach
 	void seed() throws Exception {
 		system = token(seed("SYSTEM_ADMIN"));
+		master = token(seed("MASTER_ADMIN"));
 		student = registerStudent();
 		module = publishOpenModule();
 		grantOpenAccess(student);
@@ -110,7 +113,7 @@ class ExamAnalyticsIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("RESULTS_NOT_PUBLISHED"));
 
 		mockMvc.perform(post("/api/v1/exam-components/" + mcq + "/results/publish").header("Authorization",
-				"Bearer " + system))
+				"Bearer " + master))
 			.andExpect(status().isNoContent());
 
 		MvcResult studentBoard = mockMvc
@@ -292,7 +295,7 @@ class ExamAnalyticsIT extends PostgresIntegrationTest {
 				""", UUID.class, submissionId);
 		mockMvc
 			.perform(post("/api/v1/exam-components/" + componentId + "/submissions/" + submissionId + "/evaluation")
-				.header("Authorization", "Bearer " + system)
+				.header("Authorization", "Bearer " + master)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"feedback":"Noted","marks":[{"submissionQuestionId":"%s","marks":%d}]}

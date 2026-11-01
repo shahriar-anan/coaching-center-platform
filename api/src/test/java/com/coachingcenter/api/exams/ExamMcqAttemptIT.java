@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -18,14 +19,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 
@@ -34,8 +39,11 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(CapturingEmailConfig.class)
+@Import({ CapturingEmailConfig.class, ExamMcqAttemptIT.ClockConfig.class })
 class ExamMcqAttemptIT extends PostgresIntegrationTest {
+
+	/** The clock every time in this class is taken from: starts, deadlines, window ends and the server's "now". */
+	private static final Instant BASE = Instant.parse("2026-10-20T06:00:00Z");
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -48,6 +56,15 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private ObjectMapper json;
+
+	@Autowired
+	private MutableClock clock;
+
+	@Autowired
+	private McqAttemptRepository attempts;
+
+	@Autowired
+	private PaperComponentRepository components;
 
 	private String system;
 
@@ -65,6 +82,7 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 
 	@BeforeEach
 	void seed() throws Exception {
+		clock.set(BASE);
 		system = token(seed("SYSTEM_ADMIN"));
 		master = token(seed("MASTER_ADMIN"));
 		student = registerStudent();
@@ -142,10 +160,9 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.score").value(2))
 			.andExpect(jsonPath("$.maxScore").value(6))
 			.andExpect(jsonPath("$.passed").value(false))
+			// The score, the key and the marks per question show at once after submit (ReviewRule).
 			.andExpect(jsonPath("$.questions[0].marksAwarded").value(2))
-			.andExpect(jsonPath("$.questions[1].marksAwarded").value(0))
-			.andExpect(jsonPath("$.questions[2].marksAwarded").value(0))
-			.andExpect(jsonPath("$.questions[0].options[0].correct").exists())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
 			.andExpect(jsonPath("$.rank").doesNotExist());
 
 		mockMvc.perform(get("/api/v1/catalog/exam-modules/" + module + "/components/" + mcqHidden + "/attempts")
@@ -163,6 +180,107 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/exam-components/" + mcqHidden + "/attempts").header("Authorization", "Bearer " + system))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$[0].score").exists());
+	}
+
+	/**
+	 * The catalog path shows a submitted attempt's key at once, on both reads, and it stays shown when the results are unpublished
+	 * and the window ends. The score follows the component's own flags as before (this component is immediate).
+	 */
+	@Test
+	void theCatalogMcqKeyShowsAtOnceAfterSubmitOnEveryRead() throws Exception {
+		String attemptsPath = "/api/v1/catalog/exam-modules/" + module + "/components/" + mcqImmediate + "/attempts";
+		String resultPath = "/api/v1/catalog/exam-modules/" + module + "/components/" + mcqImmediate + "/result";
+		MvcResult start = mockMvc.perform(post(attemptsPath).header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk())
+			.andReturn();
+		UUID attemptQuestionId = UUID
+			.fromString(json.readTree(start.getResponse().getContentAsString()).get("questions").get(0).get("id").asText());
+		UUID correctOption = optionId(attemptQuestionId, true);
+		mockMvc.perform(put(attemptsPath + "/answers").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(answerJson(attemptQuestionId, correctOption)))
+			.andExpect(status().isOk());
+		mockMvc.perform(post(attemptsPath + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(2));
+
+		mockMvc.perform(get(attemptsPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(2))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].marksAwarded").value(2));
+		mockMvc.perform(get(resultPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(2))
+			.andExpect(jsonPath("$.mcqQuestions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.mcqQuestions[0].marksAwarded").value(2));
+
+		// Unpublished, and the window ends: the key still shows, because the review does not wait for either.
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		jdbc.update("update paper_components set results_published = false, ends_at = ? where id = ?",
+				Timestamp.from(clock.instant().minusSeconds(60)), mcqImmediate);
+		mockMvc.perform(get(attemptsPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true));
+	}
+
+	/**
+	 * A submitted catalog attempt shows its key at once, so the key is open one second before the attempt's own deadline as well
+	 * as at the deadline; ReviewRule gives the same answer at both instants.
+	 */
+	@Test
+	void theCatalogKeyIsOpenAtSubmitAndStillAtTheDeadline() throws Exception {
+		String attemptsPath = "/api/v1/catalog/exam-modules/" + module + "/components/" + mcqImmediate + "/attempts";
+		String resultPath = "/api/v1/catalog/exam-modules/" + module + "/components/" + mcqImmediate + "/result";
+		Instant startedAt = clock.instant();
+		MvcResult start = mockMvc.perform(post(attemptsPath).header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk())
+			.andReturn();
+		JsonNode startBody = json.readTree(start.getResponse().getContentAsString());
+		// mcqImmediate has a 3600-second duration and a window that runs two hours, so the deadline is the timer.
+		Instant deadline = startedAt.plusSeconds(3600);
+		assertThat(Instant.parse(startBody.get("deadlineAt").asText())).isEqualTo(deadline);
+		UUID attemptQuestionId = UUID.fromString(startBody.get("questions").get(0).get("id").asText());
+		UUID correctOption = optionId(attemptQuestionId, true);
+
+		clock.set(startedAt.plusSeconds(120));
+		mockMvc.perform(put(attemptsPath + "/answers").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(answerJson(attemptQuestionId, correctOption)))
+			.andExpect(status().isOk());
+		mockMvc.perform(post(attemptsPath + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(2));
+
+		UUID studentId = new JdbcTemplate(dataSource).queryForObject(
+				"select student_id from mcq_attempts where component_id = ?", UUID.class, mcqImmediate);
+		McqAttempt attempt = attempts.findByComponentIdAndStudentIdAndDeletedAtIsNull(mcqImmediate, studentId).orElseThrow();
+		PaperComponent component = components.findByIdAndDeletedAtIsNull(mcqImmediate).orElseThrow();
+		assertThat(ReviewRule.open(component, attempt, deadline.minusSeconds(1))).isTrue();
+		assertThat(ReviewRule.open(component, attempt, deadline)).isTrue();
+
+		clock.set(deadline.minusSeconds(1));
+		mockMvc.perform(get(attemptsPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(2))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].marksAwarded").value(2));
+		mockMvc.perform(get(resultPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mcqQuestions[0].options[0].correct").value(true));
+
+		clock.set(deadline);
+		mockMvc.perform(get(attemptsPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].marksAwarded").value(2));
+		mockMvc.perform(get(resultPath).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mcqQuestions[0].options[0].correct").value(true));
 	}
 
 	@Test
@@ -193,8 +311,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 
 		UUID closed = setupMcq(createPaper(), true, 60);
 		postQuestion(closed, 1);
-		new JdbcTemplate(dataSource).update("update paper_components set starts_at = now() + interval '1 day' where id = ?",
-				closed);
+		new JdbcTemplate(dataSource).update("update paper_components set starts_at = ? where id = ?",
+				Timestamp.from(clock.instant().plus(Duration.ofDays(1))), closed);
 		mockMvc.perform(post("/api/v1/catalog/exam-modules/" + module + "/components/" + closed + "/attempts")
 			.header("Authorization", "Bearer " + student))
 			.andExpect(status().isConflict())
@@ -240,8 +358,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(answerJson(q1, chosen)))
 			.andExpect(status().isOk());
-		new JdbcTemplate(dataSource).update(
-				"update mcq_attempts set started_at = now() - interval '2 days' where component_id = ?", mcq);
+		new JdbcTemplate(dataSource).update("update mcq_attempts set started_at = ? where component_id = ?",
+				Timestamp.from(clock.instant().minus(Duration.ofDays(2))), mcq);
 		mockMvc.perform(put("/api/v1/catalog/exam-modules/" + module + "/components/" + mcq + "/attempts/answers")
 			.header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
@@ -265,7 +383,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 
 		UUID ended = setupMcq(createPaper(), true, 3600);
 		postQuestion(ended, 1);
-		jdbc.update("update paper_components set ends_at = now() - interval '1 minute' where id = ?", ended);
+		jdbc.update("update paper_components set ends_at = ? where id = ?",
+				Timestamp.from(clock.instant().minusSeconds(60)), ended);
 		int endedBefore = jdbc.queryForObject("select count(*) from mcq_attempts where component_id = ?", Integer.class,
 				ended);
 		mockMvc.perform(post("/api/v1/catalog/exam-modules/" + module + "/components/" + ended + "/attempts")
@@ -399,7 +518,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(answerJson(windowQ, windowCorrect)))
 			.andExpect(status().isOk());
-		jdbc.update("update paper_components set ends_at = now() - interval '1 second' where id = ?", window);
+		jdbc.update("update paper_components set ends_at = ? where id = ?",
+				Timestamp.from(clock.instant().minusSeconds(1)), window);
 		mockMvc.perform(put("/api/v1/catalog/exam-modules/" + module + "/components/" + window + "/attempts/answers")
 			.header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON)
@@ -424,7 +544,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/catalog/exam-modules/" + module + "/components/" + adminWindow + "/attempts")
 			.header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk());
-		jdbc.update("update mcq_attempts set started_at = now() - interval '2 days' where component_id = ?", adminWindow);
+		jdbc.update("update mcq_attempts set started_at = ? where component_id = ?",
+				Timestamp.from(clock.instant().minus(Duration.ofDays(2))), adminWindow);
 		mockMvc.perform(get("/api/v1/exam-components/" + adminWindow + "/attempts").header("Authorization", "Bearer " + system))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$[0].status").value("SUBMITTED"));
@@ -456,6 +577,7 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 	}
 
 	private UUID setupMcq(UUID paper, boolean immediate, int duration) throws Exception {
+		// The window runs from a minute before the clock to two hours after it.
 		MvcResult c = mockMvc
 			.perform(post("/api/v1/exam-papers/" + paper + "/components").header("Authorization", "Bearer " + system)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -467,8 +589,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"passPercent\":50}"))
 			.andExpect(status().isOk());
-		Instant start = Instant.now().minusSeconds(60);
-		Instant end = Instant.now().plusSeconds(7200);
+		Instant start = clock.instant().minusSeconds(60);
+		Instant end = clock.instant().plusSeconds(7200);
 		mockMvc.perform(patch("/api/v1/exam-components/" + id).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
@@ -485,8 +607,8 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 	}
 
 	private void setupActiveMcq(UUID componentId) {
-		Instant start = Instant.now().minusSeconds(60);
-		Instant end = Instant.now().plusSeconds(7200);
+		Instant start = clock.instant().minusSeconds(60);
+		Instant end = clock.instant().plusSeconds(7200);
 		new JdbcTemplate(dataSource).update(
 				"update paper_components set starts_at=?, ends_at=?, scheduled=true, duration_seconds=3600 where id=?",
 				Timestamp.from(start), Timestamp.from(end), componentId);
@@ -604,6 +726,17 @@ class ExamMcqAttemptIT extends PostgresIntegrationTest {
 
 	private static String uniqueEmail() {
 		return "mcq-" + UUID.randomUUID() + "@example.com";
+	}
+
+	@TestConfiguration
+	static class ClockConfig {
+
+		@Bean
+		@Primary
+		MutableClock mutableClock() {
+			return new MutableClock(BASE);
+		}
+
 	}
 
 }

@@ -70,6 +70,13 @@ public class LiveExamCategoryController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/api/v1/live-exam-categories/{id}/restore")
+	public ResponseEntity<Void> restore(@PathVariable UUID id) {
+		require(Permissions.EXAM_DELETE);
+		categories.restore(id);
+		return ResponseEntity.noContent().build();
+	}
+
 	private void require(String permission) {
 		if (!permissions.has(permission)) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");

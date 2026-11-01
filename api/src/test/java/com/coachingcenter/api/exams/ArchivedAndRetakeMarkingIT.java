@@ -103,6 +103,8 @@ class ArchivedAndRetakeMarkingIT extends PostgresIntegrationTest {
 					{"instructorId":"%s"}
 					""".formatted(marker.id())))
 			.andExpect(status().is2xxSuccessful());
+		// The exam is published, so the teacher is staged until the Master Admin publishes it (NR-01, E31).
+		publishStaged(master, exam);
 
 		// S1 sits in the window (LIVE). S2 starts after the window (ARCHIVED). S1 gets a retake and sits it (RETAKE).
 		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
@@ -191,6 +193,20 @@ class ArchivedAndRetakeMarkingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.summary.live").value(1))
 			.andExpect(jsonPath("$.summary.archived").value(1))
 			.andExpect(jsonPath("$.summary.retake").value(1));
+	}
+
+	/** Publishes what is staged on a published exam, as the Master Admin does after reading its change list (NR-01, E31). */
+	private void publishStaged(String master, UUID exam) throws Exception {
+		String revision = json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/pending-changes")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString()).get("revisionId").asText();
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"revisionId\":\"" + revision + "\"}"))
+			.andExpect(status().isOk());
 	}
 
 	private void grant(String master, UUID student, UUID exam) throws Exception {

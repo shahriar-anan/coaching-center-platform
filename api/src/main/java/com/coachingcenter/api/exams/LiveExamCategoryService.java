@@ -161,6 +161,18 @@ public class LiveExamCategoryService {
 				category.getId());
 	}
 
+	/** Un-archives a category. Its exams and packages stay as they are; they only reappear once they are published again. */
+	@Transactional
+	public void restore(UUID id) {
+		LiveExamCategory category = require(id);
+		if (category.getArchivedAt() == null) {
+			throw new ApiException(ErrorCode.NOT_ARCHIVED, HttpStatus.CONFLICT, "Only an archived category can be restored.");
+		}
+		category.setArchivedAt(null);
+		audit.record(AuditRecorder.LIVE_EXAM_CATEGORY_RESTORE, AuditRecorder.LIVE_EXAM_CATEGORY_ENTITY,
+				category.getId());
+	}
+
 	private void rejectWhenOccupied(UUID id) {
 		if (!categories.findByParentIdAndDeletedAtIsNull(id).isEmpty()
 				|| !modules.findByCategoryIdAndDeletedAtIsNull(id).isEmpty()) {

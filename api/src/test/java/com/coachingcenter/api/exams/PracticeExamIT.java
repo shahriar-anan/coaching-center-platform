@@ -154,6 +154,9 @@ class PracticeExamIT extends PostgresIntegrationTest {
 					{"instructorId":"%s"}
 					""".formatted(instructor.id())))
 			.andExpect(status().is2xxSuccessful());
+		// The teacher change on a published exam is staged (it waits for a publish), so publish it before the teacher reads.
+		mockMvc.perform(post("/api/v1/live-exams/" + practice.exam() + "/publish").header("Authorization", "Bearer " + practice.master()))
+			.andExpect(status().is2xxSuccessful());
 
 		clock.set(Instant.parse("2026-10-20T04:35:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + practice.exam() + "/take").header("Authorization", "Bearer " + practice.s1Token())

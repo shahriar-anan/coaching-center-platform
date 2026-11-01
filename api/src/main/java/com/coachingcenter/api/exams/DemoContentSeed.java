@@ -319,8 +319,6 @@ public class DemoContentSeed {
 		ensureCatalog(exams, now);
 		sittings(exams, now);
 		insertOrders(baseOrders(now));
-		assign(MODULE_WRITTEN, now);
-		assign(MODULE_FULL, now);
 		notices(exams, masterAdmin, now);
 	}
 
@@ -501,8 +499,9 @@ public class DemoContentSeed {
 		if (spec.module() != null) {
 			jdbc.update("INSERT INTO live_exam_package_exams (id, module_id, exam_id, position, added_at) VALUES (?, ?, ?, ?, ?)"
 					+ " ON CONFLICT DO NOTHING", demo('1', spec.number()), spec.module(), spec.id(), spec.number(), ts(now));
-			jdbc.update("UPDATE live_exams SET instructor_id = (SELECT instructor_id FROM live_exam_instructors WHERE module_id = ?)"
-					+ " WHERE id = ?", spec.module(), spec.id());
+			// The teacher is set on each written exam of the two demo packages that have one, per exam (D6).
+			boolean taught = written && (MODULE_WRITTEN.equals(spec.module()) || MODULE_FULL.equals(spec.module()));
+			jdbc.update("UPDATE live_exams SET instructor_id = ? WHERE id = ?", taught ? INSTRUCTOR : null, spec.id());
 		}
 		if (storedName != null) {
 			jdbc.update("INSERT INTO live_exam_question_papers (id, exam_id, version, stored_file_name, original_file_name,"
@@ -626,11 +625,6 @@ public class DemoContentSeed {
 		}
 	}
 
-	private void assign(UUID module, Instant now) {
-		jdbc.update("INSERT INTO live_exam_instructors (module_id, instructor_id, assigned_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
-				module, INSTRUCTOR, ts(now));
-	}
-
 	/**
 	 * Notices for the three students, written once. Reminders for the upcoming exams are left to the reminder job, which writes
 	 * them on its own for students with access.
@@ -661,7 +655,7 @@ public class DemoContentSeed {
 		return count != null && count > 0;
 	}
 
-	private LocalFileStorage.StoredFile storePdf(String originalName, List<String> lines) {
+	LocalFileStorage.StoredFile storePdf(String originalName, List<String> lines) {
 		try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 			PDPage page = new PDPage(PDRectangle.A4);
 			document.addPage(page);

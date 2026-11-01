@@ -14,7 +14,7 @@ import jakarta.persistence.PersistenceContext;
 
 /**
  * Read-only view of which live exam packages each instructor holds, for the instructor directory. A package counts when it
- * contains at least one exam assigned to the instructor (D6), or when the instructor is the package's default instructor.
+ * contains at least one exam assigned to the instructor (D6). A package has no instructor of its own.
  */
 @Service
 public class LiveExamInstructorModules {
@@ -36,15 +36,6 @@ public class LiveExamInstructorModules {
 				order by m.titleEn, m.id
 				""", Object[].class).setParameter("ids", instructorIds).getResultList();
 		for (Object[] row : rows) {
-			add(result, (UUID) row[0], new ModuleRef((UUID) row[1], (String) row[2], (String) row[3], (String) row[4]));
-		}
-		// A package whose default instructor is this person counts too, even before it has an exam assigned to them.
-		List<Object[]> defaults = entityManager.createQuery("""
-				select i.instructorId, m.id, m.titleEn, m.titleBn, m.status
-				from LiveExamInstructor i, LiveExamModule m
-				where i.instructorId in :ids and m.id = i.moduleId and m.deletedAt is null
-				""", Object[].class).setParameter("ids", instructorIds).getResultList();
-		for (Object[] row : defaults) {
 			add(result, (UUID) row[0], new ModuleRef((UUID) row[1], (String) row[2], (String) row[3], (String) row[4]));
 		}
 		result.values().forEach(list -> list.sort(java.util.Comparator.comparing(ModuleRef::titleEn).thenComparing(ModuleRef::id)));

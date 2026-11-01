@@ -89,8 +89,6 @@ public class LiveExamService {
 
 	private final LiveExamQuestionPaperRepository papers;
 
-	private final LiveExamInstructorRepository instructors;
-
 	private final AdminProfileRepository adminProfiles;
 
 	private final LiveExamRevisionService staging;
@@ -103,7 +101,7 @@ public class LiveExamService {
 			AfterCommit afterCommit, Clock clock, AuditRecorder audit,
 			LiveExamParticipantRepository participants, StudentNoticeWriter notices,
 			LiveExamMemberships memberships, LiveExamQuestionPaperRepository papers,
-			LiveExamInstructorRepository instructors, AdminProfileRepository adminProfiles,
+			AdminProfileRepository adminProfiles,
 			LiveExamRevisionService staging, RichTextSanitizer sanitizer) {
 		this.exams = exams;
 		this.questions = questions;
@@ -121,7 +119,6 @@ public class LiveExamService {
 		this.notices = notices;
 		this.memberships = memberships;
 		this.papers = papers;
-		this.instructors = instructors;
 		this.adminProfiles = adminProfiles;
 		this.staging = staging;
 		this.sanitizer = sanitizer;
@@ -145,7 +142,6 @@ public class LiveExamService {
 		exam.setCategoryId(categoryId);
 		if (module != null) {
 			exam.setModuleId(module.getId());
-			exam.setInstructorId(defaultInstructor(module.getId()));
 		}
 		exam.setMode(LiveExam.MODE_LIVE);
 		exam.setAnswersChangeable(true);
@@ -428,7 +424,7 @@ public class LiveExamService {
 			copy.setModuleId(targets.get(0).getId());
 		}
 		copy.setCategoryId(source.getCategoryId());
-		copy.setInstructorId(source.getInstructorId());
+		copy.setInstructorId(LiveExam.MCQ.equals(source.getExamType()) ? null : source.getInstructorId());
 		copy.setMode(working.mode);
 		copy.setAnswersChangeable(working.answersChangeable);
 		copy.setNegativeMarks(working.negativeMarks);
@@ -559,6 +555,26 @@ public class LiveExamService {
 			exam.setStatus(LiveExam.ARCHIVED);
 			audit.record(AuditRecorder.LIVE_EXAM_ARCHIVE, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());
 		}
+		return view(exam, true);
+	}
+
+	/**
+	 * Puts an archived exam back to draft. Students see nothing until a Master Admin publishes it again, and the publish needs
+	 * a final save again. The published content already on the row stays as it is. Refused under an archived category.
+	 */
+	@Transactional
+	public ExamView restore(UUID id) {
+		LiveExam exam = exams.lockById(id).orElseThrow(this::notFound);
+		if (!LiveExam.ARCHIVED.equals(exam.getStatus())) {
+			throw new ApiException(ErrorCode.NOT_ARCHIVED, HttpStatus.CONFLICT, "Only an archived exam can be restored.");
+		}
+		if (visibility.branchHidden(exam.getCategoryId())) {
+			throw new ApiException(ErrorCode.CATEGORY_ARCHIVED, HttpStatus.CONFLICT,
+					"Restore the exam's category first. An exam under an archived category cannot be restored.");
+		}
+		exam.setStatus(LiveExam.DRAFT);
+		exam.setFinallySaved(false);
+		audit.record(AuditRecorder.LIVE_EXAM_RESTORE, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());
 		return view(exam, true);
 	}
 
@@ -714,7 +730,7 @@ public class LiveExamService {
 				status.status(), status.retakeAvailable(), null, plain.mode(), plain.phase(), plain.categoryId(),
 				plain.packages(), null, plain.negativeMarks(), plain.answersChangeable(), plain.previewEnabled(),
 				plain.popular(), plain.accessDays(), plain.pricing(), null, accessView,
-				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl());
+				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl(), null);
 	}
 
 	/** One student's attempts at one exam: the latest, and how many there are. */
@@ -966,7 +982,17 @@ public class LiveExamService {
 				shown.getMode(), ExamWindow.phase(shown, now), shown.getCategoryId(), packagesOf(exam.getId()),
 				staff ? instructorOf(shown) : null, shown.getNegativeMarks(), shown.isAnswersChangeable(),
 				shown.isPreviewEnabled(), exam.isPopular(), shown.getAccessDays(), ExamPricing.view(shown, now, false),
-				staff ? working != null : null, null, null, null, ExamCoverService.coverPath(exam));
+				staff ? working != null : null, null, null, null, ExamCoverService.coverPath(exam),
+				staff ? resultsReleased(exam) : null);
+	}
+
+	/**
+	 * Whether the leaderboard is open to an instructor: an MCQ exam has no release step, and a written exam opens once one of
+	 * its papers is released. Mirrors the gate in {@link LiveExamLeaderboardService}.
+	 */
+	private boolean resultsReleased(LiveExam exam) {
+		return !LiveExam.WRITTEN.equals(exam.getExamType())
+				|| participants.existsByExamIdAndDeletedAtIsNullAndPublishedAtIsNotNull(exam.getId());
 	}
 
 	/**
@@ -1096,10 +1122,6 @@ public class LiveExamService {
 			return null;
 		}
 		return exam.getLiveAt().plus(Duration.ofMinutes(exam.getDurationMinutes()));
-	}
-
-	private UUID defaultInstructor(UUID moduleId) {
-		return instructors.findById(moduleId).map(LiveExamInstructor::getInstructorId).orElse(null);
 	}
 
 	/** A paper version for the exam's current question PDF, written by {@code actorId}. */
@@ -1378,7 +1400,8 @@ public class LiveExamService {
 	/**
 	 * The exam as staff or a student reads it. {@code moduleId} is the first package the exam joined, for display; it is
 	 * null for a standalone exam. {@code pendingChanges}, {@code instructor} are staff only; {@code access},
-	 * {@code attempts} and {@code myStatusDetail} are student only.
+	 * {@code attempts} and {@code myStatusDetail} are student only. {@code resultsReleased} is staff only: true when the
+	 * leaderboard is open to an instructor, which is an MCQ exam or a written exam with a paper released.
 	 */
 	public record ExamView(UUID id, UUID moduleId, String examType, String paperLanguage, String titleEn, String titleBn,
 			String descriptionEn, String descriptionBn, String rulesEn, String rulesBn, String liveAt, String endAt,
@@ -1387,7 +1410,7 @@ public class LiveExamService {
 			Boolean retakeAvailable, String answersReleasedAt, String mode, String phase, UUID categoryId,
 			List<PackageRef> packages, InstructorRef instructor, BigDecimal negativeMarks, boolean answersChangeable,
 			boolean previewEnabled, boolean popular, Integer accessDays, PriceView pricing, Boolean pendingChanges,
-			AccessView access, Integer attempts, String myStatusDetail, String coverUrl) {
+			AccessView access, Integer attempts, String myStatusDetail, String coverUrl, Boolean resultsReleased) {
 	}
 
 	/** A student's access to one exam. {@code endsAt} is an ISO-8601 instant, null when access never ends. */

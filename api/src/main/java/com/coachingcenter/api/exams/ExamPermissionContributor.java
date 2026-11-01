@@ -24,7 +24,6 @@ public class ExamPermissionContributor implements PermissionContributor {
 
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.EXAM_READ, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.EXAM_MANAGE, PermissionScope.ANY);
-		registry.grant(Role.SYSTEM_ADMIN, Permissions.EXAM_EVALUATE, PermissionScope.ANY);
 	}
 
 }

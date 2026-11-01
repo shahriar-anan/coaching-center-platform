@@ -189,6 +189,9 @@ class StandaloneExamLifecycleIT extends PostgresIntegrationTest {
 					{"instructorId":"%s"}
 					""".formatted(marker.id())))
 			.andExpect(status().is2xxSuccessful());
+		// The teacher change on a published exam is staged (it waits for a publish), so publish it before the teacher reads.
+		mockMvc.perform(post("/api/v1/live-exams/" + world.written() + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().is2xxSuccessful());
 
 		clock.set(SITTING);
 		mockMvc.perform(post("/api/v1/live-exams/" + world.written() + "/take").header("Authorization", "Bearer " + world.s1Token())

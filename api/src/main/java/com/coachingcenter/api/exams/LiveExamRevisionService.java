@@ -111,13 +111,13 @@ public class LiveExamRevisionService {
 
 	/** What staff see and edit: the revision when one is waiting, else the published state. */
 	ExamState working(LiveExam exam) {
-		return revisions.findByExamId(exam.getId()).map(revision -> read(revision.getPayload()))
+		return revisions.findByExamId(exam.getId()).map(revision -> readRevision(exam, revision.getPayload()))
 			.orElseGet(() -> published(exam, true));
 	}
 
 	/** The waiting revision as a state, or empty when nothing is staged. Staff reads use it for the working copy. */
 	Optional<ExamState> staged(LiveExam exam) {
-		return revisions.findByExamId(exam.getId()).map(revision -> read(revision.getPayload()));
+		return revisions.findByExamId(exam.getId()).map(revision -> readRevision(exam, revision.getPayload()));
 	}
 
 	boolean hasRevision(UUID examId) {
@@ -167,7 +167,7 @@ public class LiveExamRevisionService {
 
 	private ChangeList changes(LiveExam exam, LiveExamRevision revision) {
 		ExamState before = published(exam, true);
-		ExamState after = read(revision.getPayload());
+		ExamState after = readRevision(exam, revision.getPayload());
 		return builder.build(token(revision), before, after, submittedMcq(exam), exams.findActiveStudentsWithAccessToExam(exam.getId()).size());
 	}
 
@@ -199,7 +199,7 @@ public class LiveExamRevisionService {
 			LOG.warn("Exam {} published a staged edit without a revisionId (compatibility rule 4).", exam.getId());
 		}
 		ExamState before = published(exam, true);
-		ExamState after = read(revision.getPayload());
+		ExamState after = readRevision(exam, revision.getPayload());
 		requirePublishable(exam, after);
 		List<UUID> recipients = exams.findActiveStudentsWithAccessToExam(exam.getId());
 		ChangeList changes = builder.build(token, before, after, submittedMcq(exam), recipients.size());
@@ -417,6 +417,18 @@ public class LiveExamRevisionService {
 
 	private ExamState read(String payload) {
 		return json.readValue(payload, ExamState.class);
+	}
+
+	/**
+	 * Reads a revision. A revision staged before the instructor was part of the state has no instructor key; it keeps the
+	 * instructor the exam has, so publishing it does not clear the teacher.
+	 */
+	private ExamState readRevision(LiveExam exam, String payload) {
+		ExamState state = read(payload);
+		if (!json.readTree(payload).has("instructorId")) {
+			state.instructorId = exam.getInstructorId();
+		}
+		return state;
 	}
 
 	private String write(Object value) {

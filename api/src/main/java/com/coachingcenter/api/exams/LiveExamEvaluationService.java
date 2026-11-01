@@ -25,8 +25,6 @@ import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.files.LocalFileStorage;
 import com.coachingcenter.api.users.AdminProfileRepository;
 import com.coachingcenter.api.users.StudentProfileRepository;
-import com.coachingcenter.api.users.User;
-import com.coachingcenter.api.users.UserRepository;
 
 @Service
 public class LiveExamEvaluationService {
@@ -39,17 +37,11 @@ public class LiveExamEvaluationService {
 
 	private final LiveExamParticipantRepository participants;
 
-	private final LiveExamInstructorRepository instructors;
-
 	private final LiveExamQuestionRepository questions;
 
 	private final LiveExamRetakeGrantRepository retakeGrants;
 
-	private final LiveExamInstructorService examInstructors;
-
 	private final LiveExamSittingService sittings;
-
-	private final UserRepository users;
 
 	private final StudentProfileRepository students;
 
@@ -66,21 +58,18 @@ public class LiveExamEvaluationService {
 	private final StudentNoticeWriter notices;
 
 	public LiveExamEvaluationService(LiveExamRepository exams, LiveExamModuleRepository modules,
-			LiveExamParticipantRepository participants, LiveExamInstructorRepository instructors,
-			LiveExamQuestionRepository questions, LiveExamRetakeGrantRepository retakeGrants, LiveExamInstructorService examInstructors,
-			LiveExamSittingService sittings, UserRepository users, StudentProfileRepository students,
+			LiveExamParticipantRepository participants,
+			LiveExamQuestionRepository questions, LiveExamRetakeGrantRepository retakeGrants,
+			LiveExamSittingService sittings, StudentProfileRepository students,
 			AdminProfileRepository admins, LocalFileStorage files, PdfCompressor pdfs, Clock clock, AuditRecorder audit,
 			StudentNoticeWriter notices, LiveExamMemberships memberships) {
 		this.memberships = memberships;
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
-		this.instructors = instructors;
 		this.questions = questions;
 		this.retakeGrants = retakeGrants;
-		this.examInstructors = examInstructors;
 		this.sittings = sittings;
-		this.users = users;
 		this.students = students;
 		this.admins = admins;
 		this.files = files;
@@ -88,53 +77,6 @@ public class LiveExamEvaluationService {
 		this.clock = clock;
 		this.audit = audit;
 		this.notices = notices;
-	}
-
-	/**
-	 * Sets the package's default instructor, which a new exam in the package inherits. With {@code applyToExams} it also
-	 * sets the instructor of every exam in the package, replacing any it had (D6).
-	 */
-	@Transactional
-	public Assignment assign(UUID moduleId, UUID instructorId, boolean applyToExams) {
-		Assignment assignment = assign(moduleId, instructorId);
-		if (applyToExams) {
-			examInstructors.setForPackageExams(moduleId, instructorId);
-		}
-		return assignment;
-	}
-
-	@Transactional
-	public Assignment assign(UUID moduleId, UUID instructorId) {
-		if (modules.findByIdAndDeletedAtIsNull(moduleId).isEmpty()) {
-			throw notFound();
-		}
-		if (instructors.existsById(moduleId)) {
-			throw new ApiException(ErrorCode.INSTRUCTOR_ALREADY_ASSIGNED, HttpStatus.CONFLICT,
-					"This module already has an instructor.");
-		}
-		User instructor = users.findByIdAndDeletedAtIsNull(instructorId).orElseThrow(this::notFound);
-		if (!Role.INSTRUCTOR.name().equals(instructor.getRole())) {
-			throw validationFailed();
-		}
-		LiveExamInstructor row = new LiveExamInstructor();
-		row.setModuleId(moduleId);
-		row.setInstructorId(instructorId);
-		row.setAssignedAt(clock.instant());
-		instructors.save(row);
-		return new Assignment(moduleId, instructorId);
-	}
-
-	@Transactional
-	public void unassign(UUID moduleId, boolean applyToExams) {
-		if (modules.findByIdAndDeletedAtIsNull(moduleId).isEmpty()) {
-			throw notFound();
-		}
-		LiveExamInstructor current = instructors.findById(moduleId).orElseThrow(this::notFound);
-		if (applyToExams) {
-			examInstructors.clearForPackageExams(moduleId, current.getInstructorId());
-		}
-		instructors.deleteById(moduleId);
-		audit.record(AuditRecorder.LIVE_EXAM_INSTRUCTOR_UNASSIGN, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, moduleId);
 	}
 
 	@Transactional
@@ -372,6 +314,29 @@ public class LiveExamEvaluationService {
 		}
 		try {
 			return Files.readAllBytes(files.resolve(participant.getEvaluatedStoredFileName()));
+		}
+		catch (IOException exception) {
+			throw notFound();
+		}
+	}
+
+	/**
+	 * The student's own submitted answer script. {@code attempt} picks one attempt; without it, the latest attempt, as
+	 * {@code result} does. It is readable as soon as it is uploaded, before marking and publish.
+	 */
+	@Transactional(readOnly = true)
+	public byte[] studentAnswerPdf(UUID examId, UUID studentId, Integer attempt) {
+		List<LiveExamParticipant> own = participants
+			.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(examId, studentId);
+		LiveExamParticipant participant = own.stream()
+			.filter(p -> attempt == null || p.getAttemptNo() == attempt)
+			.findFirst()
+			.orElseThrow(this::notFound);
+		if (participant.getAnswerStoredFileName() == null) {
+			throw notFound();
+		}
+		try {
+			return Files.readAllBytes(files.resolve(participant.getAnswerStoredFileName()));
 		}
 		catch (IOException exception) {
 			throw notFound();
@@ -681,9 +646,6 @@ public class LiveExamEvaluationService {
 
 	private ApiException notFound() {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
-	}
-
-	public record Assignment(UUID moduleId, UUID instructorId) {
 	}
 
 	/** The release panel's numbers. `canRelease` is true when nothing awaits a mark and no sitting is open. */

@@ -60,9 +60,10 @@ public class LiveExamLeaderboardService {
 	}
 
 	/**
-	 * The board. Staff who may mark the exam read the rows at any time, with the count of results below the pass mark. A
-	 * student sees the rows only once the window has ended (or for a practice exam), and always their own position in
-	 * {@code me}; during the window the rows are empty (R12).
+	 * The board. Staff who may mark the exam read the rows at any time, with the count of results below the pass mark. An
+	 * instructor gets 404 on a written exam until a paper of it is released (see {@link #resultsOpen}); Master Admin and
+	 * System Admin are not held to that. A student sees the rows only once the window has ended (or for a practice exam),
+	 * and always their own position in {@code me}; during the window the rows are empty (R12).
 	 */
 	@Transactional(readOnly = true)
 	public Leaderboard board(UUID examId, CurrentActor actor, boolean marker) {
@@ -70,6 +71,9 @@ public class LiveExamLeaderboardService {
 		if (marker) {
 			if (!LiveExamEvaluationService.reads(exam, actor)) {
 				throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
+			}
+			if (actor.role() == Role.INSTRUCTOR && !resultsOpen(exam)) {
+				throw notFound();
 			}
 		}
 		else {
@@ -151,6 +155,15 @@ public class LiveExamLeaderboardService {
 			return LiveExamParticipant.SUBMITTED.equals(participant.getStatus());
 		}
 		return LiveExamParticipant.FAILED_TO_SUBMIT.equals(participant.getStatus()) || participant.getPublishedAt() != null;
+	}
+
+	/**
+	 * Whether a written exam's results are released for staff who are not Master or System Admins: a paper is released once
+	 * the Master Admin publishes it (publish-results sets its {@code publishedAt}). An MCQ exam has no release step.
+	 */
+	private boolean resultsOpen(LiveExam exam) {
+		return !LiveExam.WRITTEN.equals(exam.getExamType())
+				|| participants.existsByExamIdAndDeletedAtIsNullAndPublishedAtIsNotNull(exam.getId());
 	}
 
 	/** A listed row: a board attempt with a result, at or above the pass mark (D24). */

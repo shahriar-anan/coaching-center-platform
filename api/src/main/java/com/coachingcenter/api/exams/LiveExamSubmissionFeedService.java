@@ -1,8 +1,11 @@
 package com.coachingcenter.api.exams;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,12 +62,15 @@ public class LiveExamSubmissionFeedService {
 	@Transactional(readOnly = true)
 	public Page<FeedRow> list(CurrentActor actor, UUID moduleId, UUID examId, String status, String q, String sort,
 			Pageable pageable) {
-		return list(actor, moduleId, examId, status, q, sort, false, pageable);
+		return list(actor, moduleId, examId, null, status, q, sort, false, pageable);
 	}
 
-	/** With {@code readyOnly}, only the papers the marker flagged ready for release. */
-	public Page<FeedRow> list(CurrentActor actor, UUID moduleId, UUID examId, String status, String q, String sort,
-			boolean readyOnly, Pageable pageable) {
+	/**
+	 * With {@code readyOnly}, only the papers the marker flagged ready for release. With {@code categoryId}, the papers of
+	 * the exams in that category and in every category under it.
+	 */
+	public Page<FeedRow> list(CurrentActor actor, UUID moduleId, UUID examId, UUID categoryId, String status, String q,
+			String sort, boolean readyOnly, Pageable pageable) {
 		String state = status == null ? "" : status.trim().toUpperCase();
 		if (!state.isEmpty() && !STATUSES.contains(state)) {
 			throw validationFailed();
@@ -78,15 +84,19 @@ public class LiveExamSubmissionFeedService {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
 
+		Map<UUID, LiveExamCategory> byId = LiveExamStaffModuleService.categoriesById(categories);
 		// An instructor sees the papers of the exams assigned to them, wherever the exam sits (D6); the package is display only.
+		// Same exam rule as the counts (LiveExamParticipationService): published exams only. A sitting past its deadline
+		// shows here once the deadline job posts it, so the counts can run up to a minute ahead of this list.
 		StringBuilder where = new StringBuilder("""
-				FROM LiveExamParticipant p, LiveExam e, StudentProfile s
-				WHERE p.examId = e.id AND s.userId = p.studentId
-				AND e.examType = :written AND p.deletedAt IS NULL AND e.deletedAt IS NULL
+				FROM LiveExamParticipant p JOIN LiveExam e ON e.id = p.examId
+				LEFT JOIN StudentProfile s ON s.userId = p.studentId
+				WHERE e.examType = :written AND p.deletedAt IS NULL AND e.deletedAt IS NULL AND e.status = :published
 				AND p.status IN (:submitted, :failed)
 				""");
 		Map<String, Object> params = new HashMap<>();
 		params.put("written", LiveExam.WRITTEN);
+		params.put("published", LiveExam.PUBLISHED);
 		params.put("submitted", LiveExamParticipant.SUBMITTED);
 		params.put("failed", LiveExamParticipant.FAILED_TO_SUBMIT);
 		if (instructor) {
@@ -103,6 +113,10 @@ public class LiveExamSubmissionFeedService {
 		if (examId != null) {
 			where.append(" AND e.id = :examId");
 			params.put("examId", examId);
+		}
+		if (categoryId != null) {
+			where.append(" AND e.categoryId IN (:categoryIds)");
+			params.put("categoryIds", categoryAndDescendants(categoryId, byId));
 		}
 		if (q != null && !q.isBlank()) {
 			where.append(" AND lower(s.fullName) LIKE :name");
@@ -123,39 +137,59 @@ public class LiveExamSubmissionFeedService {
 		rows.setMaxResults(pageable.getPageSize());
 		List<Object[]> found = rows.getResultList();
 
-		Map<UUID, LiveExamCategory> byId = LiveExamStaffModuleService.categoriesById(categories);
-		Map<UUID, String> evaluators = evaluatorNames(found);
+		Map<UUID, String> evaluators = namesOf(found.stream().map(row -> evaluatorOf((LiveExamParticipant) row[0])).toList());
+		Map<UUID, String> instructors = namesOf(found.stream().map(row -> ((LiveExam) row[1]).getInstructorId()).toList());
 		List<FeedRow> content = new ArrayList<>();
 		for (Object[] row : found) {
 			LiveExamParticipant participant = (LiveExamParticipant) row[0];
 			LiveExam exam = (LiveExam) row[1];
+			// The student profile is optional in the data model, so a paper can have no name.
 			StudentProfile student = (StudentProfile) row[2];
+			String studentName = student == null ? "" : student.getFullName();
 			LiveExamModule module = memberships.primaryModuleId(exam.getId()).flatMap(modules::findById).orElse(null);
 			content.add(new FeedRow(participant.getId(), exam.getId(), exam.getTitleEn(), exam.getTitleBn(),
 					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
 					module == null ? null : module.getTitleBn(),
-					LiveExamStaffModuleService.pathOf(exam.getCategoryId(), byId), student.getFullName(),
+					LiveExamStaffModuleService.pathOf(exam.getCategoryId(), byId), studentName,
 					statusOf(participant), LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 					participant.getAnswerStoredFileName() != null,
 					participant.getSubmittedAt(), markedAtOf(participant), participant.getPublishedAt(),
 					evaluatorOf(participant) == null ? null : evaluators.get(evaluatorOf(participant)),
+					exam.getInstructorId() == null ? null : instructors.get(exam.getInstructorId()),
 					participant.hasPendingRevision() ? Boolean.TRUE : null,
 					participant.getReadyForReleaseAt() == null ? null : Boolean.TRUE, participant.getAttemptNo()));
 		}
 		return new PageImpl<>(content, pageable, total);
 	}
 
-	private Map<UUID, String> evaluatorNames(List<Object[]> rows) {
-		List<UUID> evaluatorIds = rows.stream()
-			.map(row -> evaluatorOf((LiveExamParticipant) row[0]))
-			.filter(id -> id != null)
-			.distinct()
-			.toList();
+	/** The display names of the given people, read in one query. Null ids are skipped. */
+	private Map<UUID, String> namesOf(List<UUID> ids) {
+		List<UUID> distinct = ids.stream().filter(id -> id != null).distinct().toList();
 		Map<UUID, String> names = new HashMap<>();
-		if (!evaluatorIds.isEmpty()) {
-			adminProfiles.findAllById(evaluatorIds).forEach(profile -> names.put(profile.getUserId(), profile.getFullName()));
+		if (!distinct.isEmpty()) {
+			adminProfiles.findAllById(distinct).forEach(profile -> names.put(profile.getUserId(), profile.getFullName()));
 		}
 		return names;
+	}
+
+	/** The category and every category under it, at any depth. An id the table does not know gives just itself, so it matches no exam. */
+	private static Set<UUID> categoryAndDescendants(UUID categoryId, Map<UUID, LiveExamCategory> byId) {
+		Map<UUID, List<UUID>> children = new HashMap<>();
+		for (LiveExamCategory category : byId.values()) {
+			if (category.getParentId() != null) {
+				children.computeIfAbsent(category.getParentId(), key -> new ArrayList<>()).add(category.getId());
+			}
+		}
+		Set<UUID> found = new HashSet<>();
+		Deque<UUID> pending = new ArrayDeque<>();
+		pending.push(categoryId);
+		while (!pending.isEmpty()) {
+			UUID current = pending.pop();
+			if (found.add(current)) {
+				pending.addAll(children.getOrDefault(current, List.of()));
+			}
+		}
+		return found;
 	}
 
 	/** Matches the status the row shows: failed, published, draft (marked but not published) or awaiting a mark. */
@@ -204,11 +238,15 @@ public class LiveExamSubmissionFeedService {
 		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 	}
 
-	/** One submission. {@code evaluatorName} is staff-only; students never see this feed. */
+	/**
+	 * One submission. {@code evaluatorName} is staff-only; students never see this feed. {@code instructorName} is the
+	 * exam's instructor, null when the exam has none.
+	 */
 	public record FeedRow(UUID participantId, UUID examId, String examTitleEn, String examTitleBn, UUID moduleId,
 			String moduleTitleEn, String moduleTitleBn, List<LiveExamModuleService.CategoryRef> categoryPath,
 			String studentName, String status, String kind, String attemptKind, boolean answerPdf, Instant submittedAt, Instant evaluatedAt,
-			Instant publishedAt, String evaluatorName, Boolean releasePending, Boolean readyForRelease, int attemptNo) {
+			Instant publishedAt, String evaluatorName, String instructorName, Boolean releasePending, Boolean readyForRelease,
+			int attemptNo) {
 	}
 
 }

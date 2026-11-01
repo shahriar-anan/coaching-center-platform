@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.coachingcenter.api.common.error.ApiException;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.coachingcenter.api.common.error.ErrorCode;
 
 @Service
@@ -57,9 +58,11 @@ public class LiveExamPublicService {
 
 	private final Clock clock;
 
+	private final LiveExamReviewPublicService reviews;
+
 	public LiveExamPublicService(LiveExamCategoryRepository categories, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamCatalogVisibility visibility, Clock clock,
-			LiveExamMemberships memberships, LiveExamPackageExamRepository links) {
+			LiveExamMemberships memberships, LiveExamPackageExamRepository links, LiveExamReviewPublicService reviews) {
 		this.clock = clock;
 		this.categories = categories;
 		this.modules = modules;
@@ -67,6 +70,7 @@ public class LiveExamPublicService {
 		this.visibility = visibility;
 		this.memberships = memberships;
 		this.links = links;
+		this.reviews = reviews;
 	}
 
 	/**
@@ -88,6 +92,8 @@ public class LiveExamPublicService {
 				exams.findByStatusAndDeletedAtIsNullAndCategoryIdNotIn(LiveExam.PUBLISHED, catalogHidden(hidden)));
 		visibleExams.sort(START_ORDER);
 		Map<UUID, Counts> counts = counts(visible.stream().map(LiveExamModule::getId).toList());
+		Map<UUID, LiveExamReviewPublicService.Tally> ratings = reviews.tallies(LiveExamReviewKind.PACKAGE,
+				visible.stream().map(LiveExamModule::getId).toList());
 		Map<UUID, LiveExamCategory> categoriesById = LiveExamStaffModuleService.categoriesById(categories);
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
 				visibleExams.stream().map(LiveExam::getId).toList(), hidden);
@@ -102,7 +108,8 @@ public class LiveExamPublicService {
 				continue;
 			}
 			modulesByCategory.computeIfAbsent(module.getCategoryId(), ignored -> new ArrayList<>())
-				.add(moduleView(module, count, categoriesById, null));
+				.add(moduleView(module, count, categoriesById, null,
+						ratings.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE)));
 		}
 		for (LiveExam exam : visibleExams) {
 			categoriesWithContent.add(exam.getCategoryId());
@@ -145,23 +152,31 @@ public class LiveExamPublicService {
 		return roots;
 	}
 
-	/** Published packages, with a title pattern, a category, popular and exam type filters (NR-01, B2 and B5). */
+	/**
+	 * Published packages, with a title pattern, a category, popular and exam type filters (NR-01, B2 and B5). {@code branch}
+	 * adds the packages of every subcategory below the category, as the category exam list does; without it only the
+	 * category's own packages are listed. Hidden subcategories stay out either way.
+	 */
 	@Transactional(readOnly = true)
-	public Page<PublicModule> modules(UUID categoryId, String examType, String q, boolean popularOnly, Pageable pageable,
-			StudentOwnAccessService.Viewer viewer) {
+	public Page<PublicModule> modules(UUID categoryId, boolean branch, String examType, String q, boolean popularOnly,
+			Pageable pageable, StudentOwnAccessService.Viewer viewer) {
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
 		Pageable ordered = orderedModules(pageable);
 		if (categoryId != null && hidden.contains(categoryId)) {
 			return Page.empty(ordered);
 		}
 		String pattern = q == null || q.isBlank() ? "%" : "%" + q.trim().toLowerCase() + "%";
+		Set<UUID> categoryIds = categoryId == null ? Set.of(NO_HIDDEN_CATEGORY)
+				: branch ? branchOf(categoryId) : Set.of(categoryId);
 		Page<LiveExamModule> page = modules.findPublishedCatalog(catalogHidden(hidden), categoryId == null,
-				categoryId == null ? NO_HIDDEN_CATEGORY : categoryId, popularOnly, pattern,
+				categoryIds, popularOnly, pattern,
 				LiveExamTypeFilter.ANY.equals(examType), examType, ordered);
 		Map<UUID, Counts> counts = counts(page.getContent().stream().map(LiveExamModule::getId).toList());
 		Map<UUID, LiveExamCategory> categoriesById = LiveExamStaffModuleService.categoriesById(categories);
+		Map<UUID, LiveExamReviewPublicService.Tally> ratings = reviews.tallies(LiveExamReviewKind.PACKAGE,
+				page.getContent().stream().map(LiveExamModule::getId).toList());
 		return page.map(module -> moduleView(module, counts.getOrDefault(module.getId(), Counts.NONE), categoriesById,
-				viewer));
+				viewer, ratings.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE)));
 	}
 
 	/**
@@ -194,7 +209,9 @@ public class LiveExamPublicService {
 	/** One package's public row. Also used for a student's favourites (NR-01, B6). */
 	PublicModule moduleRow(LiveExamModule module, StudentOwnAccessService.Viewer viewer) {
 		return moduleView(module, counts(List.of(module.getId())).getOrDefault(module.getId(), Counts.NONE),
-				LiveExamStaffModuleService.categoriesById(categories), viewer);
+				LiveExamStaffModuleService.categoriesById(categories), viewer,
+				reviews.tallies(LiveExamReviewKind.PACKAGE, List.of(module.getId()))
+					.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE));
 	}
 
 	/**
@@ -226,7 +243,10 @@ public class LiveExamPublicService {
 		Page<LiveExam> slice = page(visible, pageable);
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
 				slice.getContent().stream().map(LiveExam::getId).toList(), hidden);
-		return slice.map(exam -> examRow(exam, packagesByExam.getOrDefault(exam.getId(), List.of()), viewer));
+		Map<UUID, LiveExamReviewPublicService.Tally> ratings = reviews.tallies(LiveExamReviewKind.EXAM,
+				slice.getContent().stream().map(LiveExam::getId).toList());
+		return slice.map(exam -> examRow(exam, packagesByExam.getOrDefault(exam.getId(), List.of()), viewer,
+				ratings.getOrDefault(exam.getId(), LiveExamReviewPublicService.Tally.NONE)));
 	}
 
 	@Transactional(readOnly = true)
@@ -241,15 +261,18 @@ public class LiveExamPublicService {
 	/** One exam's public row with its visible packages. Also used for a student's favourites (NR-01, B6). */
 	PublicExam examRowFor(LiveExam exam, StudentOwnAccessService.Viewer viewer) {
 		Set<UUID> hidden = visibility.hiddenCategoryIds();
-		return examRow(exam, visiblePackages(List.of(exam.getId()), hidden).getOrDefault(exam.getId(), List.of()), viewer);
+		return examRow(exam, visiblePackages(List.of(exam.getId()), hidden).getOrDefault(exam.getId(), List.of()), viewer,
+				reviews.tallies(LiveExamReviewKind.EXAM, List.of(exam.getId()))
+					.getOrDefault(exam.getId(), LiveExamReviewPublicService.Tally.NONE));
 	}
 
 	/**
 	 * The published exams of one category, for the category's exam list (NR-01, B2). {@code branch} adds the exams of every
-	 * subcategory below it, at any depth (NR-01, S0.1). Exams in a hidden subcategory stay out.
+	 * subcategory below it, at any depth (NR-01, S0.1). Exams in a hidden subcategory stay out. {@code view} is the tab
+	 * (REQ-007), applied before paging.
 	 */
 	@Transactional(readOnly = true)
-	public Page<CategoryExam> categoryExams(UUID categoryId, String examType, String mode, String phase,
+	public Page<CategoryExam> categoryExams(UUID categoryId, String examType, String mode, String phase, String view,
 			boolean popularOnly, boolean branch, Pageable pageable) {
 		categories.findByIdAndDeletedAtIsNull(categoryId).orElseThrow(this::notFound);
 		if (visibility.branchHidden(categoryId)) {
@@ -275,12 +298,33 @@ public class LiveExamPublicService {
 			if (!LiveExamTypeFilter.ANY.equals(phase) && !phase.equals(ExamWindow.phase(exam, now))) {
 				continue;
 			}
+			if (!inView(exam, view, now)) {
+				continue;
+			}
 			if (popularOnly && !exam.isPopular()) {
 				continue;
 			}
 			rows.add(categoryExam(exam, now, packagesByExam.getOrDefault(exam.getId(), List.of())));
 		}
 		return page(rows, pageable);
+	}
+
+	/**
+	 * The category tab (REQ-007). FREE is an exam with no price (any mode, practice included). LIVE is a live-mode exam whose
+	 * window has not ended; ARCHIVED is a live-mode exam whose window has ended. Practice never reaches LIVE or ARCHIVED.
+	 */
+	private static boolean inView(LiveExam exam, String view, Instant now) {
+		if (LiveExamTypeFilter.VIEW_FREE.equals(view)) {
+			return exam.isFree();
+		}
+		if (LiveExamTypeFilter.VIEW_LIVE.equals(view) || LiveExamTypeFilter.VIEW_ARCHIVED.equals(view)) {
+			if (!LiveExam.MODE_LIVE.equals(exam.getMode())) {
+				return false;
+			}
+			boolean ended = ExamWindow.ENDED.equals(ExamWindow.phase(exam, now));
+			return LiveExamTypeFilter.VIEW_ARCHIVED.equals(view) == ended;
+		}
+		return true;
 	}
 
 	/** The category and every category below it, at any depth (NR-01, S0.1). */
@@ -356,15 +400,16 @@ public class LiveExamPublicService {
 
 	/** {@code viewer} is the signed-in student, or null; only a student's view carries {@code access}. */
 	private PublicModule moduleView(LiveExamModule module, Counts counts, Map<UUID, LiveExamCategory> categoriesById,
-			StudentOwnAccessService.Viewer viewer) {
+			StudentOwnAccessService.Viewer viewer, LiveExamReviewPublicService.Tally rating) {
 		return new PublicModule(module.getId(), module.getCategoryId(),
 				LiveExamStaffModuleService.pathOf(module.getCategoryId(), categoriesById), module.getTitleEn(),
 				module.getTitleBn(), module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
 				counts.mcq(), counts.written(), viewer == null ? null : viewer.module(module), ModuleCoverService.coverPath(module),
-				module.isPopular(), ExamPricing.view(module, clock.instant()), null);
+				module.isPopular(), ExamPricing.view(module, clock.instant()), null, rating.average(), rating.count());
 	}
 
-	private PublicExam examRow(LiveExam exam, List<LiveExamModule> packages, StudentOwnAccessService.Viewer viewer) {
+	private PublicExam examRow(LiveExam exam, List<LiveExamModule> packages, StudentOwnAccessService.Viewer viewer,
+			LiveExamReviewPublicService.Tally rating) {
 		Instant now = clock.instant();
 		UUID primary = memberships.primaryModuleId(exam.getId()).orElse(null);
 		return new PublicExam(exam.getId(), primary, exam.getExamType(), exam.getTitleEn(), exam.getTitleBn(),
@@ -373,7 +418,7 @@ public class LiveExamPublicService {
 				exam.getPrice(), viewer == null ? null : viewer.exam(exam), exam.getCategoryId(), exam.getMode(),
 				ExamWindow.phase(exam, now), exam.isPopular(), exam.isPreviewEnabled(),
 				ExamPricing.view(exam, now, moduleOnly(exam, packages)), packageRefs(packages), null,
-				ExamCoverService.coverPath(exam));
+				ExamCoverService.coverPath(exam), rating.average(), rating.count());
 	}
 
 	private CategoryExam categoryExam(LiveExam exam, Instant now, List<LiveExamModule> packages) {
@@ -496,11 +541,12 @@ public class LiveExamPublicService {
 	public record PublicModule(UUID id, UUID categoryId, List<LiveExamModuleService.CategoryRef> categoryPath,
 			String titleEn, String titleBn, String descriptionEn, String descriptionBn, int position, BigDecimal price,
 			int mcqCount, int writtenCount, StudentOwnAccessService.Access access, String coverUrl, boolean popular,
-			PriceView pricing, Boolean favourite) {
+			PriceView pricing, Boolean favourite, @JsonInclude(JsonInclude.Include.ALWAYS) Double ratingAverage,
+			int ratingCount) {
 
 		public PublicModule withFavourite(boolean marked) {
 			return new PublicModule(id, categoryId, categoryPath, titleEn, titleBn, descriptionEn, descriptionBn, position,
-					price, mcqCount, writtenCount, access, coverUrl, popular, pricing, marked);
+					price, mcqCount, writtenCount, access, coverUrl, popular, pricing, marked, ratingAverage, ratingCount);
 		}
 
 	}
@@ -546,12 +592,12 @@ public class LiveExamPublicService {
 			String liveAt, String endAt, int durationMinutes, BigDecimal price,
 			StudentOwnAccessService.Access access, UUID categoryId, String mode, String phase, boolean popular,
 			boolean previewEnabled, PriceView pricing, List<LiveExamModuleService.PackageRef> packages, Boolean favourite,
-			String coverUrl) {
+			String coverUrl, @JsonInclude(JsonInclude.Include.ALWAYS) Double ratingAverage, int ratingCount) {
 
 		public PublicExam withFavourite(boolean marked) {
 			return new PublicExam(id, moduleId, examType, titleEn, titleBn, descriptionEn, descriptionBn, rulesEn, rulesBn,
 					paperLanguage, liveAt, endAt, durationMinutes, price, access, categoryId, mode, phase, popular, previewEnabled,
-					pricing, packages, marked, coverUrl);
+					pricing, packages, marked, coverUrl, ratingAverage, ratingCount);
 		}
 
 	}

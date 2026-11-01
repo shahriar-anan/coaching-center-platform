@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,6 +49,16 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 
 	boolean existsByExamIdAndStudentIdAndDeletedAtIsNull(UUID examId, UUID studentId);
 
+	/** Has at least one paper of this exam been released to its student (a written publish sets {@code publishedAt}). */
+	boolean existsByExamIdAndDeletedAtIsNullAndPublishedAtIsNotNull(UUID examId);
+
+	/** The exams, among these, that have at least one paper released. One query for a whole page of the staff list. */
+	@Query("""
+			select distinct p.examId from LiveExamParticipant p
+			where p.examId in :examIds and p.deletedAt is null and p.publishedAt is not null
+			""")
+	List<UUID> findReleasedExamIds(@Param("examIds") Collection<UUID> examIds);
+
 	/** The student's attempts on the given exams, oldest first, so a caller that keeps one per exam keeps the latest. */
 	@Query("""
 			select p from LiveExamParticipant p
@@ -69,5 +80,24 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 			  and exists (select e.id from LiveExam e where e.id = p.examId and e.deletedAt is null)
 			""")
 	Page<LiveExamParticipant> findHistory(@Param("studentId") UUID studentId, Pageable pageable);
+
+	/**
+	 * The exams one student has sat, ordered by the start of their latest attempt, newest first. A deleted attempt or exam is
+	 * left out; an exam in no package is included. {@code examType} is {@link LiveExamTypeFilter#ANY} for every type.
+	 */
+	@Query(value = """
+			select p.examId from LiveExamParticipant p
+			where p.studentId = :studentId and p.deletedAt is null
+			  and exists (select e.id from LiveExam e where e.id = p.examId and e.deletedAt is null
+			    and (:examType = '' or e.examType = :examType))
+			group by p.examId
+			order by max(p.startedAt) desc, p.examId
+			""", countQuery = """
+			select count(distinct p.examId) from LiveExamParticipant p
+			where p.studentId = :studentId and p.deletedAt is null
+			  and exists (select e.id from LiveExam e where e.id = p.examId and e.deletedAt is null
+			    and (:examType = '' or e.examType = :examType))
+			""")
+	Page<UUID> findSatExamIds(@Param("studentId") UUID studentId, @Param("examType") String examType, Pageable pageable);
 
 }

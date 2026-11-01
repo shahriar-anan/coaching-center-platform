@@ -168,22 +168,31 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getContentAsString();
 		assertThat(posted).doesNotContain("correct", "Because");
 
-		// D21: the key and the explanations come with the result at submit, mid-window, with no release step.
+		// The score and the key come at once after the early submit (a read 30 minutes before the deadline): no reviewOpensAt.
 		clock.set(Instant.parse("2026-10-20T06:20:00Z"));
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(5))
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
 			.andExpect(jsonPath("$.questions[0].options[0].selected").value(true))
 			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
-			.andExpect(jsonPath("$.questions[0].options[1].correct").value(false));
-		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(jsonPath("$.questions[0].options[1].correct").value(false))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+		String shown = mockMvc
+			.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
-			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist())
+			.andExpect(jsonPath("$.myStatus").value("SUBMITTED"))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(shown).contains("\"correct\"", "Because");
 	}
 
 	@Test
-	void theKeyStaysHiddenWhileTheSittingIsOpenWhateverTheReleaseSwitchSaysAndShowsOnSubmit() throws Exception {
+	void theKeyStaysHiddenWhileTheSittingIsOpenAndTheReleaseSwitchDoesNotHideItAfterSubmit() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		Holder holder = publishMcq(staff);
@@ -209,16 +218,26 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
 		mockMvc.perform(post("/api/v1/live-exams/" + holder.examId() + "/submit").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk());
+
+		// Submitted: the key shows at once, before the deadline, because the release switch no longer gates the review.
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
-			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
 
-		// The switch is no longer read (P-d): an exam whose answers were never released shows them at submit all the same.
+		// Released answers withheld again: the key still shows, and reviewOpensAt is still absent.
 		new JdbcTemplate(dataSource).update("update live_exams set answers_released_at = null where id = ?", holder.examId());
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.questions[0].explanation").value("Because"));
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId()).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
 	}
 
 	/** AG-02: the staff exam view carries the release time, and the student view never does. */
@@ -400,12 +419,12 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsString();
 		assertThat(posted).doesNotContain("Because");
-		// D21: the key and the explanations come with the result as soon as the attempt is submitted.
+		// The score and the key with its explanations show at once after submit (ReviewRule); no reviewOpensAt.
 		mockMvc.perform(get("/api/v1/live-exams/" + holder.examId() + "/result").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.score").value(2))
 			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
-			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true));
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
 
 		// A posted score must not drift away from the answers it was scored on, so a later save is refused.
 		mockMvc.perform(put("/api/v1/live-exams/" + holder.examId() + "/answers").header("Authorization", "Bearer " + student)
@@ -522,6 +541,210 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.status").value("SUBMITTED"))
 			.andExpect(jsonPath("$.score").doesNotExist())
 			.andExpect(jsonPath("$.passed").doesNotExist());
+	}
+
+	/** A submitted MCQ shows its key at once: a read one second before the attempt's own deadline already has the key. */
+	@Test
+	void aSubmittedMcqShowsItsKeyAtOnce() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		String exam = "/api/v1/live-exams/" + holder.examId();
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post(exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		save(student, holder.examId(), holder.questions());
+		mockMvc.perform(post(exam + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(10));
+
+		clock.set(Instant.parse("2026-10-20T06:49:59Z"));
+		mockMvc.perform(get(exam + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.score").value(10))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+	}
+
+	/** A submitted retake and a submitted practice attempt show their key at once too, as every submitted MCQ does. */
+	@Test
+	void aRetakeAndAPracticeAttemptReviewAtOnce() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String student = token(holder.studentId());
+		mark(master, holder.moduleId(), holder.studentId());
+		String exam = "/api/v1/live-exams/" + holder.examId();
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post(exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(post(exam + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+
+		clock.set(Instant.parse("2026-10-20T06:12:00Z"));
+		mockMvc.perform(post(exam + "/retake").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.attemptKind").value("RETAKE"));
+		save(student, holder.examId(), holder.questions().subList(0, 1));
+		mockMvc.perform(post(exam + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(exam + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.attemptKind").value("RETAKE"))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+
+		// A practice exam has no window (the database refuses dates on it), so it is made without one and switched to practice.
+		MvcResult practiceCreated = mockMvc
+			.perform(post("/api/v1/live-exam-modules/" + holder.moduleId() + "/exams").header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Practice quiz","titleBn":"অনুশীলন",
+						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
+						  "durationMinutes":40,"passPercent":50
+						}
+						"""))
+			.andExpect(status().isCreated())
+			.andReturn();
+		UUID practice = UUID.fromString(json.readTree(practiceCreated.getResponse().getContentAsString()).get("id").asText());
+		addQuestion(staff, practice, "Two plus two", 2);
+		mockMvc.perform(post("/api/v1/live-exams/" + practice + "/final-save").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + practice + "/publish").header("Authorization", "Bearer " + masterToken()))
+			.andExpect(status().isOk());
+		new JdbcTemplate(dataSource).update("update live_exams set mode = 'PRACTICE' where id = ?", practice);
+		String practicePath = "/api/v1/live-exams/" + practice;
+		mockMvc.perform(post(practicePath + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.attemptKind").value("PRACTICE"));
+		mockMvc.perform(post(practicePath + "/submit").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(practicePath + "/result").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.attemptKind").value("PRACTICE"))
+			.andExpect(jsonPath("$.questions[0].explanation").value("Because"))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+	}
+
+	/** One student's review is never handed to another: each read is the reader's own row, and a stranger has none. */
+	@Test
+	void anotherStudentNeverReadsThisStudentsReview() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		Holder holder = publishMcq(staff);
+		String owner = token(holder.studentId());
+		UUID otherId = seed("STUDENT");
+		UUID strangerId = seed("STUDENT");
+		mark(master, holder.moduleId(), holder.studentId());
+		mark(master, holder.moduleId(), otherId);
+		mark(master, holder.moduleId(), strangerId);
+		String other = token(otherId);
+		String stranger = token(strangerId);
+		String exam = "/api/v1/live-exams/" + holder.examId();
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post(exam + "/take").header("Authorization", "Bearer " + owner)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		save(owner, holder.examId(), holder.questions());
+		mockMvc.perform(post(exam + "/submit").header("Authorization", "Bearer " + owner)).andExpect(status().isOk());
+		clock.set(Instant.parse("2026-10-20T06:11:00Z"));
+		mockMvc.perform(post(exam + "/take").header("Authorization", "Bearer " + other)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(post(exam + "/submit").header("Authorization", "Bearer " + other)).andExpect(status().isOk());
+
+		// The other student's own key shows at once, and it carries no trace of the owner's answers.
+		mockMvc.perform(get(exam + "/result").header("Authorization", "Bearer " + other))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(false))
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist());
+		// A stranger with no sitting reads neither the owner's review nor a review of their own.
+		mockMvc.perform(get(exam + "/result").header("Authorization", "Bearer " + stranger)).andExpect(status().isNotFound());
+		mockMvc.perform(get(exam).header("Authorization", "Bearer " + stranger))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions").doesNotExist())
+			.andExpect(jsonPath("$.reviewOpensAt").doesNotExist())
+			.andExpect(jsonPath("$.sitting").doesNotExist());
+
+		clock.set(Instant.parse("2026-10-20T06:51:00Z"));
+		mockMvc.perform(get(exam + "/result").header("Authorization", "Bearer " + other))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questions[0].options[0].correct").value(true))
+			.andExpect(jsonPath("$.questions[0].options[0].selected").value(false))
+			.andExpect(jsonPath("$.questions[1].options[0].selected").value(false));
+	}
+
+	/**
+	 * The upload is the submission. Once the script is stored the status is SUBMITTED before the deadline, the paper is not
+	 * offered, and a second upload is refused with the first file kept. After the sitting ends the paper stays unavailable.
+	 */
+	@Test
+	void aWrittenUploadIsTheSubmissionAndClosesThePaperWhileTheSittingIsOpen() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Final");
+		UUID exam = createWritten(staff, module);
+		UUID studentId = seed("STUDENT");
+		mark(master, module, studentId);
+		String student = token(studentId);
+		String path = "/api/v1/live-exams/" + exam;
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		mockMvc.perform(post(path + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(get(path).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questionPdf").value(true))
+			.andExpect(jsonPath("$.myStatus").value("IN_PROGRESS"));
+
+		mockMvc.perform(multipart(path + "/answer-pdf")
+			.file(new MockMultipartFile("file", "answer.pdf", "application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isNoContent());
+		String stored = storedAnswer(exam, studentId);
+
+		mockMvc.perform(get(path).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.myStatus").value("SUBMITTED"))
+			.andExpect(jsonPath("$.answerStored").value(true))
+			.andExpect(jsonPath("$.questionPdf").value(false));
+		mockMvc.perform(get(path + "/question-pdf").header("Authorization", "Bearer " + student))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
+		mockMvc.perform(multipart(path + "/answer-pdf")
+			.file(new MockMultipartFile("file", "two.pdf", "application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
+		assertThat(storedAnswer(exam, studentId)).isEqualTo(stored);
+		assertThat(Files.exists(java.nio.file.Path.of(files.storageDir(), stored))).isTrue();
+
+		// The sitting ended at 07:30: the paper is still not offered, as before, and the flag is left out of the exam read.
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		mockMvc.perform(get(path).header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.questionPdf").doesNotExist())
+			.andExpect(jsonPath("$.myStatus").value("AWAITING_RESULT"));
+		mockMvc.perform(get(path + "/question-pdf").header("Authorization", "Bearer " + student))
+			.andExpect(status().isNotFound());
 	}
 
 	@Test
@@ -908,7 +1131,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aWrittenSubmitBeforeTheDeadlineDoesNotScoreOrLockTheSheet() throws Exception {
+	void aWrittenSubmitBeforeTheDeadlineDoesNotScoreAndHidesThePaper() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
 		UUID module = publishModule(staff, "Open sheet");
@@ -968,9 +1191,10 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			"application/pdf", compressiblePdf()))
 			.header("Authorization", "Bearer " + student))
 			.andExpect(status().isNoContent());
+		// The upload is the submission: while the sitting is open the question paper is no longer offered (409).
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + student))
-			.andExpect(status().isOk())
-			.andExpect(header().string("Content-Disposition", "inline"));
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
 		String kept = storedAnswer(exam, studentId);
 
 		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders

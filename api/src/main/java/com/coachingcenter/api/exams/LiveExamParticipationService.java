@@ -71,9 +71,12 @@ public class LiveExamParticipationService {
 
 	private final Clock clock;
 
-	LiveExamParticipationService(JdbcTemplate jdbc, Clock clock) {
+	private final LiveExamCategoryRepository categories;
+
+	LiveExamParticipationService(JdbcTemplate jdbc, Clock clock, LiveExamCategoryRepository categories) {
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.clock = clock;
+		this.categories = categories;
 	}
 
 	@Transactional(readOnly = true)
@@ -84,6 +87,7 @@ public class LiveExamParticipationService {
 		Pageable page = PageRequest.of(pageable.getPageNumber(), size);
 		Long total = jdbc.queryForObject("select count(*) from live_exams e where " + where, params, Long.class);
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
+		Map<UUID, LiveExamCategory> byId = LiveExamStaffModuleService.categoriesById(categories);
 		String sql = """
 				select e.id, m.id as module_id, m.title_en as module_title_en, m.title_bn as module_title_bn, e.exam_type,
 				  e.title_en, e.title_bn, e.live_at, e.ends_at, c.id as category_id, c.title_en as category_title_en, c.title_bn as category_title_bn,
@@ -119,7 +123,8 @@ public class LiveExamParticipationService {
 					written ? rs.getInt("drafts") : null, written ? rs.getInt("published") : null, rs.getInt("retakes"),
 					written ? rs.getInt("ready") : null, written ? rs.getInt("corrections") : null, rs.getInt("live_n"),
 					rs.getInt("archived_n"), rs.getInt("retake_n"), rs.getInt("practice_n"), rs.getObject("category_id", UUID.class),
-					rs.getString("category_title_en"), rs.getString("category_title_bn"));
+					rs.getString("category_title_en"), rs.getString("category_title_bn"),
+					LiveExamStaffModuleService.pathOf(rs.getObject("category_id", UUID.class), byId));
 		});
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
@@ -215,7 +220,7 @@ public class LiveExamParticipationService {
 			String titleEn, String titleBn, String liveAt, String endAt, int sitting, int submitted, int failedToSubmit,
 			Integer awaitingMarking, Integer draftsAwaitingPublish, Integer published, int retakes, Integer readyForRelease,
 			Integer correctionsWaiting, int live, int archived, int retake, int practice, UUID categoryId, String categoryTitleEn,
-			String categoryTitleBn) {
+			String categoryTitleBn, List<LiveExamModuleService.CategoryRef> categoryPath) {
 	}
 
 	public record Summary(int awaitingMarking, int draftsAwaitingPublish) {

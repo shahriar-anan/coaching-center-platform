@@ -148,9 +148,19 @@ class InstructorDirectoryIT extends PostgresIntegrationTest {
 		return module;
 	}
 
+	/** A teacher holds a package through a live exam of it that is assigned to them (D6); the package has no teacher of its own. */
 	private void assign(UUID module, String instructorId) {
-		jdbc.update("insert into live_exam_instructors (module_id, instructor_id, assigned_at) values (?, ?, now())",
-				module, UUID.fromString(instructorId));
+		UUID exam = UUID.randomUUID();
+		jdbc.update("""
+				insert into live_exams (id, module_id, category_id, exam_type, title_en, title_bn, description_en,
+				  description_bn, rules_en, rules_bn, paper_language, live_at, ends_at, duration_minutes, mode, status,
+				  finally_saved, answers_changeable, instructor_id, created_at, updated_at)
+				values (?, ?, (select category_id from live_exam_modules where id = ?), 'WRITTEN', 'Assigned', 'খাতা',
+				  'd', 'd', 'r', 'r', 'BN', now(), now() + make_interval(mins => 40), 40, 'LIVE', 'PUBLISHED', true, true, ?,
+				  now(), now())
+				""", exam, module, module, UUID.fromString(instructorId));
+		jdbc.update("insert into live_exam_package_exams (id, module_id, exam_id, position, added_at, removed_at)"
+				+ " values (?, ?, ?, 0, now(), null)", UUID.randomUUID(), module, exam);
 	}
 
 	private String login(String identifier, String password) throws Exception {

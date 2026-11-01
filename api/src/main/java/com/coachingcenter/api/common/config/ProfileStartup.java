@@ -15,6 +15,7 @@ public final class ProfileStartup {
 		requireWebOrigin(profiles, origin(environment));
 		refuseSeedOnProd(profiles, environment.getProperty("SEED_ENABLED"));
 		refuseDemoOnProd(profiles, environment.getProperty("SEED_DEMO"));
+		refuseSampleOnProd(profiles, environment.getProperty("SEED_SAMPLE"));
 	}
 
 	static void requireWebOrigin(List<String> profiles, String origin) {
@@ -36,6 +37,13 @@ public final class ProfileStartup {
 		boolean prod = profiles.stream().anyMatch(profile -> "prod".equalsIgnoreCase(profile));
 		if (prod && demoEnabled != null && "true".equalsIgnoreCase(demoEnabled.trim())) {
 			throw new IllegalStateException("SEED_DEMO cannot be true on the prod profile.");
+		}
+	}
+
+	static void refuseSampleOnProd(List<String> profiles, String sampleEnabled) {
+		boolean prod = profiles.stream().anyMatch(profile -> "prod".equalsIgnoreCase(profile));
+		if (prod && sampleEnabled != null && "true".equalsIgnoreCase(sampleEnabled.trim())) {
+			throw new IllegalStateException("SEED_SAMPLE cannot be true on the prod profile.");
 		}
 	}
 

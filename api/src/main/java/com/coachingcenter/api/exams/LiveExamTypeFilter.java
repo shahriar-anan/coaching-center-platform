@@ -19,6 +19,17 @@ final class LiveExamTypeFilter {
 	private static final Set<String> PHASES = Set.of(ExamWindow.UNANNOUNCED, ExamWindow.UPCOMING, ExamWindow.LIVE,
 			ExamWindow.ENDED, ExamWindow.PRACTICE);
 
+	/** The category tabs (REQ-007). An unknown value is {@link #VIEW_ALL}, not an error. */
+	static final String VIEW_ALL = "ALL";
+
+	static final String VIEW_FREE = "FREE";
+
+	static final String VIEW_LIVE = "LIVE";
+
+	static final String VIEW_ARCHIVED = "ARCHIVED";
+
+	private static final Set<String> VIEWS = Set.of(VIEW_ALL, VIEW_FREE, VIEW_LIVE, VIEW_ARCHIVED);
+
 	private LiveExamTypeFilter() {
 	}
 
@@ -55,6 +66,15 @@ final class LiveExamTypeFilter {
 			throw validationFailed();
 		}
 		return phase;
+	}
+
+	/** One of {@link #VIEW_ALL}, {@link #VIEW_FREE}, {@link #VIEW_LIVE} or {@link #VIEW_ARCHIVED}. Unknown values read as all. */
+	static String parseView(String value) {
+		if (value == null || value.isBlank()) {
+			return VIEW_ALL;
+		}
+		String view = value.trim().toUpperCase(Locale.ROOT);
+		return VIEWS.contains(view) ? view : VIEW_ALL;
 	}
 
 	private static ApiException validationFailed() {

@@ -113,7 +113,7 @@ class AuthoringAuditIT extends PostgresIntegrationTest {
 		UUID masterId = fx.seed("MASTER_ADMIN");
 		String master = fx.token(masterId);
 		UUID module = fx.module(staff, "Audit instructor");
-		UUID exam = fx.createExam(staff, module, "MCQ", "Instructed", NOON, 40, null);
+		UUID exam = fx.createExam(staff, module, "WRITTEN", "Instructed", NOON, 40, null);
 		UUID instructor = fx.seed("INSTRUCTOR");
 
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)

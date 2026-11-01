@@ -25,6 +25,7 @@ public class LiveExamPermissionContributor implements PermissionContributor {
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_ORDER_CONFIRM, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_RELEASE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_ANNOUNCE, PermissionScope.ANY);
+		registry.grant(Role.SYSTEM_ADMIN, Permissions.LIVE_EXAM_ANNOUNCE, PermissionScope.ANY);
 		registry.grant(Role.INSTRUCTOR, Permissions.LIVE_EXAM_EVALUATE, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_POPULAR, PermissionScope.ANY);
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_RETAKE_GRANT, PermissionScope.ANY);
@@ -32,6 +33,10 @@ public class LiveExamPermissionContributor implements PermissionContributor {
 		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_PACKAGE_EDIT, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.LIVE_EXAM_PACKAGE_EDIT, PermissionScope.ANY);
 		registry.grant(Role.STUDENT, Permissions.LIVE_EXAM_FAVOURITE, PermissionScope.ANY);
+		registry.grant(Role.STUDENT, Permissions.LIVE_EXAM_REVIEW_WRITE, PermissionScope.ANY);
+		registry.grant(Role.MASTER_ADMIN, Permissions.LIVE_EXAM_REVIEW_MODERATE, PermissionScope.ANY);
+		registry.grant(Role.SYSTEM_ADMIN, Permissions.LIVE_EXAM_REVIEW_MODERATE, PermissionScope.ANY);
+		registry.grant(Role.INSTRUCTOR, Permissions.LIVE_EXAM_REVIEW_READ, PermissionScope.ANY);
 	}
 
 }

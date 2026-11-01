@@ -43,7 +43,7 @@ public class SecurityConfig {
 						"/api/v1/auth/reset-password", "/api/v1/auth/verify-email", "/api/v1/auth/verify-email/resend")
 				.permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/auth/google",
-						"/api/v1/auth/google/callback")
+						"/api/v1/auth/google/callback", "/api/v1/auth/session")
 				.permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/public/**").permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/live-exam-orders/*/return").permitAll()

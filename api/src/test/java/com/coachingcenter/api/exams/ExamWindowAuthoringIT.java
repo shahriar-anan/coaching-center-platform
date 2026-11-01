@@ -287,23 +287,28 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void anExamCreatedInAPackageTakesItsCategoryItsMembershipAndItsDefaultInstructor() throws Exception {
+	void aNewExamInAPackageTakesItsCategoryAndMembershipButNoTeacher() throws Exception {
 		String staff = fx.staff();
 		UUID instructor = fx.seed("INSTRUCTOR");
 		UUID category = fx.category(staff, "Inherit");
 		UUID module = fx.moduleIn(staff, category, "Inherit pack");
+		// A legacy package default row. A new exam must not inherit it (D6: teachers are assigned per exam only).
 		fx.jdbc().update("insert into live_exam_instructors (module_id, instructor_id, assigned_at) values (?, ?, now())",
 				module, instructor);
-		UUID exam = fx.createExam(staff, module, "MCQ", "Inherits", NOON, 40, null);
+		UUID exam = fx.createExam(staff, module, "WRITTEN", "Inherits", NOON, 40, null);
 		JsonNode created = fx.exam(staff, exam);
 		assertThat(created.get("categoryId").asText()).isEqualTo(category.toString());
 		assertThat(created.get("moduleId").asText()).isEqualTo(module.toString());
 		assertThat(created.get("packages")).hasSize(1);
 		assertThat(created.get("packages").get(0).get("id").asText()).isEqualTo(module.toString());
-		assertThat(created.get("instructor").get("id").asText()).isEqualTo(instructor.toString());
+		assertThat(created.hasNonNull("instructor")).as("a new written exam has no teacher, even with a package default").isFalse();
+		assertThat(fx.jdbc().queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam)).isNull();
 		assertThat(fx.jdbc().queryForObject(
 				"select count(*) from live_exam_package_exams where exam_id = ? and module_id = ? and removed_at is null",
 				Integer.class, exam, module)).isEqualTo(1);
+		// An MCQ is marked by the system, so it never takes an instructor, even inside the same package.
+		UUID mcq = fx.createExam(staff, module, "MCQ", "Same package mcq", NOON, 40, null);
+		assertThat(fx.exam(staff, mcq).hasNonNull("instructor")).isFalse();
 	}
 
 	@Test

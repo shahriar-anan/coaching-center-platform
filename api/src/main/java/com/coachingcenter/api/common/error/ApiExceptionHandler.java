@@ -11,8 +11,10 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -37,6 +39,20 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ApiError> malformed(HttpServletRequest request) {
 		return body(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "Request body is malformed.", null, request);
+	}
+
+	/** A query or path value that does not parse, such as {@code moduleId=undefined}, is the caller's fault, not a server fault. */
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ApiError> badParameter(MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+		return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED, "Parameter " + exception.getName() + " is invalid.",
+				null, request);
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	public ResponseEntity<ApiError> missingParameter(MissingServletRequestParameterException exception,
+			HttpServletRequest request) {
+		return body(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED,
+				"Parameter " + exception.getParameterName() + " is required.", null, request);
 	}
 
 	@ExceptionHandler(ApiException.class)

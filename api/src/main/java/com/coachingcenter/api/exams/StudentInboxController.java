@@ -1,5 +1,7 @@
 package com.coachingcenter.api.exams;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,11 +27,31 @@ public class StudentInboxController {
 
 	private final StudentInboxService inbox;
 
+	private final AnnouncementService announcements;
+
 	private final PermissionChecker permissions;
 
-	public StudentInboxController(StudentInboxService inbox, PermissionChecker permissions) {
+	public StudentInboxController(StudentInboxService inbox, AnnouncementService announcements,
+			PermissionChecker permissions) {
 		this.inbox = inbox;
+		this.announcements = announcements;
 		this.permissions = permissions;
+	}
+
+	/**
+	 * The announcements on one package ({@code kind=package}) or one exam ({@code kind=exam}) that the student may see there:
+	 * newest first, withdrawn ones left out. A non-holder gets an empty list. An unknown kind is 404.
+	 */
+	@GetMapping("/api/v1/me/announcements")
+	public List<AnnouncementService.StudentAnnouncement> announcementsOn(@RequestParam(required = false) String kind,
+			@RequestParam UUID id) {
+		UUID student = student();
+		String audience = switch (kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT)) {
+			case "package" -> AnnouncementAudience.MODULE;
+			case "exam" -> AnnouncementAudience.EXAM;
+			default -> throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
+		};
+		return announcements.visibleTo(student, audience, id);
 	}
 
 	/** {@code group} is RESULTS, EXAMS or ANNOUNCEMENTS (N1). Absent means every notice, as before. */

@@ -26,6 +26,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
@@ -33,6 +34,7 @@ import com.coachingcenter.api.auth.CapturingEmailConfig;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Staged edits to a published exam (NR-01 A3, A4): the working copy, the change list, discard, the publish with a revision,
@@ -461,6 +463,61 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 			.getContentAsString());
 	}
 
+	@Test
+	void aStagedReorderIsKeptListedAndPublishedWithTheNewPositions() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Reorder");
+		UUID exam = fx.createExam(staff, module, "MCQ", "Reordered", NOON, 40, null);
+		UUID first = fx.question(staff, exam, "First", 1);
+		UUID second = fx.question(staff, exam, "Second", 1);
+		fx.publishNew(master, exam);
+		assertThat(position(first)).isZero();
+		assertThat(position(second)).isEqualTo(1);
+
+		// The web sends the whole question with the new position (QuestionInput needs stem and marks).
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam + "/questions/" + first).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(atPosition(AuthoringFixture.questionJson("First", 1, "Because", false, "*A", "B"), 1)))
+			.andExpect(status().isOk());
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam + "/questions/" + second).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(atPosition(AuthoringFixture.questionJson("Second", 1, "Because", false, "*A", "B"), 0)))
+			.andExpect(status().isOk());
+
+		assertThat(position(first)).isZero();
+		JsonNode changes = pending(staff, exam);
+		assertThat(questionChanges(changes)).containsExactly("POSITION");
+		assertThat(changes.get("questions").size()).isEqualTo(2);
+		assertThat(stagedPosition(changes, first)).isEqualTo(1);
+		assertThat(stagedPosition(changes, second)).isZero();
+
+		publishStaged(master, exam, staff);
+		assertThat(position(first)).isEqualTo(1);
+		assertThat(position(second)).isZero();
+		assertThat(fx.jdbc().queryForObject("select count(*) from live_exam_revisions where exam_id = ?", Integer.class, exam))
+			.isZero();
+	}
+
+	private int position(UUID question) {
+		return fx.jdbc().queryForObject("select position from live_exam_questions where id = ?", Integer.class, question);
+	}
+
+	private String atPosition(String body, int position) throws Exception {
+		ObjectNode node = (ObjectNode) json.readTree(body);
+		node.put("position", position);
+		return node.toString();
+	}
+
+	private static int stagedPosition(JsonNode changes, UUID question) {
+		for (JsonNode change : changes.get("questions")) {
+			if (question.toString().equals(change.get("questionId").asText())) {
+				return change.get("after").asInt();
+			}
+		}
+		throw new AssertionError("The change list has no entry for the question " + question + ".");
+	}
+
 	/** Publishes the staged edit as the Master Admin, naming the revision the change list shows. */
 	private void publishStaged(String master, UUID exam, String staff) throws Exception {
 		JsonNode changes = pending(staff, exam);
@@ -468,6 +525,116 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"revisionId\":\"" + changes.get("revisionId").asText() + "\"}"))
 			.andExpect(status().isOk());
+	}
+
+	/**
+	 * Every staged field reaches every student read in the same request sequence after the publish, with no waiting: the public
+	 * exam, its category list (the new category and the old one), the package's exam list, the student's exam read, the routine
+	 * and the questions of a running sitting.
+	 */
+	@Test
+	void everyStagedFieldReachesEveryStudentReadAfterThePublish() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Reach");
+		UUID exam = fx.createExam(staff, module, "MCQ", "Before", NOON, 40, null);
+		UUID oldCategory = fx.jdbc().queryForObject("select category_id from live_exams where id = ?", UUID.class, exam);
+		UUID newCategory = fx.category(staff, "Reach moved");
+		UUID question = fx.question(staff, exam, "Old stem", 1);
+		fx.publishNew(master, exam);
+		UUID studentId = fx.seed("STUDENT");
+		String student = fx.token(studentId);
+		fx.grantModule(module, studentId);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"titleEn":"After","titleBn":"পরে","descriptionEn":"New description","descriptionBn":"নতুন বিবরণ",
+					 "rulesEn":"New rules","rulesBn":"নতুন নিয়ম","paperLanguage":"EN","passPercent":70,"durationMinutes":55,
+					 "liveAt":"2026-10-20T12:30:00+06:00","negativeMarks":0.25,"answersChangeable":false,"previewEnabled":true,
+					 "accessDays":30,"categoryId":"%s","price":150,"discountPercent":10,"discountEndsAt":"2026-10-30T00:00:00+06:00"}
+					""".formatted(newCategory)))
+			.andExpect(status().isOk());
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam + "/questions/" + question).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(AuthoringFixture.questionJson("New stem", 2, "Why", false, "A", "*B")))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(AuthoringFixture.questionJson("Added stem", 1, null, false, "*A", "B")))
+			.andExpect(status().isCreated());
+		publishStaged(master, exam, staff);
+
+		JsonNode publicExam = read("/api/v1/public/live-exams/" + exam, null);
+		assertThat(publicExam.get("titleEn").asText()).isEqualTo("After");
+		assertThat(publicExam.get("descriptionEn").asText()).isEqualTo("New description");
+		assertThat(publicExam.get("rulesEn").asText()).isEqualTo("New rules");
+		assertThat(publicExam.get("paperLanguage").asText()).isEqualTo("EN");
+		assertThat(publicExam.get("categoryId").asText()).isEqualTo(newCategory.toString());
+		assertThat(publicExam.get("durationMinutes").asInt()).isEqualTo(55);
+		assertThat(publicExam.get("previewEnabled").asBoolean()).isTrue();
+		assertThat(publicExam.get("liveAt").asText()).startsWith("2026-10-20T12:30:00");
+		assertThat(publicExam.get("price").decimalValue()).isEqualByComparingTo("150");
+
+		JsonNode movedTo = read("/api/v1/public/live-exam-categories/" + newCategory + "/exams?examType=MCQ", null);
+		assertThat(row(movedTo, exam).get("titleEn").asText()).isEqualTo("After");
+		JsonNode leftBehind = read("/api/v1/public/live-exam-categories/" + oldCategory + "/exams?examType=MCQ", null);
+		assertThat(ids(leftBehind)).doesNotContain(exam.toString());
+
+		JsonNode packageExam = row(read("/api/v1/public/live-exam-modules/" + module + "/exams", null), exam);
+		assertThat(packageExam.get("titleEn").asText()).isEqualTo("After");
+		assertThat(packageExam.get("durationMinutes").asInt()).isEqualTo(55);
+		assertThat(packageExam.get("price").decimalValue()).isEqualByComparingTo("150");
+
+		JsonNode mine = read("/api/v1/live-exams/" + exam, student);
+		assertThat(mine.get("titleEn").asText()).isEqualTo("After");
+		assertThat(mine.get("descriptionEn").asText()).isEqualTo("New description");
+		assertThat(mine.get("durationMinutes").asInt()).isEqualTo(55);
+		assertThat(mine.get("passPercent").asInt()).isEqualTo(70);
+		assertThat(mine.get("maximum").asInt()).isEqualTo(3);
+		assertThat(mine.get("liveAt").asText()).startsWith("2026-10-20T12:30:00");
+		assertThat(mine.get("price").decimalValue()).isEqualByComparingTo("150");
+
+		assertThat(row(read("/api/v1/me/exam-routine?size=100", student), exam).get("titleEn").asText()).isEqualTo("After");
+
+		clock.set(Instant.parse("2026-10-20T06:40:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isOk());
+		JsonNode sitting = read("/api/v1/live-exams/" + exam, student);
+		java.util.List<String> stems = new java.util.ArrayList<>();
+		sitting.get("questions").forEach(row -> stems.add(row.get("stem").asText()));
+		assertThat(stems).containsExactly("New stem", "Added stem");
+	}
+
+	private JsonNode read(String url, String token) throws Exception {
+		MockHttpServletRequestBuilder request = get(url);
+		if (token != null) {
+			request.header("Authorization", "Bearer " + token);
+		}
+		return json.readTree(mockMvc.perform(request)
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+	}
+
+	/** The ids of a page's {@code content}, or of a plain list. */
+	private static java.util.List<String> ids(JsonNode page) {
+		java.util.List<String> found = new java.util.ArrayList<>();
+		(page.has("content") ? page.get("content") : page).forEach(row -> found.add(row.get("id").asText()));
+		return found;
+	}
+
+	private static JsonNode row(JsonNode page, UUID exam) {
+		JsonNode rows = page.has("content") ? page.get("content") : page;
+		for (JsonNode row : rows) {
+			if (exam.toString().equals(row.get("id").asText())) {
+				return row;
+			}
+		}
+		throw new AssertionError("The exam " + exam + " is not listed.");
 	}
 
 	private int updateNotices(UUID exam, UUID student) {

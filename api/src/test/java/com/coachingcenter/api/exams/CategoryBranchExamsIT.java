@@ -110,6 +110,25 @@ class CategoryBranchExamsIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theViewTabsSplitTheCategoryListAndAnUnknownViewIsAll() throws Exception {
+		Set<String> all = ids(categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true"));
+		assertThat(ids(categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true&view=ALL"))).isEqualTo(all);
+		assertThat(ids(categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true&view=nonsense"))).isEqualTo(all);
+		// The tabs are checked row by row, so the test holds whatever the seed's prices and dates are.
+		for (JsonNode row : categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true&view=free")) {
+			assertThat(row.get("pricing").get("free").asBoolean()).isTrue();
+		}
+		for (JsonNode row : categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true&view=live")) {
+			assertThat(row.get("mode").asText()).isEqualTo("LIVE");
+			assertThat(row.get("phase").asText()).isNotEqualTo("ENDED");
+		}
+		for (JsonNode row : categoryExams(DemoContentSeed.CATEGORY_ROOT, "&branch=true&view=ARCHIVED")) {
+			assertThat(row.get("mode").asText()).isEqualTo("LIVE");
+			assertThat(row.get("phase").asText()).isEqualTo("ENDED");
+		}
+	}
+
+	@Test
 	void theUpcomingListKeepsOnlyPopularExamsWhenAsked() throws Exception {
 		JsonNode everything = upcoming("");
 		JsonNode popular = upcoming("&popular=true");

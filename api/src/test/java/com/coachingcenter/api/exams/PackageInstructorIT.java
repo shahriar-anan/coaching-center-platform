@@ -1,7 +1,6 @@
 package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,9 +31,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * NR-01 final check, case 7 (R3, D6): a package default instructor is set for the package and, with applyToExams, for every
- * exam in it; a new exam inherits the default; an exam keeps its own instructor when the default changes without applyToExams;
- * and the instructor directory lists each package under the people who hold it.
+ * NR-01 final check, case 7 (D6): a package has no instructor of its own. A package counts for a teacher only through an
+ * exam assigned to that teacher, and the instructor directory lists it under that teacher.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -68,99 +66,27 @@ class PackageInstructorIT extends PostgresIntegrationTest {
 		fx = new AuthoringFixture(mockMvc, dataSource, passwords, json);
 	}
 
+	/**
+	 * A package with an exam assigned to a teacher shows under that teacher in the directory. The package does not appear for a
+	 * teacher who holds no exam in it.
+	 */
 	@Test
-	void thePackageDefaultReachesEveryExamAndTheDirectoryFollowsEachStep() throws Exception {
+	void aPackageShowsUnderTheTeacherOfItsExamsOnly() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		String token = "Tutor" + UUID.randomUUID().toString().substring(0, 8);
 		UUID i1 = instructor(token + " One");
 		UUID i2 = instructor(token + " Two");
-		UUID i3 = instructor(token + " Three");
 		UUID module = fx.module(staff, token + " package");
-		UUID e1 = fx.createExam(staff, module, "MCQ", "E1 " + token, NOON, 40, null);
-		UUID e2 = fx.createExam(staff, module, "MCQ", "E2 " + token, NOON, 40, null);
+		UUID e1 = fx.createExam(staff, module, "WRITTEN", "E1 " + token, NOON, 40, null);
 		mockMvc.perform(post("/api/v1/live-exams/" + e1 + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1, null)))
+			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1)))
 			.andExpect(status().isCreated());
 		assertThat(instructorOf(e1)).isEqualTo(i1);
-		assertThat(instructorOf(e2)).isNull();
 
-		// Step 1: the package default with applyToExams (the default) sets E1 and E2, and replaces E1's own instructor.
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i2, null)))
-			.andExpect(status().isCreated());
-		assertThat(instructorOf(e1)).isEqualTo(i2);
-		assertThat(instructorOf(e2)).isEqualTo(i2);
-		UUID e3 = fx.createExam(staff, module, "MCQ", "E3 " + token, NOON, 40, null);
-		assertThat(instructorOf(e3)).as("a new exam inherits the package default").isEqualTo(i2);
-		assertThat(modulesOf(master, token + " One")).as("I1 holds nothing now").isEmpty();
-		assertThat(modulesOf(master, token + " Two")).hasSize(1);
-		assertThat(modulesOf(master, token + " Two").get(0).get("titleEn").asText()).isEqualTo(token + " package");
-
-		// Step 2: E1 goes back to I1. The default is replaced without touching the exams (applyToExams=false).
-		mockMvc.perform(delete("/api/v1/live-exams/" + e1 + "/instructor").header("Authorization", "Bearer " + master))
-			.andExpect(status().isNoContent());
-		mockMvc.perform(post("/api/v1/live-exams/" + e1 + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1, null)))
-			.andExpect(status().isCreated());
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor?applyToExams=false")
-			.header("Authorization", "Bearer " + master))
-			.andExpect(status().isNoContent());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i3, false)))
-			.andExpect(status().isCreated());
-		assertThat(instructorOf(e1)).as("E1 keeps I1").isEqualTo(i1);
-		assertThat(instructorOf(e2)).as("E2 keeps I2").isEqualTo(i2);
-		assertThat(instructorOf(e3)).as("E3 keeps I2").isEqualTo(i2);
-		assertThat(defaultOf(module)).isEqualTo(i3);
-		UUID e4 = fx.createExam(staff, module, "MCQ", "E4 " + token, NOON, 40, null);
-		assertThat(instructorOf(e4)).as("a new exam gets the new default").isEqualTo(i3);
-		assertThat(modulesOf(master, token + " One")).hasSize(1);
-		assertThat(modulesOf(master, token + " Two")).hasSize(1);
-		assertThat(modulesOf(master, token + " Three")).hasSize(1);
-
-		// Step 3: the default is cleared (applyToExams=false). The exams keep their instructors, E4 included.
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor?applyToExams=false")
-			.header("Authorization", "Bearer " + master))
-			.andExpect(status().isNoContent());
-		assertThat(defaultOf(module)).as("the package default is cleared").isNull();
-		assertThat(instructorOf(e1)).isEqualTo(i1);
-		assertThat(instructorOf(e2)).isEqualTo(i2);
-		assertThat(instructorOf(e4)).isEqualTo(i3);
-		UUID e5 = fx.createExam(staff, module, "MCQ", "E5 " + token, NOON, 40, null);
-		assertThat(instructorOf(e5)).as("a new exam has no instructor").isNull();
-		assertThat(modulesOf(master, token + " Three")).as("I3 still holds E4").hasSize(1);
-	}
-
-	/** The plain DELETE (applyToExams defaults to true) clears only the exams held by the default instructor. */
-	@Test
-	void aPlainDefaultDeleteClearsOnlyTheExamsHeldByTheDefaultInstructor() throws Exception {
-		String staff = fx.staff();
-		String master = fx.master();
-		String token = "Clear" + UUID.randomUUID().toString().substring(0, 8);
-		UUID i1 = instructor(token + " One");
-		UUID i2 = instructor(token + " Two");
-		UUID module = fx.module(staff, token + " package");
-		UUID e1 = fx.createExam(staff, module, "MCQ", "E1 " + token, NOON, 40, null);
-		UUID e2 = fx.createExam(staff, module, "MCQ", "E2 " + token, NOON, 40, null);
-		mockMvc.perform(post("/api/v1/live-exams/" + e1 + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1, null)))
-			.andExpect(status().isCreated());
-		mockMvc.perform(post("/api/v1/live-exams/" + e2 + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i2, null)))
-			.andExpect(status().isCreated());
-		// The package default is I1 too. Set without applyToExams, so E2 keeps I2.
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(i1, false)))
-			.andExpect(status().isCreated());
-		assertThat(defaultOf(module)).isEqualTo(i1);
-
-		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module + "/instructor").header("Authorization", "Bearer " + master))
-			.andExpect(status().isNoContent());
-
-		assertThat(defaultOf(module)).as("the package default is cleared").isNull();
-		assertThat(instructorOf(e1)).as("E1 held the default instructor, so it is cleared").isNull();
-		assertThat(instructorOf(e2)).as("E2 held another instructor, so it keeps I2").isEqualTo(i2);
+		assertThat(modulesOf(master, token + " One")).as("I1 holds E1 in the package").hasSize(1);
+		assertThat(modulesOf(master, token + " One").get(0).get("titleEn").asText()).isEqualTo(token + " package");
+		assertThat(modulesOf(master, token + " Two")).as("I2 holds no exam in the package").isEmpty();
 	}
 
 	private UUID instructor(String name) {
@@ -169,18 +95,12 @@ class PackageInstructorIT extends PostgresIntegrationTest {
 		return id;
 	}
 
-	private static String instructorBody(UUID instructor, Boolean applyToExams) {
-		return applyToExams == null ? "{\"instructorId\":\"" + instructor + "\"}"
-				: "{\"instructorId\":\"" + instructor + "\",\"applyToExams\":" + applyToExams + "}";
+	private static String instructorBody(UUID instructor) {
+		return "{\"instructorId\":\"" + instructor + "\"}";
 	}
 
 	private UUID instructorOf(UUID exam) {
 		return fx.jdbc().queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam);
-	}
-
-	private UUID defaultOf(UUID module) {
-		return fx.jdbc().queryForList("select instructor_id from live_exam_instructors where module_id = ?", UUID.class, module)
-			.stream().findFirst().orElse(null);
 	}
 
 	/** The packages the instructor with this name is listed under in the instructor directory. */

@@ -127,6 +127,19 @@ public class AuthController {
 		return MessageResponse.generic();
 	}
 
+	/**
+	 * Whether the browser sends a refresh cookie, so the web app skips the refresh call for a visitor with none.
+	 * It reads the cookie's presence only: no token is checked, rotated or issued, and no database is used.
+	 */
+	@GetMapping("/auth/session")
+	public ResponseEntity<SessionProbe> session(HttpServletRequest http) {
+		String cookie = refreshCookie(http);
+		// Never cached: a stale "no session" would keep a freshly signed-in visitor anonymous.
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CACHE_CONTROL, "no-store")
+			.body(new SessionProbe(cookie != null && !cookie.isBlank()));
+	}
+
 	@GetMapping("/me")
 	public AuthService.MeView me() {
 		return auth.me(currentUser().userId());
@@ -235,6 +248,9 @@ public class AuthController {
 	}
 
 	public record TokenResponse(String accessToken, int expiresInSeconds, String refreshToken) {
+	}
+
+	public record SessionProbe(boolean hasSession) {
 	}
 
 	public record MessageResponse(String message) {

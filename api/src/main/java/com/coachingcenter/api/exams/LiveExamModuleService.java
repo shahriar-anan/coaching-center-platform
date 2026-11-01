@@ -200,6 +200,22 @@ public class LiveExamModuleService {
 		audit.record(AuditRecorder.LIVE_EXAM_MODULE_ARCHIVE, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, module.getId());
 	}
 
+	/** Puts an archived package back to draft. Students see nothing until a Master Admin publishes it again (final save first). */
+	@Transactional
+	public void restore(UUID id) {
+		LiveExamModule module = require(id);
+		if (!LiveExamModule.ARCHIVED.equals(module.getStatus())) {
+			throw new ApiException(ErrorCode.NOT_ARCHIVED, HttpStatus.CONFLICT, "Only an archived package can be restored.");
+		}
+		if (visibility.branchHidden(module.getCategoryId())) {
+			throw new ApiException(ErrorCode.CATEGORY_ARCHIVED, HttpStatus.CONFLICT,
+					"Restore the package's category first. A package under an archived category cannot be restored.");
+		}
+		module.setStatus(LiveExamModule.DRAFT);
+		module.setFinallySaved(false);
+		audit.record(AuditRecorder.LIVE_EXAM_MODULE_RESTORE, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, module.getId());
+	}
+
 	/** The package with the body's fields applied. Every check runs before anything is written. */
 	private PackageRevisionService.Draft edit(LiveExamModule module, PackageRevisionService.Draft current, JsonNode body) {
 		String titleEn = optionalText(body, "titleEn", current.titleEn());
@@ -371,30 +387,30 @@ public class LiveExamModuleService {
 
 	/** A student's or public read: the published row, with no staged change. */
 	private ModuleView view(LiveExamModule module) {
-		return build(module, PackageRevisionService.Draft.of(module, List.of()), false, null, null, null, null);
+		return build(module, PackageRevisionService.Draft.of(module, List.of()), false, null, null, null);
 	}
 
 	/** A staff read of a package with a staged revision: the working copy, flagged as pending. */
 	ModuleView view(LiveExamModule module, PackageRevisionService.Draft working, boolean pending) {
-		return build(module, working, pending, null, null, null, null);
+		return build(module, working, pending, null, null, null);
 	}
 
-	/** Staff reads only: the category path, the teacher and the exam counts. Student and public reads never get these. */
+	/** Staff reads only: the category path and the exam counts. Student and public reads never get these. */
 	ModuleView staffView(LiveExamModule module, PackageRevisionService.Draft working, List<CategoryRef> categoryPath,
-			TeacherRef instructor, int mcqCount, int writtenCount) {
+			int mcqCount, int writtenCount) {
 		PackageRevisionService.Draft shown = working == null ? PackageRevisionService.Draft.of(module, List.of()) : working;
-		return build(module, shown, working != null, categoryPath, instructor, mcqCount, writtenCount);
+		return build(module, shown, working != null, categoryPath, mcqCount, writtenCount);
 	}
 
 	private ModuleView build(LiveExamModule module, PackageRevisionService.Draft shown, boolean pending,
-			List<CategoryRef> categoryPath, TeacherRef instructor, Integer mcqCount, Integer writtenCount) {
+			List<CategoryRef> categoryPath, Integer mcqCount, Integer writtenCount) {
 		LiveExamModule priced = new LiveExamModule();
 		priced.setPrice(shown.price());
 		priced.setDiscountPercent(shown.discountPercent());
 		priced.setDiscountEndsAt(shown.discountEndsAt());
 		return new ModuleView(module.getId(), shown.categoryId(), shown.titleEn(), shown.titleBn(), shown.descriptionEn(),
 				shown.descriptionBn(), module.getAccessMode(), module.getStatus(), module.isFinallySaved(), shown.position(),
-				shown.price(), categoryPath, instructor, mcqCount, writtenCount, ModuleCoverService.coverPath(module),
+				shown.price(), categoryPath, mcqCount, writtenCount, ModuleCoverService.coverPath(module),
 				shown.discountPercent(), shown.discountEndsAt(), module.isPopular(), ExamPricing.view(priced, clock.instant()),
 				pending);
 	}
@@ -408,13 +424,13 @@ public class LiveExamModuleService {
 	}
 
 	/**
-	 * The category path and teacher and counts are filled on staff reads only; they are null everywhere else. The discount,
+	 * The category path and counts are filled on staff reads only; they are null everywhere else. The discount,
 	 * popular and pricing fields are the package's own. {@code pendingChanges} is true when a staged revision exists, and
-	 * the other fields then show the working copy.
+	 * the other fields then show the working copy. A package carries no teacher; its teachers are its exams' (D6).
 	 */
 	public record ModuleView(UUID id, UUID categoryId, String titleEn, String titleBn, String descriptionEn,
 			String descriptionBn, String accessMode, String status, boolean finallySaved, int position,
-			BigDecimal price, List<CategoryRef> categoryPath, TeacherRef instructor, Integer mcqCount,
+			BigDecimal price, List<CategoryRef> categoryPath, Integer mcqCount,
 			Integer writtenCount, String coverUrl, Integer discountPercent, Instant discountEndsAt, boolean popular,
 			PriceView pricing, boolean pendingChanges) {
 	}
@@ -425,10 +441,6 @@ public class LiveExamModuleService {
 
 	/** A package an exam is in: the shape every exam row carries (NR-01, B2 and B3). */
 	public record PackageRef(UUID id, String titleEn, String titleBn) {
-	}
-
-	/** The module's current teacher. Phone is shown to staff only. */
-	public record TeacherRef(UUID id, String name, String phone) {
 	}
 
 }

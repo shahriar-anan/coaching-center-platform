@@ -2,7 +2,7 @@ package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -54,12 +54,14 @@ public class ExamResultService {
 
 	private final WrittenSubmissionService writtenSubmissions;
 
+	private final Clock clock;
+
 	public ExamResultService(ExamModuleRepository modules, ExamNodeRepository nodes,
 			PaperComponentRepository components, WrittenSubmissionRepository submissions,
 			WrittenSubmissionQuestionRepository submissionQuestions, McqAttemptRepository attempts,
 			McqAttemptQuestionRepository attemptQuestions, McqAttemptOptionRepository attemptOptions,
 			McqAnswerRepository answers, ExamAccessService access, StudentProfileRepository studentProfiles,
-			WrittenSubmissionService writtenSubmissions) {
+			WrittenSubmissionService writtenSubmissions, Clock clock) {
 		this.modules = modules;
 		this.nodes = nodes;
 		this.components = components;
@@ -72,6 +74,7 @@ public class ExamResultService {
 		this.access = access;
 		this.studentProfiles = studentProfiles;
 		this.writtenSubmissions = writtenSubmissions;
+		this.clock = clock;
 	}
 
 	@Transactional
@@ -118,7 +121,7 @@ public class ExamResultService {
 		String feedback = body.has("feedback") && !body.get("feedback").isNull() ? body.get("feedback").asText() : "";
 		submission.setFeedback(feedback);
 		submission.setStatus("EVALUATED");
-		submission.setEvaluatedAt(Instant.now());
+		submission.setEvaluatedAt(clock.instant());
 		submission.setEvaluatedBy(evaluatorId);
 		submissions.save(submission);
 		return writtenSubmissions.buildAdminView(submission, component);
@@ -128,7 +131,7 @@ public class ExamResultService {
 	public void publish(UUID componentId) {
 		PaperComponent component = components.findByIdAndDeletedAtIsNull(componentId).orElseThrow(this::notFound);
 		if ("MCQ".equals(component.getComponentType())) {
-			if (!"ENDED".equals(ExamComponentLifecycle.derive(component))) {
+			if (!"ENDED".equals(ExamComponentLifecycle.derive(component, clock.instant()))) {
 				throw conflict(ErrorCode.COMPONENT_NOT_ENDED, "Component has not ended.");
 			}
 		}
@@ -160,7 +163,7 @@ public class ExamResultService {
 			if (!visibleMcq(ctx.component, attempt)) {
 				throw resultsNotPublished();
 			}
-			return mcqResult(attempt, ctx.component, true);
+			return mcqResult(attempt, ctx.component, ReviewRule.open(ctx.component, attempt, clock.instant()));
 		}
 		WrittenSubmission submission = submissions.findByComponentIdAndStudentIdAndDeletedAtIsNull(componentId, studentId)
 			.orElseThrow(this::notFound);
@@ -217,7 +220,8 @@ public class ExamResultService {
 				}
 				if (visibleMcq(component, attempt.get())) {
 					mcqVisible = true;
-					ComponentResultView result = mcqResult(attempt.get(), component, true);
+					ComponentResultView result = mcqResult(attempt.get(), component,
+							ReviewRule.open(component, attempt.get(), clock.instant()));
 					visible.add(result);
 					mcqScore = result.score();
 					combinedMax = combinedMax.add(result.maxScore());
@@ -496,8 +500,8 @@ public class ExamResultService {
 		return new PaperScoreBoard(scores, paperMax, passPercent);
 	}
 
-	private ComponentResultView mcqResult(McqAttempt attempt, PaperComponent component, boolean showReview) {
-		boolean visible = showReview;
+	/** {@code reveal} adds the key, the explanations and the marks per question: only when the review is open (ReviewRule). */
+	private ComponentResultView mcqResult(McqAttempt attempt, PaperComponent component, boolean reveal) {
 		List<McqResultQuestionView> questions = new ArrayList<>();
 		for (McqAttemptQuestion question : attemptQuestions
 			.findByAttemptIdAndDeletedAtIsNullOrderByPositionAsc(attempt.getId())) {
@@ -507,18 +511,18 @@ public class ExamResultService {
 			List<McqResultOptionView> options = new ArrayList<>();
 			for (McqAttemptOption option : attemptOptions
 				.findByAttemptQuestionIdAndDeletedAtIsNullOrderByPositionAsc(question.getId())) {
-				Boolean correct = visible ? option.isCorrect() : null;
+				Boolean correct = reveal ? option.isCorrect() : null;
 				options.add(new McqResultOptionView(option.getId(), option.getText(), option.getPosition(), correct));
 			}
-			BigDecimal marksAwarded = visible && answer != null ? answer.getMarksAwarded() : null;
-			String explanation = visible ? question.getExplanation() : null;
+			BigDecimal marksAwarded = reveal && answer != null ? answer.getMarksAwarded() : null;
+			String explanation = reveal ? question.getExplanation() : null;
 			UUID chosen = answer == null ? null : answer.getAttemptOptionId();
 			questions.add(new McqResultQuestionView(question.getId(), question.getStem(), explanation,
 					question.getMarks(), marksAwarded, chosen, options));
 		}
-		BigDecimal score = visible ? attempt.getScore() : null;
-		BigDecimal maxScore = visible ? attempt.getMaxScore() : null;
-		return new ComponentResultView(component.getId(), "MCQ", score, maxScore, null, questions, List.of());
+		// The score is shown to every caller that reads the result (visibleMcq); the key follows ReviewRule (a submitted attempt).
+		return new ComponentResultView(component.getId(), "MCQ", attempt.getScore(), attempt.getMaxScore(), null, questions,
+				List.of());
 	}
 
 	private ComponentResultView writtenResult(WrittenSubmission submission, PaperComponent component,

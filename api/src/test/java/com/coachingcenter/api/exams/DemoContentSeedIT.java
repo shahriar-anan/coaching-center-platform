@@ -279,8 +279,11 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 	@Test
 	void theInstructorHasTwoPackagesAndFourPapersToMark() {
 		seed.seed(new String[] { "dev" }, env(), NOW);
-		assertThat(jdbc.queryForList("SELECT module_id FROM live_exam_instructors WHERE instructor_id = ?", UUID.class,
-				DemoContentSeed.INSTRUCTOR)).containsExactlyInAnyOrder(DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL);
+		// A package counts for the instructor through the written exams assigned to them, not a package default (D6).
+		assertThat(jdbc.queryForList("""
+				SELECT DISTINCT pe.module_id FROM live_exam_package_exams pe JOIN live_exams e ON e.id = pe.exam_id
+				WHERE e.instructor_id = ? AND pe.removed_at IS NULL
+				""", UUID.class, DemoContentSeed.INSTRUCTOR)).containsExactlyInAnyOrder(DemoContentSeed.MODULE_WRITTEN, DemoContentSeed.MODULE_FULL);
 		assertThat(jdbc.queryForObject("""
 				SELECT count(*) FROM live_exam_participants p JOIN live_exams e ON e.id = p.exam_id
 				WHERE e.exam_type = 'WRITTEN' AND p.status = 'SUBMITTED' AND p.evaluated_at IS NULL AND p.published_at IS NULL
@@ -407,8 +410,8 @@ class DemoContentSeedIT extends PostgresIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_orders WHERE tran_id LIKE 'DEMO-%'", Integer.class)).isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM student_notices WHERE user_id::text LIKE ?", Integer.class, DEMO_STUDENT))
 			.isZero();
-		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_instructors WHERE module_id::text LIKE ?", Integer.class, DEMO_MODULE))
-			.isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE instructor_id = ?", Integer.class,
+				DemoContentSeed.INSTRUCTOR)).isZero();
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_categories WHERE id = ?", Integer.class, keep)).isEqualTo(1);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Integer.class, realStudent)).isEqualTo(1);
 		jdbc.update("DELETE FROM live_exam_categories WHERE id = ?", keep);

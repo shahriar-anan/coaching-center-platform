@@ -122,6 +122,12 @@ public class LiveExamController {
 		return exams.archive(id);
 	}
 
+	@PostMapping("/api/v1/live-exams/{id}/restore")
+	public LiveExamService.ExamView restore(@PathVariable UUID id) {
+		require(Permissions.EXAM_DELETE);
+		return exams.restore(id);
+	}
+
 	@DeleteMapping("/api/v1/live-exams/{id}")
 	public ResponseEntity<Void> delete(@PathVariable UUID id) {
 		require(Permissions.EXAM_DELETE);

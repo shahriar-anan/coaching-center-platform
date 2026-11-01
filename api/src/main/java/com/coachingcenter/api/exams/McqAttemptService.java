@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,11 +48,13 @@ public class McqAttemptService {
 
 	private final PlatformTransactionManager transactionManager;
 
+	private final Clock clock;
+
 	public McqAttemptService(ExamModuleRepository modules, ExamNodeRepository nodes,
 			PaperComponentRepository components, ComponentQuestionRepository links, QuestionRepository questions,
 			QuestionOptionRepository options, ExamAccessService access, McqAttemptRepository attempts,
 			McqAttemptQuestionRepository attemptQuestions, McqAttemptOptionRepository attemptOptions,
-			McqAnswerRepository answers, PlatformTransactionManager transactionManager) {
+			McqAnswerRepository answers, PlatformTransactionManager transactionManager, Clock clock) {
 		this.modules = modules;
 		this.nodes = nodes;
 		this.components = components;
@@ -64,13 +67,14 @@ public class McqAttemptService {
 		this.attemptOptions = attemptOptions;
 		this.answers = answers;
 		this.transactionManager = transactionManager;
+		this.clock = clock;
 	}
 
 	@Transactional
 	public AttemptView start(UUID moduleId, UUID componentId, UUID studentId) {
 		Context ctx = requireMcqContext(moduleId, componentId);
 		access.requireAccess(ctx.module, studentId);
-		if (!"ACTIVE".equals(ExamComponentLifecycle.derive(ctx.component))) {
+		if (!"ACTIVE".equals(ExamComponentLifecycle.derive(ctx.component, clock.instant()))) {
 			throw conflict(ErrorCode.COMPONENT_NOT_ACTIVE, "Component is not active.");
 		}
 		if (attempts.findByComponentIdAndStudentIdAndDeletedAtIsNull(componentId, studentId).isPresent()) {
@@ -86,7 +90,7 @@ public class McqAttemptService {
 		McqAttempt attempt = new McqAttempt();
 		attempt.setComponentId(componentId);
 		attempt.setStudentId(studentId);
-		attempt.setStartedAt(Instant.now());
+		attempt.setStartedAt(clock.instant());
 		attempt.setDurationSeconds(ctx.component.getDurationSeconds() == null ? 0 : ctx.component.getDurationSeconds());
 		attempt.setPassPercent(passPercent);
 		attempt.setStatus("IN_PROGRESS");
@@ -186,7 +190,7 @@ public class McqAttemptService {
 			finalizeIfExpired(attempt, ctx.component);
 			return buildView(attempt, ctx.component, studentId, false, false);
 		}
-		scoreAndSubmit(attempt, Instant.now());
+		scoreAndSubmit(attempt, clock.instant());
 		return buildView(attempt, ctx.component, studentId, false, false);
 	}
 
@@ -280,8 +284,11 @@ public class McqAttemptService {
 		boolean inProgress = "IN_PROGRESS".equals(attempt.getStatus());
 		boolean showReview = adminView
 				|| (!hideReview && !inProgress && (component.isImmediateResults() || component.isResultsPublished()));
+		// The score follows the release flags as before. The key, the explanations and the marks per question come with a
+		// submitted attempt (ReviewRule), wherever its result is shown.
+		boolean reveal = adminView || (showReview && ReviewRule.open(component, attempt, clock.instant()));
 		boolean mcqOnly = isMcqOnlyPaper(component.getPaperId());
-		Instant serverNow = Instant.now();
+		Instant serverNow = clock.instant();
 		Instant deadline = deadlineAt(attempt, component);
 		List<QuestionView> questionViews = new ArrayList<>();
 		for (McqAttemptQuestion question : attemptQuestions
@@ -292,11 +299,11 @@ public class McqAttemptService {
 			List<OptionView> optionViews = new ArrayList<>();
 			for (McqAttemptOption option : attemptOptions
 				.findByAttemptQuestionIdAndDeletedAtIsNullOrderByPositionAsc(question.getId())) {
-				Boolean correct = showReview ? option.isCorrect() : null;
+				Boolean correct = reveal ? option.isCorrect() : null;
 				optionViews.add(new OptionView(option.getId(), option.getText(), option.getPosition(), correct));
 			}
-			BigDecimal marksAwarded = showReview && answer != null ? answer.getMarksAwarded() : null;
-			String explanation = showReview ? question.getExplanation() : null;
+			BigDecimal marksAwarded = reveal && answer != null ? answer.getMarksAwarded() : null;
+			String explanation = reveal ? question.getExplanation() : null;
 			UUID chosen = answer == null ? null : answer.getAttemptOptionId();
 			questionViews.add(new QuestionView(question.getId(), question.getQuestionId(), question.getStem(),
 					explanation, question.getMarks(), marksAwarded, chosen, optionViews));
@@ -331,16 +338,11 @@ public class McqAttemptService {
 	}
 
 	private Instant deadlineAt(McqAttempt attempt, PaperComponent component) {
-		Instant timerEnd = attempt.getStartedAt().plusSeconds(attempt.getDurationSeconds());
-		Instant windowEnd = component.getEndsAt();
-		if (windowEnd == null) {
-			return timerEnd;
-		}
-		return timerEnd.isBefore(windowEnd) ? timerEnd : windowEnd;
+		return ReviewRule.attemptDeadline(attempt, component);
 	}
 
 	private boolean isExpired(McqAttempt attempt, PaperComponent component) {
-		return !Instant.now().isBefore(deadlineAt(attempt, component));
+		return !clock.instant().isBefore(deadlineAt(attempt, component));
 	}
 
 	private void validateOption(UUID attemptQuestionId, UUID attemptOptionId) {

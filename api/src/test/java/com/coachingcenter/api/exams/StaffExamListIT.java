@@ -3,11 +3,13 @@ package com.coachingcenter.api.exams;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -21,12 +23,21 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
+
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -146,6 +157,72 @@ class StaffExamListIT extends PostgresIntegrationTest {
 		assertThat(rowOf(teacher, base, mine).get("instructor").get("id").asText()).isEqualTo(instructor.toString());
 		mockMvc.perform(get(base).header("Authorization", "Bearer " + fx.token(student)))
 			.andExpect(status().isForbidden());
+	}
+
+	/** An instructor's row carries resultsReleased: false on a written exam until publish-results releases it, then true. */
+	@Test
+	void anInstructorRowShowsResultsReleasedOnlyAfterPublishResults() throws Exception {
+		String system = fx.token(fx.seed("SYSTEM_ADMIN"));
+		String master = fx.token(fx.seed("MASTER_ADMIN"));
+		UUID instructor = fx.seed("INSTRUCTOR");
+		UUID studentId = fx.seed("STUDENT");
+		UUID shelf = fx.createCategory(system, "Release shelf");
+		UUID pkg = fx.createPackage(system, shelf, "Release package");
+		UUID paper = fx.createExam(system, pkg, "WRITTEN", "Release paper", "2026-10-20T12:00:00+06:00");
+		fx.sql("update live_exams set instructor_id = ? where id = ?", instructor, paper);
+		mockMvc.perform(multipart("/api/v1/live-exams/" + paper + "/question-pdf")
+			.file(new MockMultipartFile("file", "paper.pdf", "application/pdf", AuthoringFixture.tinyPdf("paper")))
+			.header("Authorization", "Bearer " + system))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + paper + "/final-save").header("Authorization", "Bearer " + system))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + paper + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		fx.finalSaveAndPublish(system, pkg);
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + pkg + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + studentId + "\"}"))
+			.andExpect(status().isCreated());
+
+		String student = fx.token(studentId);
+		String teacher = fx.token(instructor);
+		String base = "/api/v1/live-exams?categoryId=" + shelf;
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		mockMvc.perform(post("/api/v1/live-exams/" + paper + "/take").header("Authorization", "Bearer " + student)
+			.contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/v1/live-exams/" + paper + "/answer-pdf")
+			.file(new MockMultipartFile("file", "answer.pdf", "application/pdf", realPdf()))
+			.header("Authorization", "Bearer " + student))
+			.andExpect(status().isNoContent());
+		clock.set(Instant.parse("2026-10-20T06:55:00Z"));
+		UUID participant = new JdbcTemplate(dataSource).queryForObject(
+				"select id from live_exam_participants where exam_id = ? and student_id = ?", UUID.class, paper, studentId);
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation")
+			.file(new MockMultipartFile("file", "mark.pdf", "application/pdf", realPdf()))
+			.param("marks", "6")
+			.header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		assertThat(rowOf(teacher, base, paper).get("resultsReleased").asBoolean()).as("held until publish-results").isFalse();
+		mockMvc.perform(post("/api/v1/live-exams/" + paper + "/publish-results").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		assertThat(rowOf(teacher, base, paper).get("resultsReleased").asBoolean()).as("released by publish-results").isTrue();
+	}
+
+	/** A PDF that the server can parse and compress, as a student's answer or a marked sheet is. */
+	private static byte[] realPdf() throws Exception {
+		try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+			PDPage page = new PDPage();
+			document.addPage(page);
+			try (PDPageContentStream stream = new PDPageContentStream(document, page, AppendMode.OVERWRITE, false)) {
+				stream.beginText();
+				stream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+				stream.newLineAtOffset(40, 700);
+				stream.showText("Answer script");
+				stream.endText();
+			}
+			document.save(output);
+			return output.toByteArray();
+		}
 	}
 
 	private List<UUID> ids(String token, String path) throws Exception {

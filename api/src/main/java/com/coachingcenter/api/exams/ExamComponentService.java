@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -35,13 +36,16 @@ public class ExamComponentService {
 
 	private final ComponentQuestionRepository links;
 
+	private final Clock clock;
+
 	public ExamComponentService(ExamNodeRepository nodes, PaperComponentRepository components,
-			QuestionRepository questions, QuestionOptionRepository options, ComponentQuestionRepository links) {
+			QuestionRepository questions, QuestionOptionRepository options, ComponentQuestionRepository links, Clock clock) {
 		this.nodes = nodes;
 		this.components = components;
 		this.questions = questions;
 		this.options = options;
 		this.links = links;
+		this.clock = clock;
 	}
 
 	@Transactional
@@ -402,7 +406,7 @@ public class ExamComponentService {
 		if (component.getStartsAt() == null || component.getEndsAt() == null) {
 			return "DRAFT";
 		}
-		Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+		Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
 		if (now.isBefore(component.getStartsAt())) {
 			return "SCHEDULED";
 		}

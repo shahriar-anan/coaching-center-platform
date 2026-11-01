@@ -1,7 +1,6 @@
 package com.coachingcenter.api.exams;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -17,11 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
-import com.coachingcenter.api.users.AdminProfileRepository;
-import com.coachingcenter.api.users.User;
-import com.coachingcenter.api.users.UserRepository;
 
-/** Staff reads of live exam modules. These carry the category path, the teacher and the exam counts. */
+/** Staff reads of live exam modules. These carry the category path and the exam counts; teachers belong to exams. */
 @Service
 public class LiveExamStaffModuleService {
 
@@ -39,24 +35,14 @@ public class LiveExamStaffModuleService {
 
 	private final LiveExamRepository exams;
 
-	private final LiveExamInstructorRepository instructors;
-
-	private final UserRepository users;
-
-	private final AdminProfileRepository adminProfiles;
-
 	private final PackageRevisionService revisions;
 
 	public LiveExamStaffModuleService(LiveExamModuleService moduleViews, LiveExamModuleRepository modules,
-			LiveExamCategoryRepository categories, LiveExamRepository exams, LiveExamInstructorRepository instructors,
-			UserRepository users, AdminProfileRepository adminProfiles, PackageRevisionService revisions) {
+			LiveExamCategoryRepository categories, LiveExamRepository exams, PackageRevisionService revisions) {
 		this.moduleViews = moduleViews;
 		this.modules = modules;
 		this.categories = categories;
 		this.exams = exams;
-		this.instructors = instructors;
-		this.users = users;
-		this.adminProfiles = adminProfiles;
 		this.revisions = revisions;
 	}
 
@@ -89,12 +75,14 @@ public class LiveExamStaffModuleService {
 		return view(module, context(List.of(module)));
 	}
 
-	/** An instructor reading a module they are not assigned to gets 404, the same as a missing module. */
+	/**
+	 * An instructor reading a package they hold no exam in gets 404, the same as a missing module. A package counts for an
+	 * instructor through the exams assigned to them, not through a package-level teacher (D6).
+	 */
 	@Transactional(readOnly = true)
 	public LiveExamModuleService.ModuleView getAssigned(UUID id, UUID instructorId) {
 		LiveExamModule module = require(id);
-		LiveExamInstructor assignment = instructors.findById(id).orElseThrow(this::notFound);
-		if (!instructorId.equals(assignment.getInstructorId())) {
+		if (modules.countExamsAssignedTo(id, instructorId) == 0) {
 			throw notFound();
 		}
 		return view(module, context(List.of(module)));
@@ -106,7 +94,7 @@ public class LiveExamStaffModuleService {
 		PackageRevisionService.Draft working = context.drafts().get(module.getId());
 		UUID categoryId = working == null ? module.getCategoryId() : working.categoryId();
 		return moduleViews.staffView(module, working, pathOf(categoryId, context.categories()),
-				teacherOf(module.getId(), context), counts.mcq(), counts.written());
+				counts.mcq(), counts.written());
 	}
 
 	/** Every live category that is not deleted, by id. Loaded once per request; the table is small. */
@@ -133,28 +121,11 @@ public class LiveExamStaffModuleService {
 		return List.copyOf(path);
 	}
 
-	/** One round of queries for a whole page: categories, counts, teachers. */
+	/** One round of queries for a whole page: categories, counts, staged drafts. */
 	private Context context(List<LiveExamModule> rows) {
 		Map<UUID, LiveExamCategory> byId = categoriesById(categories);
 		List<UUID> moduleIds = rows.stream().map(LiveExamModule::getId).toList();
-		Map<UUID, UUID> teacherIds = new HashMap<>();
-		Map<UUID, User> teachers = new HashMap<>();
-		Map<UUID, String> names = new HashMap<>();
-		if (!moduleIds.isEmpty()) {
-			for (LiveExamInstructor assignment : instructors.findAllById(moduleIds)) {
-				teacherIds.put(assignment.getModuleId(), assignment.getInstructorId());
-			}
-		}
-		if (!teacherIds.isEmpty()) {
-			List<UUID> userIds = new ArrayList<>(teacherIds.values());
-			for (User user : users.findAllById(userIds)) {
-				if (user.getDeletedAt() == null) {
-					teachers.put(user.getId(), user);
-				}
-			}
-			adminProfiles.findAllById(userIds).forEach(profile -> names.put(profile.getUserId(), profile.getFullName()));
-		}
-		return new Context(byId, counts(moduleIds), teacherIds, teachers, names, revisions.stagedDrafts(moduleIds));
+		return new Context(byId, counts(moduleIds), revisions.stagedDrafts(moduleIds));
 	}
 
 	private Map<UUID, Counts> counts(List<UUID> moduleIds) {
@@ -170,16 +141,6 @@ public class LiveExamStaffModuleService {
 					: new Counts(current.mcq(), total));
 		}
 		return byModule;
-	}
-
-	private static LiveExamModuleService.TeacherRef teacherOf(UUID moduleId, Context context) {
-		UUID teacherId = context.teacherIds().get(moduleId);
-		if (teacherId == null) {
-			return null;
-		}
-		User user = context.teachers().get(teacherId);
-		return new LiveExamModuleService.TeacherRef(teacherId, context.names().get(teacherId),
-				user == null ? null : user.getPhone());
 	}
 
 	private LiveExamModule require(UUID id) {
@@ -200,8 +161,8 @@ public class LiveExamStaffModuleService {
 
 	}
 
-	private record Context(Map<UUID, LiveExamCategory> categories, Map<UUID, Counts> counts, Map<UUID, UUID> teacherIds,
-			Map<UUID, User> teachers, Map<UUID, String> names, Map<UUID, PackageRevisionService.Draft> drafts) {
+	private record Context(Map<UUID, LiveExamCategory> categories, Map<UUID, Counts> counts,
+			Map<UUID, PackageRevisionService.Draft> drafts) {
 	}
 
 }

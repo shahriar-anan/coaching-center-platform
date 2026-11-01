@@ -100,6 +100,8 @@ class ExamChangeListBuilder {
 		add(changes, "negativeMarks", before.negativeMarks, after.negativeMarks);
 		add(changes, "answersChangeable", before.answersChangeable, after.answersChangeable);
 		add(changes, "previewEnabled", before.previewEnabled, after.previewEnabled);
+		// A teacher change is listed by its id; a teacher change never notifies students or re-scores (NR-01, R3).
+		add(changes, "instructor", before.instructorId, after.instructorId);
 		return changes;
 	}
 
@@ -162,6 +164,10 @@ class ExamChangeListBuilder {
 		}
 		if (before.multipleAnswer != after.multipleAnswer) {
 			changes.add(new QuestionChange(after.id, after.position, "MULTIPLE", before.multipleAnswer, after.multipleAnswer));
+		}
+		// A move changes only the order, so it is a change of its own: a staged reorder must be kept and listed (NR-01 E31).
+		if (before.position != after.position) {
+			changes.add(new QuestionChange(after.id, after.position, "POSITION", before.position, after.position));
 		}
 	}
 

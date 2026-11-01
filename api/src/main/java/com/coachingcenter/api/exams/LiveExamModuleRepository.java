@@ -87,6 +87,14 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			""")
 	Page<LiveExamModule> findAssignedToInstructor(@Param("instructorId") UUID instructorId, Pageable pageable);
 
+	/** How many live exams in the package, still in it, are assigned to this instructor. Zero means none. */
+	@Query("""
+			SELECT count(pe) FROM LiveExamPackageExam pe, LiveExam e
+			WHERE pe.moduleId = :moduleId AND pe.removedAt IS NULL AND e.id = pe.examId AND e.deletedAt IS NULL
+			  AND e.instructorId = :instructorId
+			""")
+	long countExamsAssignedTo(@Param("moduleId") UUID moduleId, @Param("instructorId") UUID instructorId);
+
 	/** Staff list. {@code status} is empty for any status, {@code pattern} is a lower-case LIKE pattern on either title. */
 	@Query("""
 			SELECT m FROM LiveExamModule m
@@ -205,7 +213,7 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 	@Query(value = """
 			SELECT m FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
-			  AND (:anyCategory = true OR m.categoryId = :categoryId)
+			  AND (:anyCategory = true OR m.categoryId IN :categoryIds)
 			  AND (:popularOnly = false OR m.popular = true)
 			  AND (lower(m.titleEn) LIKE :pattern OR lower(m.titleBn) LIKE :pattern)
 			  AND (:anyType = true OR EXISTS (
@@ -215,7 +223,7 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			""", countQuery = """
 			SELECT count(m) FROM LiveExamModule m
 			WHERE m.deletedAt IS NULL AND m.status = 'PUBLISHED' AND m.categoryId NOT IN :hidden
-			  AND (:anyCategory = true OR m.categoryId = :categoryId)
+			  AND (:anyCategory = true OR m.categoryId IN :categoryIds)
 			  AND (:popularOnly = false OR m.popular = true)
 			  AND (lower(m.titleEn) LIKE :pattern OR lower(m.titleBn) LIKE :pattern)
 			  AND (:anyType = true OR EXISTS (
@@ -224,7 +232,7 @@ public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, 
 			      AND e.deletedAt IS NULL AND e.status = 'PUBLISHED' AND e.examType = :examType))
 			""")
 	Page<LiveExamModule> findPublishedCatalog(@Param("hidden") Set<UUID> hidden,
-			@Param("anyCategory") boolean anyCategory, @Param("categoryId") UUID categoryId,
+			@Param("anyCategory") boolean anyCategory, @Param("categoryIds") Set<UUID> categoryIds,
 			@Param("popularOnly") boolean popularOnly, @Param("pattern") String pattern,
 			@Param("anyType") boolean anyType, @Param("examType") String examType, Pageable pageable);
 
