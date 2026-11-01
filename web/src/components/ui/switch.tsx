@@ -26,7 +26,7 @@ export function Switch({ checked, onCheckedChange, label, disabled, id }: Switch
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "relative inline-flex h-7 w-12 min-h-11 items-center rounded-full transition-colors duration-150 disabled:opacity-60",
-        checked ? "bg-action" : "bg-border",
+        checked ? "bg-action" : "bg-muted/60",
       )}
     >
       <span

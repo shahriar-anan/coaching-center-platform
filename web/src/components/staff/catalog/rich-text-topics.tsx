@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
 import { RichTextView } from "@/components/ui/rich-text-view";
 import { LocalizedRichText, isRichTextEmpty } from "@/components/staff/catalog/localized-rich-text";
 
@@ -20,18 +21,21 @@ export type RichTextTopic = {
   onChange: (language: Language, html: string) => void;
 };
 
-/** One topic as students read it: the English text, then the Bangla text. */
+/**
+ * One topic as students read it: a white card on the grey page, with the English text and the Bangla text in their own
+ * panels, each named by a pill, so the two languages are clearly separate.
+ */
 function TopicPreview({ topic }: { topic: RichTextTopic }) {
   const { t } = useLocale();
   return (
-    <section className="grid gap-3 rounded-control border border-border bg-bg p-4">
+    <section className="grid gap-4 rounded-card border border-border bg-card p-5 shadow-sm">
       <h3 className="text-label font-semibold text-text">{topic.title}</h3>
       {[
         { label: t("staffCatalog.richText.english"), value: topic.valueEn },
         { label: t("staffCatalog.richText.bangla"), value: topic.valueBn },
       ].map((part) => (
-        <div key={part.label} className="grid gap-1 border-t border-border pt-3 first-of-type:border-t-0 first-of-type:pt-0">
-          <p className="text-meta font-semibold text-muted">{part.label}</p>
+        <div key={part.label} className="grid justify-items-start gap-3 rounded-control border border-border bg-bg p-4">
+          <Pill tone="accent">{part.label}</Pill>
           <RichTextView value={part.value} />
         </div>
       ))}
@@ -73,7 +77,7 @@ export function RichTextTopics({
 
   if (!editing) {
     return (
-      <div className="grid gap-4">
+      <div className="grid gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-meta text-muted">{previewNote}</p>
           <Button variant="secondary" onClick={() => setEditing(true)}>
