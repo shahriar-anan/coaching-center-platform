@@ -2,9 +2,12 @@ import { createElement, type ReactNode } from "react";
 import { cn } from "@/components/ui/cn";
 import { hasMarkup, sanitizeRichText, type RichNode } from "@/lib/format/rich-text";
 
-/** The look of rich text, shared by the viewer and the editor. Nested tags are styled by their parent, so no tag needs its own class. */
+/**
+ * The look of rich text, shared by the viewer and the editor. Normal block flow, not a grid: a grid would turn every
+ * bold word, link and line break into its own row. Blocks get space between them; nested tags are styled by their parent.
+ */
 export const richTextBody =
-  "grid gap-2 text-body leading-relaxed text-text [&_a]:text-action [&_a]:underline [&_a]:underline-offset-2 [&_h2]:text-label [&_h2]:font-semibold [&_h3]:font-semibold [&_ol]:list-decimal [&_ol]:ps-5 [&_ul]:list-disc [&_ul]:ps-5";
+  "text-body leading-relaxed text-text [&>*+*]:mt-3 [&_a]:text-action [&_a]:underline [&_a]:underline-offset-2 [&_h2]:mt-5 [&_h2]:text-label [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:font-semibold [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:ps-5 [&_li]:mt-1 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:ps-5";
 
 function renderNodes(nodes: RichNode[]): ReactNode[] {
   return nodes.map((node, index) => {
