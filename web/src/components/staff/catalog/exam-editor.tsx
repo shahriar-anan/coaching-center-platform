@@ -293,6 +293,12 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
     }
   }
 
+  /** Reads the change list again before the dialog opens, so its revision is the latest one. */
+  function openChanges() {
+    void changes.refetch();
+    setReviewing(true);
+  }
+
   async function finalSaveNow() {
     setFormError(null);
     try {
@@ -333,7 +339,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
                 {t("staffCatalog.editor.publish")}
               </Button>
             ) : null}
-            {primary === "publishChanges" ? <Button onClick={() => setReviewing(true)}>{t("staffCatalog.changes.publishChanges")}</Button> : null}
+            {primary === "publishChanges" ? <Button onClick={openChanges}>{t("staffCatalog.changes.publishChanges")}</Button> : null}
             {exam.pendingChanges && masterAdmin ? (
               <Button variant="secondary" onClick={() => setDiscarding(true)}>
                 {t("staffCatalog.changes.discardChanges")}
@@ -499,7 +505,10 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           open={reviewing}
           onOpenChange={setReviewing}
           changes={changes.data}
-          onPublish={(revisionId) => publishChanges.mutateAsync(revisionId)}
+          onPublish={async (revisionId) => {
+            await publishChanges.mutateAsync(revisionId);
+            toast({ title: t("staffCatalog.staged.published"), tone: "ok" });
+          }}
           onFailed={(message) => setFormError(message)}
         />
       ) : null}

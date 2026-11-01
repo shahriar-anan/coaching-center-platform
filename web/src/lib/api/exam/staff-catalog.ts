@@ -799,6 +799,8 @@ export function useSaveExam(id: string) {
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "moduleExams", saved.moduleId] });
+      // A saved edit on a published exam makes a new staged revision; the list read before it has an old token.
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.pending("exam", id) });
     },
   });
 }
@@ -819,6 +821,7 @@ export function useExamAction(id: string, action: "final-save" | "publish") {
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "moduleExams", saved.moduleId] });
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.pending("exam", id) });
       void refreshStudentReads(queryClient, "exam", id);
     },
   });
