@@ -129,6 +129,7 @@ const catalog: typeof bn = {
     viewSubmission: "View submission",
     submittedLine: "Submitted at {time}. Your answers are final.",
     copyLink: "Copy link",
+    viewPackage: "View package",
     linkCopied: "Link copied",
     linkCopyFailed: "Could not copy the link. Copy the address yourself.",
     description: "About this exam",

@@ -127,6 +127,7 @@ const catalog = {
     viewSubmission: "জমা দেওয়া খাতা দেখুন",
     submittedLine: "{time}-এ জমা হয়েছে। উত্তর আর বদলানো যাবে না।",
     copyLink: "লিংক কপি করুন",
+    viewPackage: "প্যাকেজ দেখুন",
     linkCopied: "লিংক কপি হয়েছে",
     linkCopyFailed: "লিংক কপি করা যায়নি। ঠিকানাটি নিজে কপি করুন।",
     description: "বিবরণ",

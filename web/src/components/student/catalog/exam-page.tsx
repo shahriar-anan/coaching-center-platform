@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useNotice } from "@/lib/notices/use-notice";
 import { ActionBar, DetailLayout, barActionOf, detailFrame } from "./detail-layout";
-import { doorLabelKey, doorPath, examPath, type Door } from "./catalog-helpers";
+import { doorLabelKey, doorPath, examPath, modulePath, type Door } from "./catalog-helpers";
 import { ExamPackages } from "./exam-packages";
 import { FavouriteButton } from "./favourite-button";
 import { PriceLine } from "./price-line";
@@ -295,6 +295,11 @@ export function ExamPage({ examId }: { examId: string }) {
             <Button variant="secondary" fullWidth href={`${examPath(examId)}/reviews`}>
               {data.ratingCount ? t("reviews.buttonCount", { count: formatNumber(data.ratingCount, locale) }) : t("reviews.button")}
             </Button>
+            {coverPackage ? (
+              <Button variant="secondary" fullWidth href={modulePath(door, coverPackage.id)}>
+                {t("catalog.exam.viewPackage")}
+              </Button>
+            ) : null}
             <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
               {t("catalog.exam.copyLink")}
             </Button>
