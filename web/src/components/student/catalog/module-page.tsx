@@ -388,22 +388,22 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
                     ))}
                   </ul>
                   <div className="hidden overflow-hidden rounded-card border border-border bg-card md:block">
-                    <table className="w-full border-collapse text-body">
+                    <table className="w-full table-fixed border-collapse text-start text-body">
                       <thead>
                         <tr className="text-start text-meta uppercase tracking-wide text-muted">
-                          <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colExam")}</th>
-                          <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colDate")}</th>
-                          <th scope="col" className="bg-bg px-4 py-3 font-semibold">{t("catalog.colTime")}</th>
+                          <th scope="col" className="w-[44%] bg-bg px-4 py-3 text-start font-semibold">{t("catalog.colExam")}</th>
+                          <th scope="col" className="w-[26%] bg-bg px-4 py-3 text-start font-semibold">{t("catalog.colDate")}</th>
+                          <th scope="col" className="w-[30%] bg-bg px-4 py-3 text-start font-semibold">{t("catalog.colTime")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {list.map((exam) => (
                           <tr key={exam.id} className="border-t border-border">
-                            <td className="px-4 py-3 font-semibold">{pickTitle(exam, locale)}</td>
-                            <td className="px-4 py-3 tabular-nums">
+                            <td className="px-4 py-3 text-start align-middle font-semibold">{pickTitle(exam, locale)}</td>
+                            <td className="px-4 py-3 text-start align-middle tabular-nums">
                               {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
                             </td>
-                            <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                            <td className="whitespace-nowrap px-4 py-3 text-start align-middle tabular-nums">
                               {exam.liveAt && exam.endAt ? `${formatTime(exam.liveAt, locale)} – ${formatTime(exam.endAt, locale)}` : "—"}
                             </td>
                           </tr>

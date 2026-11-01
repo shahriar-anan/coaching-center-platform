@@ -38,7 +38,7 @@ export function Tabs({
             key={tab.value}
             value={tab.value}
             className={cn(
-              "-mb-px inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-label text-muted transition-colors duration-150 hover:text-text disabled:opacity-60",
+              "-mb-px inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-label text-muted transition-colors duration-150 hover:text-text focus:outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60",
               "data-[state=active]:border-action data-[state=active]:text-text",
               "border-transparent hover:text-text",
             )}

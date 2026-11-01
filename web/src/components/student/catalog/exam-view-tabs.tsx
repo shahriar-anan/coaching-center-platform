@@ -52,8 +52,8 @@ export function ExamViewTabs({
       role="group"
       aria-label={t("catalog.examView.label")}
       className={cn(
-        "inline-flex flex-wrap gap-1 rounded-full border border-border bg-card p-1 text-meta",
-        stacked && "lg:flex lg:flex-col lg:rounded-card lg:p-2",
+        "inline-flex max-w-full flex-wrap items-center gap-1 self-start rounded-full border border-border bg-card p-1 text-meta",
+        stacked && "lg:flex lg:w-full lg:flex-col lg:items-stretch lg:rounded-card lg:p-2",
       )}
     >
       {options.map((option) => {
@@ -65,7 +65,7 @@ export function ExamViewTabs({
             aria-pressed={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "min-h-9 rounded-full px-3 font-medium transition-colors duration-150",
+              "inline-flex min-h-9 items-center justify-center rounded-full px-4 font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               stacked && "lg:min-h-10 lg:rounded-control lg:text-left",
               active ? "bg-action text-on-action" : "text-muted hover:text-text",
             )}
