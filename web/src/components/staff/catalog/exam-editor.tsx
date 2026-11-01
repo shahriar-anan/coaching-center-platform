@@ -247,7 +247,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const masterAdmin = role.canPublishExam;
   const items = examChecklist(exam, (key) => t(key));
   const publishable = examPublishable(exam, items);
-  const primary = primaryExamAction(exam, { dirty, masterAdmin });
+  const primary = primaryExamAction(exam, { dirty, masterAdmin, publishable });
   const title = pickTitle(exam);
   const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data) : null;
 

@@ -773,7 +773,7 @@ export type PrimaryExamAction = "save" | "finalSave" | "publish" | "publishChang
  */
 export function primaryExamAction(
   exam: Pick<StaffExam, "status" | "finallySaved" | "pendingChanges">,
-  state: { dirty: boolean; masterAdmin: boolean },
+  state: { dirty: boolean; masterAdmin: boolean; publishable?: boolean },
 ): PrimaryExamAction {
   if (exam.status === "ARCHIVED") {
     return "none";
@@ -787,7 +787,8 @@ export function primaryExamAction(
   if (!state.masterAdmin) {
     return "none";
   }
-  return exam.finallySaved ? "publish" : "finalSave";
+  // Publish records the final save itself, so once every required field is set Publish takes the place of Final save.
+  return exam.finallySaved || state.publishable ? "publish" : "finalSave";
 }
 
 export function useSaveExam(id: string) {

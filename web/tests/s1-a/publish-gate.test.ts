@@ -9,6 +9,18 @@ const published: Exam = { status: "PUBLISHED", finallySaved: true, pendingChange
 const staged: Exam = { status: "PUBLISHED", finallySaved: true, pendingChanges: true };
 
 describe("primaryExamAction (plan 7.2 header table)", () => {
+  it("offers Publish, not Final save, once every required field is set", () => {
+    expect(primaryExamAction(draft, { dirty: false, masterAdmin: true, publishable: true })).toBe("publish");
+  });
+
+  it("keeps Final save while a required field is still missing", () => {
+    expect(primaryExamAction(draft, { dirty: false, masterAdmin: true, publishable: false })).toBe("finalSave");
+  });
+
+  it("still offers Save all changes first when there are unsaved edits, even if the exam is complete", () => {
+    expect(primaryExamAction(draft, { dirty: true, masterAdmin: true, publishable: true })).toBe("save");
+  });
+
   it("offers Save all changes for a draft with unsaved edits, whatever the role", () => {
     expect(primaryExamAction(draft, { dirty: true, masterAdmin: true })).toBe("save");
     expect(primaryExamAction(draft, { dirty: true, masterAdmin: false })).toBe("save");
