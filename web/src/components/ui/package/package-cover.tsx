@@ -10,7 +10,9 @@ export function coverSrc(path: string | null | undefined): string | null {
 
 /**
  * A package's cover in a 16:9 frame. Until the Master Admin uploads an image, the frame shows
- * the brand gradient with the exam type and the title's first letters, so every card looks finished.
+ * the brand gradient with the title and the exam type, so every card looks finished. The title is clamped to
+ * two lines on a phone and three from sm up. The fallback is decorative (aria-hidden): every caller already shows
+ * the title as text, so a screen reader reads it once.
  * `band` is the detail page's cover on a phone: 160 px tall, and 16:9 from lg up (Phase 4, S4.3).
  */
 export function PackageCover({
@@ -29,7 +31,7 @@ export function PackageCover({
   className?: string;
   band?: boolean;
 }) {
-  const initials = title.trim().split(/\s+/).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
+  const name = title.trim();
   return (
     <div className={cn("relative w-full overflow-hidden bg-band text-on-band", band ? "h-40 lg:aspect-video lg:h-auto" : "aspect-video", className)}>
       {src ? (
@@ -40,8 +42,10 @@ export function PackageCover({
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-band via-band to-accent/70">
           <span className="absolute -end-8 -top-8 size-40 rounded-full bg-accent/20" />
           <span className="absolute -bottom-10 -start-6 size-32 rounded-full bg-on-band/10" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-            <span className="text-3xl font-extrabold tracking-wide text-accent">{initials || "•"}</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center">
+            {name ? (
+              <span className="line-clamp-2 max-w-full break-words text-card-title text-on-band sm:line-clamp-3">{name}</span>
+            ) : null}
             <span className="text-meta font-semibold uppercase tracking-widest text-on-band/80">
               {type === "MCQ" ? "MCQ" : type === "WRITTEN" ? "Written" : "Package"}
             </span>

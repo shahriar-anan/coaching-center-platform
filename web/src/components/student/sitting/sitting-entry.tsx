@@ -3,16 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError } from "@/lib/api/errors";
+import { useQueryClient } from "@tanstack/react-query";
+import { ApiError, isUnknownItemError } from "@/lib/api/errors";
+import { studentHome } from "@/lib/config";
 import { useUser } from "@/lib/auth/session-context";
 import {
+  invalidateSittingReads,
   useRetakeExam,
   useStudentExam,
   useTakeExam,
   type SittingBlock,
 } from "@/lib/api/exam/sitting";
 import { useLocale } from "@/i18n/locale-context";
+import { ErrorState } from "@/components/ui/error-state";
+import { NotFoundState } from "@/components/ui/not-found-state";
 import { McqPaper } from "./mcq-paper";
+import { PaperLayer } from "./paper-layer";
 import { WrittenSitting } from "./written-sitting";
 
 export type Start = "live" | "retake" | null;
@@ -32,6 +38,16 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   // After that the server's `sitting` is the source, so a reload or a second device sees the same deadline.
   const [taken, setTaken] = useState<SittingBlock | null>(null);
   const sitting = taken ?? exam.data?.sitting ?? null;
+  const queryClient = useQueryClient();
+  // A submitted paper is final: its questions do not come back here, so the student goes to the result, where the score is.
+  const submittedMcq = exam.data?.examType === "MCQ" && Boolean(sitting?.submittedAt);
+  // Set when the paper hands the student on (submit or time-up), so this redirect never replaces that navigation.
+  const leaving = useRef(false);
+  useEffect(() => {
+    if (submittedMcq && !leaving.current) {
+      router.replace(`/exam/${examId}/result`);
+    }
+  }, [submittedMcq, examId, router]);
 
   // `?start=live|retake`: take the exam, then replace the URL so a reload does not take it again.
   useEffect(() => {
@@ -54,7 +70,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
           router.replace(`/exam/${examId}`);
           return;
         }
-        setError(caught instanceof ApiError && caught.code === "RESOURCE_NOT_FOUND" ? "notFound" : "failed");
+        setError(isUnknownItemError(caught) ? "notFound" : "failed");
       });
     // The mutations are stable for this mount; the effect must run once per take.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,29 +108,13 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   }
 
   if (exam.isError) {
-    if (exam.error instanceof ApiError && exam.error.code === "RESOURCE_NOT_FOUND") {
-      // No roster row or paid grant for this exam: say so, and offer the way back to the exam page.
+    // The API answers 404 for a missing exam, and for one with no roster row or paid grant; both read as not found here.
+    if (isUnknownItemError(exam.error)) {
       return (
-        <div role="status" className="rounded-card border border-border bg-card p-6 text-center">
-          <p className="text-text">{t("sitting.entry.noAccess")}</p>
-          <Link href={`/exam/${examId}`} className="mt-4 inline-flex min-h-11 items-center text-accent underline">
-            {t("sitting.entry.backToExam")}
-          </Link>
-        </div>
+        <NotFoundState title={t("common.notFound.exam")} body={t("common.notFound.itemBody")} backHref={studentHome} backLabel={t("common.guard.goHome")} />
       );
     }
-    return (
-      <div role="alert" className="rounded-card border border-border bg-card p-6 text-center">
-        <p className="text-text">{t("sitting.entry.failed")}</p>
-        <button
-          type="button"
-          onClick={() => exam.refetch()}
-          className="mt-4 min-h-11 rounded-control border border-border px-4 text-text"
-        >
-          {t("common.retry")}
-        </button>
-      </div>
-    );
+    return <ErrorState error={exam.error} onRetry={() => void exam.refetch()} />;
   }
 
   const data = exam.data;
@@ -141,9 +141,17 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
         deadlineAt={sitting.deadlineAt}
         studentLine={studentLine}
         onSubmitted={() => router.replace(`/exam/${examId}/submitted`)}
-        onClosed={(hasScript) => router.replace(`/exam/${examId}/result?notice=${hasScript ? "timeUpScript" : "timeUpNoScript"}`)}
+        onClosed={(hasScript) => {
+          void invalidateSittingReads(queryClient, examId);
+          router.replace(`/exam/${examId}/result?notice=${hasScript ? "timeUpScript" : "timeUpNoScript"}`);
+        }}
       />
     );
+  }
+
+  // A submitted MCQ never shows the paper again. The effect above sends the student to the result.
+  if (submittedMcq) {
+    return null;
   }
 
   const open = Boolean(data.questions) && sitting !== null;
@@ -156,14 +164,24 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   }
 
   return (
-    <McqPaper
-      exam={data}
-      studentId={user.id}
-      startedAt={sitting.startedAt}
-      deadlineAt={sitting.deadlineAt}
-      kind={sitting.kind}
-      onClosed={() => router.replace(`/exam/${examId}/result?notice=timeUp`)}
-      onSubmitted={() => router.replace(`/exam/${examId}?notice=submitted`)}
-    />
+    <PaperLayer>
+      <McqPaper
+        exam={data}
+        studentId={user.id}
+        studentLine={user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName}
+        startedAt={sitting.startedAt}
+        deadlineAt={sitting.deadlineAt}
+        kind={sitting.kind}
+        onClosed={() => {
+          leaving.current = true;
+          void invalidateSittingReads(queryClient, examId);
+          router.replace(`/exam/${examId}/result?notice=timeUp`);
+        }}
+        onSubmitted={() => {
+          leaving.current = true;
+          router.replace(`/exam/${examId}/result?notice=submitted`);
+        }}
+      />
+    </PaperLayer>
   );
 }

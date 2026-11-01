@@ -43,7 +43,7 @@ function StudentDetail({ id }: { id: string }) {
   const student = useStudent(id);
 
   if (student.isError) {
-    return <ErrorState onRetry={() => student.refetch()} />;
+    return <ErrorState onRetry={() => student.refetch()} error={student.error} />;
   }
   if (student.isPending) {
     return <Skeleton variant="card" count={2} />;

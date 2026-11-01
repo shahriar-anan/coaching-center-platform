@@ -53,6 +53,18 @@ export function changeRows(
   }));
 }
 
+/**
+ * A teacher change shows as assigned or none, not as the instructor's id: the change list names the teacher only by id, and
+ * the dialog does not look the name up.
+ */
+export function teacherWords(fields: PendingFieldChange[], assigned: string, none: string): PendingFieldChange[] {
+  return fields.map((change) =>
+    change.field === "instructor"
+      ? { ...change, before: change.before ? assigned : null, after: change.after ? assigned : none }
+      : change,
+  );
+}
+
 /** The impact lines: how many papers are to be re-scored, and how many students are to be told. Empty when there is none. */
 export function impactCounts(changes: PendingChangeList): { papers: number; students: number; notify: boolean; questions: number; packageExams: number } {
   return {
@@ -109,7 +121,9 @@ export function ChangeListDialog({
     const found = categories.get(id);
     return found ? (locale === "bn" ? found.titleBn : found.titleEn) : undefined;
   };
-  const rows = changes ? changeRows(changes.fields, words, categoryName) : [];
+  const rows = changes
+    ? changeRows(teacherWords(changes.fields, t("staffCatalog.staged.teacherAssigned"), t("staffCatalog.staged.teacherNone")), words, categoryName)
+    : [];
   const impact = changes ? impactCounts(changes) : null;
 
   return (

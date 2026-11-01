@@ -8,6 +8,7 @@ import { cn } from "@/components/ui/cn";
 import { StatusPill, type CatalogStatusValue } from "@/components/staff/catalog/status-pill";
 import { ExamRow, type ExamAction } from "@/components/staff/exams/exam-row";
 import { GROUP_PAGE, readGroupOpen, writeGroupOpen, type ExamGroup } from "@/components/staff/exams/exam-groups";
+import { useRole } from "@/lib/auth/guards";
 import { useFormat } from "@/lib/format/use-format";
 import type { StaffExam } from "@/lib/api/exam/staff-catalog";
 
@@ -36,6 +37,7 @@ export function ExamGroupSection({
 }) {
   const { t, locale } = useLocale();
   const { formatNumber } = useFormat();
+  const { isInstructor } = useRole();
   // The stored choice is read when the group first appears; before that, the default applies.
   const [open, setOpen] = useState(() => readGroupOpen(group.key, defaultOpen));
   const [shown, setShown] = useState(GROUP_PAGE);
@@ -75,7 +77,8 @@ export function ExamGroupSection({
         {pending ? (
           <span role="img" aria-label={t("staffExams.group.pending")} className="size-2.5 rounded-full bg-warn-fill" />
         ) : null}
-        {packageId ? (
+        {/* A teacher has no package page, so the header shows no Open package button for them. */}
+        {packageId && !isInstructor ? (
           <Button href={`/staff/modules/${packageId}`} variant="ghost" className="min-h-11">
             {t("staffExams.group.openPackage")}
           </Button>

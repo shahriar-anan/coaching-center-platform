@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { cn } from "@/components/ui/cn";
+import { paperClass } from "./paper-theme";
 
 /** Question text sizes in px, smallest first. The paper's content never goes under 16 px. */
 const STEPS = [16, 18, 20] as const;
@@ -45,10 +46,23 @@ export function usePaperTextSize() {
 
 type Size = ReturnType<typeof usePaperTextSize>;
 
-/** A − and A + buttons for the paper. */
-export function PaperTextSizeControl({ size, className }: { size: Size; className?: string }) {
+/** The result page's look: the app's own buttons. */
+const DEFAULT_BUTTON = "min-h-11 min-w-11 rounded-control border border-border bg-card px-3 font-semibold text-text disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent";
+/** The printed paper's look: plain black outline, no radius. */
+const PAPER_BUTTON = `min-h-11 min-w-11 border px-3 font-semibold disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--paper-ink)] ${paperClass.line} ${paperClass.paper} ${paperClass.ink}`;
+
+/** A − and A + buttons for the paper. The paper variant is the plain one used on the sitting page's bar. */
+export function PaperTextSizeControl({
+  size,
+  className,
+  variant = "default",
+}: {
+  size: Size;
+  className?: string;
+  variant?: "default" | "paper";
+}) {
   const { t } = useLocale();
-  const button = "min-h-11 min-w-11 rounded-control border border-border bg-card px-3 font-semibold text-text disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent";
+  const button = variant === "paper" ? PAPER_BUTTON : DEFAULT_BUTTON;
   return (
     <div role="group" aria-label={t("sitting.textSize.label")} className={cn("flex items-center gap-2", className)}>
       <button type="button" className={button} onClick={size.decrease} disabled={!size.canDecrease} aria-label={t("sitting.textSize.smaller")}>

@@ -10,6 +10,8 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData, type QueryClie
 import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { PageResponse, PaperLanguage, ExamType } from "@/lib/api/exam/types";
+import { catalogKeys } from "@/lib/api/exam/catalog";
+import { sittingKeys } from "@/lib/api/exam/sitting";
 
 export type CategoryTreeNode = {
   id: string;
@@ -135,6 +137,8 @@ export type StaffExam = {
   instructor?: ExamInstructor | null;
   /** True when a staged change waits for the Master Admin (staff reads only). */
   pendingChanges?: boolean | null;
+  /** True once the results are released to students. Sent by the API for the staff read; optional until it is. */
+  resultsReleased?: boolean;
 };
 
 export type StudentMatch = { id: string; fullName: string; phone: string | null; email: string | null };
@@ -250,6 +254,7 @@ export const staffCatalogKeys = {
   rosterSearch: (moduleId: string, q: string) => ["staffCatalog", "rosterSearch", moduleId, q] as const,
   instructors: (params: InstructorListParams) => ["staffCatalog", "instructors", params] as const,
   pending: (kind: ChangeKind, id: string) => ["staffCatalog", "pending", kind, id] as const,
+  stagedSummary: (moduleId: string) => ["staffCatalog", "stagedSummary", moduleId] as const,
 };
 
 /* ---------- categories ---------- */
@@ -303,6 +308,20 @@ export function useArchiveCategory() {
   });
 }
 
+/** Restore un-archives the category. Its published packages show to students again; its drafts stay hidden. */
+export function useRestoreCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<void>(`/api/v1/live-exam-categories/${id}/restore`, { method: "POST", body: {} }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["staffCatalog", "categories"] }),
+        queryClient.invalidateQueries({ queryKey: catalogKeys.all }),
+      ]),
+  });
+}
+
 /* ---------- modules ---------- */
 
 export type ModuleListParams = { categoryId?: string; q?: string; status?: string };
@@ -346,6 +365,7 @@ export function useSaveModule(id?: string) {
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "stagedSummary"] });
     },
   });
 }
@@ -442,7 +462,24 @@ export function useModuleAction(id: string, action: "final-save" | "publish" | "
       queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(id) });
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "categories"] });
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "stagedSummary"] });
+      void refreshStudentReads(queryClient, "package", id);
     },
+  });
+}
+
+/** Restore puts an archived package back to draft: students see nothing until a Master Admin publishes it again. */
+export function useRestoreModule(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<void>(`/api/v1/live-exam-modules/${id}/restore`, { method: "POST", body: {} }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(id) }),
+        queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] }),
+        queryClient.invalidateQueries({ queryKey: ["staffCatalog", "categories"] }),
+        refreshStudentReads(queryClient, "package", id),
+      ]),
   });
 }
 
@@ -521,6 +558,21 @@ function refreshChanged(queryClient: QueryClient, kind: ChangeKind, id: string):
     queryClient.invalidateQueries({ queryKey: kind === "exam" ? staffCatalogKeys.exam(id) : staffCatalogKeys.module(id) }),
     queryClient.invalidateQueries({ queryKey: ["staffCatalog", "moduleExams"] }),
     queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] }),
+    queryClient.invalidateQueries({ queryKey: ["staffCatalog", "stagedSummary"] }),
+    refreshStudentReads(queryClient, kind, id),
+  ]);
+}
+
+/**
+ * Refreshes the student-facing reads after a change students can see (a publish, a withdraw, a staged change being
+ * discarded): the public catalog, the routine and the student's own exam, which are keyed apart from the staff reads, and
+ * the exam preview. Queries in use refetch now; the rest are marked stale.
+ */
+function refreshStudentReads(queryClient: QueryClient, kind: ChangeKind, id: string): Promise<unknown> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: catalogKeys.all }),
+    queryClient.invalidateQueries({ queryKey: ["live-exam-preview"] }),
+    kind === "exam" ? queryClient.invalidateQueries({ queryKey: sittingKeys.exam(id) }) : undefined,
   ]);
 }
 
@@ -528,12 +580,12 @@ function refreshChanged(queryClient: QueryClient, kind: ChangeKind, id: string):
  * The staged change list of an exam or a package, or `null` when nothing is staged. The server answers 404 for that
  * case, and it is not an error here.
  */
-export function usePendingChanges(kind: ChangeKind, id: string | undefined) {
-  return useQuery({
-    queryKey: staffCatalogKeys.pending(kind, id ?? ""),
+export function pendingChangesQuery(kind: ChangeKind, id: string) {
+  return {
+    queryKey: staffCatalogKeys.pending(kind, id),
     queryFn: async (): Promise<PendingChangeList | null> => {
       try {
-        return await apiRequest<PendingChangeList>(changesPath(kind, id ?? ""));
+        return await apiRequest<PendingChangeList>(changesPath(kind, id));
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) {
           return null;
@@ -541,8 +593,33 @@ export function usePendingChanges(kind: ChangeKind, id: string | undefined) {
         throw error;
       }
     },
-    enabled: Boolean(id),
     retry: false,
+  };
+}
+
+export function usePendingChanges(kind: ChangeKind, id: string | undefined) {
+  return useQuery({ ...pendingChangesQuery(kind, id ?? ""), enabled: Boolean(id) });
+}
+
+/** What is staged for a package and its exams: the package's own change, each exam with changes, and any teacher change. */
+export type StagedExamSummary = { id: string; titleEn: string; titleBn: string; changes: number };
+
+export type StagedSummary = { packageChanges: boolean; exams: StagedExamSummary[]; instructorChanges: boolean };
+
+/** The answer of the one publish for a package: whether its own revision went out, and how many exams' went with it. */
+export type PublishedStagedChanges = { packageChanged: boolean; examsPublished: number };
+
+/** True when anything at all waits on the package or on one of its exams. */
+export function hasStagedChanges(summary: StagedSummary | undefined): boolean {
+  return Boolean(summary && (summary.packageChanges || summary.exams.length > 0 || summary.instructorChanges));
+}
+
+/** The staged summary of a package. Staff who author it can read it. */
+export function useStagedSummary(moduleId: string | undefined) {
+  return useQuery({
+    queryKey: staffCatalogKeys.stagedSummary(moduleId ?? ""),
+    queryFn: () => apiRequest<StagedSummary>(`/api/v1/live-exam-modules/${moduleId}/staged-summary`),
+    enabled: Boolean(moduleId),
   });
 }
 
@@ -567,6 +644,24 @@ export function usePublishPendingChanges(kind: ChangeKind, id: string) {
     onSuccess: (saved) => {
       queryClient.setQueryData(kind === "exam" ? staffCatalogKeys.exam(id) : staffCatalogKeys.module(id), saved);
       return refreshChanged(queryClient, kind, id);
+    },
+  });
+}
+
+/**
+ * Publishes everything staged for a package in one call: the package's revision and each exam's, named by the revision ids
+ * the Master Admin read. The server publishes all of them or none. The summary and every change list are refreshed after it.
+ */
+export function usePublishStagedPackage(moduleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { revisionId?: string; examRevisionIds: Record<string, string> }) =>
+      apiRequest<PublishedStagedChanges>(`/api/v1/live-exam-modules/${moduleId}/publish-changes`, { method: "POST", body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.stagedSummary(moduleId) });
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "pending"] });
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "exam"] });
+      return refreshChanged(queryClient, "package", moduleId);
     },
   });
 }
@@ -723,6 +818,7 @@ export function useExamAction(id: string, action: "final-save" | "publish") {
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "moduleExams", saved.moduleId] });
+      void refreshStudentReads(queryClient, "exam", id);
     },
   });
 }
@@ -743,6 +839,20 @@ export function useArchiveExam(id: string, moduleId: string) {
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
       queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) });
+      void refreshStudentReads(queryClient, "exam", id);
+    },
+  });
+}
+
+/** Restore puts an archived exam back to draft: students see nothing until a Master Admin publishes it again (Master Admin only). */
+export function useRestoreExam(id: string, moduleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<StaffExam>(`/api/v1/live-exams/${id}/restore`, { method: "POST", body: {} }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(staffCatalogKeys.exam(id), saved);
+      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) });
+      void refreshStudentReads(queryClient, "exam", id);
     },
   });
 }
@@ -871,34 +981,5 @@ export function useInstructorDirectory(params: InstructorListParams) {
     queryKey: staffCatalogKeys.instructors(params),
     queryFn: () => apiRequest<PageResponse<InstructorRow>>(`/api/v1/instructors?${query}`),
     placeholderData: keepPreviousData,
-  });
-}
-
-/** The package's default instructor. With `applyToExams` the exams that held the old one take the new one (NR-01). */
-export function useAssignInstructor(moduleId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ instructorId, applyToExams }: { instructorId: string; applyToExams: boolean }) =>
-      apiRequest<unknown>(`/api/v1/live-exam-modules/${moduleId}/instructor`, {
-        method: "POST",
-        body: { instructorId, applyToExams },
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(moduleId) });
-      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "instructors"] });
-    },
-  });
-}
-
-/** Clears the package default. With `applyToExams` (the server's default) the exams that held it are cleared too. */
-export function useUnassignInstructor(moduleId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (applyToExams: boolean) =>
-      apiRequest<void>(`/api/v1/live-exam-modules/${moduleId}/instructor?applyToExams=${applyToExams}`, { method: "DELETE" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffCatalogKeys.module(moduleId) });
-      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "instructors"] });
-    },
   });
 }

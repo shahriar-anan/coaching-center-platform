@@ -185,7 +185,7 @@ export function buildIcs(event: { id: string; title: string; start: string; end:
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Exam Portal//Routine//BN",
+    "PRODID:-//Symam Law//Routine//BN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${event.id}@exam-portal`,

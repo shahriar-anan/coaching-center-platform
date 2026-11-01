@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { InstructorHome } from "@/components/staff/home/instructor-home";
-import { fixtures, mockApi, renderWithProviders } from "../helpers";
-import { modules, participation, serveFeed } from "./fixtures";
+import { apiError, fixtures, mockApi, renderWithProviders } from "../helpers";
+import { participation, serveFeed } from "./fixtures";
 
 vi.mock("@/components/pdf/pdf-viewer", () => ({ PdfViewer: () => null }));
 
 const LISTS = {
-  "GET /api/v1/live-exam-modules": { content: modules, page: 0, size: 100, totalElements: 2, totalPages: 1 },
-  "GET /api/v1/live-exam-participation": { content: participation, page: 0, size: 100, totalElements: 2, totalPages: 1 },
+  "GET /api/v1/live-exam-participation": { content: participation, page: 0, size: 100, totalElements: 3, totalPages: 1 },
 };
 
 describe("instructor home as a marking dashboard (U1)", () => {
@@ -17,16 +16,28 @@ describe("instructor home as a marking dashboard (U1)", () => {
     renderWithProviders(<InstructorHome />, { user: fixtures.instructor });
 
     const start = await screen.findByRole("link", { name: "মূল্যায়ন শুরু করুন" });
-    expect(start).toHaveAttribute("href", "/staff/submissions/p1?m=m1");
+    expect(start).toHaveAttribute("href", "/staff/submissions/p1?exam=e1");
     expect(screen.getByText("সাম্প্রতিক খাতা")).toBeInTheDocument();
     expect((await screen.findAllByText("সালমা খাতুন")).length).toBeGreaterThan(0);
   });
 
-  it("groups the assigned modules by category path", async () => {
+  it("groups the assigned exams by their category path, so an exam with no package still shows", async () => {
     mockApi({ ...LISTS, "GET /api/v1/live-exam-submissions": serveFeed() });
     renderWithProviders(<InstructorHome />, { user: fixtures.instructor });
     expect(await screen.findByRole("heading", { name: "সরকারি চাকরি › বিসিএস" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "সরকারি চাকরি" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "শ্রেণিবিহীন" })).toBeInTheDocument();
+    // Each exam title shows in its group and, for the papers in the recent list, again in that table.
+    expect(screen.getAllByText("রচনা পত্র").length).toBeGreaterThan(0);
+    expect(screen.getByText("লিখিত পরীক্ষা")).toBeInTheDocument();
+    expect(screen.getAllByText("আলাদা পত্র").length).toBeGreaterThan(0);
+  });
+
+  it("opens an exam from its card, with the browser on that exam", async () => {
+    mockApi({ ...LISTS, "GET /api/v1/live-exam-submissions": serveFeed() });
+    renderWithProviders(<InstructorHome />, { user: fixtures.instructor });
+    const card = (await screen.findByRole("heading", { name: "শ্রেণিবিহীন" })).parentElement!.parentElement!;
+    expect(within(card).getByRole("link", { name: "খাতা দেখুন" })).toHaveAttribute("href", "/staff/submissions?exam=e3");
   });
 
   it("disables the start button with a line when nothing waits", async () => {
@@ -60,14 +71,22 @@ describe("instructor home as a marking dashboard (U1)", () => {
     expect(screen.queryByText(/মূল্যায়ন করেছেন/)).toBeNull();
   });
 
-  it("shows the sentence to contact the Master Admin when no module is assigned", async () => {
+  it("shows the sentence to contact the Master Admin when no exam is assigned", async () => {
     mockApi({
-      "GET /api/v1/live-exam-modules": { content: [], page: 0, size: 100, totalElements: 0, totalPages: 0 },
       "GET /api/v1/live-exam-participation": { content: [], page: 0, size: 100, totalElements: 0, totalPages: 0 },
       "GET /api/v1/live-exam-submissions": serveFeed([]),
     });
     renderWithProviders(<InstructorHome />, { user: fixtures.instructor });
-    expect(await screen.findByText("আপনাকে এখনো কোনো প্যাকেজ দেওয়া হয়নি")).toBeInTheDocument();
-    expect(screen.getByText("আরও প্যাকেজে মূল্যায়ন করতে মাস্টার অ্যাডমিনের সাথে যোগাযোগ করুন।")).toBeInTheDocument();
+    expect(await screen.findByText("আপনাকে এখনো কোনো পরীক্ষা দেওয়া হয়নি")).toBeInTheDocument();
+    expect(screen.getByText("আরও পরীক্ষায় মূল্যায়ন করতে মাস্টার অ্যাডমিনের সাথে যোগাযোগ করুন।")).toBeInTheDocument();
+  });
+
+  it("names a refused exam list in its error line", async () => {
+    mockApi({
+      ...LISTS,
+      "GET /api/v1/live-exam-participation": () => apiError(400, "VALIDATION_FAILED", "Parameter type is invalid."),
+    });
+    renderWithProviders(<InstructorHome />, { user: fixtures.instructor });
+    expect(await screen.findByText("এই তালিকা আনা যায়নি। ফিল্টার মুছে আবার চেষ্টা করুন।")).toBeInTheDocument();
   });
 });

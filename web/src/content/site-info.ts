@@ -48,7 +48,7 @@ export const batches = {
   ],
 } as const;
 
-/** Module ids to feature, in order. Empty means the first modules from the catalog. */
+/** Module ids to feature, in order. Empty means the popular modules first, then the rest in catalog order. */
 export const featuredModuleIds: readonly string[] = [];
 
 /**

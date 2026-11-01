@@ -32,7 +32,7 @@ export function QuestionPaperPanel({ examId, examTitle }: { examId: string; exam
     return isNotAllowed(paper.error) ? (
       <p className="text-body text-muted">{t("staffMarking.questionPaper.notAllowed")}</p>
     ) : (
-      <ErrorState onRetry={() => paper.refetch()} />
+      <ErrorState onRetry={() => paper.refetch()} error={paper.error} />
     );
   }
   if (!blob) {

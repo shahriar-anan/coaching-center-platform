@@ -87,7 +87,7 @@ function ResultsReport({ examId }: { examId: string }) {
       ) : null}
 
       {report.isError ? (
-        <ErrorState onRetry={() => report.refetch()} />
+        <ErrorState onRetry={() => report.refetch()} error={report.error} />
       ) : (
         <SummaryStrip
           loading={report.isPending}

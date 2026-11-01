@@ -41,7 +41,7 @@ function ReceiptRoute() {
     return (
       <>
         <PageHeader title={t("account.receipt.title")} />
-        <ErrorState onRetry={() => void query.refetch()} />
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       </>
     );
   }

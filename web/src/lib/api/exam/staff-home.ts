@@ -7,15 +7,20 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
+import type { CategoryRef } from "@/lib/api/exam/staff-marking";
 import type { PageResponse } from "@/lib/api/exam/types";
 
 export type ParticipationSummary = { awaitingMarking: number; draftsAwaitingPublish: number };
 
 export type ParticipationRow = {
   examId: string;
-  moduleId: string;
-  moduleTitleEn: string;
-  moduleTitleBn: string;
+  /** Left out by the API when the exam is in no package, which is most written exams. */
+  moduleId?: string | null;
+  moduleTitleEn?: string | null;
+  moduleTitleBn?: string | null;
+  /** The exam's own category (API: categoryId) and its chain, root first. */
+  categoryId?: string | null;
+  categoryPath?: CategoryRef[];
   examType: "MCQ" | "WRITTEN";
   titleEn: string;
   titleBn: string;

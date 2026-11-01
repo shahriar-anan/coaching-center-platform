@@ -6,7 +6,8 @@ import { cn } from "@/components/ui/cn";
 type CardProps = {
   href?: string;
   as?: ElementType;
-  padding?: "md" | "lg";
+  /** "sm" is the compact list row (px-4 py-3); "md" is the default; "lg" is the roomy panel. */
+  padding?: "sm" | "md" | "lg";
   className?: string;
   children: ReactNode;
 };
@@ -16,7 +17,7 @@ const surface = "block rounded-card border border-border bg-card text-text shado
 
 /** A white card with a 16 px radius. With `href` it becomes a link card with a chevron. */
 export function Card({ href, as: Tag = "div", padding = "md", className, children }: CardProps) {
-  const pad = padding === "lg" ? "p-6" : "p-4";
+  const pad = padding === "lg" ? "p-6" : padding === "sm" ? "px-4 py-3" : "p-4";
   if (href) {
     return (
       <Link

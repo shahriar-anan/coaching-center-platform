@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
 import { PasteQuestions } from "@/components/staff/catalog/paste-questions";
+import { draftFromQuestion, questionRequest } from "@/components/staff/catalog/question-draft";
 
 /** The editor is only needed when a question is opened, so it loads on demand. */
 const QuestionEditor = dynamic(
@@ -57,9 +58,11 @@ export function McqQuestions({ exam, locked, canDelete }: { exam: StaffExam; loc
       return;
     }
     setMoveError(null);
+    // The API reads a whole question (stem, marks, options), so a move sends the same body the editor saves, with the new position.
+    const moved = (question: StaffQuestion, position: number) => questionRequest(draftFromQuestion(question), position);
     try {
-      await update.mutateAsync({ questionId: current.id, body: { position: other.position } });
-      await update.mutateAsync({ questionId: other.id, body: { position: current.position } });
+      await update.mutateAsync({ questionId: current.id, body: moved(current, other.position) });
+      await update.mutateAsync({ questionId: other.id, body: moved(other, current.position) });
     } catch (e) {
       if (isApiError(e, "QUESTION_STRUCTURE_LOCKED")) {
         setStructureLocked(true);

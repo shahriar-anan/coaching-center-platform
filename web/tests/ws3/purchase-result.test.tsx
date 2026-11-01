@@ -94,7 +94,7 @@ it("explains a missing payment reference without calling the API", () => {
   renderWithQuery(<PurchaseResult />);
 
   expect(
-    screen.getByText("We couldn't find the payment details. Check My exams instead."),
+    screen.getByText("We couldn't find the payment details. Check My orders instead."),
   ).toBeInTheDocument();
   expect(apiRequest).not.toHaveBeenCalled();
 });

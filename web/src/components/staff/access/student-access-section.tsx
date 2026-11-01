@@ -122,7 +122,7 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
       </div>
 
       {access.isError ? (
-        <ErrorState message={t("staffAdmin.access.loadError")} onRetry={() => void access.refetch()} />
+        <ErrorState message={t("staffAdmin.access.loadError")} onRetry={() => void access.refetch()} error={access.error} />
       ) : access.isPending ? (
         <Skeleton variant="rows" count={3} />
       ) : rows.length === 0 ? (

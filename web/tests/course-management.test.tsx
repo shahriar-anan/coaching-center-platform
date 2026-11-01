@@ -348,7 +348,11 @@ beforeEach(() => {
 
 describe("catalogs", () => {
   it("keeps the Bangla catalog aligned with English", () => {
-    expect(collectKeys(bn)).toEqual(collectKeys(en));
+    // The four policy pages come from the old site in English only: English holds their text blocks, Bangla keeps the
+    // placeholder body and the page shows the English blocks to Bangla visitors (legal-page.tsx).
+    const policyText = /^legal\.(about|terms|privacy|refund)\.(blocks\.|body\d)/;
+    const shared = (keys: string[]) => keys.filter((key) => !policyText.test(key));
+    expect(shared(collectKeys(bn))).toEqual(shared(collectKeys(en)));
   });
 });
 

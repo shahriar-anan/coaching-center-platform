@@ -127,7 +127,7 @@ function StudentList() {
       />
 
       {students.isError ? (
-        <ErrorState onRetry={() => students.refetch()} />
+        <ErrorState onRetry={() => students.refetch()} error={students.error} />
       ) : (
         <>
           <Table

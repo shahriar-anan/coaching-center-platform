@@ -98,7 +98,7 @@ describe("exam editor sections (U5)", () => {
     mockApi(routes(writtenExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
-    expect(await screen.findByText("এই প্যাকেজে এখনো শিক্ষক দেওয়া নেই। শিক্ষক দেবেন মাস্টার অ্যাডমিন।")).toBeInTheDocument();
+    expect(await screen.findByText("এই পরীক্ষায় এখনো শিক্ষক দেওয়া নেই। শিক্ষক দেবেন মাস্টার অ্যাডমিন।")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "শিক্ষক দিন" })).not.toBeInTheDocument();
   });
 
@@ -106,8 +106,9 @@ describe("exam editor sections (U5)", () => {
     mockApi(routes(writtenExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
+    // The teacher is set per exam: the link goes to the teacher field in this exam's details, not to a package tab.
     const link = await screen.findByRole("link", { name: "শিক্ষক দিন" });
-    expect(link).toHaveAttribute("href", `/staff/modules/${moduleId}?tab=instructor`);
+    expect(link).toHaveAttribute("href", "#exam-details");
   });
 });
 

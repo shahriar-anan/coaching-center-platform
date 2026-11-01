@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
+import { SectionLabel } from "@/components/ui/section-label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildIcs, downloadIcs, examPath, groupRoutine, isLive } from "./catalog-helpers";
 import { ExamStatusPill, TypePill } from "./status-pill";
@@ -23,7 +24,7 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
   const { t, locale } = useLocale();
   const url = `${typeof window === "undefined" ? "" : window.location.origin}${examPath(row.id)}`;
   return (
-    <li className="grid gap-2 rounded-card border border-border bg-card p-4">
+    <li className="grid gap-2 rounded-card border border-border bg-card px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-body font-semibold text-muted">
           {row.liveAt && row.endAt ? `${formatTime(row.liveAt, locale)} – ${formatTime(row.endAt, locale)}` : t("catalog.dateTbd")}
@@ -34,7 +35,7 @@ function RoutineItem({ row, live }: { row: RoutineRow; live: boolean }) {
           <ExamStatusPill status={row.myStatus} examType={row.examType} retakeAvailable={row.retakeAvailable} />
         ) : null}
       </div>
-      <Link href={examPath(row.id)} className="text-card-title font-bold text-text">
+      <Link href={examPath(row.id)} className="text-body font-semibold text-text">
         {pickTitle(row, locale)}
       </Link>
       <p className="flex flex-wrap items-center gap-2 text-body text-muted">
@@ -79,7 +80,7 @@ export function RoutinePage() {
     return (
       <>
         <PageHeader title={t("catalog.routine.title")} breadcrumbs={crumbs} />
-        <ErrorState onRetry={() => void routine.refetch()} />
+        <ErrorState error={routine.error} onRetry={() => void routine.refetch()} />
       </>
     );
   }
@@ -93,8 +94,8 @@ export function RoutinePage() {
         <EmptyState title={t("catalog.routine.empty")} body={t("catalog.routine.emptyBody")} action={<DoorActions />} />
       ) : null}
       {live.length > 0 ? (
-        <section aria-label={t("catalog.routine.live")} className="mb-6">
-          <ul className="grid gap-3">
+        <section aria-label={t("catalog.routine.live")} className="mb-5">
+          <ul className="grid gap-2">
             {live.map((row) => (
               <RoutineItem key={row.id} row={row} live />
             ))}
@@ -102,15 +103,17 @@ export function RoutinePage() {
         </section>
       ) : null}
       {days.map((day) => (
-        <section key={day.key} aria-label={day.key} className="mb-6">
-          <h2 className="mb-2 text-card-title font-bold">
-            {day.relative === "today"
-              ? t("catalog.routine.today")
-              : day.relative === "tomorrow"
-                ? t("catalog.routine.tomorrow")
-                : formatDate(day.firstStart, locale, { weekday: true, year: "auto" })}
-          </h2>
-          <ul className="grid gap-3">
+        <section key={day.key} aria-label={day.key} className="mb-5">
+          <SectionLabel
+            title={
+              day.relative === "today"
+                ? t("catalog.routine.today")
+                : day.relative === "tomorrow"
+                  ? t("catalog.routine.tomorrow")
+                  : formatDate(day.firstStart, locale, { weekday: true, year: "auto" })
+            }
+          />
+          <ul className="grid gap-2">
             {day.rows.map((row) => (
               <RoutineItem key={row.id} row={row} live={isLive(row, now)} />
             ))}
@@ -118,10 +121,10 @@ export function RoutinePage() {
         </section>
       ))}
       {undated.length > 0 ? (
-        <section aria-label={t("catalog.dateTbd")} className="mb-6">
-          <h2 className="mb-1 text-card font-bold">{t("catalog.dateTbd")}</h2>
+        <section aria-label={t("catalog.dateTbd")} className="mb-5">
+          <SectionLabel title={t("catalog.dateTbd")} />
           <p className="mb-2 text-body text-muted">{t("catalog.routine.undated")}</p>
-          <ul className="grid gap-3">
+          <ul className="grid gap-2">
             {undated.map((row) => (
               <RoutineItem key={row.id} row={row} live={false} />
             ))}

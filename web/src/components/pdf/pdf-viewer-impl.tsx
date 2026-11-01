@@ -56,6 +56,7 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [full, setFull] = useState(false);
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const loadRef = useRef(load);
 
@@ -106,6 +107,26 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
     observer.observe(scroller);
     return () => observer.disconnect();
   }, [scroller]);
+
+  // Full screen is an overlay over the page, not the browser's own full screen, so it works on phones too and the
+  // paper does not reload. Esc leaves it, and the page behind does not scroll while it is open.
+  useEffect(() => {
+    if (!full) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFull(false);
+      }
+    };
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [full]);
 
   const pageCount = state.status === "ready" ? state.doc.numPages : 0;
   const fitScale = state.status === "ready" && width > 0 ? (width - 16) / state.baseWidth : 1;
@@ -176,7 +197,11 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
   return (
     <section
       aria-label={label ?? t("sitting.pdf.region")}
-      className="overflow-hidden rounded-card border border-border bg-card"
+      className={
+        full
+          ? "fixed inset-0 z-[60] flex flex-col overflow-hidden bg-card"
+          : "overflow-hidden rounded-card border border-border bg-card"
+      }
       onContextMenu={allowDownload ? undefined : (event) => event.preventDefault()}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-2">
@@ -223,6 +248,15 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
           >
             <span aria-hidden="true">+</span>
           </button>
+          <button
+            type="button"
+            className={control}
+            aria-label={full ? t("sitting.pdf.exitFullScreen") : t("sitting.pdf.fullScreen")}
+            aria-pressed={full}
+            onClick={() => setFull((value) => !value)}
+          >
+            <FullScreenIcon exit={full} />
+          </button>
           {allowDownload && blob ? <DownloadButton blob={blob} fileName={fileName} label={t("sitting.pdf.download")} /> : null}
         </div>
       </div>
@@ -235,7 +269,11 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
-        className="h-[70vh] max-h-[880px] min-h-[360px] touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
+        className={
+          full
+            ? "min-h-0 flex-1 touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
+            : "h-[70vh] max-h-[880px] min-h-[360px] touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
+        }
       >
         {/* Starts at the left edge and is as wide as the widest page, so a zoomed page scrolls to both sides. Each page centres itself (mx-auto) when it is narrower. */}
         <div ref={contentRef} className="flex min-w-max origin-top flex-col items-start gap-2">
@@ -256,6 +294,19 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
         </div>
       </div>
     </section>
+  );
+}
+
+/** Four corners pointing out to enter full screen, and in to leave it. */
+function FullScreenIcon({ exit }: { exit: boolean }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {exit ? (
+        <path d="M7 2v4a1 1 0 0 1-1 1H2M13 2v4a1 1 0 0 0 1 1h4M7 18v-4a1 1 0 0 0-1-1H2M13 18v-4a1 1 0 0 1 1-1h4" />
+      ) : (
+        <path d="M2 7V3a1 1 0 0 1 1-1h4M18 7V3a1 1 0 0 0-1-1h-4M2 13v4a1 1 0 0 0 1 1h4M18 13v4a1 1 0 0 1-1 1h-4" />
+      )}
+    </svg>
   );
 }
 

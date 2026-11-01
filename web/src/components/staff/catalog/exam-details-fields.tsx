@@ -55,7 +55,10 @@ function MasterControls({ exam }: { exam: StaffExam }) {
           {failure}
         </p>
       ) : null}
-      {role.canAssignInstructor ? (
+      {/* An MCQ exam has no instructor: the field is left out and one line says so. A written exam keeps the field. */}
+      {exam.examType === "MCQ" ? (
+        <p className="text-meta text-muted">{t("staffCatalog.examMeta.mcqNoInstructor")}</p>
+      ) : role.canAssignInstructor ? (
         <InstructorPicker exam={exam} />
       ) : (
         <div className="grid gap-1.5">

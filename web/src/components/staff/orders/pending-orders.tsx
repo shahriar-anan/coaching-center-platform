@@ -134,7 +134,7 @@ export function PendingOrders() {
       </div>
 
       {orders.isError ? (
-        <ErrorState message={t("staffAdmin.orders.loadError")} onRetry={() => void orders.refetch()} />
+        <ErrorState message={t("staffAdmin.orders.loadError")} onRetry={() => void orders.refetch()} error={orders.error} />
       ) : orders.isPending ? (
         <Skeleton variant="rows" count={4} />
       ) : rows.length === 0 ? (

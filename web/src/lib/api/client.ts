@@ -281,6 +281,11 @@ export const api = {
     });
   },
 
+  /** Whether the browser holds a refresh cookie. Reads no token and never refreshes. */
+  sessionProbe() {
+    return apiRequest<{ hasSession: boolean }>("/api/v1/auth/session");
+  },
+
   logout() {
     return apiRequest<void>("/api/v1/auth/logout", {
       method: "POST",

@@ -92,7 +92,7 @@ function Discovery({ door, categories }: { door: Door; categories?: ReactNode })
         <section aria-labelledby="door-search-results" className="grid gap-2.5">
           <h2 id="door-search-results" className="text-card-title font-bold">{t("catalog.search.results")}</h2>
           {results.isPending ? null : results.isError && !results.data ? (
-            <ErrorState onRetry={() => void results.refetch()} />
+            <ErrorState error={results.error} onRetry={() => void results.refetch()} />
           ) : matches.length === 0 ? (
             <p className="text-body text-muted">{t("catalog.search.empty")}</p>
           ) : (

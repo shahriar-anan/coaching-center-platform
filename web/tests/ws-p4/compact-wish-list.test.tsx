@@ -18,13 +18,13 @@ const examRow = {
   favourite: false,
 };
 
-describe("the Wish List mark on rows and cards (Phase 4, S4.4)", () => {
-  it("is one 44 px icon button in the top-right corner of a catalog row, out of the text's way", () => {
+describe("the Wish List mark on rows and cards (Phase 4, S4.4, S14.2)", () => {
+  it("is a normal 40 px item in a catalog row, the last item of its top row, with no corner position", () => {
     renderWithProviders(<CatalogExamRow exam={examRow} />, { user: fixtures.student, locale: "en" });
     const mark = screen.getByRole("button", { name: "Wish List" });
-    expect(mark).toHaveClass("absolute", "end-2", "top-2", "size-11");
-    // The text column keeps its place: the mark is not inside a column of its own.
-    expect(mark.parentElement?.tagName).toBe("DIV");
+    expect(mark).toHaveClass("relative", "size-10");
+    expect(mark).not.toHaveClass("absolute", "end-2", "top-2");
+    expect(mark.parentElement?.lastElementChild).toBe(mark);
     expect(screen.getByRole("link", { name: "CRPC Mock 1" })).toBeInTheDocument();
   });
 
@@ -35,12 +35,13 @@ describe("the Wish List mark on rows and cards (Phase 4, S4.4)", () => {
         href="/exam/e1"
         title="CRPC Mock 1"
         right={<span>Buy</span>}
-        favourite={<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" />}
+        favourite={<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" placement="inline" />}
       />,
       { user: fixtures.student, locale: "en" },
     );
     const mark = screen.getByRole("button", { name: "Wish List" });
-    expect(mark).toHaveClass("absolute", "size-11");
+    expect(mark).toHaveClass("relative", "size-10");
+    expect(mark).not.toHaveClass("absolute");
     await userEvent.click(mark);
     expect(mark).toHaveAttribute("aria-pressed", "true");
     expect(calls.some((call) => call.method === "PUT")).toBe(true);
@@ -56,7 +57,51 @@ describe("the Wish List mark on rows and cards (Phase 4, S4.4)", () => {
       { user: fixtures.student, locale: "en" },
     );
     const card = screen.getByRole("link", { name: "BCS Preliminary" }).closest("div.group") as HTMLElement;
-    expect(within(card).getByRole("button", { name: "Wish List" })).toHaveClass("absolute", "size-11");
+    expect(within(card).getByRole("button", { name: "Wish List" })).toHaveClass("relative", "size-10");
+    expect(within(card).getByRole("button", { name: "Wish List" })).not.toHaveClass("absolute");
   });
 });
 
+describe("the inline Wish List mark (FavouriteButton placement=\"inline\")", () => {
+  it("renders as a normal element with the same label, and the student's toggle still works", async () => {
+    mockApi({ "PUT /api/v1/me/favourites/exams/e1": {} });
+    renderWithProviders(<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" placement="inline" />, {
+      user: fixtures.student,
+      locale: "en",
+    });
+    const mark = screen.getByRole("button", { name: "Wish List" });
+    expect(mark.tagName).toBe("BUTTON");
+    expect(mark).toHaveClass("relative", "inline-flex", "size-10");
+    expect(mark).not.toHaveClass("absolute");
+    expect(mark).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(mark);
+    expect(mark).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("sends a visitor to log in, with the same label and no corner position", () => {
+    renderWithProviders(<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" placement="inline" />, { locale: "en" });
+    const mark = screen.getByRole("link", { name: "Wish List" });
+    expect(mark).toHaveAttribute("href", "/login?next=%2Fexam%2Fe1");
+    expect(mark).toHaveClass("relative", "size-10");
+    expect(mark).not.toHaveClass("absolute");
+  });
+
+  it("keeps the corner mark on a detail page by default", () => {
+    renderWithProviders(<FavouriteButton kind="exam" id="e1" initial={false} next="/exam/e1" />, {
+      user: fixtures.student,
+      locale: "en",
+    });
+    expect(screen.getByRole("button", { name: "Wish List" })).toHaveClass("absolute", "end-2", "top-2", "size-11");
+  });
+});
+
+describe("a catalog row in its three zones (S14.2)", () => {
+  it("has the title link, the status pill, the Wish List mark, and no corner mark", () => {
+    renderWithProviders(<CatalogExamRow exam={{ ...examRow, phase: "LIVE" }} />, { user: fixtures.student, locale: "en" });
+    expect(screen.getByRole("link", { name: "CRPC Mock 1" })).toHaveAttribute("href", "/exam/e1");
+    expect(screen.getByText("Live now")).toBeInTheDocument();
+    const mark = screen.getByRole("button", { name: "Wish List" });
+    expect(mark).toBeInTheDocument();
+    expect(mark.closest("div.group")?.querySelector(".end-2, .top-2")).toBeNull();
+  });
+});

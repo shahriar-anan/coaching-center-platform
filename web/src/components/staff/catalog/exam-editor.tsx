@@ -17,6 +17,7 @@ import {
   useModule,
   usePendingChanges,
   usePublishPendingChanges,
+  useRestoreExam,
   type StaffExam,
 } from "@/lib/api/exam/staff-catalog";
 import { apiBlob } from "@/lib/api/client";
@@ -168,8 +169,11 @@ function PublishSummary({
   );
 }
 
-/** What to do once an exam is saved: another exam, or the instructor for its package. A standalone exam has no package. */
-function NextStepCard({ moduleId, canAssign }: { moduleId: string | null; canAssign: boolean }) {
+/**
+ * What to do once an exam is saved: another exam, or the teacher of this exam. A standalone exam has no package.
+ * The teacher is set per exam, so that choice jumps to the teacher field on this page. An MCQ exam takes no teacher.
+ */
+function NextStepCard({ moduleId, examType, canAssign }: { moduleId: string | null; examType: StaffExam["examType"]; canAssign: boolean }) {
   const { t } = useLocale();
   const choice = "grid min-h-11 gap-1 rounded-control border border-border-control bg-field p-4 hover:border-muted";
   return (
@@ -185,12 +189,12 @@ function NextStepCard({ moduleId, canAssign }: { moduleId: string | null; canAss
           <span className="font-medium">{t("staffCatalog.next.anotherTitle")}</span>
           <span className="text-meta text-muted">{t("staffCatalog.next.anotherBody")}</span>
         </Link>
-        {moduleId && canAssign ? (
-          <Link href={`/staff/modules/${moduleId}?tab=instructor`} className={choice}>
+        {examType === "WRITTEN" && canAssign ? (
+          <Link href="#exam-details" className={choice}>
             <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
             <span className="text-meta text-muted">{t("staffCatalog.next.assignBody")}</span>
           </Link>
-        ) : moduleId ? (
+        ) : examType === "WRITTEN" ? (
           // A role that cannot assign sees the choice disabled, with the reason (plan 7.1: shown, not hidden).
           <div className="grid gap-1 rounded-control border border-border p-4">
             <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
@@ -214,6 +218,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const publish = useExamAction(exam.id, "publish");
   const remove = useDeleteExam(exam.id, moduleId ?? "");
   const archive = useArchiveExam(exam.id, moduleId ?? "");
+  const restore = useRestoreExam(exam.id, moduleId ?? "");
   // The change list is read only when the server says something is staged.
   const changes = usePendingChanges("exam", exam.pendingChanges ? exam.id : undefined);
   const publishChanges = usePublishPendingChanges("exam", exam.id);
@@ -222,6 +227,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -244,7 +250,6 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const primary = primaryExamAction(exam, { dirty, masterAdmin });
   const title = pickTitle(exam);
   const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data) : null;
-  const hasTeacher = moduleQuery.data?.instructor != null;
 
   const sectionState: Record<"details" | "text" | "schedule" | "content" | "price" | "publish", SectionState> = {
     details: "done",
@@ -340,7 +345,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
 
       {created ? (
         <div className="mb-6">
-          <NextStepCard moduleId={moduleId} canAssign={role.canAssignInstructor} />
+          <NextStepCard moduleId={moduleId} examType={exam.examType} canAssign={role.canAssignInstructor} />
         </div>
       ) : null}
 
@@ -431,12 +436,12 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
               </p>
             ) : null}
 
-            {exam.examType === "WRITTEN" && moduleId && !hasTeacher && moduleQuery.data ? (
+            {exam.examType === "WRITTEN" && !exam.instructor ? (
               <p role="status" className="rounded-control border border-warn/40 bg-warn/10 px-4 py-3 text-meta text-warn">
                 {role.canAssignInstructor ? (
                   <>
                     {t("staffCatalog.editor.noTeacherWarning")}{" "}
-                    <a href={`/staff/modules/${moduleId}?tab=instructor`} className="font-medium underline-offset-2 hover:underline">
+                    <a href="#exam-details" className="font-medium underline-offset-2 hover:underline">
                       {t("staffCatalog.editor.assignTeacher")}
                     </a>
                   </>
@@ -455,7 +460,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             ) : null}
           </SectionBlock>
 
-          {created ? null : <NextStepCard moduleId={moduleId} canAssign={role.canAssignInstructor} />}
+          {created ? null : <NextStepCard moduleId={moduleId} examType={exam.examType} canAssign={role.canAssignInstructor} />}
 
           {role.canDelete ? (
             <section className="flex flex-wrap gap-3 border-t border-border pt-6">
@@ -463,7 +468,11 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
                 <Button variant="secondary" onClick={() => setArchiving(true)}>
                   {t("staffCatalog.editor.archive")}
                 </Button>
-              ) : null}
+              ) : (
+                <Button variant="secondary" onClick={() => setRestoring(true)}>
+                  {t("staffCatalog.editor.restore")}
+                </Button>
+              )}
               <Button variant="danger" onClick={() => setDeleting(true)}>
                 {t("staffCatalog.editor.delete")}
               </Button>
@@ -553,6 +562,25 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           }}
         />
       ) : null}
+
+      {role.canDelete && archived ? (
+        <ConfirmDialog
+          open={restoring}
+          onOpenChange={setRestoring}
+          title={t("staffCatalog.editor.restoreTitle", { name: locale === "bn" ? exam.titleBn : exam.titleEn })}
+          body={t("staffCatalog.editor.restoreBody")}
+          confirmLabel={t("staffCatalog.editor.restoreConfirm")}
+          onConfirm={async () => {
+            try {
+              await restore.mutateAsync();
+              setRestoring(false);
+              toast({ title: t("staffCatalog.editor.restored"), tone: "ok" });
+            } catch (e) {
+              throw new Error(t(catalogErrorKey(e)));
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -565,7 +593,7 @@ export function ExamEditor({ examId }: { examId: string }) {
     return <Skeleton variant="card" count={3} />;
   }
   if (exam.isError || !exam.data) {
-    return <ErrorState onRetry={() => exam.refetch()} message={t("staffCatalog.editor.loadError")} />;
+    return <ErrorState onRetry={() => exam.refetch()} message={t("staffCatalog.editor.loadError")} error={exam.error} />;
   }
   return <ExamEditorBody key={exam.data.id} exam={exam.data} />;
 }

@@ -56,6 +56,10 @@ export interface RoutineRow {
   retakeAvailable: boolean | null;
 }
 
+/**
+ * How long a public catalog read counts as fresh. The public reads also refetch when the tab regains focus, so a change
+ * published while a list stays open shows once the read is older than this, without a reload.
+ */
 const CATALOG_STALE = 60_000;
 
 export const catalogKeys = {
@@ -71,20 +75,30 @@ export const catalogKeys = {
     ["catalog", "my-exams", moduleId, examType ?? "ALL"] as const,
   myExam: (id: string) => ["catalog", "my-exam", id] as const,
   routine: () => ["catalog", "routine"] as const,
-  categoryExams: (categoryId: string, examType: ExamType, branch: boolean) =>
-    ["catalog", "category-exams", categoryId, examType, branch] as const,
+  categoryExams: (categoryId: string, examType: ExamType, branch: boolean, view: ExamView = "ALL") =>
+    ["catalog", "category-exams", categoryId, examType, branch, view] as const,
 };
+
+/** The tab of an exam list (REQ-007). ALL is no extra filter; the others are the API's `view` values. */
+export type ExamView = "ALL" | "FREE" | "LIVE" | "ARCHIVED";
 
 /** The category exam list's page size (NR-01, S2.1). */
 export const CATEGORY_EXAM_PAGE = 20;
 
-/** The URL of one page of a category exam list. `branch` adds the exams of every subcategory below it. */
-export function categoryExamsUrl(categoryId: string, examType: ExamType, branch: boolean, page: number): string {
+/** The URL of one page of a category exam list. `branch` adds the exams of every subcategory below it; `view` is the tab. */
+export function categoryExamsUrl(
+  categoryId: string,
+  examType: ExamType,
+  branch: boolean,
+  page: number,
+  view: ExamView = "ALL",
+): string {
   const params = new URLSearchParams({
     examType,
     branch: String(branch),
     page: String(page),
     size: String(CATEGORY_EXAM_PAGE),
+    view,
   });
   return `/api/v1/public/live-exam-categories/${categoryId}/exams?${params.toString()}`;
 }
@@ -134,6 +148,7 @@ export function useCategoryTree(examType: ExamType | null) {
   return useQuery({
     queryKey: catalogKeys.tree(examType),
     staleTime: CATALOG_STALE,
+    refetchOnWindowFocus: true,
     queryFn: ({ signal }) =>
       withTypeFallback(examType, (type) =>
         apiRequest<CategoryNode[]>(`/api/v1/public/live-exam-categories${typeQuery(type)}`, {
@@ -151,6 +166,7 @@ export function usePublicModule(id: string, signedIn = false) {
   return useQuery({
     queryKey: [...catalogKeys.publicModule(id), signedIn],
     staleTime: CATALOG_STALE,
+    refetchOnWindowFocus: true,
     queryFn: ({ signal }) =>
       apiRequest<PublicModule>(`/api/v1/public/live-exam-modules/${id}`, { signal }),
   });
@@ -160,6 +176,7 @@ export function usePublicModuleExams(moduleId: string | undefined, examType: Exa
   return useQuery({
     queryKey: [...catalogKeys.publicExams(moduleId ?? "", examType), signedIn],
     staleTime: CATALOG_STALE,
+    refetchOnWindowFocus: true,
     enabled: Boolean(moduleId),
     queryFn: ({ signal }) =>
       withTypeFallback(examType, (type) =>
@@ -181,21 +198,64 @@ export type UpcomingExam = PublicExam & {
   moduleOnly?: boolean;
 };
 
+/** The package list's page size (PKG-1). */
+export const PACKAGE_PAGE = 12;
+
+/** The filters of the public package list. A null or empty value is left out of the request. */
+export interface PackageFilter {
+  categoryId: string | null;
+  examType: ExamType | null;
+  q: string;
+}
+
+/**
+ * The URL of one page of the public package list. A chosen category always asks for its whole branch (`branch=true`), so a
+ * parent category lists the packages of its subcategories too.
+ */
+export function packagesUrl(filter: PackageFilter, page: number): string {
+  const params = new URLSearchParams();
+  if (filter.categoryId) {
+    params.set("categoryId", filter.categoryId);
+    params.set("branch", "true");
+  }
+  if (filter.examType) params.set("examType", filter.examType);
+  const term = filter.q.trim();
+  if (term) params.set("q", term);
+  params.set("page", String(page));
+  params.set("size", String(PACKAGE_PAGE));
+  return `/api/v1/public/live-exam-modules?${params.toString()}`;
+}
+
+/** The packages that match a filter, a page at a time (PKG-1). Each page is a `PageResponse<PublicModule>`. */
+export function usePackages(filter: PackageFilter) {
+  const term = filter.q.trim();
+  return useInfiniteQuery({
+    queryKey: ["catalog", "packages", filter.categoryId, filter.examType, term] as const,
+    initialPageParam: 0,
+    staleTime: CATALOG_STALE,
+    refetchOnWindowFocus: true,
+    queryFn: ({ pageParam, signal }) =>
+      apiRequest<PageResponse<PublicModule>>(packagesUrl({ ...filter, q: term }, pageParam), { signal }),
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+  });
+}
+
 /**
  * Published modules matching `q` (G12). Only runs once there is text. An older
  * API that ignores `q` returns everything, so the screen filters by title too.
  */
 /**
  * The exams of one category, a page at a time (NR-01, S2.1). `branch` on lists every subcategory below it; off lists only the
- * category's own exams. Changing either setting starts a new list.
+ * category's own exams. Changing the setting or the tab (`view`, REQ-007) starts a new list.
  */
-export function useCategoryExams(categoryId: string, examType: ExamType, branch: boolean) {
+export function useCategoryExams(categoryId: string, examType: ExamType, branch: boolean, view: ExamView = "ALL") {
   return useInfiniteQuery({
-    queryKey: catalogKeys.categoryExams(categoryId, examType, branch),
+    queryKey: catalogKeys.categoryExams(categoryId, examType, branch, view),
     initialPageParam: 0,
     staleTime: CATALOG_STALE,
+    refetchOnWindowFocus: true,
     queryFn: ({ pageParam, signal }) =>
-      apiRequest<PageResponse<CategoryExam>>(categoryExamsUrl(categoryId, examType, branch, pageParam), { signal }),
+      apiRequest<PageResponse<CategoryExam>>(categoryExamsUrl(categoryId, examType, branch, pageParam, view), { signal }),
     getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
   });
 }
@@ -222,6 +282,7 @@ export function usePopularExams() {
   return useQuery({
     queryKey: ["catalog", "popular-exams"] as const,
     staleTime: 60_000,
+    refetchOnWindowFocus: true,
     queryFn: ({ signal }) =>
       apiRequest<PageResponse<UpcomingExam>>("/api/v1/public/live-exams?upcoming=true&popular=true&size=6", { signal }).then(
         (page) => page.content,
@@ -234,6 +295,7 @@ export function usePopularPackages() {
   return useQuery({
     queryKey: ["catalog", "popular-packages"] as const,
     staleTime: 60_000,
+    refetchOnWindowFocus: true,
     queryFn: ({ signal }) =>
       apiRequest<PageResponse<PublicModule>>("/api/v1/public/live-exam-modules?popular=true&size=6", { signal }).then(
         (page) => page.content,
@@ -246,6 +308,7 @@ export function useUpcomingExams(examType: ExamType) {
   return useQuery({
     queryKey: ["catalog", "upcoming", examType] as const,
     staleTime: 60_000,
+    refetchOnWindowFocus: true,
     queryFn: async ({ signal }) => {
       try {
         const page = await apiRequest<PageResponse<UpcomingExam>>(
@@ -295,6 +358,7 @@ export function usePublicExam(id: string, signedIn = false) {
   return useQuery<PublicExam>({
     queryKey: [...catalogKeys.publicExam(id), signedIn],
     staleTime: CATALOG_STALE,
+    refetchOnWindowFocus: true,
     refetchInterval: (query) => examPhasePoll(query.state.data?.phase),
     queryFn: ({ signal }) => apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
   });
@@ -361,6 +425,7 @@ export function usePublicExamsById(ids: string[]) {
     queries: ids.map((id) => ({
       queryKey: [...catalogKeys.publicExam(id), true],
       staleTime: CATALOG_STALE,
+      refetchOnWindowFocus: true,
       queryFn: ({ signal }: { signal?: AbortSignal }) =>
         apiRequest<PublicExam>(`/api/v1/public/live-exams/${id}`, { signal }),
     })),
@@ -373,6 +438,7 @@ export function usePublicModulesById(ids: string[]) {
     queries: ids.map((id) => ({
       queryKey: [...catalogKeys.publicModule(id), true],
       staleTime: CATALOG_STALE,
+      refetchOnWindowFocus: true,
       queryFn: ({ signal }: { signal?: AbortSignal }) =>
         apiRequest<PublicModule>(`/api/v1/public/live-exam-modules/${id}`, { signal }),
     })),

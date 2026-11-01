@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useRole } from "@/lib/auth/guards";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { canOpenReviews } from "@/components/staff/reviews/review-access";
 import { ExamPrice } from "@/components/staff/exams/exam-price";
 import { useFormat } from "@/lib/format/use-format";
 import type { StaffExam } from "@/lib/api/exam/staff-catalog";
 
-export type ExamAction = "copy" | "withdraw" | "delete";
+export type ExamAction = "copy" | "withdraw" | "delete" | "restore";
 
 /**
  * One exam on the Exams page: title, type, mode, window, price, status, a pending dot, an explicit Open
@@ -36,16 +37,22 @@ export function ExamRow({
 }) {
   const { t } = useLocale();
   const { pickTitle, formatDateTime, formatNumber } = useFormat();
-  const { isMasterAdmin } = useRole();
+  const { isMasterAdmin, isInstructor, role } = useRole();
   const title = pickTitle(exam);
   const otherPackages = (exam.packages ?? []).filter((ref) => ref.id !== groupPackageId).length;
   const window =
     exam.mode === "PRACTICE" ? t("staffExams.mode.PRACTICE") : exam.liveAt ? `${formatDateTime(exam.liveAt)}${exam.endAt ? ` – ${formatDateTime(exam.endAt)}` : ""}` : t("staffExams.row.undated");
+  // A teacher has a results page only for a written exam (an MCQ exam has no teacher), and the leaderboard only once the results are released.
+  const showResults = !(isInstructor && exam.examType === "MCQ");
+  const showLeaderboard = !isInstructor || exam.resultsReleased === true;
+  // Master and System Admin open the exam's own page. A teacher has no such page, so the button opens the exam's scripts instead.
+  const openHref = isInstructor ? `/staff/submissions?exam=${exam.id}` : `/staff/exams/${exam.id}`;
 
   const items: RowMenuItem[] = [
-    { label: t("staffExams.row.results"), href: `/staff/exams/${exam.id}/results` },
+    ...(showResults ? [{ label: t("staffExams.row.results"), href: `/staff/exams/${exam.id}/results` }] : []),
     ...(isMasterAdmin ? [{ label: t("staffExams.row.students"), href: `/staff/enrolments?exam=${exam.id}` }] : []),
-    { label: t("staffExams.row.leaderboard"), href: `/staff/exams/${exam.id}/leaderboard` },
+    ...(showLeaderboard ? [{ label: t("staffExams.row.leaderboard"), href: `/staff/exams/${exam.id}/leaderboard` }] : []),
+    ...(canOpenReviews(role) ? [{ label: t("staffReviews.menu"), href: `/staff/reviews?kind=exam&targetId=${exam.id}` }] : []),
   ];
   if (canCopy) {
     items.push({ label: t("staffExams.row.copy"), onClick: () => onAction("copy", exam) });
@@ -55,6 +62,9 @@ export function ExamRow({
   }
   if (canRemove && exam.status === "DRAFT") {
     items.push({ label: t("staffExams.row.delete"), onClick: () => onAction("delete", exam), tone: "danger" });
+  }
+  if (canRemove && exam.status === "ARCHIVED") {
+    items.push({ label: t("staffCatalog.editor.restore"), onClick: () => onAction("restore", exam) });
   }
   if (isMasterAdmin) {
     items.push({
@@ -88,7 +98,7 @@ export function ExamRow({
       <div className="flex items-center gap-2">
         <StatusPill status={exam.status} />
         <Button
-          href={`/staff/exams/${exam.id}`}
+          href={openHref}
           variant="secondary"
           className="min-h-11 gap-1.5 px-3 text-meta font-semibold hover:border-accent hover:text-accent sm:min-h-9"
         >

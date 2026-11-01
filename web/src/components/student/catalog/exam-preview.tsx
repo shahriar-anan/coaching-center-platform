@@ -63,7 +63,7 @@ export function ExamPreview({ examId }: { examId: string }) {
     return (
       <>
         <PageHeader title={t("catalog.loadFailed")} />
-        <ErrorState onRetry={() => void preview.refetch()} />
+        <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
       </>
     );
   }

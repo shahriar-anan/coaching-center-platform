@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { cn } from "@/components/ui/cn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatMoney, pickTitle } from "@/lib/format";
-import { useCategoryTree } from "@/lib/api/exam/catalog";
+import { formatMoney, formatNumber, pickTitle } from "@/lib/format";
+import { useCategoryTree, type ExamType } from "@/lib/api/exam/catalog";
 import { useLocale } from "@/i18n/locale-context";
-import { categoryCards } from "@/components/student/landing/landing-data";
+import { categoryCards, type CategoryCard } from "@/components/student/landing/landing-data";
 import { DoorIcon } from "@/components/student/door-icon";
+import { Section } from "@/components/student/landing/section";
 
 /**
  * The hero's way in: the mockup's two doors, MCQ and written, under the old
@@ -39,89 +43,135 @@ export function HeroCategories() {
   );
 }
 
-/** The section's frame: a tinted band with a navy heading pill, as on the old site. */
-function ExamSection({ title, children }: { title: string; children: React.ReactNode }) {
+/** The switch's label for each type, in the landing messages (the Bangla page's other type labels are English). */
+const landingTypeKey = (type: ExamType) => (type === "MCQ" ? "landing.typeMcq" : "landing.typeWritten");
+
+/**
+ * The MCQ / Written switch under the section's title. Two options only (no "All"), so the cards always belong to one type.
+ * Pressed state is announced with aria-pressed, and the buttons are keyboard reachable.
+ */
+function TypeSwitch({ value, onChange }: { value: ExamType; onChange: (next: ExamType) => void }) {
+  const { t } = useLocale();
+  const options: ExamType[] = ["MCQ", "WRITTEN"];
   return (
-    <section aria-labelledby="landing-exams" className="bg-accent/10 px-4 py-14 md:py-20">
-      <div className="mx-auto max-w-6xl">
-        <h2
-          id="landing-exams"
-          className="mx-auto w-fit rounded-full bg-band px-8 py-2.5 text-center text-2xl font-bold text-on-band shadow-lg md:text-3xl"
-        >
-          {title}
-        </h2>
-        {children}
-      </div>
-    </section>
+    <div
+      role="group"
+      aria-label={t("landing.typeSwitchLabel")}
+      className="inline-flex gap-1 rounded-full border border-border bg-card p-1"
+    >
+      {options.map((option) => {
+        const active = option === value;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option)}
+            className={cn(
+              "min-h-11 rounded-full px-6 text-label font-bold transition-colors duration-150",
+              active ? "bg-accent text-on-accent" : "text-muted hover:text-text",
+            )}
+          >
+            {t(landingTypeKey(option))}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
 /**
- * The exam categories straight after the hero. Each card follows the pattern
- * used for course and exam cards on education sites: a coloured cover with the
- * exam types it offers, the title, a count and price, and one full-width action.
+ * One category card: an exam icon in a gold-tinted circle, the title, the counts as chips, the price when there is one, and a full-width
+ * Explore button. The whole card is one link, and the button only shows it, so no links are nested. The price line is left out when no
+ * package of the type has a price.
+ */
+function ExamCategoryCard({ card }: { card: CategoryCard }) {
+  const { t, locale } = useLocale();
+  const price = formatMoney(card.fromPrice, locale);
+  // One chip per count that is not zero. A card only exists when at least one of the two is.
+  const chips = [
+    card.examCount > 0 ? t("catalog.countExams", { n: formatNumber(card.examCount, locale) }) : null,
+    card.moduleCount > 0 ? t("catalog.countModules", { n: formatNumber(card.moduleCount, locale) }) : null,
+  ].filter((part): part is string => part !== null);
+  return (
+    <Link
+      href={card.href}
+      prefetch
+      className="group flex h-full w-full flex-col items-center gap-3 rounded-card border border-border bg-bg p-5 text-center shadow-sm transition duration-300 motion-safe:hover:-translate-y-1 hover:border-accent hover:shadow-md motion-reduce:transition-none"
+    >
+      {/* The old site's exam icon. It is drawn in the accent text colour, so it reads on the tinted circle in both themes. */}
+      <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent/15">
+        <DoorIcon kind="mcq" className="size-6" />
+      </span>
+      {/* The middle takes the free height, so the Explore buttons line up at the bottom of equal-height cards. */}
+      <span className="flex flex-1 flex-col items-center gap-2">
+        <span className="line-clamp-2 text-base font-bold leading-snug">{pickTitle(card, locale)}</span>
+        <span className="flex flex-wrap justify-center gap-2">
+          {chips.map((chip) => (
+            <span key={chip} className="rounded-full border border-border px-3 py-1 text-meta text-muted">
+              {chip}
+            </span>
+          ))}
+        </span>
+        {price ? <span className="text-label font-bold text-text-accent">{t("landing.categoryFrom", { price })}</span> : null}
+      </span>
+      <span className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-control bg-accent px-4 text-label font-bold text-on-accent transition group-hover:opacity-90 motion-reduce:transition-none">
+        {t("landing.categoryExplore")}
+        <ArrowRight aria-hidden="true" className="size-4" />
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * The exam categories straight after the hero. A switch picks the type first (MCQ by default), then the cards are the top-level
+ * categories of that type. Both trees are read, so the section can hide itself when neither type has a category.
  */
 export function ExamCategories() {
-  const { t, locale } = useLocale();
-  const { data, isPending } = useCategoryTree(null);
+  const { t } = useLocale();
+  const [type, setType] = useState<ExamType>("MCQ");
+  const mcq = useCategoryTree("MCQ");
+  const written = useCategoryTree("WRITTEN");
+  const chosen = type === "MCQ" ? mcq : written;
+  const other = type === "MCQ" ? written : mcq;
+  const otherType: ExamType = type === "MCQ" ? "WRITTEN" : "MCQ";
+  const cards = categoryCards(chosen.data ?? [], type);
   const title = t("landing.examsTitle");
+  const subtitle = t("landing.categoriesSubtitle");
 
-  if (isPending) {
+  // Wait for the other type too when the chosen one is empty, so the section does not flash the empty line before it hides.
+  if (chosen.isPending || (cards.length === 0 && other.isPending)) {
     return (
-      <ExamSection title={title}>
-        <div className="mt-10">
+      <Section id="landing-exams" title={title} subtitle={subtitle} center tone="surface">
+        <div className="flex justify-center">
+          <TypeSwitch value={type} onChange={setType} />
+        </div>
+        <div className="mt-6">
           <Skeleton variant="card" count={3} />
         </div>
-      </ExamSection>
+      </Section>
     );
   }
-  const cards = categoryCards(data ?? []);
-  if (cards.length === 0) return null;
+  if (cards.length === 0 && categoryCards(other.data ?? [], otherType).length === 0) return null;
 
   return (
-    <ExamSection title={title}>
-      <ul className="mx-auto mt-10 flex max-w-5xl flex-wrap justify-center gap-6">
-        {cards.map((card) => {
-          const price = formatMoney(card.fromPrice, locale);
-          return (
-            <li key={card.id} className="flex w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]">
-              <Link
-                href={card.href}
-                prefetch
-                className="group flex w-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-md transition duration-300 hover:-translate-y-1 hover:shadow-xl"
-              >
-                <span className="relative flex h-28 items-end gap-2 overflow-hidden bg-band p-4 text-on-band">
-                  <span aria-hidden="true" className="absolute -end-8 -top-8 size-32 rounded-full bg-accent/20" />
-                  {card.mcqHref ? (
-                    <span className="relative rounded-full bg-accent px-3 py-1 text-meta font-bold text-on-accent">
-                      {t("home.doorMcqTitle")}
-                    </span>
-                  ) : null}
-                  {card.writtenHref ? (
-                    <span className="relative rounded-full border border-on-band/40 px-3 py-1 text-meta font-semibold">
-                      {t("home.doorWrittenTitle")}
-                    </span>
-                  ) : null}
-                </span>
-
-                <span className="flex flex-1 flex-col gap-2 p-5">
-                  <span className="line-clamp-2 min-h-12 text-lg font-bold leading-snug">{pickTitle(card, locale)}</span>
-                  <span className="text-body text-muted">{t("landing.categoryModules", { count: card.moduleCount })}</span>
-                  <span className="mt-auto pt-3 text-label font-semibold text-text-accent">
-                    {price ? t("landing.categoryFrom", { price }) : t("landing.categoryNoPrice")}
-                  </span>
-                </span>
-
-                <span className="border-t border-border p-4">
-                  <span className="block rounded-control bg-action py-2.5 text-center text-label font-bold text-on-action transition group-hover:opacity-90">
-                    {t("landing.categoryExplore")}
-                  </span>
-                </span>
-              </Link>
+    <Section id="landing-exams" title={title} subtitle={subtitle} center tone="surface">
+      <div className="flex justify-center">
+        <TypeSwitch value={type} onChange={setType} />
+      </div>
+      {cards.length === 0 ? (
+        <p className="mt-6 text-center text-body text-muted">
+          {t("landing.categoriesEmpty", { type: t(landingTypeKey(type)) })}
+        </p>
+      ) : (
+        <ul className="mx-auto mt-6 grid max-w-5xl grid-cols-[repeat(auto-fit,minmax(16rem,22rem))] justify-center gap-5">
+          {cards.map((card) => (
+            <li key={card.id} className="flex">
+              <ExamCategoryCard card={card} />
             </li>
-          );
-        })}
-      </ul>
-    </ExamSection>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

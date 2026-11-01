@@ -73,13 +73,13 @@ describe("an exam row in the category list (S2.2)", () => {
     expect(row()).toHaveTextContent("Only in a package");
   });
 
-  it("names up to two packages and counts the rest", () => {
+  it("does not show the packages the exam is in: the detail page lists them", () => {
     renderRow({ ...base, packages: [pkg("p1", "Alpha"), pkg("p2", "Beta"), pkg("p3", "Gamma")] });
     const link = row();
-    expect(link).toHaveTextContent("Alpha");
-    expect(link).toHaveTextContent("Beta");
+    expect(link).not.toHaveTextContent("Alpha");
+    expect(link).not.toHaveTextContent("Beta");
     expect(link).not.toHaveTextContent("Gamma");
-    expect(link).toHaveTextContent("+1 more");
+    expect(link).not.toHaveTextContent("more");
   });
 
   it("shows the window status word from the phase", () => {
@@ -96,5 +96,35 @@ describe("the window status word for each phase (S2.2)", () => {
     expect(phaseStatus("PRACTICE").key).toBe("catalog.phase.PRACTICE");
     expect(phaseStatus("ENDED").key).toBe("catalog.phase.ENDED");
     expect(phaseStatus("SOMETHING_NEW").key).toBe("catalog.phase.ENDED");
+  });
+});
+
+describe("the three zones of a catalog row (S14.2)", () => {
+  it("shows the title in at most two lines, and the date on one line that truncates", () => {
+    renderRow({ ...base, liveAt: null });
+    const title = screen.getByRole("link", { name: /CPC MCQ/ });
+    expect(title).toHaveClass("line-clamp-2");
+    expect(screen.getByText("Date to be announced")).toHaveClass("truncate");
+  });
+
+  it("has no package chip even for a long package name", () => {
+    renderRow({ ...base, packages: [pkg("p1", "A very long package name for the Penal Code practice set")] });
+    expect(screen.queryByTitle("A very long package name for the Penal Code practice set")).not.toBeInTheDocument();
+  });
+
+  it("shows the discount as a green chip, beside the price and before the end date", () => {
+    renderRow({
+      ...base,
+      pricing: { price: 400, discountPercent: 25, discountEndsAt: "2026-11-30T17:59:59Z", effectivePrice: 300, free: false, moduleOnly: false },
+    });
+    const chip = screen.getByText("25% off");
+    expect(chip).toHaveClass("rounded-control", "text-ok-text");
+    expect(chip).toHaveClass("bg-ok/10");
+    expect(screen.getByText(/until/)).toHaveClass("text-meta");
+  });
+
+  it("shows Free in green in the same bottom-right place", () => {
+    renderRow({ ...base, pricing: { price: null, discountPercent: null, discountEndsAt: null, effectivePrice: null, free: true, moduleOnly: false } });
+    expect(screen.getByText("Free")).toHaveClass("text-ok-text");
   });
 });

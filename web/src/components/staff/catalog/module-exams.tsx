@@ -33,7 +33,6 @@ import { useToast } from "@/components/ui/toast";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
 import { NewExamDialog } from "@/components/staff/catalog/new-exam-dialog";
-import { PendingChangesBanner } from "@/components/staff/catalog/pending-changes-banner";
 import { alsoInCount, hasPendingDot, movedOrder, priceOfRow } from "@/components/staff/catalog/package-rows";
 
 /** Adds an exam that already exists to this package. Exams already in it are shown but cannot be added again. */
@@ -80,7 +79,7 @@ function AddExistingDialog({
         ) : search.isPending ? (
           <Skeleton variant="rows" count={3} />
         ) : search.isError ? (
-          <ErrorState onRetry={() => search.refetch()} message={t("staffCatalog.moduleExams.loadError")} />
+          <ErrorState onRetry={() => search.refetch()} message={t("staffCatalog.moduleExams.loadError")} error={search.error} />
         ) : (search.data?.content ?? []).length === 0 ? (
           <EmptyState title={t("staffCatalog.moduleExams.addEmpty")} />
         ) : (
@@ -300,6 +299,27 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
       cell: (exam) => <StatusPill status={exam.status} />,
     },
     {
+      key: "teacher",
+      header: t("staffCatalog.moduleExams.columns.teacher"),
+      cell: (exam) => {
+        // An MCQ exam takes no teacher: the system marks it. A written exam has one teacher, set on the exam's own page.
+        if (exam.examType === "MCQ") {
+          return <span className="text-muted">{t("staffCatalog.moduleExams.markedBySystem")}</span>;
+        }
+        const name = exam.instructor?.name;
+        return (
+          <span className="grid gap-0.5">
+            {name ? <span>{name}</span> : <span className="text-warn">{t("staffCatalog.moduleExams.noTeacherYet")}</span>}
+            {role.canAssignInstructor ? (
+              <Link href={`/staff/exams/${exam.id}`} className="text-meta font-medium text-action underline-offset-2 hover:underline">
+                {name ? t("staffCatalog.moduleExams.changeTeacher") : t("staffCatalog.moduleExams.assignTeacher")}
+              </Link>
+            ) : null}
+          </span>
+        );
+      },
+    },
+    {
       key: "also",
       header: t("staffCatalog.moduleExams.columns.also"),
       cell: (exam) => {
@@ -349,7 +369,6 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
 
   return (
     <div className="grid gap-4">
-      {published && pkg.data?.pendingChanges ? <PendingChangesBanner masterAdmin={role.canPublishExam} /> : null}
       {published ? <p className="text-meta text-muted">{t("staffCatalog.moduleExams.stagedNote")}</p> : null}
       {role.canAuthor ? (
         <div className="flex flex-wrap justify-end gap-2">
@@ -365,7 +384,7 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
         </p>
       ) : null}
       {exams.isError && !exams.data ? (
-        <ErrorState onRetry={() => exams.refetch()} message={t("staffCatalog.moduleExams.loadError")} />
+        <ErrorState onRetry={() => exams.refetch()} message={t("staffCatalog.moduleExams.loadError")} error={exams.error} />
       ) : (
         <Table
           columns={columns}

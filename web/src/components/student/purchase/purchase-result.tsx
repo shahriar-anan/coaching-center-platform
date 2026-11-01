@@ -214,7 +214,7 @@ export function PurchaseResult() {
       />
     );
   } else if (status.isError && !status.data) {
-    body = <ErrorState onRetry={() => void status.refetch()} />;
+    body = <ErrorState error={status.error} onRetry={() => void status.refetch()} />;
   } else if (current === "PAID") {
     const name = memo?.title ?? "";
     const goModule = memo?.moduleId && memo.door ? modulePath(memo.door, memo.moduleId) : null;

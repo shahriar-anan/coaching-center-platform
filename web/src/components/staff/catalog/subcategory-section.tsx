@@ -41,7 +41,7 @@ export function SubcategorySection({ parentId }: { parentId: string }) {
     return <Skeleton variant="card" />;
   }
   if (tree.isError) {
-    return <ErrorState onRetry={() => tree.refetch()} message={t("staffCatalog.categories.loadError")} />;
+    return <ErrorState onRetry={() => tree.refetch()} message={t("staffCatalog.categories.loadError")} error={tree.error} />;
   }
 
   const parent = findNode(tree.data ?? [], parentId);

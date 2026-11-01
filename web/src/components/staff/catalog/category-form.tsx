@@ -176,7 +176,7 @@ export function CategoryForm({ id }: { id?: string }) {
     return <Skeleton variant="card" count={2} />;
   }
   if (id && category.isError) {
-    return <ErrorState onRetry={() => category.refetch()} message={t("staffCatalog.categoryForm.loadError")} />;
+    return <ErrorState onRetry={() => category.refetch()} message={t("staffCatalog.categoryForm.loadError")} error={category.error} />;
   }
   const initial: FormState = category.data
     ? {

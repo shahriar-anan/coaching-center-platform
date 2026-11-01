@@ -123,7 +123,7 @@ function InstructorList() {
       </div>
 
       {instructors.isError ? (
-        <ErrorState onRetry={() => instructors.refetch()} />
+        <ErrorState onRetry={() => instructors.refetch()} error={instructors.error} />
       ) : (
         <>
           <Table

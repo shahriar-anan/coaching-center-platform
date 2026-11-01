@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
 import { Table, type Column } from "@/components/ui/table";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { canOpenReviews } from "@/components/staff/reviews/review-access";
 
 type CategoryName = { id: string; titleEn: string; titleBn: string; depth: number };
 
@@ -61,15 +62,15 @@ export function ModuleList() {
       items.push({ label: t("staffCatalog.rowMenu.students"), href: `/staff/enrolments?package=${m.id}` });
     }
     items.push({ label: t("staffCatalog.rowMenu.exams"), href: `/staff/modules/${m.id}?tab=exams` });
+    if (canOpenReviews(role.role)) {
+      items.push({ label: t("staffReviews.menu"), href: `/staff/reviews?kind=package&targetId=${m.id}` });
+    }
     if (role.canManageRoster) {
       items.push({
         label: t("staffCatalog.rowMenu.roster"),
         href: `/staff/enrol?package=${m.id}`,
         disabled: m.status !== "PUBLISHED",
       });
-    }
-    if (role.canAssignInstructor) {
-      items.push({ label: t("staffCatalog.rowMenu.instructor"), href: `/staff/modules/${m.id}?tab=instructor` });
     }
     return (
       <div onClick={(e) => e.stopPropagation()}>
@@ -174,7 +175,7 @@ export function ModuleList() {
       </div>
 
       {modules.isError && !modules.data ? (
-        <ErrorState onRetry={() => modules.refetch()} message={t("staffCatalog.modules.loadError")} />
+        <ErrorState onRetry={() => modules.refetch()} message={t("staffCatalog.modules.loadError")} error={modules.error} />
       ) : (
         <>
           {modules.isError ? (

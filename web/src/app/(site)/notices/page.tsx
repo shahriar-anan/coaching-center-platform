@@ -1,9 +1,9 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useState } from "react";
-import { BookOpen, Megaphone, Trophy, type LucideIcon } from "lucide-react";
 import { RequireStudent } from "@/lib/auth/guards";
 import { useLocale } from "@/i18n/locale-context";
 import { useToast } from "@/components/ui/toast";
@@ -15,26 +15,26 @@ import {
   type Notice,
   type NoticeGroup,
 } from "@/lib/api/exam/notices";
+import { usePublicModulesById } from "@/lib/api/exam/catalog";
 import { useListParams } from "@/lib/url/list-params";
 import { formatDateTime, formatNumber, pickTitle } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { examPath, modulePath } from "@/components/student/catalog/catalog-helpers";
 import { DoorActions } from "@/components/student/catalog/door-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
-import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
-import { announcementText, isLongBody, previewBody } from "./_components/announcement";
+import { announcementTarget, announcementText, isLongBody, packageDoor, previewBody } from "./_components/announcement";
 import {
   NOTICE_TABS,
   defaultNoticeTab,
   parseNoticeTab,
   paymentHref,
-  tabEdgeClass,
 } from "./_components/notice-tabs";
 import { isMissing } from "@/lib/api/missing";
 
@@ -48,13 +48,6 @@ export default function NoticesPage() {
   );
 }
 
-/** The icon of each tab (Phase 4, A8): a trophy for results, a book for exams, a megaphone for announcements. */
-const TAB_ICON: Record<NoticeGroup, LucideIcon> = {
-  RESULTS: Trophy,
-  EXAMS: BookOpen,
-  ANNOUNCEMENTS: Megaphone,
-};
-
 /** Reminders and starts show the exam's start time in the meta line. */
 const STARTS_KINDS = new Set(["EXAM_REMINDER", "EXAM_STARTING_SOON", "EXAM_OPEN"]);
 
@@ -63,9 +56,43 @@ function kindWord(kind: string, t: (key: string) => string, updated = false): st
   return t(kind === "WRITTEN_RESULT" && updated ? "notices.kind.WRITTEN_RESULT_UPDATED" : noticeKindLabelKey(kind));
 }
 
+/** One quiet card: a thin border and a soft background. The tab colour edge and the chips are gone. */
+const CARD = "rounded-card border border-border bg-card px-4 py-3";
+
+/** The quiet action at the right of a card: accent text with a small arrow, 44 px tall to tap. */
+const ACTION =
+  "inline-flex min-h-11 items-center gap-1 rounded-control text-label font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+/** A small dot for an unread notice; read ones keep the space so the titles line up. The words are for screen readers. */
+function UnreadDot({ unread }: { unread: boolean }) {
+  const { t } = useLocale();
+  return (
+    <>
+      <span aria-hidden="true" className={cn("mt-2 size-2 shrink-0 rounded-full", unread ? "bg-accent" : "bg-transparent")} />
+      {unread ? <span className="sr-only">({t("notices.unreadDot")})</span> : null}
+    </>
+  );
+}
+
+/** The title with the time at its right end. On a narrow screen the time drops under the title. */
+function TitleLine({ title, srOnly, time }: { title: string; srOnly?: string; time: { iso: string; text: string } }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+      <h2 className="min-w-0 text-body font-semibold text-text">
+        {srOnly ? <span className="sr-only">{srOnly}: </span> : null}
+        {title}
+      </h2>
+      <time dateTime={time.iso} className="shrink-0 text-meta text-muted">
+        {time.text}
+      </time>
+    </div>
+  );
+}
+
 /**
- * An announcement: read in place, no link, no edit or delete. The student's language first, the
- * other one when it is blank. Long bodies show their first lines and expand; expanding marks it read.
+ * An announcement: read in place, with no edit or delete. A package or exam announcement names its target as a chip and links to
+ * its page (announcements plan, section 9). The student's language first, the other one when it is blank. Long bodies show their
+ * first lines and expand; expanding or opening the link marks it read.
  */
 function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice) => void }) {
   const { t, locale } = useLocale();
@@ -73,6 +100,14 @@ function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: 
   const unread = isMissing(notice.readAt);
   const { title, body } = announcementText(notice.announcement, locale);
   const long = isLongBody(body);
+  // An exam's title comes with the notice; a package's title and door come from its own read (cached per package).
+  const target = announcementTarget(notice.announcement);
+  const [packageRead] = usePublicModulesById(target?.kind === "package" ? [target.id] : []);
+  const pkg = packageRead?.data;
+  const targetTitle =
+    target?.kind === "exam" ? (notice.exam ? pickTitle(notice.exam, locale) : "") : pkg ? pickTitle(pkg, locale) : "";
+  const href = target?.kind === "exam" ? examPath(target.id) : target ? modulePath(packageDoor(pkg), target.id) : null;
+  const linkLabel = target?.kind === "exam" ? t("announcements.openExam") : t("announcements.openPackage");
 
   function toggle() {
     if (!expanded && unread) onOpen(notice);
@@ -80,29 +115,42 @@ function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: 
   }
 
   return (
-    <article className={cn("grid gap-2 rounded-card border border-l-4 border-border bg-card p-4", tabEdgeClass("ANNOUNCEMENTS"))}>
-      <p className="flex flex-wrap items-center gap-2 text-meta text-muted">
-        <Pill tone="muted">{t("notices.kind.ANNOUNCEMENT")}</Pill>
-        <time dateTime={notice.createdAt}>{formatDateTime(notice.createdAt, locale)}</time>
-        {unread ? <span className="sr-only">({t("notices.unreadDot")})</span> : null}
-      </p>
-      <h2 className="flex items-center gap-2 text-card-title font-bold text-text">
-        {unread ? <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" /> : null}
-        {title || t("notices.kind.ANNOUNCEMENT")}
-      </h2>
-      {body ? (
-        <p className="whitespace-pre-line text-body text-text">{expanded || !long ? body : previewBody(body)}</p>
-      ) : null}
-      {long ? (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={toggle}
-          className="justify-self-start font-semibold text-accent underline underline-offset-4"
-        >
-          {expanded ? t("notices.readLess") : t("notices.readMore")}
-        </button>
-      ) : null}
+    <article className={CARD}>
+      <div className="flex items-start gap-3">
+        <UnreadDot unread={unread} />
+        <div className="grid min-w-0 flex-1 gap-1">
+          <TitleLine
+            title={title || t("notices.kind.ANNOUNCEMENT")}
+            srOnly={t("notices.kind.ANNOUNCEMENT")}
+            time={{ iso: notice.createdAt, text: formatDateTime(notice.createdAt, locale) }}
+          />
+          {targetTitle ? <p className="text-meta text-muted">{targetTitle}</p> : null}
+          {body ? (
+            <p className="whitespace-pre-line text-body text-muted">{expanded || !long ? body : previewBody(body)}</p>
+          ) : null}
+          {long || href ? (
+            <div className="flex flex-wrap items-center gap-x-4">
+              {long ? (
+                <button type="button" aria-expanded={expanded} onClick={toggle} className={ACTION}>
+                  {expanded ? t("notices.readLess") : t("notices.readMore")}
+                </button>
+              ) : null}
+              {href ? (
+                <Link
+                  href={href}
+                  prefetch
+                  onClick={() => onOpen(notice)}
+                  className={ACTION}
+                  aria-label={targetTitle ? `${targetTitle}. ${linkLabel}` : linkLabel}
+                >
+                  {linkLabel}
+                  <ChevronRight aria-hidden="true" className="size-4 rtl:rotate-180" />
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </article>
   );
 }
@@ -117,73 +165,80 @@ function NoticeRow({ notice, tab, onOpen }: { notice: Notice; tab: NoticeGroup; 
     return <AnnouncementRow notice={notice} onOpen={onOpen} />;
   }
   const unread = isMissing(notice.readAt);
-  const Icon = TAB_ICON[tab];
   const title = notice.exam ? pickTitle(notice.exam, locale) : "";
   const kindLabel = kindWord(notice.kind, t, notice.updated === true);
   const href = noticeHref(notice);
   const startsAt = notice.exam?.liveAt && STARTS_KINDS.has(notice.kind) ? notice.exam.liveAt : null;
   const hasScore = !isMissing(notice.score) && !isMissing(notice.maximum);
+  const hasPassed = !isMissing(notice.passed);
   const isPurchase = notice.kind === "PURCHASE_GRANTED";
+  const actionLabel = tab === "RESULTS" ? t("notices.viewResult") : t("notices.openExamAction");
 
   return (
-    <article className={cn("grid gap-3 rounded-card border border-l-4 border-border bg-card p-4", tabEdgeClass(tab))}>
-      <div className="flex flex-wrap items-center gap-2 text-meta text-muted">
-        <Icon aria-hidden="true" className="size-4 shrink-0" />
-        <Pill tone={tab === "RESULTS" ? "ok" : tab === "EXAMS" ? "accent" : "muted"}>{kindLabel}</Pill>
-        <time dateTime={notice.createdAt}>{formatDateTime(notice.createdAt, locale)}</time>
-        {unread ? (
-          <span className="flex items-center gap-1 text-text-accent">
-            <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
-            {t("notices.unreadDot")}
-          </span>
-        ) : null}
-      </div>
-
-      <p className="text-card-title font-bold text-text">{title || kindLabel}</p>
-
-      {startsAt || hasScore || !isMissing(notice.passed) ? (
-        <div className="flex flex-wrap items-center gap-2 text-meta text-muted">
-          {startsAt ? <span>{t("notices.startsAt", { time: formatDateTime(startsAt, locale) })}</span> : null}
-          {hasScore ? (
-            <Pill tone="muted">
-              {t("notices.score", { score: formatNumber(notice.score ?? 0, locale), max: formatNumber(notice.maximum ?? 0, locale) })}
-            </Pill>
-          ) : null}
-          {isMissing(notice.passed) ? null : (
-            <Pill tone={notice.passed ? "ok" : "muted"}>{notice.passed ? t("notices.passed") : t("notices.failed")}</Pill>
-          )}
+    <article className={CARD}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <UnreadDot unread={unread} />
+          <div className="grid min-w-0 flex-1 gap-1">
+            <TitleLine
+              title={title || kindLabel}
+              time={{ iso: notice.createdAt, text: formatDateTime(notice.createdAt, locale) }}
+            />
+            <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-muted">
+              <span>{kindLabel}</span>
+              {startsAt ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{t("notices.startsAt", { time: formatDateTime(startsAt, locale) })}</span>
+                </>
+              ) : null}
+              {hasScore ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-semibold tabular-nums text-text">
+                    {t("notices.score", { score: formatNumber(notice.score ?? 0, locale), max: formatNumber(notice.maximum ?? 0, locale) })}
+                  </span>
+                </>
+              ) : null}
+              {hasPassed ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className={notice.passed ? "font-semibold text-ok" : ""}>
+                    {notice.passed ? t("notices.passed") : t("notices.failed")}
+                  </span>
+                </>
+              ) : null}
+            </p>
+          </div>
         </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-label">
-        {href ? (
-          <Link
-            href={href}
-            prefetch
-            onClick={() => onOpen(notice)}
-            className="font-semibold text-accent underline underline-offset-4"
-            aria-label={`${title || kindLabel}. ${tab === "RESULTS" ? t("notices.viewResult") : t("notices.openExamAction")}`}
-          >
-            {tab === "RESULTS" ? t("notices.viewResult") : t("notices.openExamAction")}
-          </Link>
-        ) : isPurchase ? (
-          <Link href="/my-modules" prefetch onClick={() => onOpen(notice)} className="font-semibold text-accent underline underline-offset-4">
-            {t("notices.myExams")}
-          </Link>
-        ) : unread ? (
-          <button
-            type="button"
-            onClick={() => onOpen(notice)}
-            className="font-semibold text-accent underline underline-offset-4"
-          >
-            {t("notices.markRead")}
-          </button>
-        ) : null}
-        {isPurchase ? (
-          <Link href={paymentHref(notice)} prefetch className="font-semibold text-accent underline underline-offset-4">
-            {t("notices.viewPayment")}
-          </Link>
-        ) : null}
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 ps-5">
+          {href ? (
+            <Link
+              href={href}
+              prefetch
+              onClick={() => onOpen(notice)}
+              className={ACTION}
+              aria-label={`${title || kindLabel}. ${actionLabel}`}
+            >
+              {actionLabel}
+              <ChevronRight aria-hidden="true" className="size-4 rtl:rotate-180" />
+            </Link>
+          ) : isPurchase ? (
+            <Link href="/my-modules" prefetch onClick={() => onOpen(notice)} className={ACTION}>
+              {t("notices.myExams")}
+              <ChevronRight aria-hidden="true" className="size-4 rtl:rotate-180" />
+            </Link>
+          ) : unread ? (
+            <button type="button" onClick={() => onOpen(notice)} className={ACTION}>
+              {t("notices.markRead")}
+            </button>
+          ) : null}
+          {isPurchase ? (
+            <Link href={paymentHref(notice)} prefetch className={ACTION}>
+              {t("notices.viewPayment")}
+            </Link>
+          ) : null}
+        </div>
       </div>
     </article>
   );
@@ -251,7 +306,7 @@ function NoticesView() {
         {query.isPending ? (
           <Skeleton variant="card" count={3} />
         ) : query.isError && rows.length === 0 ? (
-          <ErrorState onRetry={() => void query.refetch()} />
+          <ErrorState error={query.error} onRetry={() => void query.refetch()} />
         ) : rows.length === 0 ? (
           params.page === 0 ? (
             <EmptyState
@@ -264,8 +319,8 @@ function NoticesView() {
           )
         ) : (
           <div className="grid gap-4">
-            {query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : null}
-            <ul className="grid gap-3">
+            {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : null}
+            <ul className="grid gap-2.5">
               {rows.map((notice) => (
                 <li key={notice.id}>
                   <NoticeRow notice={notice} tab={tab} onOpen={open} />

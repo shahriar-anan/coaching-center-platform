@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { StudentShell, footerVariant } from "@/components/shell/student-shell";
 import en from "@/i18n/messages/en/common";
 import bn from "@/i18n/messages/bn/common";
-import { mockApi, renderWithProviders } from "../helpers";
+import { fixtures, mockApi, renderWithProviders } from "../helpers";
 
 const WEB = path.resolve(__dirname, "../..");
 const FOOTER_NAV = "Site information";
@@ -25,10 +25,13 @@ async function fullFooter() {
 }
 
 describe("site footer, full variant", () => {
-  it("shows the old site's contact, company, app, social and copyright content in English", async () => {
+  it("shows the old site's footer: logo, contact, company, app, social and copyright, in English", async () => {
     renderShell("/mcq", "en");
     const footer = await fullFooter();
     const info = within(footer).getByRole("navigation", { name: FOOTER_NAV });
+
+    expect(within(info).queryByRole("heading", { name: "Explore" })).not.toBeInTheDocument();
+    expect(within(info).getByRole("link", { name: en.brand.home })).toHaveAttribute("href", "/");
 
     expect(within(info).getByRole("heading", { name: "Contact Information" })).toBeInTheDocument();
     expect(within(info).getByText("+8801601561225")).toBeInTheDocument();
@@ -44,11 +47,11 @@ describe("site footer, full variant", () => {
 
     expect(within(info).getByRole("heading", { name: "Get Mobile App" })).toBeInTheDocument();
     expect(within(info).getByText(en.footer.appText)).toBeInTheDocument();
-    expect(within(info).getByText("Coming soon")).toBeInTheDocument();
-    expect(within(info).queryByRole("link", { name: "App Store" })).not.toBeInTheDocument();
-    expect(within(info).queryByRole("link", { name: "Google Play" })).not.toBeInTheDocument();
-    expect(within(info).getByText("App Store")).toHaveAttribute("aria-disabled", "true");
-    expect(within(info).getByText("Google Play")).toHaveAttribute("aria-disabled", "true");
+    // The store pages are not live yet: the buttons are shown but are not links.
+    expect(within(footer).queryByRole("link", { name: "App Store" })).not.toBeInTheDocument();
+    expect(within(footer).queryByRole("link", { name: "Google Play" })).not.toBeInTheDocument();
+    expect(within(footer).getByText("App Store")).toHaveAttribute("aria-disabled", "true");
+    expect(within(footer).getByText("Google Play")).toHaveAttribute("title", "Coming soon");
 
     const social = within(footer).getByRole("navigation", { name: "Social media" });
     expect(within(social).getByRole("link", { name: "Facebook" })).toHaveAttribute(
@@ -78,13 +81,25 @@ describe("site footer, full variant", () => {
     expect(within(footer).getByRole("heading", { name: bn.footer.appHeading })).toBeInTheDocument();
     expect(within(footer).getByText(bn.footer.appText)).toBeInTheDocument();
     expect(within(footer).getByText(bn.footer.copyright)).toBeInTheDocument();
-    expect(within(footer).getByText(bn.footer.comingSoon)).toBeInTheDocument();
+    expect(within(footer).getByText(bn.footer.appStore)).toHaveAttribute("title", bn.footer.comingSoon);
     expect(within(footer).getByRole("link", { name: bn.footer.developerName })).toHaveAttribute(
       "href",
       "https://www.linkedin.com/in/shahriar-anan-a358562a3/",
     );
     expect(within(footer).getByRole("link", { name: bn.footer.about })).toHaveAttribute("href", "/about");
     expect(within(footer).queryByText("Contact Information")).not.toBeInTheDocument();
+  });
+
+  it("shows the payment methods strip with its alt text, and the social icons are named links", async () => {
+    renderShell("/mcq", "en");
+    const footer = await fullFooter();
+    expect(within(footer).getByAltText(en.payments.alt)).toHaveAttribute("src", expect.stringContaining("payment-methods.png"));
+    const social = within(footer).getByRole("navigation", { name: "Social media" });
+    for (const link of within(social).getAllByRole("link")) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(link).toHaveAttribute("aria-label");
+    }
   });
 
   it("links only to pages that exist on the student site", async () => {
@@ -101,18 +116,29 @@ describe("site footer, full variant", () => {
   });
 });
 
-describe("site footer, minimal and none variants", () => {
+describe("site footer on every page", () => {
   for (const route of ["/login", "/register", "/set-phone", "/forgot-password"]) {
-    it(`shows only copyright and legal links on ${route}`, async () => {
+    it(`shows the full footer on ${route}`, async () => {
       renderShell(route, "en");
       const footer = await fullFooter();
-      const links = within(footer).getAllByRole("link").map((link) => link.textContent);
-      expect(links).toEqual(["Terms and conditions", "Return Refund", "Privacy Policy"]);
+      expect(within(footer).getByRole("heading", { name: "Contact Information" })).toBeInTheDocument();
+      expect(within(footer).getByRole("link", { name: "Terms and conditions" })).toHaveAttribute("href", "/terms");
       expect(within(footer).getByText(en.footer.copyright)).toBeInTheDocument();
-      expect(within(footer).queryByText("Contact Information")).not.toBeInTheDocument();
-      expect(within(footer).queryByText("Shahriar Anan")).not.toBeInTheDocument();
     });
   }
+
+  it("shows the full footer to a signed-in student too", async () => {
+    mockApi({});
+    renderWithProviders(
+      <StudentShell>
+        <p>page</p>
+      </StudentShell>,
+      { user: fixtures.student, locale: "en", route: "/results" },
+    );
+    const footer = await fullFooter();
+    expect(within(footer).getByRole("heading", { name: "Get Mobile App" })).toBeInTheDocument();
+    expect(within(footer).getByText(en.footer.copyright)).toBeInTheDocument();
+  });
 
   it("shows no footer on the exam sitting page", () => {
     renderShell("/exam/abc123/sit", "en");
@@ -126,14 +152,11 @@ describe("footerVariant (the route decides)", () => {
     expect(footerVariant("/exam/abc/sit/")).toBe("none");
   });
 
-  it("gives sign-in and sign-up pages the minimal footer", () => {
-    for (const route of ["/login", "/login/google", "/register", "/set-phone", "/activate", "/code", "/reset-password"]) {
-      expect(footerVariant(route)).toBe("minimal");
-    }
-  });
-
-  it("gives result, submitted, preview and other pages the full footer", () => {
-    for (const route of ["/", "/mcq", "/exam/abc", "/exam/abc/result", "/exam/abc/submitted", "/exam/abc/preview", "/results", "/loginx"]) {
+  it("gives every other page the full footer, sign-in pages and signed-in pages included", () => {
+    for (const route of [
+      "/", "/mcq", "/exam/abc", "/exam/abc/result", "/exam/abc/submitted", "/exam/abc/preview", "/results",
+      "/login", "/register", "/set-phone", "/activate", "/code", "/reset-password", "/my-modules", "/account",
+    ]) {
       expect(footerVariant(route)).toBe("full");
     }
   });

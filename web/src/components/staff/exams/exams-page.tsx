@@ -11,6 +11,7 @@ import {
   useCopyListedExam,
   useDeleteListedExam,
   useExamList,
+  useRestoreListedExam,
   useWithdrawListedExam,
   type ExamListParams,
 } from "@/lib/api/exam/staff-exams";
@@ -120,13 +121,20 @@ export function ExamsPage() {
   const copy = useCopyListedExam();
   const withdraw = useWithdrawListedExam();
   const remove = useDeleteListedExam();
+  const restore = useRestoreListedExam();
   const [confirming, setConfirming] = useState<{ action: "withdraw" | "delete"; exam: StaffExam } | null>(null);
+  // Restore asks first too, with the exam editor's copy: the exam goes back to draft.
+  const [restoringExam, setRestoringExam] = useState<StaffExam | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   function onAction(action: ExamAction, exam: StaffExam) {
     setActionError(null);
     if (action === "copy") {
       copy.mutate(exam.id, { onError: () => setActionError(t("staffExams.actionFailed")) });
+      return;
+    }
+    if (action === "restore") {
+      setRestoringExam(exam);
       return;
     }
     setConfirming({ action, exam });
@@ -251,7 +259,7 @@ export function ExamsPage() {
       </div>
 
       {list.isError && !list.data ? (
-        <ErrorState onRetry={() => list.refetch()} message={t("staffExams.loadError")} />
+        <ErrorState onRetry={() => list.refetch()} message={t("staffExams.loadError")} error={list.error} />
       ) : list.isPending ? (
         <Skeleton variant="rows" count={5} />
       ) : (
@@ -328,6 +336,27 @@ export function ExamsPage() {
           confirmLabel={confirming.action === "withdraw" ? t("staffExams.withdrawConfirm") : t("staffExams.deleteConfirm")}
           tone="danger"
           onConfirm={runConfirmed}
+        />
+      ) : null}
+
+      {restoringExam ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setRestoringExam(null);
+          }}
+          title={t("staffCatalog.editor.restoreTitle", { name: pickTitle(restoringExam) })}
+          body={t("staffCatalog.editor.restoreBody")}
+          confirmLabel={t("staffCatalog.editor.restoreConfirm")}
+          onConfirm={async () => {
+            const exam = restoringExam;
+            setRestoringExam(null);
+            try {
+              await restore.mutateAsync(exam.id);
+            } catch {
+              setActionError(t("staffExams.actionFailed"));
+            }
+          }}
         />
       ) : null}
     </div>

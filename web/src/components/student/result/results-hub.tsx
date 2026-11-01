@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQueries } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -12,27 +12,29 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Stat, StatRow } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
 import { useLocale } from "@/i18n/locale-context";
-import { apiRequest } from "@/lib/api/client";
-import { sittingKeys, useModuleExams, useMyModules, type HubExam, type ReviewedResult } from "@/lib/api/exam/sitting";
+import { useMyExamResults, type MyExamResult } from "@/lib/api/exam/sitting";
 import { formatDate, formatNumber, pickTitle } from "@/lib/format";
-import { Button } from "@/components/ui/button";
 import { ExamStatusPill } from "@/components/student/catalog/status-pill";
-import { TypeFilter, filterByType, typeLabelKey, useTypeFilterParam } from "@/components/student/catalog/type-filter";
+import { TypeFilter, typeLabelKey, useTypeFilterParam } from "@/components/student/catalog/type-filter";
+import { RateLink, canRateSitting } from "@/components/student/reviews/rate-link";
 import type { MyStatus } from "@/lib/api/exam/catalog";
+import { reviewedTargets, useMyReviews } from "@/lib/api/exam/reviews";
 import { isMissing } from "@/lib/api/missing";
-
-const RESULT_STATUSES = new Set(["RESULT_READY", "FAILED_TO_SUBMIT"]);
-const MARKING_STATUSES = new Set(["AWAITING_RESULT"]);
-/** Missed, open, or submitted but not yet due: listed on their own tab so the history is complete. */
-const OTHER_STATUSES = new Set(["MISSED", "OPEN", "IN_PROGRESS", "SUBMITTED"]);
 
 type Tab = "results" | "marking" | "other";
 
-/** Newest first, by the day the exam is live. Undated exams sort last. */
-function newestFirst(a: HubExam, b: HubExam): number {
-  const left = a.liveAt ? Date.parse(a.liveAt) : 0;
-  const right = b.liveAt ? Date.parse(b.liveAt) : 0;
-  return right - left;
+/** A score the student may see, or a script that never got in: the Results tab. */
+function isResult(row: MyExamResult): boolean {
+  return row.resultVisible || row.status === "FAILED_TO_SUBMIT";
+}
+
+/**
+ * Where a row sits. A submitted script or answer sheet that is not released yet is being marked, straight after the submit.
+ * Only an attempt still in progress (or otherwise unfinished) is in "In progress".
+ */
+function tabOf(row: MyExamResult): Tab {
+  if (isResult(row)) return "results";
+  return row.status === "SUBMITTED" || row.status === "AWAITING_RESULT" ? "marking" : "other";
 }
 
 export function ResultsHub() {
@@ -40,50 +42,22 @@ export function ResultsHub() {
   const n = (value: number) => formatNumber(value, locale);
   const [tab, setTab] = useState<Tab>("results");
   const [type, setType] = useTypeFilterParam();
-  const modules = useMyModules();
-  const moduleList = useMemo(() => modules.data?.content ?? [], [modules.data]);
-  const moduleIds = useMemo(() => moduleList.map((module) => module.id), [moduleList]);
-  const moduleTitle = useMemo(
-    () => new Map(moduleList.map((module) => [module.id, pickTitle(module, locale)])),
-    [moduleList, locale],
-  );
-  const examQueries = useModuleExams(moduleIds);
+  // The type narrows the list on the server, so every tab, the summary and the badges follow it.
+  const list = useMyExamResults(type);
+  const rows = useMemo(() => list.data?.pages.flatMap((page) => page.content) ?? [], [list.data]);
+  // The reviews the student has written, so a row already rated shows no "Rate". A failed read hides the action.
+  const myReviews = useMyReviews(true);
+  const reviewed = reviewedTargets(myReviews.data);
 
-  const loadingExams = examQueries.some((query) => query.isPending);
-  const failedExams = examQueries.some((query) => query.isError);
-
-  const exams = useMemo(
-    () =>
-      examQueries
-        .flatMap((query) => query.data?.content ?? [])
-        .filter((exam) => RESULT_STATUSES.has(exam.myStatus) || MARKING_STATUSES.has(exam.myStatus) || OTHER_STATUSES.has(exam.myStatus))
-        .sort(newestFirst),
-    [examQueries],
-  );
-  // The MCQ and Written filter (Phase 4, A3) narrows every tab, the summary and the badges together.
-  const typed = filterByType(exams, type, (exam) => exam.examType);
-  const resultRows = typed.filter((exam) => RESULT_STATUSES.has(exam.myStatus));
-  const markingRows = typed.filter((exam) => MARKING_STATUSES.has(exam.myStatus));
-  const otherRows = typed.filter((exam) => OTHER_STATUSES.has(exam.myStatus));
+  const resultRows = rows.filter((row) => tabOf(row) === "results");
+  const markingRows = rows.filter((row) => tabOf(row) === "marking");
+  const otherRows = rows.filter((row) => tabOf(row) === "other");
   const visible = tab === "results" ? resultRows : tab === "marking" ? markingRows : otherRows;
-
-  // Marks and pass for each result row, used by the Passed count and the result tab.
-  const resultQueries = useQueries({
-    // Marks feed the Passed count on every tab, so they are fetched for every result row.
-    queries: resultRows.map((exam) => ({
-      queryKey: sittingKeys.result(exam.id),
-      queryFn: () => apiRequest<ReviewedResult>(`/api/v1/live-exams/${exam.id}/result`),
-      staleTime: 60_000,
-    })),
-  });
-  const resultById = new Map(
-    resultRows.map((exam, index) => [exam.id, resultQueries[index]?.data] as const),
-  );
-  const passedCount = resultRows.filter((exam) => resultById.get(exam.id)?.passed === true).length;
+  const passedCount = resultRows.filter((row) => row.passed === true).length;
 
   const header = <PageHeader title={t("result.hub.title")} />;
 
-  if (modules.isPending || loadingExams) {
+  if (list.isPending) {
     return (
       <div className="flex flex-col gap-4">
         {header}
@@ -93,11 +67,12 @@ export function ResultsHub() {
     );
   }
 
-  if (modules.isError || failedExams) {
+  // A failed first page has nothing to show; a failed later page is shown above the rows already loaded.
+  if (list.isError && !list.data) {
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <ErrorState onRetry={() => void modules.refetch()} />
+        <ErrorState error={list.error} onRetry={() => void list.refetch()} />
       </div>
     );
   }
@@ -105,6 +80,7 @@ export function ResultsHub() {
   return (
     <div className="flex flex-col gap-4 pb-8">
       {header}
+      {list.isError ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : null}
 
       <StatRow>
         <Stat value={n(resultRows.length)} label={t("result.hub.summaryTaken")} />
@@ -126,7 +102,7 @@ export function ResultsHub() {
         <TypeFilter value={type} onChange={setType} />
       </div>
 
-      {visible.length === 0 ? (
+      {visible.length === 0 && !list.hasNextPage ? (
         <EmptyState
           title={
             type
@@ -145,44 +121,55 @@ export function ResultsHub() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3">
-          {visible.map((exam) => {
-            const result = resultById.get(exam.id);
+        <ul className="flex flex-col gap-2">
+          {visible.map((row) => {
+            const moduleTitle = pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn }, locale);
             return (
-              <li key={exam.id}>
-                <Card href={tab === "other" ? `/exam/${exam.id}` : `/exam/${exam.id}/result`}>
-                  <p className="text-body text-muted">{moduleTitle.get(exam.moduleId) ?? ""}</p>
-                  <p className="font-semibold text-text">{pickTitle(exam, locale)}</p>
-                  {exam.passPercent !== null && exam.passPercent !== undefined ? (
-                    <p className="text-meta text-muted">{t("result.hub.passLine", { p: n(exam.passPercent) })}</p>
+              <li key={row.examId}>
+                <Card padding="sm" href={tab === "other" ? `/exam/${row.examId}` : `/exam/${row.examId}/result`}>
+                  {moduleTitle ? <p className="text-meta text-muted">{moduleTitle}</p> : null}
+                  <p className="text-body font-semibold text-text">{pickTitle(row, locale)}</p>
+                  {!isMissing(row.passPercent) ? (
+                    <p className="text-meta text-muted">{t("result.hub.passLine", { p: n(row.passPercent) })}</p>
                   ) : null}
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-body text-muted">
-                    <span>{exam.examType === "MCQ" ? t("result.hub.mcq") : t("result.hub.written")}</span>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-2 text-meta text-muted">
+                    <span>{row.examType === "MCQ" ? t("result.hub.mcq") : t("result.hub.written")}</span>
                     <span aria-hidden="true">·</span>
-                    <span>{exam.liveAt ? formatDate(exam.liveAt, locale) : t("result.hub.undated")}</span>
-                    {tab === "results" && result ? (
-                      <Pill tone={result.passed ? "ok" : "muted"}>
-                        {isMissing(result.score)
+                    <span>{row.liveAt ? formatDate(row.liveAt, locale) : t("result.hub.undated")}</span>
+                    {tab === "results" ? (
+                      <Pill tone={row.passed ? "ok" : "muted"}>
+                        {isMissing(row.score)
                           ? t("result.stat.none")
-                          : t("result.stat.score", { score: n(result.score), maximum: n(result.maximum) })}
+                          : t("result.stat.score", { score: n(row.score), maximum: n(row.maximum) })}
                         {" · "}
-                        {result.passed ? t("result.outcome.passed") : t("result.outcome.failed")}
+                        {row.passed ? t("result.outcome.passed") : t("result.outcome.failed")}
                       </Pill>
                     ) : null}
-                    {tab === "results" && result?.kind === "RETAKE" ? (
-                      <Pill tone="warn">{t("result.page.practice")}</Pill>
-                    ) : null}
+                    {row.kind === "RETAKE" ? <Pill tone="warn">{t("result.page.practice")}</Pill> : null}
                     {tab === "marking" ? <Pill tone="warn">{t("result.hub.awaiting")}</Pill> : null}
                     {tab === "other" ? (
-                      <ExamStatusPill status={exam.myStatus as MyStatus} examType={exam.examType} retakeAvailable={null} />
+                      <ExamStatusPill status={row.status as MyStatus} examType={row.examType} retakeAvailable={null} />
                     ) : null}
                   </p>
                 </Card>
+                {tab !== "other" && canRateSitting(row.status, row.examId, reviewed) ? (
+                  <div className="mt-1 flex justify-end">
+                    <RateLink examId={row.examId} />
+                  </div>
+                ) : null}
               </li>
             );
           })}
         </ul>
       )}
+
+      {list.hasNextPage ? (
+        <div className="flex justify-center">
+          <Button variant="secondary" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
+            {t("result.hub.loadMore")}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -4,13 +4,12 @@ import { describe, expect, it } from "vitest";
 import { CategoryTree } from "@/components/staff/catalog/category-tree";
 import { ModuleDetails } from "@/components/staff/catalog/module-details";
 import { RosterTab } from "@/components/staff/catalog/roster-tab";
-import { InstructorTab } from "@/components/staff/catalog/instructor-tab";
 import { ExamMetaForm } from "@/components/staff/catalog/exam-meta-form";
 import { McqQuestions } from "@/components/staff/catalog/mcq-questions";
 import { QuestionEditor } from "@/components/staff/catalog/question-editor";
 import { WrittenPaper } from "@/components/staff/catalog/written-paper";
 import type { StaffExam, StaffModule } from "@/lib/api/exam/staff-catalog";
-import { apiError, fixtures, mockApi, renderWithProviders } from "../helpers";
+import { fixtures, mockApi, renderWithProviders } from "../helpers";
 
 const category = {
   id: "cccccccc-0000-0000-0000-000000000001",
@@ -171,32 +170,6 @@ describe("roster (Master Admin)", () => {
     renderWithProviders(<RosterTab moduleId={moduleFixture.id} published={false} />, { user: fixtures.masterAdmin });
     expect(screen.queryByPlaceholderText("শিক্ষার্থী কোড, ফোন, ইমেইল বা নাম")).not.toBeInTheDocument();
     expect(screen.getByText("শিক্ষার্থী ভর্তির আগে প্যাকেজটি প্রকাশ করুন। আগে থেকে ভর্তি শিক্ষার্থীদের প্রবেশাধিকার থাকবে।")).toBeInTheDocument();
-  });
-});
-
-describe("instructor (Master Admin)", () => {
-  it("shows the conflict sentence when a second instructor is assigned", async () => {
-    const instructorRow = {
-      id: "i1",
-      fullName: "ফারিহা রহমান",
-      phone: "01711000020",
-      email: null,
-      status: "ACTIVE",
-      createdAt: "2026-10-01T00:00:00Z",
-      modules: [],
-    };
-    const page = { content: [instructorRow], page: 0, size: 20, totalElements: 1, totalPages: 1 };
-    mockApi({
-      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001": { ...moduleFixture, instructor: null },
-      "GET /api/v1/instructors": (req: { url: URL }) => (req.url.searchParams.get("assigned") === "true" ? { ...page, content: [] } : page),
-      "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/instructor": () =>
-        apiError(409, "INSTRUCTOR_ALREADY_ASSIGNED", "Already assigned."),
-    });
-    renderWithProviders(<InstructorTab moduleId={moduleFixture.id} />, { user: fixtures.masterAdmin });
-
-    await userEvent.click(await screen.findByRole("button", { name: "শিক্ষক দিন" }));
-    await userEvent.click((await screen.findAllByRole("button", { name: "বেছে নিন" }))[0]);
-    expect(await screen.findByText("এই প্যাকেজে আগেই একজন শিক্ষক দেওয়া আছে। আগে তাকে সরান।")).toBeInTheDocument();
   });
 });
 

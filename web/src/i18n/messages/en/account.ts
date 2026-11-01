@@ -58,7 +58,7 @@ const account = {
   receipt: {
     open: "View receipt",
     title: "Payment receipt",
-    site: "Exam Portal",
+    site: "Symam Law",
     student: "Student",
     item: "Purchased",
     amount: "Amount",

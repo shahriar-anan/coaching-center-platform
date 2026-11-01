@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ReviewCard } from "@/components/student/reviews/review-card";
 import { useLocale } from "@/i18n/locale-context";
 import { useStudentExam } from "@/lib/api/exam/sitting";
 import { useFormat } from "@/lib/format/use-format";
@@ -35,7 +36,7 @@ export function SubmittedPage({ examId }: { examId: string }) {
     return <Skeleton variant="card" />;
   }
   if (exam.isError || !data) {
-    return <ErrorState onRetry={() => exam.refetch()} />;
+    return <ErrorState error={exam.error} onRetry={() => exam.refetch()} />;
   }
 
   const title = format.pickTitle({ titleEn: data.titleEn, titleBn: data.titleBn ?? data.titleEn });
@@ -54,6 +55,7 @@ export function SubmittedPage({ examId }: { examId: string }) {
           </div>
         </div>
       </Card>
+      <ReviewCard kind="exam" id={examId} />
     </div>
   );
 }

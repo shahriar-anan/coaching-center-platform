@@ -8,13 +8,16 @@ import {
   usePublicModulesById,
   type StudentExam,
 } from "@/lib/api/exam/catalog";
-import { ApiError } from "@/lib/api/errors";
+import { isUnknownItemError } from "@/lib/api/errors";
+import { studentHome } from "@/lib/config";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
 import { OpenOrderLine, PurchasedLine, useBoughtGrant } from "@/components/student/purchase/order-lines";
 import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
+import { AnnouncementCard } from "@/components/student/announcements/announcement-card";
+import { RatingBadge } from "@/components/student/reviews/rating-badge";
 import { formatDate, formatDateTime, formatDuration, formatMoney, formatNumber, formatTime, pickText, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
@@ -22,8 +25,8 @@ import { cn } from "@/components/ui/cn";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Countdown } from "@/components/ui/countdown";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
 import { Pill } from "@/components/ui/pill";
@@ -116,11 +119,11 @@ export function ExamPage({ examId }: { examId: string }) {
       </>
     );
   }
-  if (exam.isError && exam.error instanceof ApiError && exam.error.code === "RESOURCE_NOT_FOUND") {
+  if (exam.isError && isUnknownItemError(exam.error)) {
     return (
       <>
-        <PageHeader title={t("catalog.notFound")} />
-        <EmptyState title={t("catalog.notFound")} body={t("catalog.notFoundBody")} action={<Button variant="secondary" href="/">{t("catalog.home")}</Button>} />
+        <PageHeader title={t("common.notFound.exam")} />
+        <NotFoundState title={t("common.notFound.exam")} body={t("common.notFound.itemBody")} backHref={studentHome} backLabel={t("common.guard.goHome")} />
       </>
     );
   }
@@ -128,7 +131,7 @@ export function ExamPage({ examId }: { examId: string }) {
     return (
       <>
         <PageHeader title={t("catalog.loadFailed")} />
-        <ErrorState onRetry={() => void exam.refetch()} />
+        <ErrorState error={exam.error} onRetry={() => void exam.refetch()} />
       </>
     );
   }
@@ -162,7 +165,6 @@ export function ExamPage({ examId }: { examId: string }) {
   const endsAt = data.endAt;
   const hasWindow = Boolean(startsAt && endsAt);
   const beforeStart = hasWindow && now < Date.parse(startsAt as string);
-  const windowOpen = hasWindow && now >= Date.parse(startsAt as string) && now < Date.parse(endsAt as string);
   const examType = data.examType;
   const retakeOffer = status === "MISSED" && owned?.retakeAvailable === true && examType === "MCQ";
   // The API says a missed paper can still be sat (ARCHIVED_OPEN). For a written paper that is the one first attempt.
@@ -188,14 +190,20 @@ export function ExamPage({ examId }: { examId: string }) {
       primary = <Button fullWidth disabled={checkoutOff || examAccess.buyable === false} onClick={() => setBuying(true)}>{buyLabel}</Button>;
     }
   } else if (ownsExam) {
+    // A submitted MCQ is final: its paper is never offered again, so the action is the result.
+    const submittedMcq = examType === "MCQ" && (status === "SUBMITTED" || Boolean(owned?.sitting?.submittedAt));
+    // A stored written script is the submission: the submitted page shows it, and it is never resumed.
+    const storedWritten = examType === "WRITTEN" && owned?.answerStored === true && status !== "RESULT_READY";
     if (status === "NOT_ANNOUNCED") {
       primary = <Button fullWidth disabled>{t("catalog.status.NOT_ANNOUNCED")}</Button>;
     } else if (status === "UPCOMING") {
       primary = <Button fullWidth disabled>{t("catalog.exam.startExam")}</Button>;
     } else if (status === "OPEN") {
       primary = <Button fullWidth onClick={() => setStarting("live")}>{examAccess.via === "FREE" ? t("catalog.exam.freeStart") : t("catalog.exam.startExam")}</Button>;
-    } else if ((status === "IN_PROGRESS" || (status === "SUBMITTED" && windowOpen)) && !sittingEnded) {
-      primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t(status === "SUBMITTED" ? "catalog.exam.reviewAnswers" : "catalog.exam.resume")}</Button>;
+    } else if (storedWritten) {
+      primary = <Button fullWidth href={`${examPath(examId)}/submitted`}>{t("catalog.exam.viewSubmission")}</Button>;
+    } else if (status === "IN_PROGRESS" && !submittedMcq && !sittingEnded) {
+      primary = <Button fullWidth href={`${examPath(examId)}/sit`}>{t("catalog.exam.resume")}</Button>;
     } else if (status === "MISSED") {
       // A written paper the student bought after its window ended, and never sat: one first attempt, now (D20).
       primary = writtenArchivedOpen ? (
@@ -208,8 +216,8 @@ export function ExamPage({ examId }: { examId: string }) {
       ) : (
         <p className="text-center text-muted">{t("catalog.exam.missedBody")}</p>
       );
-    } else if (sittingEnded || status === "AWAITING_RESULT" || status === "RESULT_READY" || status === "FAILED_TO_SUBMIT" || status === "SUBMITTED") {
-      primary = <Button fullWidth href={`${examPath(examId)}/result`}>{t("catalog.exam.viewResult")}</Button>;
+    } else if (sittingEnded || submittedMcq || status === "AWAITING_RESULT" || status === "RESULT_READY" || status === "FAILED_TO_SUBMIT" || status === "SUBMITTED") {
+      primary = <Button fullWidth href={`${examPath(examId)}/result`}>{t(submittedMcq ? "catalog.exam.viewSubmittedResult" : "catalog.exam.viewResult")}</Button>;
     }
   }
   // The paper preview (C10', P-b), when staff switched it on and the window has ended or the exam is practice, as the API
@@ -254,10 +262,11 @@ export function ExamPage({ examId }: { examId: string }) {
               {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
             </div>
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
+            <RatingBadge average={data.ratingAverage} count={data.ratingCount} />
             <p className="text-body text-muted">{timingLine}</p>
             {status === "SUBMITTED" && owned?.sitting?.submittedAt ? (
               <p className="text-body font-semibold text-ok">
-                {t("catalog.exam.submittedLine", { time: formatTime(owned.sitting.submittedAt, locale), deadline: formatTime(owned.sitting.deadlineAt, locale) })}
+                {t("catalog.exam.submittedLine", { time: formatTime(owned.sitting.submittedAt, locale) })}
               </p>
             ) : null}
             <FavouriteButton kind="exam" id={examId} initial={data.favourite} next={examPath(examId)} />
@@ -283,6 +292,9 @@ export function ExamPage({ examId }: { examId: string }) {
             {primary}
             {previewLink}
             {isStudent && !ownsExam ? <OpenOrderLine filter={{ examId }} enabled /> : null}
+            <Button variant="secondary" fullWidth href={`${examPath(examId)}/reviews`}>
+              {data.ratingCount ? t("reviews.buttonCount", { count: formatNumber(data.ratingCount, locale) }) : t("reviews.button")}
+            </Button>
             <Button variant="ghost" fullWidth onClick={() => void copyLink()}>
               {t("catalog.exam.copyLink")}
             </Button>
@@ -299,6 +311,9 @@ export function ExamPage({ examId }: { examId: string }) {
           />
         }
       >
+        {/* The announcements of this exam, for its holder or for a free exam. A visitor or a non-holder asks for none. */}
+        <AnnouncementCard kind="exam" id={examId} enabled={isStudent && (ownsExam || Boolean(data.pricing?.free))} />
+
         <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-card border border-border bg-card p-5 md:grid-cols-3">
           <Fact label={t("catalog.exam.duration")} value={formatDuration(data.durationMinutes, locale)} />
           <Fact

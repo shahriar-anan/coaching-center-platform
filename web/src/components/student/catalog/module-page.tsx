@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   useCategoryTree,
   useCheckoutEnabled,
@@ -10,13 +10,17 @@ import {
   type PublicExam,
   type StudentExam,
 } from "@/lib/api/exam/catalog";
-import { ApiError } from "@/lib/api/errors";
+import { isUnknownItemError } from "@/lib/api/errors";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
 import { OpenOrderLine, PurchasedLine, useBoughtGrant } from "@/components/student/purchase/order-lines";
 import { resolveAccess } from "@/components/student/purchase/access";
 import { AccessBadge } from "@/components/ui/purchase/access-badge";
 import { ConfigNotice } from "@/components/ui/purchase/config-notice";
+import { AnnouncementCard } from "@/components/student/announcements/announcement-card";
+import { RatingBadge } from "@/components/student/reviews/rating-badge";
+import { ReviewCard } from "@/components/student/reviews/review-card";
+import { ReviewsSection } from "@/components/student/reviews/reviews-section";
 import { BundleSelection } from "./bundle-selection";
 import { ActionBar, DetailLayout, barActionOf, detailFrame } from "./detail-layout";
 import { PriceLine } from "./price-line";
@@ -32,6 +36,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { PackageCover, coverSrc } from "@/components/ui/package/package-cover";
@@ -50,11 +55,13 @@ import {
   type Door,
 } from "./catalog-helpers";
 import { ExamRow } from "./exam-row";
+import { examInView } from "./exam-view";
+import { ExamViewTabs, examViewEmptyKey, useExamViewParam } from "./exam-view-tabs";
 import { FavouriteButton } from "./favourite-button";
 import { IncludedList } from "./included-list";
 import { ExamStatusPill, TypePill } from "./status-pill";
 
-type ModuleTab = "exams" | "routine" | "about";
+type ModuleTab = "exams" | "routine" | "about" | "reviews";
 
 export function ProgressBar({ done, total }: { done: number; total: number }) {
   const { t, locale } = useLocale();
@@ -81,7 +88,16 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
   );
 }
 
+/** The exam tabs read the URL, so the page sits inside a Suspense boundary for the static build (as the packages page does). */
 export function ModulePage({ door, moduleId }: { door: Door; moduleId: string }) {
+  return (
+    <Suspense fallback={<Skeleton variant="card" count={4} />}>
+      <ModulePageContent door={door} moduleId={moduleId} />
+    </Suspense>
+  );
+}
+
+function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string }) {
   const { t, locale } = useLocale();
   const { session } = useSession();
   const now = useServerNow(30_000);
@@ -102,6 +118,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const bought = useBoughtGrant({ moduleId }, isStudent && moduleAccess.owned);
   const [buying, setBuying] = useState(false);
   const [tab, setTab] = useState<ModuleTab>("exams");
+  const [view, setView] = useExamViewParam();
   const [buyOffscreen, setBuyOffscreen] = useState(false);
   const buyRef = useRef<HTMLElement | null>(null);
   const checkoutOff = useCheckoutEnabled().data === false;
@@ -130,18 +147,15 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       </>
     );
   }
-  if (moduleQuery.isError && moduleQuery.error instanceof ApiError && moduleQuery.error.code === "RESOURCE_NOT_FOUND") {
+  if (moduleQuery.isError && isUnknownItemError(moduleQuery.error)) {
     return (
       <>
-        <PageHeader title={t("catalog.notFound")} breadcrumbs={baseCrumbs} />
-        <EmptyState
-          title={t("catalog.notFound")}
-          body={t("catalog.notFoundBody")}
-          action={
-            <Button variant="secondary" href={doorPath(door)}>
-              {t("catalog.backToDoor", { door: doorLabel })}
-            </Button>
-          }
+        <PageHeader title={t("common.notFound.package")} breadcrumbs={baseCrumbs} />
+        <NotFoundState
+          title={t("common.notFound.package")}
+          body={t("common.notFound.itemBody")}
+          backHref={doorPath(door)}
+          backLabel={t("catalog.backToDoor", { door: doorLabel })}
         />
       </>
     );
@@ -151,6 +165,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
       <>
         <PageHeader title={t("catalog.loadFailed")} breadcrumbs={baseCrumbs} />
         <ErrorState
+          error={moduleQuery.error ?? exams.error}
           onRetry={() => {
             void moduleQuery.refetch();
             void exams.refetch();
@@ -175,6 +190,8 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
   const list: (PublicExam & { mine?: StudentExam })[] = (exams.data ?? [])
     .map((exam) => ({ ...exam, mine: owned.get(exam.id) }))
     .sort(bySchedule);
+  // The exam tab (REQ-007) filters the fetched list on the client, with the API's rules and the server-corrected time.
+  const shown = list.filter((exam) => examInView(exam, view, now));
   const nextDated = list.find((e) => e.endAt && Date.parse(e.endAt) > now && e.liveAt);
   const price = data.price;
   const loginHref = `/login?next=${encodeURIComponent(modulePath(door, moduleId))}`;
@@ -217,6 +234,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
     { value: "exams", label: t("catalog.examListTitle"), badge: list.length },
     { value: "routine", label: t("catalog.routineTitle") },
     ...(description ? [{ value: "about" as const, label: t("catalog.package.about") }] : []),
+    { value: "reviews", label: t("reviews.tab"), badge: data.ratingCount || undefined },
   ];
   const activeTab = tabItems.some((item) => item.value === tab) ? tab : "exams";
 
@@ -233,6 +251,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
               {moduleOwned ? <Pill tone="ok">✓ {t("catalog.unlocked")}</Pill> : null}
             </div>
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
+            <RatingBadge average={data.ratingAverage} count={data.ratingCount} />
             <p className="text-body text-muted">{summaryLine}</p>
             <FavouriteButton kind="package" id={moduleId} initial={data.favourite} next={modulePath(door, moduleId)} />
           </header>
@@ -276,6 +295,9 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
         }
       >
         <div className="grid gap-5">
+          {/* The announcements of this package, for a holder or for a free package. A visitor or a non-holder asks for none. */}
+          <AnnouncementCard kind="package" id={moduleId} enabled={isStudent && (moduleOwned || Boolean(data.pricing?.free))} />
+
           {/* The tabs wrap at 320 px, so "About" is never cut off at the edge (Phase 4, S4.4). */}
           <Tabs
             tabs={tabItems}
@@ -285,6 +307,10 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
             wrap
           />
 
+          {activeTab === "exams" && list.length > 0 ? (
+            <ExamViewTabs value={view} onChange={setView} />
+          ) : null}
+
           <div>
             {activeTab === "exams" ? (
               list.length === 0 ? (
@@ -292,14 +318,16 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                   title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
                   body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
                 />
+              ) : shown.length === 0 ? (
+                <EmptyState title={t(examViewEmptyKey(view))} body={t("catalog.examView.emptyHint")} />
               ) : bundleOrders && isStudent ? (
                 <BundleSelection
                   disabled={checkoutOff}
-                  items={list.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: chargedAmount(exam.pricing, exam.price), owned: resolveAccess(exam.access).owned }))}
+                  items={shown.map((exam) => ({ id: exam.id, title: pickTitle(exam, locale), meta: exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd"), price: chargedAmount(exam.pricing, exam.price), owned: resolveAccess(exam.access).owned }))}
                 />
               ) : (
-                <ul className="grid gap-3">
-                  {list.map((exam) => {
+                <ul className="grid gap-2">
+                  {shown.map((exam) => {
                     const summary = plainExcerpt(pickText({ ...exam }, "description", locale), 160);
                     const examAccess = resolveAccess(exam.access);
                     return (
@@ -332,7 +360,7 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                               <span className="block max-w-28 text-end text-meta text-muted">{t("catalog.priceNotSet")}</span>
                             )
                           }
-                          favourite={<FavouriteButton kind="exam" id={exam.id} initial={exam.favourite} next={examPath(exam.id)} />}
+                          favourite={<FavouriteButton kind="exam" id={exam.id} initial={exam.favourite} next={examPath(exam.id)} placement="inline" />}
                         />
                       </li>
                     );
@@ -346,9 +374,9 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
                 <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
               ) : (
                 <>
-                  <ul className="grid gap-3 md:hidden">
+                  <ul className="grid gap-2 md:hidden">
                     {list.map((exam) => (
-                      <li key={exam.id} className="grid gap-1 rounded-card border border-border bg-card p-4">
+                      <li key={exam.id} className="grid gap-1 rounded-card border border-border bg-card px-4 py-3">
                         <span className="text-label font-bold tabular-nums">
                           {exam.liveAt ? formatDate(exam.liveAt, locale, { year: "auto" }) : t("catalog.dateTbd")}
                         </span>
@@ -389,6 +417,13 @@ export function ModulePage({ door, moduleId }: { door: Door; moduleId: string })
 
             {activeTab === "about" && description ? (
               <RichTextView value={description} className="lg:max-w-[70ch]" />
+            ) : null}
+
+            {activeTab === "reviews" ? (
+              <div className="grid gap-5">
+                <ReviewCard kind="package" id={moduleId} />
+                <ReviewsSection kind="package" id={moduleId} showEmpty />
+              </div>
             ) : null}
           </div>
         </div>

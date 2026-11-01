@@ -440,3 +440,12 @@ body {
     padding-bottom: calc(var(--tabbar-h, 0px) + 5rem + env(safe-area-inset-bottom));
   }
 }
+
+/* A scroll area with no visible bar: the wheel, touch and the keyboard still scroll it. Pair it with an edge fade so people can see there is more. */
+.scroll-clean {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-clean::-webkit-scrollbar {
+  display: none;
+}

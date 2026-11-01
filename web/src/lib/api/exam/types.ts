@@ -86,6 +86,10 @@ export interface PublicModule extends Titled {
   popular?: boolean;
   /** Signed-in students only: whether the package is on their favourites (NR-01, S3). */
   favourite?: boolean | null;
+  /** The average star rating, or null below three ratings (reviews plan, section 6). */
+  ratingAverage?: number | null;
+  /** Ratings counted for the average: every review that is not hidden. */
+  ratingCount?: number;
 }
 
 /** The price block on an exam or package: the list price, the discount, and the price the order charges (NR-01). */
@@ -143,6 +147,8 @@ export interface PublicExam extends Titled {
   access?: AccessInfo | null;
   moduleId: string;
   examType: ExamType;
+  /** LIVE or PRACTICE (REQ-007 tabs read it). */
+  mode?: string;
   descriptionEn: string | null;
   descriptionBn: string | null;
   rulesEn: string | null;
@@ -164,6 +170,10 @@ export interface PublicExam extends Titled {
   previewEnabled?: boolean;
   /** Signed-in students only (NR-01, S3). */
   favourite?: boolean | null;
+  /** The average star rating, or null below three ratings (reviews plan, section 6). */
+  ratingAverage?: number | null;
+  /** Ratings counted for the average: every review that is not hidden. */
+  ratingCount?: number;
 }
 
 export interface StudentQuestionOption {
@@ -198,6 +208,8 @@ export interface StudentExam extends Omit<PublicExam, "price"> {
   myStatusDetail?: string | null;
   /** The student's own sitting: deadline and kind. Null when there is none. */
   sitting?: { kind: "LIVE" | "RETAKE"; startedAt: string; deadlineAt: string; submittedAt: string | null } | null;
+  /** True once the student's written script is stored (API: answerStored). For a written exam this is the submission. */
+  answerStored?: boolean | null;
 }
 
 /** The `access` object on public module and exam responses (plan section 8). */

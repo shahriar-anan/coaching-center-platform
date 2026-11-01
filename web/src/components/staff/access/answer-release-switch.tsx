@@ -37,7 +37,7 @@ function ReleaseSwitch({ examId }: { examId: string }) {
   const [askingFor, setAskingFor] = useState<boolean | null>(null);
 
   if (exam.isError) {
-    return <ErrorState message={t("staffAdmin.release.loadError")} onRetry={() => void exam.refetch()} />;
+    return <ErrorState message={t("staffAdmin.release.loadError")} onRetry={() => void exam.refetch()} error={exam.error} />;
   }
   if (exam.isPending) {
     return <Skeleton variant="text" count={1} />;

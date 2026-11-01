@@ -102,7 +102,7 @@ function AdminList() {
       />
 
       {admins.isError ? (
-        <ErrorState onRetry={() => admins.refetch()} />
+        <ErrorState onRetry={() => admins.refetch()} error={admins.error} />
       ) : (
         <>
           <Table

@@ -69,7 +69,7 @@ describe("announcement row (S-020)", () => {
     expect(screen.queryByRole("button", { name: /edit|delete|সম্পাদনা|মুছুন/i })).not.toBeInTheDocument();
   });
 
-  it("a module announcement carries its audience and module, and shows the same way with no link", async () => {
+  it("a module announcement carries its audience and module, and links to its package", async () => {
     const moduleNotice = {
       ...announcement,
       id: "a2",
@@ -88,6 +88,7 @@ describe("announcement row (S-020)", () => {
 
     expect(await screen.findByText("Module update")).toBeInTheDocument();
     expect(screen.getByText("Mock on Sunday")).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    // A package announcement now links to its package (announcements plan, section 9). The package read has no mock here, so the door is the default.
+    expect(screen.getByRole("link", { name: "Open the package" })).toHaveAttribute("href", "/mcq/m/m-9");
   });
 });

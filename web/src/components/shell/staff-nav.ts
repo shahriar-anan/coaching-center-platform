@@ -5,6 +5,7 @@ import {
   CreditCard,
   LayoutDashboard,
   Megaphone,
+  MessageSquareQuote,
   Package,
   Receipt,
   ScrollText,
@@ -35,6 +36,7 @@ export type StaffNavKey =
   | "account"
   | "orders"
   | "announcements"
+  | "reviews"
   | "systemStatus";
 
 /** The sidebar groups, in the order they show. Group names are in `common.staffNavGroup`. */
@@ -52,6 +54,9 @@ export type StaffNavChild = {
   access?: StaffNavAccess;
 };
 
+/** A label under `common.staffNav` that replaces the item's own label for one role. */
+export type StaffNavLabelKey = "myExams";
+
 export type StaffNavItem = {
   key: StaffNavKey;
   group: StaffNavGroup;
@@ -62,6 +67,10 @@ export type StaffNavItem = {
   icon: LucideIcon;
   /** Sub-items: they show in an accordion when the sidebar is open. */
   children?: StaffNavChild[];
+  /** A different label for some roles, such as the teacher's "My exams". Set per role by `staffNavFor`. */
+  roleLabels?: Partial<Record<Exclude<Role, "STUDENT">, StaffNavLabelKey>>;
+  /** The key under `common.staffNav` to read the label from, for the role `staffNavFor` was given. Absent on the table itself. */
+  labelKey?: string;
 };
 
 /** The one table of staff navigation. Items are listed in the order they show within each group. */
@@ -84,7 +93,7 @@ export const STAFF_NAV: StaffNavItem[] = [
     key: "modules",
     group: "catalog",
     href: "/staff/modules",
-    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "assigned" },
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
     icon: Package,
     children: [
       { key: "modulesAll", href: "/staff/modules" },
@@ -97,6 +106,7 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/exams",
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "assigned" },
     icon: ClipboardList,
+    roleLabels: { INSTRUCTOR: "myExams" },
     children: [
       { key: "examsAll", href: "/staff/exams" },
       { key: "examsCreate", href: "/staff/exams?new=1", access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" } },
@@ -113,15 +123,22 @@ export const STAFF_NAV: StaffNavItem[] = [
     key: "submissions",
     group: "exams",
     href: "/staff/submissions",
-    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "read", INSTRUCTOR: "full" },
+    access: { MASTER_ADMIN: "full", INSTRUCTOR: "full" },
     icon: ClipboardCheck,
   },
   {
     key: "announcements",
     group: "exams",
     href: "/staff/announcements",
-    access: { MASTER_ADMIN: "full" },
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
     icon: Megaphone,
+  },
+  {
+    key: "reviews",
+    group: "exams",
+    href: "/staff/reviews",
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "read" },
+    icon: MessageSquareQuote,
   },
   {
     key: "students",
@@ -171,7 +188,8 @@ export function staffNavFor(role: Role | null | undefined): StaffNavItem[] {
   }
   return STAFF_NAV.filter((item) => Boolean(item.access[role])).map((item) => {
     const children = item.children?.filter((child) => Boolean((child.access ?? item.access)[role]));
-    return { ...item, children: children?.length ? children : undefined };
+    const labelKey = item.roleLabels?.[role] ?? item.key;
+    return { ...item, children: children?.length ? children : undefined, labelKey };
   });
 }
 

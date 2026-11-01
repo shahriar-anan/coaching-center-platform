@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { staffHome } from "@/lib/config";
@@ -16,7 +16,8 @@ import {
   subscribeStudentNavCollapsed,
 } from "@/components/shell/student-sidebar";
 import { SiteFooter, type FooterVariant } from "@/components/shell/site-footer";
-import { LocalePill, ThemePill } from "@/components/shell/pills";
+import { LocaleMenuItem, LocalePill, ThemeMenuItem, ThemePill } from "@/components/shell/pills";
+import { SiteMenu, SiteNavDropdown, useSiteNav } from "@/components/shell/site-menu";
 import { NoticeBell } from "@/components/student/notice-bell";
 import { formatNumber } from "@/lib/format";
 import { useUnreadCount } from "@/lib/api/exam/notices";
@@ -58,10 +59,12 @@ const SCROLL_STEP = 6;
 
 /**
  * Hides the header while the page scrolls down and shows it as soon as the page scrolls up, as most sites do. Near the
- * top it always shows. `reveal` shows it again, for keyboard focus moving into the header.
+ * top it always shows. `reveal` shows it again, for keyboard focus moving into the header. `pin` keeps it shown while
+ * a menu in the header is open.
  */
 function useHeaderHidden() {
   const [hidden, setHidden] = useState(false);
+  const [pinned, setPinned] = useState(false);
   useEffect(() => {
     let last = window.scrollY;
     let frame = 0;
@@ -92,7 +95,14 @@ function useHeaderHidden() {
       }
     };
   }, []);
-  return { hidden, reveal: () => setHidden(false) };
+  return {
+    hidden: hidden && !pinned,
+    reveal: () => setHidden(false),
+    pin: (open: boolean) => {
+      setPinned(open);
+      if (open) setHidden(false);
+    },
+  };
 }
 
 /**
@@ -114,24 +124,22 @@ function useFooterReached(enabled: boolean) {
   return { reached, ref: setNode };
 }
 
-/** Sign-in and sign-up pages on the student host: copyright and legal links only. */
-const SIGN_IN_PATH = /^\/(login|register|set-phone|activate|code|forgot-password|reset-password)(\/|$)/;
-
 /** The exam and package detail pages keep their own wide frame (detail-layout.tsx); every other page uses the full width. */
 const DETAIL_PATH = /^\/(exam\/[^/]+|mcq\/m\/[^/]+|written\/m\/[^/]+)\/?$/;
+
+/** The category pages (`/mcq/c/<id>`, `/written/c/<id>`): from desktop width up the subcategories sit beside the exam list. */
+const CATEGORY_PATH = /^\/(mcq|written)\/c\//;
 
 function hidesTabBar(pathname: string): boolean {
   return SITTING_PATH.test(pathname);
 }
 
 /**
- * Which footer a route shows: none on the exam sitting page (a timed paper, no exits), minimal on
- * sign-in pages, full everywhere else on the student host. The staff and admin hosts have no footer.
+ * Which footer a route shows: none on the exam sitting page (a timed paper, no exits), the full footer on every other page of
+ * the student host, signed in or not, as on the old site. The staff and admin hosts have no footer.
  */
 export function footerVariant(pathname: string): FooterVariant {
-  if (SITTING_PATH.test(pathname)) return "none";
-  if (SIGN_IN_PATH.test(pathname)) return "minimal";
-  return "full";
+  return SITTING_PATH.test(pathname) ? "none" : "full";
 }
 
 /** The tab bar is 3.5 rem plus the safe area. A sticky action bar sits above it (WS9 FN-2). */
@@ -144,37 +152,12 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Below 400 px the language and theme switches move into one menu, so the header fits at large text sizes. */
-function SettingsMenu() {
-  const { t } = useLocale();
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        aria-label={t("common.nav.openMenu")}
-        className="hidden size-11 items-center justify-center rounded-full border border-border bg-card text-text hover:bg-bg max-[399px]:inline-flex"
-      >
-        <MenuIcon aria-hidden="true" className="size-5" />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="end"
-          sideOffset={6}
-          className="z-50 grid gap-2 rounded-card border border-border bg-card p-2 shadow-lg"
-        >
-          <LocalePill />
-          <ThemePill />
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-function UserMenu() {
+function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
   const { session, logout } = useSession();
   if (session.status !== "authenticated") {
     // The old site's single pill: log in, a divider, sign up.
-    const half = "inline-flex h-full items-center px-3 hover:bg-white/15 sm:px-4";
+    const half = "inline-flex h-full items-center px-3 hover:bg-white/15 max-[379px]:px-2.5 sm:px-4";
     return (
       <span className="inline-flex h-11 shrink-0 items-center overflow-hidden rounded-full bg-action text-label font-semibold text-on-action">
         <Link href="/login" prefetch={false} className={half}>
@@ -192,13 +175,13 @@ function UserMenu() {
   const fullName = user.fullName ?? "";
   const firstName = fullName.trim().split(/\s+/)[0] || fullName;
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root onOpenChange={onOpenChange}>
       <DropdownMenu.Trigger
         aria-label={t("common.nav.userMenu", { name: fullName })}
-        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg max-[379px]:max-w-11 max-[379px]:px-2"
+        className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg"
       >
-        <span className="truncate max-[379px]:hidden">{firstName}</span>
-        <CircleUserRound aria-hidden="true" className="hidden size-5 max-[379px]:block" />
+        <CircleUserRound aria-hidden="true" className="size-5 shrink-0" />
+        <span className="min-w-0 truncate">{firstName}</span>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
@@ -215,6 +198,12 @@ function UserMenu() {
           {user.role !== "STUDENT" ? (
             <MenuLink href={staffHome} icon={ListChecks} label={t("common.nav.adminPanel")} external />
           ) : null}
+          {/* Below 640 px the language and theme switches leave the top bar and sit in this menu, as menu items (arrow keys). */}
+          <DropdownMenu.Separator className="my-1 h-px bg-border sm:hidden" />
+          <div className="contents sm:hidden">
+            <LocaleMenuItem />
+            <ThemeMenuItem />
+          </div>
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
           <DropdownMenu.Item
             onSelect={() => void logout()}
@@ -343,29 +332,25 @@ function StudentLinks({ className }: { className?: string }) {
   );
 }
 
-/** Landing-page links, from 1280 px up. Below that the bar keeps only the logo and the controls, so the links never wrap. */
-function WideNav() {
+/**
+ * Landing-page links, from 1280 px up. Below that the bar keeps only the logo and the controls, so the links never wrap;
+ * the site menu holds them there.
+ */
+function WideNav({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
-  // The old site's main menu. "Features" is now "Exams". Items without an exam-site page
-  // show a "coming soon" page until the client decides what they become.
-  const links = [
-    { href: "/register", label: t("landing.navAdmission") },
-    { href: "/mcq", label: t("landing.navExam") },
-    { href: "/mcq", label: t("landing.navPackages") },
-    { href: "/notices", label: t("landing.navNotices") },
-    { href: "/publications", label: t("landing.navPublications") },
-    { href: "/blog", label: t("landing.navBlog") },
-    { href: "/media", label: t("landing.navMedia") },
-    { href: "/resources", label: t("landing.navResources") },
-  ];
+  const items = useSiteNav();
   return (
     <nav aria-label={t("landing.navLabel")} className="hidden min-w-0 flex-1 justify-center xl:flex">
       <ul className="flex items-center gap-4 whitespace-nowrap text-label font-semibold text-muted">
-        {links.map((link) => (
-          <li key={link.label}>
-            <Link href={link.href} prefetch={false} className="hover:text-text">
-              {link.label}
-            </Link>
+        {items.map((item) => (
+          <li key={item.label}>
+            {"types" in item ? (
+              <SiteNavDropdown label={item.label} types={item.types} onOpenChange={onOpenChange} />
+            ) : (
+              <Link href={item.href} prefetch={false} className="hover:text-text">
+                {item.label}
+              </Link>
+            )}
           </li>
         ))}
       </ul>
@@ -431,27 +416,30 @@ export function StudentShell({ children }: { children: ReactNode }) {
         )}
       >
         <div className={cn("mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 max-[379px]:px-3", headerColumn)}>
+          {/* IconButton sets inline-flex itself, which beats a plain "hidden", so the hide below lg is a responsive variant. */}
           {sidebarApplies ? (
             <IconButton
               label={collapsed ? t("common.staffNav.expand") : t("common.staffNav.collapse")}
               icon={collapsed ? <PanelLeftOpen aria-hidden="true" className="size-5" /> : <PanelLeftClose aria-hidden="true" className="size-5" />}
               aria-expanded={!collapsed}
               onClick={() => setStudentNavCollapsed(!collapsed)}
-              className="hidden shrink-0 lg:inline-flex"
+              className="shrink-0 max-lg:hidden"
             />
           ) : null}
           {/* The side menu carries the logo from desktop width up, so the header shows it only where there is no menu. */}
-          <Logo compact className={cn(wide && "xl:shrink-0", sidebarApplies && "lg:hidden")} />
-          {wide ? <WideNav /> : null}
+          <Logo phoneMark className={cn(wide && "xl:shrink-0", sidebarApplies && "lg:hidden")} />
+          {wide ? <WideNav onOpenChange={header.pin} /> : null}
           {student ? <StudentLinks className={sidebarApplies ? "lg:hidden" : undefined} /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
-            <span className="flex items-center gap-1.5 max-[399px]:hidden sm:gap-2">
+            {/* From 640 px up. Below that the switches are in the account menu, or in the site menu for visitors. */}
+            <span className="hidden items-center gap-1.5 sm:flex sm:gap-2">
               <LocalePill />
               <ThemePill />
             </span>
-            <SettingsMenu />
-            <UserMenu />
+            {/* Visitors get the site menu on every page below 1280 px; the landing page shows it to signed-in staff too. */}
+            {wide || !signedIn ? <SiteMenu onOpenChange={header.pin} /> : null}
+            <UserMenu onOpenChange={header.pin} />
           </div>
         </div>
       </header>
@@ -465,11 +453,11 @@ export function StudentShell({ children }: { children: ReactNode }) {
         )}
       >
         {/* Lists and cards sit in a centred 768 px column; the sitting paper keeps the full frame. */}
-        {roomy && !SITTING_PATH.test(pathname) ? <div className="mx-auto w-full max-w-3xl">{children}</div> : children}
+        {roomy && !SITTING_PATH.test(pathname) ? <div className={cn("mx-auto w-full max-w-3xl", CATEGORY_PATH.test(pathname) && "lg:max-w-5xl")}>{children}</div> : children}
       </main>
       {footer !== "none" ? (
         <div ref={footerWatch.ref}>
-          <SiteFooter variant={footer} width={wide ? "max-w-6xl" : "max-w-5xl"} />
+          <SiteFooter />
         </div>
       ) : null}
       </div>

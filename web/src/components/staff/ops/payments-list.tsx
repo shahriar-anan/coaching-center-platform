@@ -92,7 +92,7 @@ export function PaymentsList({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {payments.isError ? (
-        <ErrorState onRetry={() => payments.refetch()} />
+        <ErrorState onRetry={() => payments.refetch()} error={payments.error} />
       ) : (
         <>
           <PaymentsTable

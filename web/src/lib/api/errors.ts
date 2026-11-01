@@ -23,6 +23,32 @@ export class ApiError extends Error {
   }
 }
 
+/** The API says there is no such item: a 404 or RESOURCE_NOT_FOUND. */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 404 || error.code === "RESOURCE_NOT_FOUND");
+}
+
+/**
+ * The address names no item: a missing one, or an id that is not a UUID, such as /exam/123123. The API answers the second
+ * with 400 VALIDATION_FAILED (a path value that does not parse), not with 404. Only a read by id should use this.
+ */
+export function isUnknownItemError(error: unknown): boolean {
+  return (
+    isNotFoundError(error) ||
+    (error instanceof ApiError && error.status === 400 && error.code === "VALIDATION_FAILED")
+  );
+}
+
+/** No response at all (offline, server down): fetch rejects with a TypeError, and such an error is not an ApiError. */
+export function isNetworkError(error: unknown): boolean {
+  return error instanceof TypeError;
+}
+
+/** The server failed on its side: any 5xx answer. */
+export function isServerError(error: unknown): boolean {
+  return error instanceof ApiError && error.status >= 500;
+}
+
 /** Maps stable API error codes to i18n keys under errors.* */
 export function errorMessageKey(code: string): string {
   const known: Record<string, string> = {

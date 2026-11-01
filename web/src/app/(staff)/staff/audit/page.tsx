@@ -71,7 +71,7 @@ function AuditLog() {
       <p className="text-meta text-muted">{t("staffOps.audit.newestFirst")}</p>
 
       {audit.isError ? (
-        <ErrorState onRetry={() => audit.refetch()} />
+        <ErrorState onRetry={() => audit.refetch()} error={audit.error} />
       ) : (
         <>
           <Table

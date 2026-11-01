@@ -108,7 +108,6 @@ const forbiddenForSystemAdmin = [
   bnStaffAdmin.orders.confirm,
   bnStaffAdmin.orders.reject,
   bnStaffAdmin.access.revoke,
-  bnStaffAdmin.announce.send,
 ];
 
 function StudentPageControls() {
@@ -272,15 +271,14 @@ describe("access matrix: announcements page", () => {
     expect(calls.some((call) => call.path === "/api/v1/announcements")).toBe(true);
   });
 
-  it("System Admin gets no announcements page: no form, no send, and no history request", async () => {
+  it("System Admin gets the form and the history, and may send", async () => {
     const { calls } = mockApi(routes);
     renderAs(<StaffAnnouncementsPage />, fixtures.systemAdmin);
-    await settle();
 
-    expect(screen.queryByRole("button", { name: bnStaffAdmin.announce.send })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(bnStaffAdmin.announce.titleEn)).not.toBeInTheDocument();
-    expect(screen.queryByText(bnStaffAdmin.announce.readOnly)).not.toBeInTheDocument();
-    expect(calls.some((call) => call.path === "/api/v1/announcements")).toBe(false);
+    expect(screen.getByRole("button", { name: bnStaffAdmin.announce.send })).toBeInTheDocument();
+    expect(screen.getByLabelText(bnStaffAdmin.announce.titleEn)).toBeInTheDocument();
+    expect(await screen.findByText(bnStaffAdmin.history.empty)).toBeInTheDocument();
+    expect(calls.some((call) => call.path === "/api/v1/announcements")).toBe(true);
   });
 
   it("Instructor gets not found, and no request is made", async () => {

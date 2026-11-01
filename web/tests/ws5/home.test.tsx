@@ -35,17 +35,16 @@ describe("staff home per role", () => {
     renderWithProviders(<StaffHomePage />, { user: fixtures.systemAdmin });
 
     expect(await screen.findByText("পেমেন্ট অপেক্ষমাণ")).toBeInTheDocument();
-    expect(screen.queryByText("আপনাকে এখনো কোনো প্যাকেজ দেওয়া হয়নি")).not.toBeInTheDocument();
+    expect(screen.queryByText("আপনাকে এখনো কোনো পরীক্ষা দেওয়া হয়নি")).not.toBeInTheDocument();
   });
 
-  it("Instructor sees only assigned modules, and the empty sentence when there are none", async () => {
+  it("Instructor sees the assigned exams, and the empty sentence when none is assigned", async () => {
     mockApi({
-      "GET /api/v1/live-exam-modules": participation,
       "GET /api/v1/live-exam-participation": participation,
     });
     renderWithProviders(<StaffHomePage />, { user: fixtures.instructor });
 
-    expect(await screen.findByText("আপনাকে এখনো কোনো প্যাকেজ দেওয়া হয়নি")).toBeInTheDocument();
+    expect(await screen.findByText("আপনাকে এখনো কোনো পরীক্ষা দেওয়া হয়নি")).toBeInTheDocument();
     expect(screen.queryByText("পেমেন্ট অপেক্ষমাণ")).not.toBeInTheDocument();
   });
 });

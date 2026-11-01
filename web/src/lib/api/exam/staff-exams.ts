@@ -120,6 +120,15 @@ export function useWithdrawListedExam() {
   });
 }
 
+/** Puts an archived exam back to draft. Students see nothing until it is published again. Master Admin only. */
+export function useRestoreListedExam() {
+  const refresh = useRefreshExams();
+  return useMutation({
+    mutationFn: (examId: string) => apiRequest<StaffExam>(`/api/v1/live-exams/${examId}/restore`, { method: "POST", body: {} }),
+    onSuccess: refresh,
+  });
+}
+
 /** Deletes a draft exam. */
 export function useDeleteListedExam() {
   const refresh = useRefreshExams();

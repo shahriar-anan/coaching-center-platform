@@ -49,11 +49,14 @@ afterEach(() => {
   routerState.search = "";
 });
 
-describe("next step after an exam is created (decided 2026-10-27: another exam, or the instructor)", () => {
-  it("offers creating another exam and assigning an instructor right after the create", async () => {
+// A written exam has a teacher; an MCQ exam is marked by the system and takes none (the API rule).
+const writtenDraft: StaffExam = { ...draftExam, examType: "WRITTEN", questionPdf: null, questions: null };
+
+describe("next step after an exam is created (decided 2026-10-27: another exam, or the teacher of this exam)", () => {
+  it("offers creating another exam and assigning the teacher of this exam right after the create", async () => {
     routerState.search = "created=1";
     mockApi({
-      [`GET /api/v1/live-exams/${examId}`]: draftExam,
+      [`GET /api/v1/live-exams/${examId}`]: writtenDraft,
       [`GET /api/v1/live-exam-modules/${moduleId}`]: moduleFixture,
     });
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
@@ -63,15 +66,16 @@ describe("next step after an exam is created (decided 2026-10-27: another exam, 
       "href",
       `/staff/modules/${moduleId}?tab=exams&new=1`,
     );
-    expect(screen.getByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).toHaveAttribute("href", `/staff/modules/${moduleId}?tab=instructor`);
+    // The teacher is set per exam, so the choice jumps to the teacher field on this page, not to a package tab.
+    expect(screen.getByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).toHaveAttribute("href", "#exam-details");
     // A clean draft has no unsaved edits, so the header offers its next step: the final save (plan 7.2 header table).
     expect(screen.getByRole("button", { name: "চূড়ান্ত করুন" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "সব পরিবর্তন সংরক্ষণ করুন" })).not.toBeInTheDocument();
   });
 
-  it("tells a System Admin that only the Master Admin assigns the instructor", async () => {
+  it("tells a System Admin that only the Master Admin assigns the teacher of a written exam", async () => {
     mockApi({
-      [`GET /api/v1/live-exams/${examId}`]: draftExam,
+      [`GET /api/v1/live-exams/${examId}`]: writtenDraft,
       [`GET /api/v1/live-exam-modules/${moduleId}`]: moduleFixture,
     });
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
@@ -79,5 +83,19 @@ describe("next step after an exam is created (decided 2026-10-27: another exam, 
     await waitFor(() => expect(screen.getAllByText("সিআরপিসি").length).toBeGreaterThan(0));
     expect(screen.getByText("শুধু মূল ব্যবস্থাপক (Master Admin) শিক্ষক নিয়োগ দেন।")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).not.toBeInTheDocument();
+  });
+
+  it("offers no teacher choice after an MCQ exam is created, since the system marks it", async () => {
+    routerState.search = "created=1";
+    mockApi({
+      [`GET /api/v1/live-exams/${examId}`]: draftExam,
+      [`GET /api/v1/live-exam-modules/${moduleId}`]: moduleFixture,
+    });
+    renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
+
+    expect(await screen.findByRole("heading", { name: "পরীক্ষা সংরক্ষিত হয়েছে। এরপর কী?" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /আরেকটি পরীক্ষা তৈরি করুন/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("শুধু মূল ব্যবস্থাপক (Master Admin) শিক্ষক নিয়োগ দেন।")).not.toBeInTheDocument();
   });
 });

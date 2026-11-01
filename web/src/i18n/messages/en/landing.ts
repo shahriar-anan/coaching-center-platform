@@ -21,7 +21,7 @@ const landing: typeof bn = {
   examsTitle: "Exams",
   signUpShort: "Create account",
 
-  heroLabel: "SYMAM LAW",
+  heroLabel: "Symam Law",
   heroTitle: "Structured preparation for the BJS and Bar Council examinations",
   heroLead: "Take part in live MCQ and written examinations held at scheduled times.",
   chipOnline: "Online batches",
@@ -39,15 +39,19 @@ const landing: typeof bn = {
   batchOpen: "Browse exams",
   batchCallOnly: "Call to enrol",
 
-  numbersModules: "Exam packages",
-  numbersMcq: "MCQ exams",
-  numbersWritten: "Written exams",
+  statsLabel: "Symam Law in numbers",
+  statsStudents: "Students",
+  statsMentors: "Experienced mentors",
+  statsDownloads: "App downloads",
+  statsMaterials: "Learning materials",
 
   categoriesTitle: "Exam categories",
-  categoriesSubtitle: "Start your journey to success here, with question papers from the best categories!",
-  categoryModules: "{count} packages",
+  categoriesSubtitle: "Choose an exam type, then your category.",
+  typeSwitchLabel: "Exam type",
+  typeMcq: "MCQ",
+  typeWritten: "Written",
+  categoriesEmpty: "No {type} exam categories yet.",
   categoryFrom: "From {price}",
-  categoryNoPrice: "Price to be announced",
   categoryExplore: "Explore",
   categoryExploreMcq: "Explore MCQ",
   categoryExploreWritten: "Explore written",
@@ -55,6 +59,9 @@ const landing: typeof bn = {
 
   upcomingTitle: "Upcoming exams",
   upcomingSubtitle: "Be there on time. You need an account before the exam starts.",
+  // The next-exam spotlight and list. "Today" and "Tomorrow" come from catalog.routine.
+  upcomingInDays: "In {count} days",
+  upcomingView: "View exam",
 
   packagesTitle: "Our packages",
   packagesSubtitle: "Several exams in one package.",
@@ -72,7 +79,7 @@ const landing: typeof bn = {
   paymentsAlt: "Accepted payment methods",
 
   contactTitle: "Contact",
-  contactCall: "Call",
+  contactCall: "Call us",
   contactWhatsapp: "WhatsApp",
   contactEmail: "Email",
   contactHours: "Office hours",
@@ -83,6 +90,11 @@ const landing: typeof bn = {
   closingTitle: "Begin your preparation today",
   closingLead: "Create an account, select the examination you require, and attend at the scheduled time.",
   closingLogin: "Already have an account? Sign in",
+
+  // Numbers, steps, contact and closing (REQ-006 layout).
+  stepNumber: "Step {n}",
+  paySecure: "Secure payment via SSLCommerz",
+  closingPackages: "Browse packages",
 };
 
 export default landing;

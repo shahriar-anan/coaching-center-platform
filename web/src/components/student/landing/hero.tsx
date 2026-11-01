@@ -16,7 +16,8 @@ export function Hero() {
     <section aria-labelledby="landing-hero" className="px-4 pb-12 pt-10 md:pb-16 md:pt-14">
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
         <div className="text-center lg:text-start">
-          <p className="text-label font-bold text-text-accent">{t("landing.heroLabel")}</p>
+          {/* The brand name above the headline. The header already shows the school's mark, so the lockup has no logo. */}
+          <p className="text-2xl font-extrabold leading-none text-text-accent md:text-3xl">{t("landing.heroLabel")}</p>
           <h1 id="landing-hero" className="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">
             {t("landing.heroTitle")}
           </h1>

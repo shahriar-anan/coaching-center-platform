@@ -38,7 +38,7 @@ export function FavouritesPage() {
     return (
       <>
         <PageHeader title={t("catalog.favourites.title")} breadcrumbs={crumbs} />
-        <ErrorState onRetry={() => void favourites.refetch()} />
+        <ErrorState error={favourites.error} onRetry={() => void favourites.refetch()} />
       </>
     );
   }
@@ -61,7 +61,7 @@ export function FavouritesPage() {
           exams.length === 0 ? (
             <EmptyState title={t("catalog.favourites.emptyExams")} body={t("catalog.favourites.emptyExamsBody")} />
           ) : (
-            <ul className="grid gap-3">
+            <ul className="grid gap-2">
               {exams.map((exam) => (
                 <li key={exam.id}>
                   <CatalogExamRow exam={exam} />
@@ -72,7 +72,7 @@ export function FavouritesPage() {
         ) : packages.length === 0 ? (
           <EmptyState title={t("catalog.favourites.emptyPackages")} body={t("catalog.favourites.emptyPackagesBody")} />
         ) : (
-          <ul className="grid gap-3">
+          <ul className="grid gap-2">
             {packages.map((pkg) => (
               <li key={pkg.id}>
                 <PackageLinkCard

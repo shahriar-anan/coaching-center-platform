@@ -13,9 +13,19 @@ import { ShortcutsPopover } from "@/components/ui/shortcuts-popover";
 import { Tabs } from "@/components/ui/tabs";
 import { PaperViews } from "@/components/staff/marking/paper-views";
 import { SubmissionForm } from "@/components/staff/marking/submission-form";
-import { neighbour, nextToMark, paperStatus } from "@/components/staff/marking/marking-queue";
-import { ALL_STAFF, RequireStaff, useRole } from "@/lib/auth/guards";
-import { FEED_PAGE_MAX, useFeed, useMarkingPaper } from "@/lib/api/exam/staff-marking";
+import {
+  failureKind,
+  FEED_FILTERS,
+  FEED_SORTS,
+  idParam,
+  neighbour,
+  nextToMark,
+  paperStatus,
+  uuidParam,
+  withQuery,
+} from "@/components/staff/marking/marking-queue";
+import { RequireStaff, useRole } from "@/lib/auth/guards";
+import { FEED_PAGE_MAX, useFeed, useMarkingPaper, type FeedSort } from "@/lib/api/exam/staff-marking";
 import { useFormat } from "@/lib/format/use-format";
 import { useLocale } from "@/i18n/locale-context";
 
@@ -30,37 +40,58 @@ export default function StaffSubmissionPage({ params }: { params: Promise<{ part
 function PaperRoute({ params }: { params: Promise<{ participantId: string }> }) {
   const { participantId } = use(params);
   return (
-    <RequireStaff roles={ALL_STAFF}>
+    <RequireStaff roles={["MASTER_ADMIN", "INSTRUCTOR"]}>
       <Paper participantId={participantId} />
     </RequireStaff>
   );
 }
 
 /**
- * One written paper. The paper's own read gives the titles, the marks and the comment.
- * `?m=` (the module) only sets the queue's order: previous, next, "সেভ করে পরেরটি", and
- * the keys J and K. Without it the paper stands alone.
+ * One written paper. The paper's own read gives the titles, the marks and the comment. The queue is the
+ * papers of `?exam=` (every status, the browser's sort): previous, next, "সেভ করে পরেরটি", and the keys J and K.
+ * An old `?m=` package link still sets the queue, but only when it is a real id. The other query values are the
+ * browser's view, kept so "back to list" returns to it.
  */
 function Paper({ participantId }: { participantId: string }) {
   const { t } = useLocale();
   const format = useFormat();
   const router = useRouter();
   const search = useSearchParams();
-  const moduleId = search?.get("m") ?? "";
   const { canEvaluate, canPublishResult } = useRole();
+
+  const examId = idParam(search?.get("exam"));
+  const legacyModule = uuidParam(search?.get("m"));
+  const cat = idParam(search?.get("cat"));
+  const statusParam = search?.get("status") ?? "";
+  const status = (FEED_FILTERS as readonly string[]).includes(statusParam) ? statusParam : "";
+  const sortParam = search?.get("sort") ?? "";
+  const sort: FeedSort = (FEED_SORTS as string[]).includes(sortParam) ? (sortParam as FeedSort) : "submittedAt,desc";
+  const q = search?.get("q") ?? "";
+  const queueOn = examId !== "" || legacyModule !== "";
 
   const paper = useMarkingPaper(participantId);
   const queue = useFeed(
-    { status: "", moduleId, examId: "", q: "", sort: "submittedAt,desc", page: 0, size: FEED_PAGE_MAX },
-    moduleId.length > 0,
+    { categoryId: "", status: "", moduleId: legacyModule, examId, q: "", sort, page: 0, size: FEED_PAGE_MAX },
+    queueOn,
   );
   const rows = queue.data?.content ?? [];
   const current = paper.data;
-  const previous = current && moduleId ? neighbour(rows, participantId, -1) : null;
-  const next = current && moduleId ? neighbour(rows, participantId, 1) : null;
-  const waiting = current && moduleId ? nextToMark(rows, participantId) : null;
-  const toPaper = (id: string) => `/staff/submissions/${id}?m=${moduleId}`;
-  const browser = moduleId ? `/staff/submissions?module=${moduleId}` : "/staff/submissions";
+  const previous = current && queueOn ? neighbour(rows, participantId, -1) : null;
+  const next = current && queueOn ? neighbour(rows, participantId, 1) : null;
+  const waiting = current && queueOn ? nextToMark(rows, participantId) : null;
+
+  // Every paper link keeps the browser's view. The back link goes to the category when the list was one, else to the exam.
+  const sortValue = sort === "submittedAt,desc" ? "" : sort;
+  const toPaper = (id: string) =>
+    withQuery(`/staff/submissions/${id}`, { exam: examId, m: legacyModule, cat, status, sort: sortValue, q });
+  const browser = withQuery("/staff/submissions", {
+    cat,
+    exam: cat ? "" : examId,
+    module: examId ? "" : legacyModule,
+    status,
+    sort: sortValue,
+    q,
+  });
 
   // On a phone the script and the mark are two tabs. The script comes first: it is what the marker reads.
   const [phoneTab, setPhoneTab] = useState<"script" | "mark">("script");
@@ -80,17 +111,18 @@ function Paper({ participantId }: { participantId: string }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // toPaper depends on moduleId only; the queue neighbours are the real inputs.
+    // toPaper reads only the URL values, which the search params already cover; the queue neighbours are the real inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [next, previous, router, moduleId]);
+  }, [next, previous, router, search]);
 
   if (paper.isError) {
     // A refused submission (another instructor's module) is not a network fault, so it gets its own message.
     const refused = paper.error instanceof ApiError && (paper.error.code === "ACCESS_DENIED" || paper.error.code === "RESOURCE_NOT_FOUND");
+    const failure = failureKind(paper.error);
     return refused ? (
       <EmptyState title={t("staffMarking.submission.unavailable")} />
     ) : (
-      <ErrorState onRetry={() => paper.refetch()} />
+      <ErrorState onRetry={() => paper.refetch()} message={failure ? t(`staffMarking.errors.${failure}`) : undefined} error={paper.error} />
     );
   }
   if (paper.isPending) {
@@ -101,7 +133,7 @@ function Paper({ participantId }: { participantId: string }) {
   }
 
   const examTitle = format.pickTitle({ titleEn: current.examTitleEn, titleBn: current.examTitleBn });
-  const moduleTitle = format.pickTitle({ titleEn: current.moduleTitleEn, titleBn: current.moduleTitleBn });
+  const moduleTitle = format.pickTitle({ titleEn: current.moduleTitleEn ?? "", titleBn: current.moduleTitleBn ?? "" });
   const answered = rows.filter((row) => row.answerPdf);
   const marked = answered.filter((row) => row.status === "DRAFT" || row.status === "PUBLISHED");
   const hasAnswer = current.answerPdf && current.status !== "FAILED_TO_SUBMIT";
@@ -113,7 +145,7 @@ function Paper({ participantId }: { participantId: string }) {
         breadcrumbs={[
           { label: t("common.staffNav.dashboard"), href: "/staff" },
           { label: t("staffMarking.browser.title"), href: "/staff/submissions" },
-          ...(moduleId ? [{ label: moduleTitle, href: browser }] : []),
+          ...(legacyModule ? [{ label: moduleTitle, href: browser }] : []),
           { label: examTitle },
         ]}
         actions={
@@ -125,7 +157,7 @@ function Paper({ participantId }: { participantId: string }) {
                 { keys: ["K"], label: t("staffMarking.shortcuts.previous") },
               ]}
             />
-            {moduleId ? (
+            {queueOn ? (
               <>
                 <Button variant="secondary" disabled={!previous} href={previous ? toPaper(previous.participantId) : undefined}>
                   {t("staffMarking.form.previous")}
@@ -139,7 +171,7 @@ function Paper({ participantId }: { participantId: string }) {
         }
       />
 
-      {moduleId ? (
+      {queueOn ? (
         <p className="text-meta text-muted">
           {t("staffMarking.form.progress", {
             total: format.formatNumber(answered.length),
@@ -201,7 +233,7 @@ function Paper({ participantId }: { participantId: string }) {
             canMark={canEvaluate}
             canPublish={canPublishResult}
             onSaved={({ saveAndNext }) => {
-              if (!saveAndNext || !moduleId) {
+              if (!saveAndNext || !queueOn) {
                 return;
               }
               const target = nextToMark(rows, participantId);

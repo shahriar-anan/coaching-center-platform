@@ -2,13 +2,12 @@ import type { MessageTree } from "../types";
 
 const common = {
   brand: {
-    first: "Exam",
-    second: "Portal",
-    home: "Exam Portal, home",
+    name: "Symam Law",
+    home: "Symam Law, home",
   },
   nav: {
     home: "Home",
-    myExams: "My exams",
+    myExams: "My orders",
     results: "Results",
     notices: "Notices",
     account: "Account",
@@ -43,10 +42,10 @@ const common = {
     refund: "Return Refund",
     privacy: "Privacy Policy",
     about: "About Us",
-    appHeading: "Get Mobile App",
-    appText: "Study anywhere, anytime with our app! Access courses and exams on the go. Download now!",
     appStore: "App Store",
     googlePlay: "Google Play",
+    appHeading: "Get Mobile App",
+    appText: "Study anywhere, anytime with our app! Access courses and exams on the go. Download now!",
     socialLabel: "Social media",
     facebook: "Facebook",
     whatsapp: "WhatsApp",
@@ -56,6 +55,9 @@ const common = {
     developedBy: "Developed by",
     developerName: "Shahriar Anan",
     comingSoon: "Coming soon",
+  },
+  payments: {
+    alt: "Accepted payment methods: cards, banks and mobile wallets through SSLCommerz, including Visa, Mastercard and bKash.",
   },
   locale: {
     switchLabel: "বাংলায় দেখুন",
@@ -72,12 +74,14 @@ const common = {
   },
   staffNav: {
     announcements: "Announcements",
+    reviews: "Reviews",
     systemStatus: "System status",
     orders: "Pending orders",
     dashboard: "Dashboard",
     categories: "Categories",
     modules: "Packages",
     exams: "Exams",
+    myExams: "My exams",
     participation: "Results & marking",
     submissions: "Submissions",
     students: "Students",
@@ -92,6 +96,7 @@ const common = {
     examsAll: "All exams",
     examsCreate: "Create exam",
     pendingChanges: "{count} waiting to be published",
+    pendingReviews: "{count} reviews waiting for approval",
     collapse: "Collapse the menu",
     expand: "Expand the menu",
     awaitingMarking: "{count} scripts awaiting marking",
@@ -135,6 +140,7 @@ const common = {
     off: "Off",
     loading: "Loading…",
     errorBody: "Check your internet connection and try again.",
+    serverError: "Something went wrong on our side. Try again in a moment.",
     offline: "You are offline. We will try again when the connection is back.",
     required: "required",
   },
@@ -225,6 +231,11 @@ const common = {
   notFound: {
     title: "Page not found",
     body: "The address may be wrong, or the page has been moved.",
+    exam: "This exam was not found",
+    package: "This package was not found",
+    category: "This category was not found",
+    itemBody: "It may have been removed, or the address may be wrong.",
+    generic: "We could not find what you asked for. It may have been removed, or the address may be wrong.",
   },
   error: {
     title: "Something went wrong",

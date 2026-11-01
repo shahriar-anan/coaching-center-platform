@@ -437,7 +437,7 @@ function PaymentsView() {
       ) : query.isError && isNotDeployed(query.error) ? (
         <EmptyState title={t("account.payments.notYet")} />
       ) : query.isError ? (
-        <ErrorState onRetry={() => void query.refetch()} />
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
         <div className="grid gap-4">
           <Table

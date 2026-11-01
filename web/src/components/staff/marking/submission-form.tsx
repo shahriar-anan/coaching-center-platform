@@ -112,13 +112,24 @@ export function SubmissionForm({
     }
   }
 
-  function saveErrorText(caught: unknown): string {
+  /** The text for a failed save or ready flag. The API's code says why; an unknown code keeps the generic text. */
+  function saveErrorText(caught: unknown, action: "save" | "ready" = "save"): string {
     if (caught instanceof ApiError) {
       if (caught.code === "FILE_TOO_LARGE") {
         return t("staffMarking.form.fileTooLarge", { max: format.formatNumber(MAX_MARKED_MB) });
       }
-      if (caught.code === "VALIDATION_FAILED") {
+      if (caught.code === "MARKS_OUT_OF_RANGE") {
         return t("staffMarking.form.marksRange", { max: maximum });
+      }
+      if (caught.code === "VALIDATION_FAILED") {
+        return t("staffMarking.form.checkMarksAndFile");
+      }
+      // The ready flag is refused for a paper with no draft mark, which is not the same as a paper with no answer.
+      if (caught.code === "EVALUATION_NOT_ALLOWED") {
+        return t(action === "ready" ? "staffMarking.form.readyNeedsMark" : "staffMarking.form.cannotMark");
+      }
+      if (caught.code === "ACCESS_DENIED") {
+        return t("staffMarking.form.cannotMarkPaper");
       }
     }
     return t("common.error.body");
@@ -132,7 +143,7 @@ export function SubmissionForm({
         tone: "ok",
       });
     } catch (caught) {
-      setErrors({ form: saveErrorText(caught) });
+      setErrors({ form: saveErrorText(caught, "ready") });
     }
   }
 

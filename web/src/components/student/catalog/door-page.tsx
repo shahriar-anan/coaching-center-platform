@@ -3,10 +3,9 @@
 import { useCategoryTree, type CategoryNode } from "@/lib/api/exam/catalog";
 import { formatNumber, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DoorDiscovery } from "./door-discovery";
@@ -23,11 +22,10 @@ import {
 } from "./catalog-helpers";
 
 /**
- * The counts on a category card, in one line: subcategories, then exams, then packages. A zero part is left out. A card
+ * The counts of a category, in one line: subcategories, then exams, then packages. A zero part is left out. A category
  * with nothing at all says "Coming soon" (Phase 4, A4).
  */
-function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
-  const { t, locale } = useLocale();
+function categoryCountText(node: CategoryNode, { t, locale }: Pick<ReturnType<typeof useLocale>, "t" | "locale">): string {
   const modules = countModules(node);
   const exams = countBranchExams(node);
   const parts = [
@@ -35,11 +33,15 @@ function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
     exams > 0 ? t("catalog.countExams", { n: formatNumber(exams, locale) }) : null,
     modules > 0 ? t("catalog.countModules", { n: formatNumber(modules, locale) }) : null,
   ].filter((part): part is string => part !== null);
-  const subtitle = parts.length ? parts.join(" · ") : t("catalog.comingSoon");
+  return parts.length ? parts.join(" · ") : t("catalog.comingSoon");
+}
+
+function CategoryCard({ door, node }: { door: Door; node: CategoryNode }) {
+  const { t, locale } = useLocale();
   return (
     <Card href={categoryPath(door, node.id)}>
       <p className="text-card-title font-bold">{pickTitle(node, locale)}</p>
-      <p className="text-body text-muted">{subtitle}</p>
+      <p className="text-body text-muted">{categoryCountText(node, { t, locale })}</p>
     </Card>
   );
 }
@@ -63,7 +65,7 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
     return (
       <>
         <PageHeader title={doorTitle} breadcrumbs={[{ label: t("catalog.home"), href: "/" }, { label: doorLabel }]} />
-        <ErrorState onRetry={() => void tree.refetch()} />
+        <ErrorState error={tree.error} onRetry={() => void tree.refetch()} />
       </>
     );
   }
@@ -95,15 +97,12 @@ export function DoorPage({ door, categoryId }: { door: Door; categoryId?: string
   if (!path) {
     return (
       <>
-        <PageHeader title={t("catalog.notFound")} breadcrumbs={[{ label: t("catalog.home"), href: "/" }, { label: doorLabel, href: doorPath(door) }]} />
-        <EmptyState
-          title={t("catalog.notFound")}
-          body={t("catalog.notFoundBody")}
-          action={
-            <Button variant="secondary" href={doorPath(door)}>
-              {t("catalog.backToDoor", { door: doorLabel })}
-            </Button>
-          }
+        <PageHeader title={t("common.notFound.category")} breadcrumbs={[{ label: t("catalog.home"), href: "/" }, { label: doorLabel, href: doorPath(door) }]} />
+        <NotFoundState
+          title={t("common.notFound.category")}
+          body={t("common.notFound.itemBody")}
+          backHref={doorPath(door)}
+          backLabel={t("catalog.backToDoor", { door: doorLabel })}
         />
       </>
     );

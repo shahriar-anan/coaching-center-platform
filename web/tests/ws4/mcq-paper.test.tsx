@@ -98,7 +98,7 @@ describe("MCQ paper", () => {
     );
     const q2Options = screen.getAllByRole("radio").slice(4, 8);
     expect(q2Options[2]).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText("১/৩")).toBeInTheDocument();
+    expect(screen.getByText("উত্তর দেওয়া ১ / ৩")).toBeInTheDocument();
   });
 
   it("the submit dialog counts answered and unanswered questions", async () => {
@@ -144,7 +144,7 @@ describe("MCQ paper", () => {
       <McqPaper exam={exam()} studentId={STUDENT} startedAt={STARTED} deadlineAt={open(60 * 60_000)} kind="LIVE" onClosed={() => {}} />,
     );
     expect(screen.getAllByRole("radio")[11]).toHaveAttribute("aria-checked", "true");
-    expect(screen.getAllByRole("button", { name: "✓ পরে দেখব" })[0]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "চিহ্নিত" })[0]).toHaveAttribute("aria-pressed", "true");
   });
 
   it("the later attempt is labelled as practice", () => {
@@ -161,7 +161,7 @@ describe("MCQ paper", () => {
       <McqPaper exam={exam()} studentId={STUDENT} startedAt={STARTED} deadlineAt={open(60 * 60_000)} kind="LIVE" onClosed={() => {}} />,
     );
     await user.click(screen.getAllByRole("button", { name: "পরে দেখব" })[0]);
-    expect(screen.getAllByRole("button", { name: "✓ পরে দেখব" })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "চিহ্নিত" })[0]).toBeInTheDocument();
     expect(calls.filter((c) => c.method === "PUT")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "প্রশ্ন" }));
     expect(screen.getByRole("navigation")).toBeInTheDocument();

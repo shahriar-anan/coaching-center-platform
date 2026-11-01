@@ -4,6 +4,7 @@ import { ExamCategories } from "@/components/student/landing/categories";
 import { Featured } from "@/components/student/landing/featured";
 import { Hero } from "@/components/student/landing/hero";
 import { Numbers } from "@/components/student/landing/numbers";
+import { Reviews } from "@/components/student/landing/reviews";
 import { Steps } from "@/components/student/landing/steps";
 import { Upcoming } from "@/components/student/landing/upcoming";
 
@@ -18,11 +19,13 @@ export function LandingPage() {
   return (
     <div className="flex flex-col">
       <Hero />
-      <ExamCategories />
+      {/* The old site's statistics box, right under the banner as it was there. */}
       <Numbers />
+      <ExamCategories />
       <Featured />
       <Upcoming />
       <Steps />
+      <Reviews />
       <Contact />
       <Closing />
     </div>

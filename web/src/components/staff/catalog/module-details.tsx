@@ -11,12 +11,13 @@ import {
   useCategoryTree,
   useDeleteModule,
   useDiscardPendingChanges,
+  hasStagedChanges,
   useModuleAction,
-  usePendingChanges,
-  usePublishPendingChanges,
+  useRestoreModule,
   useSaveCategory,
   useSaveModule,
   useSetPackagePopular,
+  useStagedSummary,
   type CategoryTreeNode,
   type ModuleInput,
   type StaffModule,
@@ -37,8 +38,7 @@ import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey, fieldErrorFor } from "@/components/staff/catalog/errors";
 import { useUnsavedWarning } from "@/components/staff/catalog/use-unsaved-warning";
 import { ExamChecklist, type ChecklistItem } from "@/components/staff/catalog/exam-checklist";
-import { ChangeListDialog } from "@/components/staff/catalog/change-list-dialog";
-import { PendingChangesBanner } from "@/components/staff/catalog/pending-changes-banner";
+import { StagedPublishDialog } from "@/components/staff/catalog/staged-changes-panel";
 import { parseDiscount } from "@/components/staff/catalog/package-rows";
 import { richTextValue } from "@/components/staff/catalog/exam-form-state";
 
@@ -99,12 +99,12 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const finalSave = useModuleAction(module?.id ?? "", "final-save");
   const publish = useModuleAction(module?.id ?? "", "publish");
   const archive = useModuleAction(module?.id ?? "", "archive");
+  const restore = useRestoreModule(module?.id ?? "");
   const remove = useDeleteModule(module?.id ?? "");
   const saveCategory = useSaveCategory();
   const setPopular = useSetPackagePopular(module?.id ?? "");
-  // The change list is read only when the server says something is staged.
-  const changes = usePendingChanges("package", module?.pendingChanges ? module.id : undefined);
-  const publishChanges = usePublishPendingChanges("package", module?.id ?? "");
+  // What waits on the package, its exams or its teachers. The one publish is the review dialog's (StagedPublishDialog).
+  const stagedSummary = useStagedSummary(module?.id);
   const discardChanges = useDiscardPendingChanges("package", module?.id ?? "");
 
   const [form, setForm] = useState<FormState>(() => initialState(module));
@@ -112,7 +112,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   const [status, setStatus] = useState<StaffModule | undefined>(module);
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
+  const [confirm, setConfirm] = useState<"archive" | "delete" | "restore" | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -129,6 +129,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   useUnsavedWarning(dirty);
 
   const archived = status?.status === "ARCHIVED";
+  // Something waits on this package, one of its exams or one of its teachers (the local status is the one the save updates).
+  const anythingStaged = Boolean(status?.pendingChanges) || hasStagedChanges(stagedSummary.data);
   const readOnly = archived || (module ? !role.canAuthor : false);
   const creating = !module;
   const categories = useMemo(() => flatCategories(tree.data ?? []), [tree.data]);
@@ -150,6 +152,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
   ];
   const publishable = checklist.every((item) => item.done) && status?.status !== "PUBLISHED" && !archived;
   const primary = status ? primaryExamAction(status, { dirty, masterAdmin }) : "none";
+  // The package's one publish button: the Master Admin's, once anything waits on the package, an exam or a teacher.
+  const publishChangesShown = masterAdmin && status?.status === "PUBLISHED" && !archived && !dirty && anythingStaged;
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -307,8 +311,6 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     return null;
   }
 
-  const banner = module?.pendingChanges ? <PendingChangesBanner masterAdmin={masterAdmin} /> : null;
-
   // The form's Save, at the foot of the third column.
   const saveRow = !readOnly ? (
     <div className="grid gap-2">
@@ -328,7 +330,6 @@ function DetailsBody({ module }: { module?: StaffModule }) {
 
   return (
     <div className="grid gap-6">
-      {banner}
       <form ref={formRef} id="module-details-form" onSubmit={onSubmit} noValidate className="grid max-w-5xl gap-5">
         <fieldset disabled={readOnly} className="grid gap-5">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -519,6 +520,9 @@ function DetailsBody({ module }: { module?: StaffModule }) {
             {status ? <StatusPill status={status.status} /> : null}
           </div>
           <ExamChecklist items={checklist} />
+          {status?.status === "PUBLISHED" && !anythingStaged && !archived ? (
+            <p className="text-meta text-muted">{t("staffCatalog.moduleForm.nothingWaiting")}</p>
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <span id="module-final-save">
               <Button
@@ -539,7 +543,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                 {t("staffCatalog.moduleForm.publish")}
               </Button>
             ) : null}
-            {primary === "publishChanges" ? (
+            {publishChangesShown ? (
               <Button onClick={() => setReviewing(true)}>{t("staffCatalog.changes.publishChanges")}</Button>
             ) : null}
             {module.pendingChanges && masterAdmin ? (
@@ -551,14 +555,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
         </section>
       ) : null}
 
-      {module && masterAdmin && changes.data ? (
-        <ChangeListDialog
-          open={reviewing}
-          onOpenChange={setReviewing}
-          changes={changes.data}
-          onPublish={(revisionId) => publishChanges.mutateAsync(revisionId)}
-          onFailed={(message) => setFormError(message)}
-        />
+      {module && masterAdmin ? (
+        <StagedPublishDialog moduleId={module.id} open={reviewing} onOpenChange={setReviewing} />
       ) : null}
 
       {module && masterAdmin ? (
@@ -591,6 +589,14 @@ function DetailsBody({ module }: { module?: StaffModule }) {
         </section>
       ) : null}
 
+      {module && role.canDelete && archived ? (
+        <section className="flex flex-wrap gap-3 border-t border-border pt-5">
+          <Button variant="secondary" onClick={() => setConfirm("restore")}>
+            {t("staffCatalog.moduleForm.restore")}
+          </Button>
+        </section>
+      ) : null}
+
       {module && role.canDelete ? (
         <>
           <ConfirmDialog
@@ -604,6 +610,24 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                 await archive.mutateAsync();
                 setStatus((current) => (current ? { ...current, status: "ARCHIVED" } : current));
                 toast({ title: t("staffCatalog.moduleForm.archived"), tone: "ok" });
+              } catch (error) {
+                throw new Error(t(catalogErrorKey(error)));
+              }
+            }}
+          />
+          <ConfirmDialog
+            open={confirm === "restore"}
+            onOpenChange={(open) => setConfirm(open ? "restore" : null)}
+            title={t("staffCatalog.moduleForm.restoreTitle", { name: module.titleBn })}
+            body={t("staffCatalog.moduleForm.restoreBody")}
+            confirmLabel={t("staffCatalog.moduleForm.restoreConfirm")}
+            onConfirm={async () => {
+              try {
+                await restore.mutateAsync();
+                setStatus((current) =>
+                  current ? { ...current, status: "DRAFT", finallySaved: false } : current,
+                );
+                toast({ title: t("staffCatalog.moduleForm.restored"), tone: "ok" });
               } catch (error) {
                 throw new Error(t(catalogErrorKey(error)));
               }

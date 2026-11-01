@@ -176,9 +176,13 @@ export function useSetAnswersReleased(examId: string) {
 
 /* ---------- announcements ---------- */
 
-export type AnnouncementAudience = "ALL" | "MODULE";
+/** Who an announcement goes to. `MODULE` takes `moduleId`, `EXAM` takes `examId`, `SELECTED` takes `studentIds`. */
+export type AnnouncementAudience = "ALL" | "MODULE" | "EXAM" | "SELECTED";
 
-/** `POST /api/v1/announcements` body. Titles and bodies may be blank; not all four. */
+/** The audiences the preview counts. `SELECTED` has no preview: its count is the length of the list. */
+export type PreviewAudience = Exclude<AnnouncementAudience, "SELECTED">;
+
+/** `POST /api/v1/announcements` body. Titles and bodies may be blank, not all four. Only the target the audience needs is sent. */
 export type AnnouncementRequest = {
   titleEn: string;
   titleBn: string;
@@ -186,38 +190,54 @@ export type AnnouncementRequest = {
   bodyBn: string;
   audience: AnnouncementAudience;
   moduleId?: string;
+  examId?: string;
+  /** 1 to 500 active students. Only for `SELECTED`. */
+  studentIds?: string[];
 };
 
+/** The send response. The server leaves out null fields, so a missing target means null. */
 export type AnnouncementView = {
   id: string;
   audience: AnnouncementAudience;
-  moduleId: string | null;
+  moduleId?: string | null;
+  examId?: string | null;
   recipients: number;
   createdAt: string;
 };
 
-/** One row of `GET /api/v1/announcements` (Master Admin only). Titles may be blank; the module fields are null for `ALL`. */
+/**
+ * One row of `GET /api/v1/announcements` (Master Admin and System Admin). The body is not returned. The target fields
+ * are set for their own audience only, and are left out by the server when null.
+ */
 export type AnnouncementHistoryRow = {
   id: string;
   titleEn: string;
   titleBn: string;
   audience: AnnouncementAudience;
-  moduleId: string | null;
-  moduleTitleEn: string | null;
-  moduleTitleBn: string | null;
+  moduleId?: string | null;
+  moduleTitleEn?: string | null;
+  moduleTitleBn?: string | null;
+  examId?: string | null;
+  examTitleEn?: string | null;
+  examTitleBn?: string | null;
   createdAt: string;
   recipients: number;
+  withdrawn: boolean;
+  withdrawnAt?: string | null;
 };
+
+/** The target a preview counts: a package for `MODULE`, an exam for `EXAM`, nothing for `ALL`. */
+export type AnnouncementPreviewParams = { audience: PreviewAudience; moduleId?: string; examId?: string };
 
 const HISTORY_PAGE_SIZE = 20;
 
-/** Sent announcements, newest first. Master Admin only. */
-export function useAnnouncementHistory(page: number) {
+/** Sent announcements, newest first, optionally only one audience. Master Admin and System Admin. */
+export function useAnnouncementHistory(page: number, audience?: AnnouncementAudience) {
   return useQuery({
-    queryKey: staffAdminKeys.announcements(page),
+    queryKey: staffAdminKeys.announcements(page, audience),
     queryFn: ({ signal }) =>
       apiRequest<PageResponse<AnnouncementHistoryRow>>(
-        `/api/v1/announcements${queryString({ page, size: HISTORY_PAGE_SIZE })}`,
+        `/api/v1/announcements${queryString({ page, size: HISTORY_PAGE_SIZE, audience })}`,
         { signal },
       ),
     placeholderData: keepPreviousData,
@@ -225,13 +245,58 @@ export function useAnnouncementHistory(page: number) {
   });
 }
 
-/** A sent announcement cannot be edited or deleted, so the only thing to refresh is the history list. */
+/**
+ * How many students the audience reaches now, for the confirm dialog. Asked only while `enabled`. A failed count is not
+ * retried, so the dialog can say the count is unknown at once; sending is still allowed.
+ */
+export function useAnnouncementPreview(params: AnnouncementPreviewParams, enabled: boolean) {
+  return useQuery({
+    queryKey: staffAdminKeys.announcementPreview(params),
+    queryFn: ({ signal }) =>
+      apiRequest<{ recipients: number }>(
+        `/api/v1/announcements/preview${queryString({
+          audience: params.audience,
+          moduleId: params.moduleId,
+          examId: params.examId,
+        })}`,
+        { signal },
+      ),
+    enabled,
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+/** Sends an announcement. A sent one is never edited, so the only thing to refresh is the history. */
 export function useSendAnnouncement() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: AnnouncementRequest) =>
       apiRequest<AnnouncementView>("/api/v1/announcements", { method: "POST", body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "announcements"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: staffAdminKeys.announcementHistory }),
+  });
+}
+
+/**
+ * Withdraws a sent announcement: it leaves the pages and the Notices list, and the record stays. The server answers
+ * with the row; that row replaces the one in the history at once, and the history is then reloaded.
+ */
+export function useWithdrawAnnouncement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<AnnouncementHistoryRow>(`/api/v1/announcements/${id}/withdraw`, { method: "PUT" }),
+    onSuccess: (row) => {
+      queryClient.setQueriesData<PageResponse<AnnouncementHistoryRow>>(
+        { queryKey: staffAdminKeys.announcementHistory },
+        (current) =>
+          current && {
+            ...current,
+            content: current.content.map((item) => (item.id === row.id ? row : item)),
+          },
+      );
+      void queryClient.invalidateQueries({ queryKey: staffAdminKeys.announcementHistory });
+    },
   });
 }
 
@@ -304,7 +369,10 @@ export function staffAdminErrorKey(code: string): string {
 
 export const staffAdminKeys = {
   access: (studentId: string, page: number) => ["staffAdmin", "access", studentId, page] as const,
-  announcements: (page: number) => ["staffAdmin", "announcements", page] as const,
+  announcementHistory: ["staffAdmin", "announcements"] as const,
+  announcements: (page: number, audience?: AnnouncementAudience) =>
+    ["staffAdmin", "announcements", page, audience ?? "all"] as const,
+  announcementPreview: (params: AnnouncementPreviewParams) => ["staffAdmin", "announcementPreview", params] as const,
   orders: (filters: PendingOrderFilters) => ["staffAdmin", "orders", filters] as const,
   release: (examId: string) => ["staffAdmin", "release", examId] as const,
   systemStatus: ["staffAdmin", "systemStatus"] as const,

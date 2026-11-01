@@ -4,8 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "এক্সাম পোর্টাল",
-    template: "%s · এক্সাম পোর্টাল",
+    default: "Symam Law",
+    template: "%s · Symam Law",
   },
   description: "এমসিকিউ ও রিটেন পরীক্ষা, রেজাল্ট ও মেধাতালিকা।",
 };

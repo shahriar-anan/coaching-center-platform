@@ -2,23 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useMyModules, useRoutine, type RoutineRow } from "@/lib/api/exam/catalog";
-import { PopularSection } from "./popular-section";
+import { useRoutine, type RoutineRow } from "@/lib/api/exam/catalog";
 import { useSession } from "@/lib/auth/session-context";
 import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { Button } from "@/components/ui/button";
-import { DoorActions } from "@/components/student/catalog/door-actions";
 import { DoorIcon } from "@/components/student/door-icon";
 import { Card } from "@/components/ui/card";
 import { Countdown } from "@/components/ui/countdown";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { staffHref } from "@/lib/config";
-import { examPath, isLive, modulePath } from "@/components/student/catalog/catalog-helpers";
+import { examPath, isLive } from "@/components/student/catalog/catalog-helpers";
 import { ExamStatusPill, TypePill } from "@/components/student/catalog/status-pill";
 import { LandingPage } from "@/components/student/landing/landing-page";
 
@@ -76,28 +73,52 @@ function writeDismissed(list: string[]) {
   }
 }
 
-/** Two doors: the same category tree, filtered by exam type. */
-function Doors() {
+/** One door: the mockup's large card, kept as it was. An icon, a title and one line, and nothing else. */
+function DoorLink({ href, icon, title, sub }: { href: string; icon: "mcq" | "written" | "orders" | "packages"; title: string; sub: string }) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
+    >
+      <DoorIcon kind={icon} className="size-12" />
+      <span className="mt-1 block text-title font-bold">{title}</span>
+      <span className="block text-meta text-muted">{sub}</span>
+    </Link>
+  );
+}
+
+/**
+ * The exam segment: a heading and the two exam doors, MCQ and Written (the same category tree, filtered by exam type). The doors
+ * are the mockup's large cards, as they were.
+ */
+function ExamDoors() {
   const { t } = useLocale();
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <Link
-        href="/mcq"
-        className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
-      >
-        <DoorIcon kind="mcq" className="size-12" />
-        <span className="mt-1 block text-title font-bold">{t("home.doorMcqTitle")}</span>
-        <span className="block text-meta text-muted">{t("home.doorMcqSub")}</span>
-      </Link>
-      <Link
-        href="/written"
-        className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
-      >
-        <DoorIcon kind="written" className="size-12" />
-        <span className="mt-1 block text-title font-bold">{t("home.doorWrittenTitle")}</span>
-        <span className="block text-meta text-muted">{t("home.doorWrittenSub")}</span>
-      </Link>
-    </div>
+    <section aria-labelledby="exam-doors">
+      <h2 id="exam-doors" className="mb-3 text-card-title font-bold">
+        {t("home.examsTitle")}
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        <DoorLink href="/mcq" icon="mcq" title={t("home.doorMcqTitle")} sub={t("home.doorMcqSub")} />
+        <DoorLink href="/written" icon="written" title={t("home.doorWrittenTitle")} sub={t("home.doorWrittenSub")} />
+      </div>
+    </section>
+  );
+}
+
+/** A segment of its own, set apart from the exams by a line: the student's orders and all the packages. Each door leads to its page. */
+function ShopDoors() {
+  const { t } = useLocale();
+  return (
+    <section aria-labelledby="shop-doors" className="mt-8 border-t border-border pt-6">
+      <h2 id="shop-doors" className="mb-3 text-card-title font-bold">
+        {t("home.shopTitle")}
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        <DoorLink href="/my-modules" icon="orders" title={t("home.doorOrdersTitle")} sub={t("home.doorOrdersSub")} />
+        <DoorLink href="/packages" icon="packages" title={t("home.doorPackagesTitle")} sub={t("home.doorPackagesSub")} />
+      </div>
+    </section>
   );
 }
 
@@ -146,6 +167,7 @@ function Nudges({ phoneRequired, emailVerified, live }: {
   );
 }
 
+/** One exam in a list card: the title, then the time and the type; the student's own status pill sits on the right. */
 function RoutineLine({ row }: { row: RoutineRow & { liveAt: string; endAt: string } }) {
   const { locale } = useLocale();
   return (
@@ -170,7 +192,6 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
   const { t, locale } = useLocale();
   const now = useServerNow(1000);
   const routine = useRoutine(true);
-  const modules = useMyModules(true);
 
   const rows = routine.data ?? [];
   // Only exams with a date count as upcoming here; undated ones wait on the routine.
@@ -186,20 +207,18 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
 
   return (
     <>
-      <div className="pb-4 pt-2">
-        <p className="text-body text-muted">{name}</p>
-      </div>
       <WelcomeCard name={name} />
       <Nudges phoneRequired={phoneRequired} emailVerified={emailVerified} live={liveRow} />
 
-      <Doors />
+      <ExamDoors />
+      <ShopDoors />
 
       <section className="mt-6" aria-labelledby="next-exam">
         <h2 id="next-exam" className="mb-2 text-card-title font-bold">{t("home.nextExam")}</h2>
         {routine.isPending ? (
           <Skeleton variant="card" />
         ) : routine.isError && !routine.data ? (
-          <ErrorState onRetry={() => void routine.refetch()} />
+          <ErrorState error={routine.error} onRetry={() => void routine.refetch()} />
         ) : !next ? (
           <p className="text-muted">{t("home.noUpcoming")}</p>
         ) : isLive(next, now) ? (
@@ -217,13 +236,6 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
         )}
       </section>
 
-      {nowRows.length > 0 ? (
-        <section className="mt-6" aria-labelledby="now-section">
-          <h2 id="now-section" className="mb-2 text-card-title font-bold">{t("home.nowSection")}</h2>
-          <div className="grid gap-2.5">{nowRows.map((row) => <RoutineLine key={row.id} row={row} />)}</div>
-        </section>
-      ) : null}
-
       <section className="mt-6" aria-labelledby="upcoming-section">
         <div className="mb-2 flex items-center justify-between">
           <h2 id="upcoming-section" className="text-card-title font-bold">{t("home.upcomingSection")}</h2>
@@ -236,28 +248,6 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
         )}
       </section>
 
-      <PopularSection />
-
-      <section className="mt-6" aria-labelledby="my-modules">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 id="my-modules" className="text-card-title font-bold">{t("home.myModules")}</h2>
-          <Link href="/my-modules" className="text-label font-semibold text-accent">{t("home.seeAll")}</Link>
-        </div>
-        {modules.isPending ? (
-          <Skeleton variant="card" count={2} />
-        ) : (modules.data ?? []).length === 0 ? (
-          <EmptyState title={t("home.emptyTitle")} body={t("home.emptyBody")} action={<DoorActions />} />
-        ) : (
-          <div className="grid gap-2.5">
-            {(modules.data ?? []).slice(0, 4).map((module) => (
-              <Card key={module.id} href={modulePath("mcq", module.id)}>
-                <p className="font-bold">{pickTitle(module, locale)}</p>
-                <p className="mt-1"><Pill tone="ok">{t("catalog.unlocked")}</Pill></p>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
     </>
   );
 }

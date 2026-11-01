@@ -76,7 +76,7 @@ export function RosterTab({ moduleId, published }: { moduleId: string; published
           </div>
         </div>
         {roster.isError && !roster.data ? (
-          <ErrorState onRetry={() => roster.refetch()} message={t("staffCatalog.roster.loadError")} />
+          <ErrorState onRetry={() => roster.refetch()} message={t("staffCatalog.roster.loadError")} error={roster.error} />
         ) : (
           <>
             <Table

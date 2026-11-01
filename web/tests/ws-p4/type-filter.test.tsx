@@ -30,28 +30,35 @@ describe("the type filter values (Phase 4, A1 and A3)", () => {
 });
 
 const resultExam = (id: string, examType: "MCQ" | "WRITTEN", titleEn: string) => ({
-  id,
-  moduleId: "m-1",
+  examId: id,
   titleEn,
   titleBn: titleEn,
   examType,
+  moduleId: "m-1",
+  moduleTitleEn: "BJS",
+  moduleTitleBn: "বিজেএস",
   liveAt: new Date(Date.now() - 3 * 60 * 60_000).toISOString(),
-  myStatus: "RESULT_READY",
+  passPercent: 40,
+  status: "RESULT_READY",
+  detail: "RESULT_READY",
+  kind: "LIVE" as const,
+  attempts: 1,
+  resultVisible: true,
+  score: 38,
+  maximum: 50,
+  passed: true,
 });
 
 describe("results hub type filter (A3)", () => {
   it("restores the chosen type from the URL and hides the other type", async () => {
-    mockApi({
-      "GET /api/v1/live-exam-modules": { content: [{ id: "m-1", titleEn: "BJS", titleBn: "বিজেএস" }], page: 0, size: 50, totalElements: 1, totalPages: 1 },
-      "GET /api/v1/live-exam-modules/m-1/exams": {
-        content: [resultExam("ex-m", "MCQ", "MCQ paper"), resultExam("ex-w", "WRITTEN", "Written paper")],
-        page: 0,
-        size: 50,
-        totalElements: 2,
-        totalPages: 1,
+    const rows = [resultExam("ex-m", "MCQ", "MCQ paper"), resultExam("ex-w", "WRITTEN", "Written paper")];
+    const { calls } = mockApi({
+      // The API narrows the list by examType, so the mock does the same.
+      "GET /api/v1/me/exam-results": ({ url }: { url: URL }) => {
+        const type = url.searchParams.get("examType");
+        const content = rows.filter((row) => !type || row.examType === type);
+        return { content, page: 0, size: 20, totalElements: content.length, totalPages: 1 };
       },
-      "GET /api/v1/live-exams/ex-m/result": { score: 38, maximum: 50, passed: true, status: "RESULT_READY", questions: null, comment: null, evaluatedPdf: null },
-      "GET /api/v1/live-exams/ex-w/result": { score: 20, maximum: 50, passed: false, status: "RESULT_READY", questions: null, comment: null, evaluatedPdf: null },
     });
     renderWithProviders(<ResultsHub />, { locale: "en", route: "/results?type=WRITTEN" });
 
@@ -59,13 +66,13 @@ describe("results hub type filter (A3)", () => {
     expect(screen.queryByText("MCQ paper")).not.toBeInTheDocument();
     const group = screen.getByRole("group", { name: "Exam type" });
     expect(within(group).getByRole("button", { name: "Written" })).toHaveAttribute("aria-pressed", "true");
+    expect(calls.some((call) => call.search.includes("examType=WRITTEN"))).toBe(true);
   });
 
   it("writes the choice to the URL when a student picks a type", async () => {
     const user = userEvent.setup();
     mockApi({
-      "GET /api/v1/live-exam-modules": { content: [{ id: "m-1", titleEn: "BJS", titleBn: "বিজেএস" }], page: 0, size: 50, totalElements: 1, totalPages: 1 },
-      "GET /api/v1/live-exam-modules/m-1/exams": { content: [], page: 0, size: 50, totalElements: 0, totalPages: 0 },
+      "GET /api/v1/me/exam-results": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
     });
     renderWithProviders(<ResultsHub />, { locale: "en", route: "/results" });
     await screen.findByRole("group", { name: "Exam type" });

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { apiRequest, apiUpload } from "@/lib/api/client";
-import type { PageResponse } from "@/lib/api/exam/types";
+import { catalogKeys } from "@/lib/api/exam/catalog";
+import type { ExamType, PageResponse } from "@/lib/api/exam/types";
 
 // Local types until WS0 adds these to lib/api/exam/types.ts. Shapes follow LiveExamSittingService (API).
 
@@ -55,15 +56,20 @@ export type StudentExam = {
   finallySaved: boolean;
   price: number | null;
   questionPdf: boolean | null;
-  questions: SittingQuestion[] | null;
+  /** Omitted (absent) for a submitted MCQ until its review opens. Once open it carries the key and explanations. */
+  questions?: SittingQuestion[] | null;
   myStatus: string;
   retakeAvailable: boolean | null;
   /** False when an answer, once saved (or confirmed, for a multi-answer question), cannot change (API: `answersChangeable`). Absent means it can. */
   answersChangeable?: boolean | null;
+  /** The exam's negative mark per wrong answer, when it has one (API: `negativeMarks`). Absent or 0 means none. */
+  negativeMarks?: number | null;
   /** The student's own sitting, or null when there is none (API: `sitting`). */
   sitting: SittingBlock | null;
   /** True once the student's written script is stored on the server (API: `answerStored`). */
   answerStored?: boolean | null;
+  /** For a submitted MCQ whose review is still closed: when its answers and explanations open (API: `reviewOpensAt`). */
+  reviewOpensAt?: string | null;
 };
 
 export type TakeResult = {
@@ -90,11 +96,21 @@ export type ReviewedResult = {
   maximum: number;
   passed: boolean | null;
   status: string;
-  questions: SittingQuestion[] | null;
+  /** Absent for a submitted MCQ whose review is closed (see `reviewOpensAt`). */
+  questions?: SittingQuestion[] | null;
+  /** For a submitted MCQ whose review is closed: when the answers and explanations open (API: `reviewOpensAt`). */
+  reviewOpensAt?: string | null;
   comment: string | null;
   evaluatedPdf: boolean | null;
+  /** True when the attempt has a submitted answer script the student can open (API: `answerPdf`). Never for MCQ. */
+  answerPdf?: boolean;
   /** Where the attempt stands on the merit list, for the position line (API: `position`). Null when there is none. */
   position?: SittingPosition | null;
+  /** The exam's own fields, so the result page can stand alone when the exam read is refused (an archived exam). */
+  examTitleEn?: string | null;
+  examTitleBn?: string | null;
+  examType?: ExamType | null;
+  passPercent?: number | null;
 };
 
 /**
@@ -118,12 +134,58 @@ export type LeaderboardRow = {
   mine: boolean;
 };
 
+/**
+ * One exam the student has sat, from its latest attempt (`GET /api/v1/me/exam-results`). `score` and `passed` are set only
+ * when `resultVisible` is true. The API drops a null field, so every nullable field may be missing (use `isMissing`).
+ */
+export type MyExamResult = {
+  examId: string;
+  titleEn: string;
+  titleBn?: string | null;
+  examType: ExamType;
+  /** The package the exam is in, first joined; absent for a standalone exam. */
+  moduleId?: string | null;
+  moduleTitleEn?: string | null;
+  moduleTitleBn?: string | null;
+  liveAt?: string | null;
+  passPercent?: number | null;
+  /** The legacy status: IN_PROGRESS, SUBMITTED, AWAITING_RESULT, RESULT_READY or FAILED_TO_SUBMIT. */
+  status: string;
+  /** The full status. */
+  detail: string;
+  /** LIVE, or RETAKE for every other attempt (a practice exam's first attempt too). */
+  kind: "LIVE" | "RETAKE";
+  attempts: number;
+  submittedAt?: string | null;
+  resultVisible: boolean;
+  score?: number | null;
+  maximum: number;
+  passed?: boolean | null;
+};
+
 export const sittingKeys = {
   exam: (examId: string) => ["sitting", "exam", examId] as const,
   result: (examId: string) => ["sitting", "result", examId] as const,
   leaderboard: (examId: string) => ["sitting", "leaderboard", examId] as const,
   routine: () => ["sitting", "routine"] as const,
+  myResults: (examType: ExamType | null) => ["sitting", "my-results", examType ?? "ALL"] as const,
 };
+
+const MY_RESULTS_PAGE = 20;
+
+/**
+ * The reads that show how a sitting ended: the exam, its result, the Results list and My exams. Called after a submit, a written
+ * upload and the time running out, so the new row shows under Results at once, without a reload.
+ */
+export function invalidateSittingReads(client: QueryClient, examId: string): Promise<unknown> {
+  return Promise.all([
+    client.invalidateQueries({ queryKey: sittingKeys.exam(examId) }),
+    client.invalidateQueries({ queryKey: sittingKeys.result(examId) }),
+    client.invalidateQueries({ queryKey: ["sitting", "my-results"] }),
+    client.invalidateQueries({ queryKey: catalogKeys.myExam(examId) }),
+    client.invalidateQueries({ queryKey: ["catalog", "my-exams"] }),
+  ]);
+}
 
 /** The exam as this student sees it. Refetched on focus; never cached, because the window is live. */
 export function useStudentExam(examId: string) {
@@ -180,7 +242,7 @@ export function useSubmitExam(examId: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: () => apiRequest<PostedResult>(`/api/v1/live-exams/${examId}/submit`, { method: "POST", body: {} }),
-    onSettled: () => client.invalidateQueries({ queryKey: sittingKeys.exam(examId) }),
+    onSettled: () => invalidateSittingReads(client, examId),
   });
 }
 
@@ -211,7 +273,7 @@ export function useUploadAnswer(examId: string, onProgress?: (percent: number) =
       form.append("file", file);
       return apiUpload<void>(`/api/v1/live-exams/${examId}/answer-pdf`, form, { onProgress });
     },
-    onSettled: () => client.invalidateQueries({ queryKey: sittingKeys.exam(examId) }),
+    onSettled: () => invalidateSittingReads(client, examId),
   });
 }
 
@@ -224,33 +286,26 @@ export function evaluatedPdfPath(examId: string) {
   return `/api/v1/live-exams/${examId}/evaluated-pdf`;
 }
 
-/** One row of the student's module exam list (the fields the results hub needs). */
-export type HubExam = Pick<
-  StudentExam,
-  "id" | "moduleId" | "titleEn" | "titleBn" | "examType" | "liveAt" | "myStatus" | "passPercent"
->;
-
-type PageOf<T> = PageResponse<T>;
-
-/** The student's modules, one page. The student owns few modules, so one page is enough. */
-export function useMyModules() {
-  return useQuery({
-    queryKey: ["sitting", "hub", "modules"],
-    queryFn: () =>
-      apiRequest<PageOf<{ id: string; titleEn: string; titleBn: string | null }>>(
-        "/api/v1/live-exam-modules?page=0&size=50",
-      ),
-    staleTime: 60_000,
-  });
+/** The student's own submitted answer script. `attempt` picks one attempt; without it, the latest. */
+export function answerPdfPath(examId: string, attempt?: number) {
+  const base = `/api/v1/live-exams/${examId}/answer-pdf`;
+  return attempt === undefined ? base : `${base}?attempt=${attempt}`;
 }
 
-/** Every module's exams, in parallel. Results are cached per module. */
-export function useModuleExams(moduleIds: string[]) {
-  return useQueries({
-    queries: moduleIds.map((id) => ({
-      queryKey: ["sitting", "hub", "exams", id],
-      queryFn: () => apiRequest<PageOf<HubExam>>(`/api/v1/live-exam-modules/${id}/exams?page=0&size=50`),
-      staleTime: 60_000,
-    })),
+/**
+ * Every exam the student has sat, newest first, a page at a time (`GET /api/v1/me/exam-results`). `examType` narrows it on
+ * the server, so a type change starts a new list. Standalone exams are included.
+ */
+export function useMyExamResults(examType: ExamType | null) {
+  return useInfiniteQuery({
+    queryKey: sittingKeys.myResults(examType),
+    initialPageParam: 0,
+    staleTime: 0,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ page: String(pageParam), size: String(MY_RESULTS_PAGE) });
+      if (examType) params.set("examType", examType);
+      return apiRequest<PageResponse<MyExamResult>>(`/api/v1/me/exam-results?${params.toString()}`, { signal });
+    },
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
   });
 }

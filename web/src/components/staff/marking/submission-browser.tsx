@@ -18,25 +18,21 @@ import { Table, type Column } from "@/components/ui/table";
 import { BulkPublishSelected } from "@/components/staff/marking/bulk-publish";
 import {
   buildBrowserTree,
+  failureKind,
   FEED_FILTERS,
   FEED_SORTS,
   feedStatus,
   selectedNode,
   selectionFor,
-  sortRows,
+  selectionOf,
   statusTone,
   statusWordKey,
+  uuidParam,
+  withQuery,
 } from "@/components/staff/marking/marking-queue";
 import { useRole } from "@/lib/auth/guards";
 import { useParticipationRows } from "@/lib/api/exam/staff-home";
-import {
-  FEED_PAGE_MAX,
-  useFeed,
-  useFeedByModules,
-  useMarkingModules,
-  type FeedRow,
-  type FeedSort,
-} from "@/lib/api/exam/staff-marking";
+import { FEED_PAGE_MAX, useFeed, type FeedRow, type FeedSort } from "@/lib/api/exam/staff-marking";
 import { useFormat } from "@/lib/format/use-format";
 import { useServerNow } from "@/lib/time/clock";
 import { useListParams } from "@/lib/url/list-params";
@@ -51,11 +47,11 @@ const SORT_KEY: Record<FeedSort, string> = {
 };
 
 /**
- * `/staff/submissions`: the papers across the modules this user may mark, in a tree of
- * category → module → exam on the left. The selection, filter, sort and search live in the URL.
- * Instructors start on the papers still waiting; Master Admin and System Admin start on all.
+ * `/staff/submissions`: the written papers in a tree of All scripts → category → exam on the left, and the submission
+ * table beside it. The selection, filter, sort and search live in the URL. Instructors start on the papers still waiting;
+ * Master Admin and System Admin start on all.
  */
-/** The submitted answer sheets: a package and exam tree beside the submission table. `embedded` hides its own header (the admin dashboard tab). */
+/** The submitted answer sheets: an exam tree beside the submission table. `embedded` hides its own header (the admin dashboard tab). */
 export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useLocale();
   const format = useFormat();
@@ -73,53 +69,68 @@ export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } =
     page: 0,
   });
   const now = useServerNow(60_000);
-  const modules = useMarkingModules();
   const written = useParticipationRows({ type: "WRITTEN", sort: "title", size: FEED_PAGE_MAX });
-  const moduleList = useMemo(() => modules.data?.content ?? [], [modules.data]);
   const exams = useMemo(() => written.data?.content ?? [], [written.data]);
   const index = useMemo(
-    () => buildBrowserTree(moduleList, exams, format.pickTitle, t("staffMarking.browser.allPapers")),
-    [moduleList, exams, format.pickTitle, t],
+    () =>
+      buildBrowserTree(exams, format.pickTitle, t("staffMarking.browser.allPapers"), t("staffMarking.browser.uncategorised")),
+    [exams, format.pickTitle, t],
   );
 
   const sort: FeedSort = FEED_SORTS.includes(params.sort as FeedSort) ? (params.sort as FeedSort) : "submittedAt,desc";
-  const base = { status: feedStatus(params.status), examId: params.exam, q: params.q, sort, ready: params.status === "READY" };
-  const categoryModules = params.cat ? (index.categoryModules.get(params.cat) ?? []) : [];
+  const selection = selectionOf(params.cat, params.exam);
+  // An old package link still filters by its package. A value that is not an id is ignored, never sent.
+  const packageId = uuidParam(params.module);
 
-  // Every scope but a category is one feed call. A category reads each module's first page.
-  const single = useFeed({ ...base, moduleId: params.module, page: params.page, size: PAGE_SIZE }, !params.cat);
-  const byModule = useFeedByModules(categoryModules, base);
-  const rows: FeedRow[] = params.cat ? sortRows(byModule.flatMap((query) => query.data?.content ?? []), sort) : (single.data?.content ?? []);
-  const totalPages = params.cat ? 1 : (single.data?.totalPages ?? 0);
-  const total = params.cat ? rows.length : (single.data?.totalElements ?? 0);
-  const truncated = byModule.some((query) => (query.data?.totalElements ?? 0) > FEED_PAGE_MAX);
-  const loading = params.cat ? byModule.some((query) => query.isPending) : single.isPending;
-  const failed = params.cat ? byModule.some((query) => query.isError) : single.isError;
+  // One feed call for every scope. The server takes a category's sub-categories too, so a category pages like any other view.
+  const feed = useFeed({
+    categoryId: selection.cat,
+    examId: selection.exam,
+    moduleId: packageId,
+    status: feedStatus(params.status),
+    q: params.q,
+    sort,
+    ready: params.status === "READY",
+    page: params.page,
+    size: PAGE_SIZE,
+  });
+  const rows: FeedRow[] = feed.data?.content ?? [];
+  const totalPages = feed.data?.totalPages ?? 0;
+  const total = feed.data?.totalElements ?? 0;
+  const failed = feed.isError;
+  const failure = failureKind(feed.error);
+  // The exam list is one page; the API caps it at its size. Past that, the tree and the tab counts leave exams out.
+  const examCap = written.data?.size ?? 0;
+  const truncated = examCap > 0 && (written.data?.totalElements ?? 0) > examCap;
 
   const [ticked, setTicked] = useState<string[]>([]);
   const drafts = rows.filter((row) => row.status === "DRAFT");
   const tickedNow = ticked.filter((id) => drafts.some((row) => row.participantId === id));
   const allTicked = drafts.length > 0 && tickedNow.length === drafts.length;
 
-  const moduleById = useMemo(() => new Map(moduleList.map((module) => [module.id, module])), [moduleList]);
-  const selectedId = selectedNode(params);
+  const selectedId = selectedNode(selection);
   const headerTitle = labelOf(index.tree, selectedId) ?? t("staffMarking.browser.title");
-  const selectedExam = params.exam ? exams.find((row) => row.examId === params.exam) : undefined;
+  const selectedExam = selection.exam ? exams.find((row) => row.examId === selection.exam) : undefined;
+  const packageRow = packageId ? exams.find((row) => row.moduleId === packageId) : undefined;
+  const packageName = format.pickTitle({
+    titleEn: packageRow?.moduleTitleEn ?? "",
+    titleBn: packageRow?.moduleTitleBn ?? "",
+  });
 
-  // The exams inside the selection (an exam, a module, a category, or everything). The tab counts read these.
+  // The exams inside the selection (an exam, a category, or everything). The tab counts read these.
   const scopeExams = useMemo(() => {
-    if (params.exam) {
-      return exams.filter((row) => row.examId === params.exam);
+    if (selection.exam) {
+      return exams.filter((row) => row.examId === selection.exam);
     }
-    if (params.module) {
-      return exams.filter((row) => row.moduleId === params.module);
+    if (packageId) {
+      return exams.filter((row) => row.moduleId === packageId);
     }
-    if (params.cat) {
-      const inside = new Set(index.categoryModules.get(params.cat) ?? []);
-      return exams.filter((row) => inside.has(row.moduleId));
+    if (selection.cat) {
+      const inside = new Set(index.categoryExams.get(selection.cat) ?? []);
+      return exams.filter((row) => inside.has(row.examId));
     }
     return exams;
-  }, [exams, index, params.cat, params.exam, params.module]);
+  }, [exams, index, packageId, selection.cat, selection.exam]);
 
   /** The count on a status tab, for the selection on screen. READY has no count of its own yet, so it shows none. */
   function scopedCount(filter: string): number | undefined {
@@ -137,24 +148,27 @@ export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } =
     return undefined;
   }
 
+  /** The paper's address. It keeps this view (category, status, sort, search) so "back to list" returns to it. */
+  function paperLink(row: FeedRow): string {
+    return withQuery(`/staff/submissions/${row.participantId}`, {
+      exam: row.examId,
+      cat: selection.cat,
+      status: params.status === defaultStatus ? "" : params.status,
+      sort: sort === "submittedAt,desc" ? "" : sort,
+      q: params.q,
+    });
+  }
+
   function choose(nodeId: string) {
-    const next = selectionFor(nodeId, index);
+    const next = selectionFor(nodeId);
     if (next) {
       setTicked([]);
-      setParams({ ...next, page: 0 });
+      setParams({ ...next, module: "", page: 0 });
     }
   }
 
   function toggle(id: string) {
     setTicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
-  }
-
-  function retry() {
-    if (params.cat) {
-      byModule.forEach((query) => void query.refetch());
-    } else {
-      void single.refetch();
-    }
   }
 
   function submittedText(iso: string | null): string {
@@ -201,7 +215,7 @@ export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } =
       // A real link, so the paper opens from the keyboard too; the row click is kept for pointers.
       cell: (row) => (
         <Link
-          href={`/staff/submissions/${row.participantId}?m=${row.moduleId}`}
+          href={paperLink(row)}
           className="font-medium text-text underline-offset-4 hover:underline"
           onClick={(event) => event.stopPropagation()}
         >
@@ -217,14 +231,15 @@ export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } =
     {
       key: "module",
       header: t("staffMarking.browser.module"),
-      cell: (row) => format.pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn }),
+      cell: (row) =>
+        row.moduleId ? format.pickTitle({ titleEn: row.moduleTitleEn ?? "", titleBn: row.moduleTitleBn ?? "" }) : DASH,
     },
     ...(canPublishResult
       ? [
           {
             key: "teacher",
             header: t("staffMarking.browser.teacher"),
-            cell: (row: FeedRow) => moduleById.get(row.moduleId)?.instructor?.name ?? DASH,
+            cell: (row: FeedRow) => row.instructorName ?? DASH,
           },
         ]
       : []),
@@ -238,8 +253,8 @@ export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } =
   ];
 
   const emptyState =
-    modules.isSuccess && moduleList.length === 0 ? (
-      <EmptyState title={t("staffMarking.browser.noModules")} body={t("staffMarking.browser.noModulesBody")} />
+    written.isSuccess && exams.length === 0 ? (
+      <EmptyState title={t("staffMarking.browser.noExams")} body={t("staffMarking.browser.noExamsBody")} />
     ) : (
       <EmptyState title={t("staffMarking.browser.noRows")} body={t("staffMarking.browser.noRowsBody")} />
     );
@@ -319,17 +334,32 @@ export function SubmissionBrowser({ embedded = false }: { embedded?: boolean } =
             ) : null}
           </div>
 
-          {truncated ? <p className="text-meta text-warn">{t("staffMarking.browser.truncated")}</p> : null}
+          {truncated ? (
+            <p className="text-meta text-warn">{t("staffMarking.browser.truncated", { max: format.formatNumber(examCap) })}</p>
+          ) : null}
+
+          {packageId ? (
+            <p className="flex flex-wrap items-center gap-2 text-meta text-muted">
+              {t("staffMarking.browser.packageFilter", { name: packageName || DASH })}
+              <Button variant="ghost" onClick={() => setParams({ module: "", page: 0 })}>
+                {t("staffMarking.browser.removePackage")}
+              </Button>
+            </p>
+          ) : null}
 
           {failed ? (
-            <ErrorState onRetry={retry} />
+            <ErrorState
+              onRetry={() => void feed.refetch()}
+              message={failure ? t(`staffMarking.errors.${failure}`) : undefined}
+              error={feed.error}
+            />
           ) : (
             <Table
               columns={columns}
               rows={rows}
               rowKey={(row) => row.participantId}
-              loading={loading}
-              onRowClick={(row) => router.push(`/staff/submissions/${row.participantId}?m=${row.moduleId}`)}
+              loading={feed.isPending}
+              onRowClick={(row) => router.push(paperLink(row))}
               empty={emptyState}
             />
           )}

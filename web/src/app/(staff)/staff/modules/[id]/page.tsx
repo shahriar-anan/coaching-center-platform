@@ -12,13 +12,14 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { StagedChangesPanel } from "@/components/staff/catalog/staged-changes-panel";
 import { ModuleDetails } from "@/components/staff/catalog/module-details";
 import { ModuleSetup } from "@/components/staff/catalog/module-setup";
 import { ModuleExams } from "@/components/staff/catalog/module-exams";
 import { RosterTab } from "@/components/staff/catalog/roster-tab";
-import { InstructorTab } from "@/components/staff/catalog/instructor-tab";
 
-const TABS = ["details", "exams", "roster", "instructor"] as const;
+// A package has no teacher of its own: teachers are set per exam, on the exam's page (Exams tab shows them).
+const TABS = ["details", "exams", "roster"] as const;
 
 function ModuleEditor() {
   const { t } = useLocale();
@@ -32,7 +33,7 @@ function ModuleEditor() {
     return <Skeleton variant="card" count={2} />;
   }
   if (moduleQuery.isError || !moduleQuery.data) {
-    return <ErrorState onRetry={() => moduleQuery.refetch()} message={t("staffCatalog.moduleForm.loadError")} />;
+    return <ErrorState onRetry={() => moduleQuery.refetch()} message={t("staffCatalog.moduleForm.loadError")} error={moduleQuery.error} />;
   }
   const data = moduleQuery.data;
   const title = pickTitle(data);
@@ -41,7 +42,6 @@ function ModuleEditor() {
     { value: "details", label: t("staffCatalog.moduleTabs.details") },
     { value: "exams", label: t("staffCatalog.moduleTabs.exams") },
     ...(role.canManageRoster ? [{ value: "roster", label: t("staffCatalog.moduleTabs.roster") }] : []),
-    ...(role.canAssignInstructor ? [{ value: "instructor", label: t("staffCatalog.moduleTabs.instructor") }] : []),
   ];
   const activeTab = tabs.some((item) => item.value === tab) ? tab : "details";
 
@@ -57,12 +57,12 @@ function ModuleEditor() {
         actions={<StatusPill status={data.status} />}
       />
       <div className="grid gap-6">
+        <StagedChangesPanel moduleId={data.id} />
         <ModuleSetup module={data} />
         <Tabs tabs={tabs} value={activeTab} onChange={(value) => setParams({ tab: value })} ariaLabel={t("staffCatalog.moduleTabs.label")} />
         {activeTab === "details" ? <ModuleDetails module={data} /> : null}
         {activeTab === "exams" ? <ModuleExams moduleId={data.id} /> : null}
         {activeTab === "roster" && role.canManageRoster ? <RosterTab moduleId={data.id} published={data.status === "PUBLISHED"} /> : null}
-        {activeTab === "instructor" && role.canAssignInstructor ? <InstructorTab moduleId={data.id} /> : null}
       </div>
     </>
   );

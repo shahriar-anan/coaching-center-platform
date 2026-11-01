@@ -88,7 +88,7 @@ export function StudentExamHistory({ studentId }: { studentId: string }) {
   ];
 
   if (history.isError) {
-    return <ErrorState onRetry={() => history.refetch()} />;
+    return <ErrorState onRetry={() => history.refetch()} error={history.error} />;
   }
 
   return (

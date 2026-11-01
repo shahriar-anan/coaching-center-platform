@@ -10,6 +10,7 @@ import {
   useArchiveCategory,
   useCategoryTree,
   useDeleteCategory,
+  useRestoreCategory,
   type CategoryTreeNode,
 } from "@/lib/api/exam/staff-catalog";
 import { Button } from "@/components/ui/button";
@@ -55,8 +56,9 @@ function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
   const { formatNumber } = useFormat();
   const { toast } = useToast();
   const archive = useArchiveCategory();
+  const restore = useRestoreCategory();
   const remove = useDeleteCategory();
-  const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
+  const [confirm, setConfirm] = useState<"archive" | "delete" | "restore" | null>(null);
   const isOpen = query ? true : expanded.has(node.id);
   const hasChildren = node.children.length > 0;
   const name = titleOf(node, locale);
@@ -94,7 +96,11 @@ function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
               <Button variant="ghost" className="min-h-10 px-2" onClick={() => setConfirm("archive")}>
                 {t("staffCatalog.categories.archive")}
               </Button>
-            ) : null}
+            ) : (
+              <Button variant="ghost" className="min-h-10 px-2" onClick={() => setConfirm("restore")}>
+                {t("staffCatalog.categories.restore")}
+              </Button>
+            )}
             <Button variant="danger" className="min-h-10 px-2" onClick={() => setConfirm("delete")}>
               {t("staffCatalog.categories.delete")}
             </Button>
@@ -114,6 +120,21 @@ function Row({ node, depth, query, expanded, onToggle, canDelete }: RowProps) {
               try {
                 await archive.mutateAsync(node.id);
                 toast({ title: t("staffCatalog.categories.archived"), tone: "ok" });
+              } catch (error) {
+                throw new Error(t(catalogErrorKey(error)));
+              }
+            }}
+          />
+          <ConfirmDialog
+            open={confirm === "restore"}
+            onOpenChange={(open) => setConfirm(open ? "restore" : null)}
+            title={t("staffCatalog.categories.restoreTitle", { name })}
+            body={t("staffCatalog.categories.restoreBody")}
+            confirmLabel={t("staffCatalog.categories.restoreConfirm")}
+            onConfirm={async () => {
+              try {
+                await restore.mutateAsync(node.id);
+                toast({ title: t("staffCatalog.categories.restored"), tone: "ok" });
               } catch (error) {
                 throw new Error(t(catalogErrorKey(error)));
               }
@@ -196,7 +217,7 @@ export function CategoryTree() {
     return <Skeleton variant="rows" count={6} />;
   }
   if (tree.isError) {
-    return <ErrorState onRetry={() => tree.refetch()} message={t("staffCatalog.categories.loadError")} />;
+    return <ErrorState onRetry={() => tree.refetch()} message={t("staffCatalog.categories.loadError")} error={tree.error} />;
   }
 
   const shownRoots = query ? roots.filter((node) => matches(node, query)) : roots;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
 import { isMissing } from "@/lib/api/missing";
 import type { PageResponse } from "@/lib/api/exam/types";
@@ -26,27 +26,21 @@ function queryString(params: Record<string, string | number | boolean | null | u
 
 export type CategoryRef = { id: string; titleEn: string; titleBn: string };
 
-/** A module as the staff module list sends it: the category chain and the one teacher. */
-export type MarkingModule = {
-  id: string;
-  titleEn: string;
-  titleBn: string;
-  categoryPath: CategoryRef[];
-  instructor: { id: string; name: string; phone: string } | null;
-};
-
 /** The feed's status: `AWAITING` (answer stored, no mark), `DRAFT` (marked, not published), `PUBLISHED`, `FAILED_TO_SUBMIT`. */
 export type FeedStatus = "AWAITING" | "DRAFT" | "PUBLISHED" | "FAILED_TO_SUBMIT";
 
-/** One row of `GET /api/v1/live-exam-submissions`. `evaluatorName` is staff-only. */
+/**
+ * One row of `GET /api/v1/live-exam-submissions`. `evaluatorName` is staff-only. The package fields are left out when the
+ * exam is in no package, which is most written exams.
+ */
 export type FeedRow = {
   participantId: string;
   examId: string;
   examTitleEn: string;
   examTitleBn: string;
-  moduleId: string;
-  moduleTitleEn: string;
-  moduleTitleBn: string;
+  moduleId?: string | null;
+  moduleTitleEn?: string | null;
+  moduleTitleBn?: string | null;
   categoryPath: CategoryRef[];
   studentName: string;
   status: FeedStatus;
@@ -56,6 +50,8 @@ export type FeedRow = {
   evaluatedAt: string | null;
   publishedAt: string | null;
   evaluatorName: string | null;
+  /** The exam's instructor, null when none is assigned. */
+  instructorName?: string | null;
   /** True when a correction to a released result waits for release. */
   releasePending?: boolean | null;
   /** True when the marker has flagged the paper ready for release. */
@@ -66,6 +62,8 @@ export type FeedSort = "submittedAt,desc" | "submittedAt,asc" | "studentName";
 
 export type FeedParams = {
   status: string;
+  /** A category and every category under it. Empty for every category. */
+  categoryId: string;
   moduleId: string;
   examId: string;
   q: string;
@@ -95,9 +93,9 @@ export type MarkingPaper = {
   comment: string | null;
   /** The stored marked PDF's name. Null when none is stored. */
   evaluatedFileName: string | null;
-  moduleId: string;
-  moduleTitleEn: string;
-  moduleTitleBn: string;
+  moduleId?: string | null;
+  moduleTitleEn?: string | null;
+  moduleTitleBn?: string | null;
   examTitleEn: string;
   examTitleBn: string;
   submittedAt: string | null;
@@ -109,17 +107,16 @@ export type MarkingPaper = {
   readyForRelease?: boolean | null;
 };
 
-/** The most rows one feed page carries. A category view reads one page per module. */
+/** The most rows one read of a written list asks for. The browser and the home read every written exam in one page. */
 export const FEED_PAGE_MAX = 100;
 
 export const markingKeys = {
-  modules: ["staffMarking", "modules"] as const,
   feed: (params: FeedParams) => ["staffMarking", "feed", params] as const,
   paper: (id: string) => ["staffMarking", "paper", id] as const,
   today: (evaluator: string) => ["staffMarking", "today", evaluator] as const,
 };
 
-/** Every read a marking change can move: the paper, the feed, the people lists and the home counts. */
+/** Every read a marking change can move: the paper, the feed, the people lists, the home counts and the results report. */
 export function useInvalidateMarking() {
   const queryClient = useQueryClient();
   return () =>
@@ -127,24 +124,14 @@ export function useInvalidateMarking() {
       queryClient.invalidateQueries({ queryKey: ["staffMarking"] }),
       queryClient.invalidateQueries({ queryKey: ["staffPeople"] }),
       queryClient.invalidateQueries({ queryKey: ["staffHome"] }),
+      queryClient.invalidateQueries({ queryKey: ["staffResults"] }),
     ]);
-}
-
-/** The staff module list with categories and teachers. Instructors get their assigned modules only. */
-export function useMarkingModules() {
-  return useQuery({
-    queryKey: markingKeys.modules,
-    queryFn: ({ signal }) =>
-      apiRequest<PageResponse<MarkingModule>>(`/api/v1/live-exam-modules${queryString({ size: FEED_PAGE_MAX })}`, {
-        signal,
-      }),
-    staleTime: 60_000,
-  });
 }
 
 function feedUrl(params: FeedParams): string {
   return `/api/v1/live-exam-submissions${queryString({
     status: params.status,
+    categoryId: params.categoryId,
     moduleId: params.moduleId,
     examId: params.examId,
     q: params.q,
@@ -162,24 +149,6 @@ export function useFeed(params: FeedParams, enabled = true) {
     queryFn: ({ signal }) => apiRequest<PageResponse<FeedRow>>(feedUrl(params), { signal }),
     enabled,
     staleTime: 0,
-  });
-}
-
-/**
- * The feed for each of several modules, one request each. The category view uses this:
- * the feed takes one module at a time. Each module reads its first page only.
- */
-export function useFeedByModules(moduleIds: string[], base: Omit<FeedParams, "moduleId" | "page" | "size">) {
-  return useQueries({
-    queries: moduleIds.map((moduleId) => {
-      const params: FeedParams = { ...base, moduleId, page: 0, size: FEED_PAGE_MAX };
-      return {
-        queryKey: markingKeys.feed(params),
-        queryFn: ({ signal }: { signal: AbortSignal }) =>
-          apiRequest<PageResponse<FeedRow>>(feedUrl(params), { signal }),
-        staleTime: 0,
-      };
-    }),
   });
 }
 
@@ -233,7 +202,6 @@ export function useSaveMarking(participantId: string) {
  * the flag on its own.
  */
 export function useSetReady(participantId: string) {
-  const queryClient = useQueryClient();
   const invalidate = useInvalidateMarking();
   return useMutation({
     mutationFn: (ready: boolean) =>
@@ -242,7 +210,6 @@ export function useSetReady(participantId: string) {
       }),
     onSuccess: () => {
       void invalidate();
-      queryClient.invalidateQueries({ queryKey: ["staffResults"] });
     },
   });
 }
@@ -265,8 +232,8 @@ export function usePublishPaper(participantId: string) {
  * published rows. The count is `null` unless both lists fit one page, so a partial count is never shown.
  */
 export function useMarkedToday(evaluatorName: string | undefined, isToday: (value: string) => boolean) {
-  const drafts = useFeed({ status: "DRAFT", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: FEED_PAGE_MAX }, Boolean(evaluatorName));
-  const published = useFeed({ status: "PUBLISHED", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: FEED_PAGE_MAX }, Boolean(evaluatorName));
+  const drafts = useFeed({ status: "DRAFT", categoryId: "", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: FEED_PAGE_MAX }, Boolean(evaluatorName));
+  const published = useFeed({ status: "PUBLISHED", categoryId: "", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: FEED_PAGE_MAX }, Boolean(evaluatorName));
 
   const complete =
     drafts.data !== undefined &&

@@ -9,7 +9,7 @@ import { useLocale } from "@/i18n/locale-context";
 
 /**
  * Asks for the reason before a change the audit log keeps (revoke, confirm,
- * reject). The reason is required and up to 500 characters. `onConfirm` gets
+ * reject). The reason is required and up to `maxLength` characters (500 unless the caller says otherwise). `onConfirm` gets
  * the trimmed reason; if it throws, the message stays in the dialog.
  */
 export function ReasonDialog({
@@ -21,6 +21,7 @@ export function ReasonDialog({
   requiredMessage,
   confirmLabel,
   tone,
+  maxLength = 500,
   onConfirm,
 }: {
   open: boolean;
@@ -31,6 +32,8 @@ export function ReasonDialog({
   requiredMessage: string;
   confirmLabel: string;
   tone?: "danger";
+  /** The longest reason allowed, in characters. */
+  maxLength?: number;
   onConfirm: (reason: string) => Promise<void>;
 }) {
   const { t } = useLocale();
@@ -94,7 +97,7 @@ export function ReasonDialog({
         <Field label={label} required error={missing ? requiredMessage : undefined}>
           <Textarea
             value={reason}
-            maxLength={500}
+            maxLength={maxLength}
             rows={3}
             invalid={missing}
             onChange={(event) => {

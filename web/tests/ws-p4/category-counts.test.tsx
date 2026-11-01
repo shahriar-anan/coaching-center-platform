@@ -61,3 +61,18 @@ describe("category counts (Phase 4, A4)", () => {
     expect(card).toHaveTextContent("Coming soon");
   });
 });
+
+describe("the subcategories on a category page", () => {
+  it("lists each subcategory as a card with its counts, under a Subcategories heading", async () => {
+    mockApi({
+      "GET /api/v1/public/live-exam-categories": [judiciary],
+      "GET /api/v1/public/live-exam-categories/judiciary/exams": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 1 },
+    });
+    renderWithProviders(<DoorPage door="mcq" categoryId="judiciary" />, { locale: "en", route: "/mcq/c/judiciary" });
+
+    expect(await screen.findByRole("heading", { name: "Subcategories" })).toBeInTheDocument();
+    const card = screen.getByRole("link", { name: /Civil/ });
+    expect(card).toHaveAttribute("href", "/mcq/c/civil");
+    expect(card).toHaveTextContent("1 categories · 7 exams · 2 packages");
+  });
+});

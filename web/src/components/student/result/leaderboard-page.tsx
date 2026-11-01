@@ -3,12 +3,15 @@
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { useLocale } from "@/i18n/locale-context";
+import { isUnknownItemError } from "@/lib/api/errors";
 import { useLeaderboard, useStudentExam, type LeaderboardRow } from "@/lib/api/exam/sitting";
+import { studentHome } from "@/lib/config";
 import { formatNumber, formatTime, pickTitle } from "@/lib/format";
 import { useServerNow } from "@/lib/time/clock";
 
@@ -54,10 +57,18 @@ export function LeaderboardPage({ examId }: { examId: string }) {
   }
 
   if (!exam.data) {
+    if (isUnknownItemError(exam.error)) {
+      return (
+        <div className="flex flex-col gap-4">
+          {header}
+          <NotFoundState title={t("common.notFound.exam")} body={t("common.notFound.itemBody")} backHref={studentHome} backLabel={t("common.guard.goHome")} />
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <ErrorState onRetry={() => void exam.refetch()} />
+        <ErrorState error={exam.error} onRetry={() => void exam.refetch()} />
       </div>
     );
   }
@@ -127,7 +138,7 @@ export function LeaderboardPage({ examId }: { examId: string }) {
     <div className="flex flex-col gap-4 pb-8">
       {header}
       {board.isError ? (
-        <ErrorState onRetry={() => board.refetch()} />
+        <ErrorState error={board.error} onRetry={() => board.refetch()} />
       ) : (
         <Card padding="lg">
           <Table

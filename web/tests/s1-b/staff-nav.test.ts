@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  STAFF_NAV,
   activeNavFor,
   groupStaffNav,
   openNavFor,
@@ -27,7 +28,9 @@ function memoryStorage() {
 
 describe("staff navigation by role", () => {
   it("the master admin sees every item, with the create actions under packages and exams", () => {
-    expect(keysFor("MASTER_ADMIN")).toEqual(expect.arrayContaining(["announcements", "instructors", "admins", "audit", "systemStatus"]));
+    expect(keysFor("MASTER_ADMIN")).toEqual(
+      expect.arrayContaining(["announcements", "reviews", "instructors", "admins", "audit", "systemStatus"]),
+    );
     expect(childKeysFor("MASTER_ADMIN", "modules")).toEqual(["modulesAll", "modulesCreate"]);
     expect(childKeysFor("MASTER_ADMIN", "exams")).toEqual(["examsAll", "examsCreate"]);
   });
@@ -35,21 +38,39 @@ describe("staff navigation by role", () => {
   it("the system admin sees no master-only pages and no instructor-only items", () => {
     const keys = keysFor("SYSTEM_ADMIN");
     expect(keys).toEqual(expect.arrayContaining(["categories", "students", "payments", "exams", "modules"]));
-    expect(keys).not.toEqual(expect.arrayContaining(["announcements", "instructors", "admins", "audit", "systemStatus"]));
+    // System Admins may announce and moderate reviews, as the Master Admin does.
+    expect(keys).toEqual(expect.arrayContaining(["announcements", "reviews"]));
+    expect(keys).not.toEqual(expect.arrayContaining(["instructors", "admins", "audit", "systemStatus"]));
+    // The submitted papers are the Master Admin's and the teacher's, so the System Admin has no Submissions item.
+    expect(keys).not.toContain("submissions");
     expect(childKeysFor("SYSTEM_ADMIN", "exams")).toEqual(["examsAll", "examsCreate"]);
   });
 
   it("an instructor sees only what they may open, and no create action", () => {
     const keys = keysFor("INSTRUCTOR");
-    expect(keys).toEqual(["dashboard", "modules", "exams", "participation", "submissions", "account"]);
-    expect(childKeysFor("INSTRUCTOR", "modules")).toEqual(["modulesAll"]);
+    // The Packages item is gone for a teacher: the exams they teach are reached from Exams.
+    expect(keys).toEqual(["dashboard", "exams", "participation", "submissions", "reviews", "account"]);
     expect(childKeysFor("INSTRUCTOR", "exams")).toEqual(["examsAll"]);
+  });
+
+  it("an instructor's Exams item reads My exams, and the other roles keep Exams", () => {
+    expect(staffNavFor("INSTRUCTOR").find((item) => item.key === "exams")?.labelKey).toBe("myExams");
+    expect(staffNavFor("MASTER_ADMIN").find((item) => item.key === "exams")?.labelKey).toBe("exams");
+    expect(staffNavFor("SYSTEM_ADMIN").find((item) => item.key === "exams")?.labelKey).toBe("exams");
   });
 
   it("a student and a signed-out visitor see no staff items", () => {
     expect(staffNavFor("STUDENT")).toEqual([]);
     expect(staffNavFor(null)).toEqual([]);
     expect(staffNavFor(undefined)).toEqual([]);
+  });
+
+  it("the reviews item sits in the exams group right after announcements, and reads as read-only for a teacher", () => {
+    const exams = staffNavFor("MASTER_ADMIN").filter((item) => item.group === "exams").map((item) => item.key);
+    expect(exams).toEqual(["participation", "submissions", "announcements", "reviews"]);
+    const reviews = STAFF_NAV.find((item) => item.key === "reviews");
+    expect(reviews?.access).toEqual({ MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "read" });
+    expect(keysFor("STUDENT")).not.toContain("reviews");
   });
 
   it("groups the items in section order and leaves out the sections the role cannot see", () => {
@@ -86,8 +107,10 @@ describe("the current item and the open group", () => {
     expect(openNavFor("/staff/students", master)).toBeNull();
   });
 
-  it("a create page the role cannot open is not a sub-item for that role", () => {
-    expect(activeNavFor("/staff/modules/new", instructor)).toEqual({ key: "modules" });
+  it("a page of an item the role cannot open matches nothing for that role", () => {
+    // Packages is not in a teacher's navigation, so the package pages are no longer the current item for one.
+    expect(activeNavFor("/staff/modules/new", instructor)).toBeNull();
+    expect(activeNavFor("/staff/exams/exam-1", instructor)).toEqual({ key: "exams" });
   });
 
   it("a path outside the navigation matches nothing", () => {

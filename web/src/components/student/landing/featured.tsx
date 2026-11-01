@@ -17,7 +17,7 @@ export function Featured() {
   const title = t("landing.packagesTitle");
   const subtitle = t("landing.packagesSubtitle");
   const action = (
-    <Link href="/mcq" className="text-label font-semibold text-text-accent underline underline-offset-4">
+    <Link href="/packages" className="text-label font-semibold text-text-accent underline underline-offset-4">
       {t("landing.seeAll")}
     </Link>
   );
@@ -29,18 +29,19 @@ export function Featured() {
       </Section>
     );
   }
-  const cards = featuredModules(data ?? [], featuredModuleIds, 3);
+  const cards = featuredModules(data ?? [], featuredModuleIds, 6);
   if (cards.length === 0) return null;
 
+  // On phones the cards scroll sideways with a snap, and the next card peeks at the edge. From md the cards form a grid.
   return (
     <Section id="landing-packages" title={title} subtitle={subtitle} action={action} center>
-      <ul className="grid gap-5 md:grid-cols-3">
+      <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-[repeat(auto-fit,minmax(15rem,21rem))] md:justify-center md:gap-5 md:overflow-visible md:px-0">
         {cards.map((card) => {
           const type = card.mcq && card.mcq > 0 ? "MCQ" : "WRITTEN";
           const examCount = (card.mcq ?? 0) + (card.written ?? 0);
           const summary = firstLine(pickText({ ...card.module }, "description", locale));
           return (
-            <li key={card.module.id} className="min-w-0">
+            <li key={card.module.id} className="w-[80%] min-w-0 shrink-0 snap-start md:w-auto">
               <PackageCard
                 href={card.href}
                 cover={coverSrc(card.module.coverUrl)}

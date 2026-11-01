@@ -25,7 +25,7 @@ export function ExamPackages({
   reads: UseQueryResult<PublicModule>[];
 }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-2">
       {packages.map((ref, index) => (
         <PackageLinkCard key={ref.id} href={modulePath(door, ref.id)} pkg={reads[index]?.data} fallback={ref} />
       ))}
@@ -34,8 +34,9 @@ export function ExamPackages({
 }
 
 /**
- * A package as a row card: its title, its exam count, its price, and the favourite mark (plan S3.3). The title link covers the card
- * (a stretched link), and the favourite mark sits above it. A package still loading shows its title from `fallback`.
+ * A package as a row card: its title, its exam count under the title, its price on the right, and the favourite mark as the last
+ * item (plan S3.3). The title link covers the card (a stretched link), and the favourite mark sits above it. A package still
+ * loading shows its title from `fallback`.
  */
 export function PackageLinkCard({
   href,
@@ -51,24 +52,29 @@ export function PackageLinkCard({
   const { t, locale } = useLocale();
   const title = pkg ? pickTitle(pkg, locale) : pickTitle(fallback, locale);
   const examCount = (pkg?.mcqCount ?? 0) + (pkg?.writtenCount ?? 0);
-  // The Wish List mark is in the top-right corner (Phase 4, S4.4), so the text keeps clear of it.
   return (
-    <div className="group relative flex min-h-11 min-w-0 items-center gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent">
-      <div className="min-w-0 flex-1 pe-11">
-        <p className="flex min-w-0 flex-wrap items-center gap-2">
-          {popular ? <Pill tone="accent">{t("catalog.popular.badge")}</Pill> : null}
-          <Link href={href} prefetch={false} className="text-card-title font-bold after:absolute after:inset-0 after:content-[''] group-hover:text-text-accent">
+    <div className="group relative flex min-h-14 min-w-0 items-center gap-2 rounded-card border border-border bg-card px-4 py-3 transition-colors hover:border-accent hover:bg-text/[0.06]">
+      <div className="min-w-0 flex-1">
+        <p className="flex min-w-0 items-center gap-2">
+          {popular ? <span className="shrink-0"><Pill tone="accent">{t("catalog.popular.badge")}</Pill></span> : null}
+          <Link
+            href={href}
+            prefetch={false}
+            className="line-clamp-1 block min-w-0 text-body font-semibold leading-snug after:absolute after:inset-0 after:content-[''] group-hover:text-text-accent"
+          >
             {title}
           </Link>
         </p>
         {pkg ? (
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-meta">
-            <span className="text-muted">{t("common.purchase.shared.examCount", { count: formatNumber(examCount, locale) })}</span>
-            <PriceLine label={priceLabel(pkg.pricing)} />
-          </div>
+          <p className="mt-0.5 text-meta text-muted">{t("common.purchase.shared.examCount", { count: formatNumber(examCount, locale) })}</p>
         ) : null}
       </div>
-      <FavouriteButton kind="package" id={fallback.id} initial={pkg?.favourite} next={href} />
+      {pkg ? (
+        <span className="shrink-0 text-end">
+          <PriceLine label={priceLabel(pkg.pricing)} />
+        </span>
+      ) : null}
+      <FavouriteButton kind="package" id={fallback.id} initial={pkg?.favourite} next={href} placement="inline" />
     </div>
   );
 }

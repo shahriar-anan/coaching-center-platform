@@ -16,7 +16,7 @@ describe("landing menu: coming-soon pages", () => {
     renderWithProviders(<ComingSoonPage page={key} />);
     expect(screen.getByRole("heading", { level: 1, name: bn })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "শীঘ্রই আসছে" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "হোম পেজে ফিরে যান" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "হোম পাতায় ফিরে যান" })).toHaveAttribute("href", "/");
   });
 
   it("is written in English when the language is English", () => {

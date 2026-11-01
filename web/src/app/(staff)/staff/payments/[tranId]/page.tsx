@@ -50,7 +50,7 @@ function PaymentDetailView({ tranId }: { tranId: string }) {
       />
 
       {payment.isError ? (
-        <ErrorState onRetry={() => payment.refetch()} />
+        <ErrorState onRetry={() => payment.refetch()} error={payment.error} />
       ) : payment.isPending ? (
         <Skeleton variant="card" />
       ) : payment.data ? (

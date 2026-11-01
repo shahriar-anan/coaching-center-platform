@@ -16,6 +16,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/components/ui/cn";
 import { usePendingChanges } from "@/lib/api/exam/staff-exams";
+import { usePendingReviewCount } from "@/lib/api/exam/staff-reviews";
+import { canModerateReviews } from "@/components/staff/reviews/review-access";
 import { useRole } from "@/lib/auth/guards";
 
 /**
@@ -39,6 +41,9 @@ export function StaffShell({ children }: { children: ReactNode }) {
   const canSeePending = role === "MASTER_ADMIN" || role === "SYSTEM_ADMIN";
   const pending = usePendingChanges(canSeePending);
   const pendingCount = pending.data?.items.length ?? 0;
+  // The reviews badge is for the same two roles; a teacher cannot read the count, so it is never asked for.
+  const reviewsPending = usePendingReviewCount(canModerateReviews(role));
+  const reviewsCount = reviewsPending.data?.count ?? 0;
 
   function toggleCollapsed() {
     setNavCollapsed(!collapsed);
@@ -52,13 +57,13 @@ export function StaffShell({ children }: { children: ReactNode }) {
         collapsed ? "md:grid-cols-[80px_1fr]" : "md:grid-cols-[240px_1fr]",
       )}
     >
-      <StaffSidebar items={items} collapsed={collapsed} pendingCount={pendingCount} />
+      <StaffSidebar items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} />
 
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen} title={t("common.nav.menu")}>
         <div className="grid gap-4 rounded-card bg-sidebar p-3 text-sidebar-text">
           {role ? <RoleChip role={role} /> : null}
           <nav aria-label={t("common.nav.main")}>
-            <StaffNavList items={items} pendingCount={pendingCount} onNavigate={() => setDrawerOpen(false)} />
+            <StaffNavList items={items} pendingCount={pendingCount} reviewsCount={reviewsCount} onNavigate={() => setDrawerOpen(false)} />
           </nav>
         </div>
         <div className="mt-5 grid gap-3 border-t border-border pt-4 min-[480px]:hidden">

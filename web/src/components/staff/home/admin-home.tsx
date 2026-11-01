@@ -12,6 +12,7 @@ import { StatusPill } from "@/components/staff/catalog/status-pill";
 import { Card } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import { useListParams } from "@/lib/url/list-params";
+import { useRole } from "@/lib/auth/guards";
 import { SubmissionBrowser } from "@/components/staff/marking/submission-browser";
 import { PaymentsList } from "@/components/staff/ops/payments-list";
 import { ErrorState } from "@/components/ui/error-state";
@@ -37,7 +38,7 @@ function SummaryCards({ showPayments }: { showPayments: boolean }) {
     return <Skeleton variant="card" count={showPayments ? 3 : 2} />;
   }
   if (summary.isError && !summary.data) {
-    return <ErrorState onRetry={() => summary.refetch()} message={t("staffCatalog.home.summaryError")} />;
+    return <ErrorState onRetry={() => summary.refetch()} message={t("staffCatalog.home.summaryError")} error={summary.error} />;
   }
 
   const cards = [
@@ -119,15 +120,19 @@ function AgendaRow({ row, status }: { row: ParticipationRow; status: StaffExam["
       <span className="min-w-0">
         <span className="font-medium">{examTitle}</span>
         <span className="block text-meta text-muted">
-          {moduleTitle} · {t(`staffCatalog.examType.${row.examType}`)}
+          {row.moduleId ? `${moduleTitle} · ` : null}
+          {t(`staffCatalog.examType.${row.examType}`)}
         </span>
       </span>
       <span className="flex flex-wrap items-center gap-3 text-meta">
         {status ? <StatusPill status={status} /> : null}
         <span className="tabular-nums">{t("staffCatalog.home.agenda.participants", { n: formatNumber(row.sitting) })}</span>
-        <Link href={`/staff/modules/${row.moduleId}?tab=exams`} className="inline-flex min-h-11 items-center text-action hover:underline">
-          {t("staffCatalog.home.openModule")}
-        </Link>
+        {/* An exam in no package has no module page to open. */}
+        {row.moduleId ? (
+          <Link href={`/staff/modules/${row.moduleId}?tab=exams`} className="inline-flex min-h-11 items-center text-action hover:underline">
+            {t("staffCatalog.home.openModule")}
+          </Link>
+        ) : null}
       </span>
     </li>
   );
@@ -147,7 +152,7 @@ function Agenda({ rows, now }: { rows: ParticipationRow[]; now: number }) {
     .filter((row) => row.liveAt !== null && new Date(row.liveAt).getTime() >= now && new Date(row.liveAt).getTime() < end)
     .sort((a, b) => new Date(a.liveAt as string).getTime() - new Date(b.liveAt as string).getTime());
 
-  const moduleIds = [...new Set(dated.map((row) => row.moduleId))];
+  const moduleIds = [...new Set(dated.flatMap((row) => (row.moduleId ? [row.moduleId] : [])))];
   const moduleExams = useQueries({ queries: moduleIds.map((moduleId) => moduleExamsQuery(moduleId)) });
   const statusByExam = new Map<string, StaffExam["status"]>();
   for (const result of moduleExams) {
@@ -206,7 +211,7 @@ function ExamsTab({ isMasterAdmin }: { isMasterAdmin: boolean }) {
           {rows.isPending ? (
             <Skeleton variant="rows" count={3} />
           ) : rows.isError && !rows.data ? (
-            <ErrorState onRetry={() => rows.refetch()} message={t("staffCatalog.home.examsError")} />
+            <ErrorState onRetry={() => rows.refetch()} message={t("staffCatalog.home.examsError")} error={rows.error} />
           ) : (
             <Agenda rows={rows.data?.content ?? []} now={now} />
           )}
@@ -249,16 +254,19 @@ const TABS = ["exams", "submissions", "payments"] as const;
 type HomeTab = (typeof TABS)[number];
 
 /**
- * Master Admin and System Admin home: three tabs, Exams (the counts, the agenda and the quick actions), Submitted answer
- * sheets and Payment management. Each tab shows the same table as its own page. The tab is kept in the URL.
+ * Master Admin and System Admin home: Exams (the counts, the agenda and the quick actions), Submitted answer sheets (the
+ * Master Admin only) and Payment management. Each tab shows the same table as its own page. The tab is kept in the URL.
  * The first-run steps show above the tabs while the catalog is empty.
  */
 export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
   const { t } = useLocale();
+  const { isSystemAdmin } = useRole();
   const categories = useCategoryTree();
   const [params, setParams] = useListParams({ tab: "exams" as string });
   const catalogEmpty = categories.isSuccess && categories.data.length === 0;
-  const tab: HomeTab = (TABS as readonly string[]).includes(params.tab) ? (params.tab as HomeTab) : "exams";
+  // The System Admin has no submissions tab (the submissions are the Master Admin's and the teacher's work). A URL asking for it shows the exams tab.
+  const shownTabs = TABS.filter((value) => value !== "submissions" || !isSystemAdmin);
+  const tab: HomeTab = (shownTabs as readonly string[]).includes(params.tab) ? (params.tab as HomeTab) : "exams";
 
   return (
     <div className="grid gap-6">
@@ -270,7 +278,7 @@ export function AdminHome({ isMasterAdmin }: { isMasterAdmin: boolean }) {
         onChange={(next) => setParams({ tab: next })}
         tabs={[
           { value: "exams", label: t("staffCatalog.home.tabs.exams") },
-          { value: "submissions", label: t("staffCatalog.home.tabs.submissions") },
+          ...(isSystemAdmin ? [] : [{ value: "submissions", label: t("staffCatalog.home.tabs.submissions") }]),
           { value: "payments", label: t("staffCatalog.home.tabs.payments") },
         ]}
       />

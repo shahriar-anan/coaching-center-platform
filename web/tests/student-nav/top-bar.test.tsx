@@ -21,7 +21,7 @@ describe("student top bar (S1.1)", () => {
     renderShell("/", fixtures.student);
     const bar = await screen.findByRole("navigation", { name: TOP_BAR });
     const links = within(bar).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["Home", "My exams", "Results", "Routine"]);
+    expect(links.map((link) => link.textContent)).toEqual(["Home", "My orders", "Results", "Routine"]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/", "/my-modules", "/results", "/routine"]);
     expect(within(bar).queryByRole("link", { name: "MCQ" })).not.toBeInTheDocument();
     expect(within(bar).queryByRole("link", { name: "Written" })).not.toBeInTheDocument();

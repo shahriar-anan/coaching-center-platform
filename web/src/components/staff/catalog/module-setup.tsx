@@ -53,20 +53,6 @@ export function ModuleSetup({ module }: { module: StaffModule }) {
     },
     isMaster
       ? {
-          key: "teacher",
-          label: t("staffCatalog.setup.steps.teacher"),
-          state: module.instructor ? "done" : "todo",
-          note: module.instructor ? module.instructor.name : t("staffCatalog.setup.noTeacher"),
-          href: `/staff/modules/${module.id}?tab=instructor`,
-        }
-      : {
-          key: "teacher",
-          label: t("staffCatalog.setup.steps.teacher"),
-          state: "info",
-          note: module.instructor ? module.instructor.name : masterOnly,
-        },
-    isMaster
-      ? {
           key: "roster",
           label: t("staffCatalog.setup.steps.roster"),
           state: "info",

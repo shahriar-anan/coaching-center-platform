@@ -46,6 +46,7 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
   const [error, setError] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const submitted = Boolean(stored || exam.answerStored);
 
   const choose = async (file: File) => {
     setError(null);
@@ -98,21 +99,24 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
         <Countdown deadline={deadlineAt} onEnd={() => onClosed(Boolean(stored || exam.answerStored))} variant="bar" warnAt={[10, 5, 1]} />
       </div>
 
-      <Card>
-        <h2 className="text-label font-semibold text-muted">{t("sitting.written.paper")}</h2>
-        <div className="mt-3">
-          {exam.questionPdf ? (
-            <PdfViewer
-              load={() => apiBlob(questionPdfPath(exam.id))}
-              studentLine={studentLine}
-              allowDownload={false}
-              label={t("sitting.written.paper")}
-            />
-          ) : (
-            <p className="text-muted">{t("sitting.written.noPaper")}</p>
-          )}
-        </div>
-      </Card>
+      {/* Once the script is stored the submission is final, so the question paper is no longer offered. */}
+      {submitted ? null : (
+        <Card>
+          <h2 className="text-label font-semibold text-muted">{t("sitting.written.paper")}</h2>
+          <div className="mt-3">
+            {exam.questionPdf ? (
+              <PdfViewer
+                load={() => apiBlob(questionPdfPath(exam.id))}
+                studentLine={studentLine}
+                allowDownload={false}
+                label={t("sitting.written.paper")}
+              />
+            ) : (
+              <p className="text-muted">{t("sitting.written.noPaper")}</p>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <h2 className="text-label font-semibold text-muted">{t("sitting.written.script")}</h2>

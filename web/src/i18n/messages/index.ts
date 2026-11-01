@@ -17,6 +17,8 @@ import bnHome from "./bn/home";
 import bnLanding from "./bn/landing";
 import bnSitting from "./bn/sitting";
 import bnResult from "./bn/result";
+import bnReviews from "./bn/reviews";
+import bnAnnouncements from "./bn/announcements";
 import bnStaffCatalog from "./bn/staffCatalog";
 import bnStaffPeople from "./bn/staffPeople";
 import bnStaffOps from "./bn/staffOps";
@@ -24,6 +26,7 @@ import bnStaffMarking from "./bn/staffMarking";
 import bnStaffResults from "./bn/staffResults";
 import bnStaffAdmin from "./bn/staffAdmin";
 import bnStaffExams from "./bn/staffExams";
+import bnStaffReviews from "./bn/staffReviews";
 
 import enLegacy from "./en/legacy";
 import enCommon from "./en/common";
@@ -37,6 +40,8 @@ import enHome from "./en/home";
 import enLanding from "./en/landing";
 import enSitting from "./en/sitting";
 import enResult from "./en/result";
+import enReviews from "./en/reviews";
+import enAnnouncements from "./en/announcements";
 import enStaffCatalog from "./en/staffCatalog";
 import enStaffPeople from "./en/staffPeople";
 import enStaffOps from "./en/staffOps";
@@ -44,6 +49,7 @@ import enStaffMarking from "./en/staffMarking";
 import enStaffResults from "./en/staffResults";
 import enStaffAdmin from "./en/staffAdmin";
 import enStaffExams from "./en/staffExams";
+import enStaffReviews from "./en/staffReviews";
 
 export type { MessageTree };
 
@@ -71,6 +77,8 @@ export const bn: MessageTree = merge(bnLegacy as MessageTree, {
   landing: bnLanding,
   sitting: bnSitting,
   result: bnResult,
+  reviews: bnReviews,
+  announcements: bnAnnouncements,
   staffCatalog: bnStaffCatalog,
   staffPeople: bnStaffPeople,
   staffOps: bnStaffOps,
@@ -78,6 +86,7 @@ export const bn: MessageTree = merge(bnLegacy as MessageTree, {
   staffResults: bnStaffResults,
   staffAdmin: bnStaffAdmin,
   staffExams: bnStaffExams,
+  staffReviews: bnStaffReviews,
 });
 
 export const en: MessageTree = merge(enLegacy as MessageTree, {
@@ -92,6 +101,8 @@ export const en: MessageTree = merge(enLegacy as MessageTree, {
   landing: enLanding,
   sitting: enSitting,
   result: enResult,
+  reviews: enReviews,
+  announcements: enAnnouncements,
   staffCatalog: enStaffCatalog,
   staffPeople: enStaffPeople,
   staffOps: enStaffOps,
@@ -99,6 +110,7 @@ export const en: MessageTree = merge(enLegacy as MessageTree, {
   staffResults: enStaffResults,
   staffAdmin: enStaffAdmin,
   staffExams: enStaffExams,
+  staffReviews: enStaffReviews,
 });
 
 export const catalogs = { bn, en };

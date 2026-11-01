@@ -28,6 +28,7 @@ import {
   stepOf,
   type Focus,
 } from "@/components/staff/participation/exam-step";
+import { withQuery } from "@/components/staff/marking/marking-queue";
 import { ALL_STAFF, RequireStaff, useRole } from "@/lib/auth/guards";
 import { useModuleOptions, useParticipation, type ParticipationRow } from "@/lib/api/exam/staff-people";
 import { useCategoryTree, type CategoryTreeNode } from "@/lib/api/exam/staff-catalog";
@@ -61,7 +62,9 @@ const FOCUS_SIZE = 100;
 function Participation() {
   const { t } = useLocale();
   const format = useFormat();
-  const { canPublishResult } = useRole();
+  const { canPublishResult, isInstructor, isSystemAdmin } = useRole();
+  // A teacher has no drafts tab: drafts are not theirs to open, so a drafts link in the URL shows the full list.
+  const draftsAllowed = !isInstructor;
   const now = useServerNow(60_000);
   const [params, setParams] = useListParams({
     page: 0,
@@ -75,7 +78,7 @@ function Participation() {
     focus: "",
     categoryId: "",
   });
-  const focus: Focus = isFocus(params.focus) ? params.focus : "";
+  const focus: Focus = isFocus(params.focus) && (params.focus !== "drafts" || draftsAllowed) ? params.focus : "";
   const rows = useParticipation({
     page: focus ? 0 : params.page,
     size: focus ? FOCUS_SIZE : params.size,
@@ -115,7 +118,9 @@ function Participation() {
         <div className="grid gap-0.5">
           <span className="font-medium text-text">{format.pickTitle({ titleEn: row.titleEn, titleBn: row.titleBn })}</span>
           <span className="text-meta text-muted">
-            {format.pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn })} ·{" "}
+            {row.moduleId
+              ? `${format.pickTitle({ titleEn: row.moduleTitleEn ?? "", titleBn: row.moduleTitleBn ?? "" })} · `
+              : null}
             {t(row.examType === "MCQ" ? "staffPeople.participation.type.MCQ" : "staffPeople.participation.type.WRITTEN")}
           </span>
           {row.categoryTitleEn || row.categoryTitleBn ? (
@@ -196,12 +201,18 @@ function Participation() {
       cell: (row) => {
         const step = stepOf(row, now);
         const results = `/staff/exams/${row.examId}/results`;
-        const scripts = `/staff/submissions?module=${row.moduleId}&exam=${row.examId}`;
+        const scripts = withQuery("/staff/submissions", { exam: row.examId });
         const canRelease = row.examType === "WRITTEN" && canPublishResult && paperCounts(row).toRelease > 0;
+        // The System Admin has no submissions page, so the marking button and the scripts link are left out for them.
+        const canOpenScripts = !isSystemAdmin;
         const primary = canRelease
           ? { label: t("staffPeople.participation.action.release"), href: `${results}#release`, variant: "primary" as const }
-          : step === "mark"
-            ? { label: t("staffPeople.participation.action.mark"), href: `${scripts}&status=AWAITING`, variant: "secondary" as const }
+          : step === "mark" && canOpenScripts
+            ? {
+                label: t("staffPeople.participation.action.mark"),
+                href: withQuery("/staff/submissions", { exam: row.examId, status: "AWAITING" }),
+                variant: "secondary" as const,
+              }
             : { label: t("staffPeople.participation.action.results"), href: results, variant: "secondary" as const };
         return (
           <div className="flex items-center justify-end gap-2">
@@ -215,7 +226,7 @@ function Participation() {
               items={[
                 { label: t("staffResults.rowMenu.openResults"), href: results },
                 { label: t("staffResults.rowMenu.openLeaderboard"), href: `/staff/exams/${row.examId}/leaderboard` },
-                ...(row.examType === "WRITTEN" ? [{ label: t("staffPeople.participation.openSubmissions"), href: scripts }] : []),
+                ...(row.examType === "WRITTEN" && canOpenScripts ? [{ label: t("staffPeople.participation.openSubmissions"), href: scripts }] : []),
               ]}
             />
           </div>
@@ -234,7 +245,7 @@ function Participation() {
       <div className="grid gap-3">
         <Tabs
           ariaLabel={t("staffPeople.participation.focus.label")}
-          tabs={FOCUSES.map((value) => ({
+          tabs={FOCUSES.filter((value) => value !== "drafts" || draftsAllowed).map((value) => ({
             value: value || "all",
             label: t(`staffPeople.participation.focus.${value || "all"}`),
             badge: tabBadge[value],
@@ -315,7 +326,7 @@ function Participation() {
       </div>
 
       {rows.isError ? (
-        <ErrorState onRetry={() => rows.refetch()} />
+        <ErrorState onRetry={() => rows.refetch()} error={rows.error} />
       ) : (
         <>
           <Table

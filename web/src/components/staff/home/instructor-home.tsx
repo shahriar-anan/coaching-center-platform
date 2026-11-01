@@ -11,25 +11,27 @@ import { Pill } from "@/components/ui/pill";
 import { SummaryStrip } from "@/components/ui/summary-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
-import { groupByCategory, isTodayInDhaka, statusTone } from "@/components/staff/marking/marking-queue";
+import { failureKind, groupByCategory, isTodayInDhaka, statusTone, withQuery } from "@/components/staff/marking/marking-queue";
 import { useSession } from "@/lib/auth/session-context";
 import { useParticipationRows, type ParticipationRow } from "@/lib/api/exam/staff-home";
-import {
-  FEED_PAGE_MAX,
-  useFeed,
-  useMarkedToday,
-  useMarkingModules,
-  type FeedRow,
-  type MarkingModule,
-} from "@/lib/api/exam/staff-marking";
+import { FEED_PAGE_MAX, useFeed, useMarkedToday, type FeedRow } from "@/lib/api/exam/staff-marking";
 import { useFormat } from "@/lib/format/use-format";
 import { useServerNow } from "@/lib/time/clock";
 import { useLocale } from "@/i18n/locale-context";
 
+/** The address of one paper: its own page, with its exam so the queue is that exam's papers. */
+function paperLink(row: Pick<FeedRow, "participantId" | "examId">): string {
+  return withQuery(`/staff/submissions/${row.participantId}`, { exam: row.examId });
+}
+
+/** The browser, opened on one exam. */
+function examLink(examId: string): string {
+  return withQuery("/staff/submissions", { exam: examId });
+}
+
 /**
- * The instructor's home as a marking dashboard: the work waiting, the next paper to open,
- * the most recent papers, and the assigned modules grouped by category. Master Admin and
- * System Admin never see this; they get the admin home.
+ * The instructor's home as a marking dashboard: the work waiting, the next paper to open, the most recent papers, and
+ * the assigned exams grouped by category. Master Admin and System Admin never see this; they get the admin home.
  */
 export function InstructorHome() {
   const { t } = useLocale();
@@ -39,10 +41,11 @@ export function InstructorHome() {
   const name = session.status === "authenticated" ? session.user.fullName : undefined;
   const now = useServerNow(60_000);
 
-  const modules = useMarkingModules();
+  // The assigned exams come from the participation list, which already holds only this instructor's exams. A
+  // written exam with no package still shows here, so the page does not depend on the module list.
   const written = useParticipationRows({ type: "WRITTEN", sort: "liveAt", size: FEED_PAGE_MAX });
-  const oldestWaiting = useFeed({ status: "AWAITING", moduleId: "", examId: "", q: "", sort: "submittedAt,asc", page: 0, size: 1 });
-  const recent = useFeed({ status: "", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: 10 });
+  const oldestWaiting = useFeed({ categoryId: "", status: "AWAITING", moduleId: "", examId: "", q: "", sort: "submittedAt,asc", page: 0, size: 1 });
+  const recent = useFeed({ categoryId: "", status: "", moduleId: "", examId: "", q: "", sort: "submittedAt,desc", page: 0, size: 10 });
   const today = useMarkedToday(name, (iso) => isTodayInDhaka(iso, now));
 
   const rows = useMemo(() => written.data?.content ?? [], [written.data]);
@@ -55,22 +58,26 @@ export function InstructorHome() {
     }),
     [rows],
   );
+  const groups = useMemo(
+    () => groupByCategory<ParticipationRow>(rows, format.pickTitle, t("staffMarking.browser.uncategorised")),
+    [rows, format.pickTitle, t],
+  );
 
-  if (modules.isPending) {
+  if (written.isPending) {
     return <Skeleton variant="card" count={2} />;
   }
-  if (modules.isError && !modules.data) {
-    return <ErrorState onRetry={() => modules.refetch()} message={t("staffMarking.home.modulesError")} />;
+  if (written.isError && !written.data) {
+    const failure = failureKind(written.error);
+    return (
+      <ErrorState onRetry={() => written.refetch()} message={failure ? t(`staffMarking.errors.${failure}`) : undefined} error={written.error} />
+    );
   }
-
-  const list = modules.data?.content ?? [];
-  if (list.length === 0) {
+  if (rows.length === 0) {
     return <EmptyState title={t("staffMarking.home.emptyTitle")} body={t("staffMarking.home.emptyBody")} />;
   }
 
   const oldest = oldestWaiting.data?.content[0];
   const recentRows = recent.data?.content ?? [];
-  const groups = groupByCategory(list, format.pickTitle);
 
   const columns: Column<FeedRow>[] = [
     { key: "student", header: t("staffMarking.browser.student"), cell: (row) => row.studentName },
@@ -123,10 +130,7 @@ export function InstructorHome() {
         <Card>
           <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
             <div className="grid gap-1">
-              <Button
-                disabled={!oldest}
-                href={oldest ? `/staff/submissions/${oldest.participantId}?m=${oldest.moduleId}` : undefined}
-              >
+              <Button disabled={!oldest} href={oldest ? paperLink(oldest) : undefined}>
                 {t("staffMarking.home.start")}
               </Button>
               {oldest || oldestWaiting.isPending ? null : (
@@ -150,76 +154,48 @@ export function InstructorHome() {
           </Link>
         </div>
         {recent.isError ? (
-          <ErrorState onRetry={() => recent.refetch()} />
+          <ErrorState onRetry={() => recent.refetch()} error={recent.error} />
         ) : (
           <Table
             columns={columns}
             rows={recentRows}
             rowKey={(row) => row.participantId}
             loading={recent.isPending}
-            onRowClick={(row) => router.push(`/staff/submissions/${row.participantId}?m=${row.moduleId}`)}
+            onRowClick={(row) => router.push(paperLink(row))}
             empty={<EmptyState title={t("staffMarking.home.recentEmpty")} />}
           />
         )}
       </section>
 
       <section className="grid gap-4">
-        <h2 className="text-section font-semibold text-text">{t("staffMarking.home.modules")}</h2>
+        <h2 className="text-section font-semibold text-text">{t("staffMarking.home.exams")}</h2>
         {groups.map((group) => (
-          <div key={group.key} className="grid gap-3">
-            <h3 className="text-meta font-medium text-muted">{group.label}</h3>
-            <ul className="grid gap-4 sm:grid-cols-2">
-              {group.modules.map((module) => (
-                <li key={module.id}>
-                  <ModuleCard module={module} rows={rows} />
+          <Card key={group.key} className="grid gap-3">
+            <div className="grid gap-1">
+              <h3 className="text-card-title font-semibold text-text">{group.label}</h3>
+              <p className="text-meta text-muted">
+                {t("staffMarking.home.groupWaiting", { count: format.formatNumber(sum(group.items, (row) => row.awaitingMarking)) })}
+              </p>
+            </div>
+            <ul className="grid gap-2">
+              {group.items.map((exam) => (
+                <li key={exam.examId} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0 text-body text-text">{format.pickTitle(exam)}</span>
+                  <span className="flex items-center gap-3 text-meta">
+                    <span className="tabular-nums text-muted">
+                      {t("staffMarking.home.examWaiting", { count: format.formatNumber(exam.awaitingMarking ?? 0) })}
+                    </span>
+                    <Link href={examLink(exam.examId)} className="font-medium text-action hover:underline">
+                      {t("staffMarking.home.openExam")}
+                    </Link>
+                  </span>
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         ))}
       </section>
     </div>
-  );
-}
-
-/** One assigned module: its written exams, each with its own waiting count and a link to its papers. */
-function ModuleCard({ module, rows }: { module: MarkingModule; rows: ParticipationRow[] }) {
-  const { t } = useLocale();
-  const format = useFormat();
-  const exams = rows.filter((row) => row.moduleId === module.id);
-  const waiting = sum(exams, (row) => row.awaitingMarking);
-
-  return (
-    <Card className="grid h-full gap-3">
-      <div className="grid gap-1">
-        <h4 className="text-card-title font-semibold text-text">{format.pickTitle(module)}</h4>
-        <p className="text-meta text-muted">
-          {t("staffMarking.home.moduleWaiting", { count: format.formatNumber(waiting) })}
-        </p>
-      </div>
-      {exams.length === 0 ? (
-        <p className="text-meta text-muted">{t("staffMarking.home.noWritten")}</p>
-      ) : (
-        <ul className="grid gap-2">
-          {exams.map((exam) => (
-            <li key={exam.examId} className="flex flex-wrap items-center justify-between gap-2">
-              <span className="min-w-0 text-body text-text">{format.pickTitle(exam)}</span>
-              <span className="flex items-center gap-3 text-meta">
-                <span className="tabular-nums text-muted">
-                  {t("staffMarking.home.examWaiting", { count: format.formatNumber(exam.awaitingMarking ?? 0) })}
-                </span>
-                <Link
-                  href={`/staff/submissions?module=${module.id}&exam=${exam.examId}`}
-                  className="font-medium text-action hover:underline"
-                >
-                  {t("staffMarking.home.openExam")}
-                </Link>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
   );
 }
 

@@ -3,15 +3,19 @@
 import { Suspense, use, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RequireStaff } from "@/lib/auth/guards";
 
 /**
  * The old per-module address. It stays as a deep link: it opens the submissions browser
- * with that module already chosen.
+ * with that module already chosen. The guard is the browser's own, so a System Admin sees the
+ * same not-found page here as on `/staff/submissions`, with no redirect first.
  */
 export default function StaffModuleSubmissionsPage({ params }: { params: Promise<{ moduleId: string }> }) {
   return (
     <Suspense fallback={<Skeleton variant="rows" count={3} />}>
-      <ModuleRedirect params={params} />
+      <RequireStaff roles={["MASTER_ADMIN", "INSTRUCTOR"]}>
+        <ModuleRedirect params={params} />
+      </RequireStaff>
     </Suspense>
   );
 }

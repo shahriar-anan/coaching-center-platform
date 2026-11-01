@@ -7,9 +7,12 @@ import { CoverUploader } from "@/components/staff/catalog/cover-uploader";
 import { mockApi, renderWithProviders } from "../helpers";
 
 describe("package cover", () => {
-  it("shows the brand fallback with the initials when no image was uploaded", () => {
+  it("shows the title, not the initials, on the brand fallback when no image was uploaded", () => {
     renderWithProviders(<PackageCover src={null} alt="" type="MCQ" title="BJS Preliminary Model Test" />);
-    expect(screen.getByText("BP")).toBeInTheDocument();
+    const title = screen.getByText("BJS Preliminary Model Test");
+    expect(title.className).toContain("line-clamp-2");
+    expect(title.className).toContain("sm:line-clamp-3");
+    expect(screen.queryByText("BP")).toBeNull();
     expect(screen.getByText("MCQ")).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
   });
@@ -36,7 +39,7 @@ describe("exam row", () => {
     expect(screen.getByRole("link", { name: /CrPC written/ })).toHaveAttribute("href", "/exam/e1");
     expect(screen.getByText("৳৩০০")).toBeInTheDocument();
     const summary = screen.getByText(/A very long description/);
-    expect(summary.className).toContain("line-clamp-2");
+    expect(summary.className).toContain("line-clamp-1");
   });
 });
 

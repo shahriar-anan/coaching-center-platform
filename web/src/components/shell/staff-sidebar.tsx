@@ -41,7 +41,7 @@ function NavEntry({
 }) {
   const { t } = useLocale();
   const Icon = item.icon;
-  const label = t(`common.staffNav.${item.key}`);
+  const label = t(`common.staffNav.${item.labelKey ?? item.key}`);
   const body = (
     <>
       {current ? <CurrentBar /> : null}
@@ -115,12 +115,15 @@ export function StaffNavList({
   items,
   collapsed = false,
   pendingCount = 0,
+  reviewsCount = 0,
   onNavigate = () => undefined,
 }: {
   items: StaffNavItem[];
   collapsed?: boolean;
   /** Changes waiting to be published, shown as a count on the Exams item. */
   pendingCount?: number;
+  /** Reviews waiting for approval, shown as a count on the Reviews item. */
+  reviewsCount?: number;
   onNavigate?: () => void;
 }) {
   const { t } = useLocale();
@@ -149,17 +152,23 @@ export function StaffNavList({
           {collapsed ? <hr aria-hidden="true" className="mx-2 border-sidebar-line" /> : null}
           <ul className="grid gap-1">
             {groupItems.map((item) => {
+              // The Exams item counts changes waiting to be published; the Reviews item counts reviews waiting for approval.
+              const count = item.key === "exams" ? pendingCount : item.key === "reviews" ? reviewsCount : 0;
+              const countLabel =
+                item.key === "reviews"
+                  ? t("common.staffNav.pendingReviews", { count: formatNumber(count) })
+                  : t("common.staffNav.pendingChanges", { count: formatNumber(count) });
               const badge =
-                item.key === "exams" && pendingCount > 0 ? (
+                count > 0 ? (
                   collapsed ? (
                     <>
                       <span aria-hidden="true" className="absolute end-2 top-2 size-2.5 rounded-full bg-warn-fill" />
-                      <span className="sr-only">{t("common.staffNav.pendingChanges", { count: formatNumber(pendingCount) })}</span>
+                      <span className="sr-only">{countLabel}</span>
                     </>
                   ) : (
                     <span className="rounded-full bg-warn-fill px-2 text-pill font-semibold tabular-nums text-on-warn">
-                      {formatNumber(pendingCount)}
-                      <span className="sr-only">{t("common.staffNav.pendingChanges", { count: formatNumber(pendingCount) })}</span>
+                      {formatNumber(count)}
+                      <span className="sr-only">{countLabel}</span>
                     </span>
                   )
                 ) : null;
@@ -190,10 +199,12 @@ export function StaffSidebar({
   items,
   collapsed,
   pendingCount,
+  reviewsCount,
 }: {
   items: StaffNavItem[];
   collapsed: boolean;
   pendingCount: number;
+  reviewsCount: number;
 }) {
   const { t } = useLocale();
   return (
@@ -211,7 +222,7 @@ export function StaffSidebar({
           collapsed ? "px-2" : "px-3",
         )}
       >
-        <StaffNavList items={items} collapsed={collapsed} pendingCount={pendingCount} />
+        <StaffNavList items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} />
       </nav>
     </aside>
   );

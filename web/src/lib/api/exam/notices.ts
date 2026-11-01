@@ -36,10 +36,12 @@ export interface NoticeAnnouncement {
   titleBn: string | null;
   bodyEn: string | null;
   bodyBn: string | null;
-  /** ALL, or MODULE for an announcement sent to one module. */
-  audience: "ALL" | "MODULE" | (string & {});
+  /** ALL, MODULE (one package), EXAM (one exam) or SELECTED (chosen students). */
+  audience: "ALL" | "MODULE" | "EXAM" | "SELECTED" | (string & {});
   /** Set only for a MODULE audience. */
   moduleId: string | null;
+  /** Set only for an EXAM audience. */
+  examId: string | null;
 }
 
 export interface Notice {

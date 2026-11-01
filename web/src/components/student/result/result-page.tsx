@@ -1,27 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat, StatRow } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
+import { ReviewCard } from "@/components/student/reviews/review-card";
 import { McqQuestion, resolvePaperLanguage, type OptionLabels } from "@/components/student/sitting/mcq-question";
 import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
 import { useUser } from "@/lib/auth/session-context";
 import { useNotice } from "@/lib/notices/use-notice";
 import { apiBlob } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
-import { evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam, type SittingPosition } from "@/lib/api/exam/sitting";
-import { formatNumber, pickTitle } from "@/lib/format";
+import { ApiError, isUnknownItemError } from "@/lib/api/errors";
+import { studentHome } from "@/lib/config";
+import { answerPdfPath, evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam, type SittingPosition } from "@/lib/api/exam/sitting";
+import { formatDateTime, formatNumber, pickTitle } from "@/lib/format";
 import { isMissing } from "@/lib/api/missing";
+import { useServerNow } from "@/lib/time/clock";
 
 const LETTERS_BN = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"] as const;
 const LETTERS_EN = ["A", "B", "C", "D", "E", "F"] as const;
@@ -86,14 +90,17 @@ export function ResultPage({ examId }: { examId: string }) {
   // The merit list is empty until it opens; once it is, the student's own row gives their rank.
   const board = useLeaderboard(examId);
   const mine = board.data?.rows.find((row) => row.mine) ?? null;
+  const [showAnswer, setShowAnswer] = useState(false);
   const [showScript, setShowScript] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const textSize = usePaperTextSize();
   const user = useUser();
 
+  // The exam read refuses an archived or unpublished exam, so the result's own title stands in for it.
+  const examTitle = exam.data ?? (result.data?.examTitleEn ? { titleEn: result.data.examTitleEn, titleBn: result.data.examTitleBn } : null);
   const header = (
     <PageHeader
-      title={exam.data ? pickTitle(exam.data, locale) : t("result.page.title")}
+      title={examTitle ? pickTitle(examTitle, locale) : t("result.page.title")}
       breadcrumbs={[{ label: t("result.hub.title"), href: "/results" }, { label: t("result.page.title") }]}
     />
   );
@@ -110,6 +117,15 @@ export function ResultPage({ examId }: { examId: string }) {
     );
   }
 
+  // An archived exam refuses the exam read, but its posted result stays readable: the page then renders from the result alone.
+  if (exam.isError && isUnknownItemError(exam.error) && !result.isSuccess) {
+    return (
+      <div className="flex flex-col gap-4">
+        {header}
+        <NotFoundState title={t("common.notFound.exam")} body={t("common.notFound.itemBody")} backHref={studentHome} backLabel={t("common.guard.goHome")} />
+      </div>
+    );
+  }
   if (result.isError) {
     const error = result.error;
     if (error instanceof ApiError && error.code === "SITTING_NOT_OPEN") {
@@ -137,13 +153,13 @@ export function ResultPage({ examId }: { examId: string }) {
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <ErrorState onRetry={() => result.refetch()} />
+        <ErrorState error={result.error} onRetry={() => result.refetch()} />
       </div>
     );
   }
 
   const data = result.data;
-  const written = exam.data?.examType === "WRITTEN";
+  const written = (exam.data?.examType ?? data.examType) === "WRITTEN";
   const published = written && !isMissing(data.score);
   const notSubmitted = data.status === "FAILED_TO_SUBMIT";
   const awaiting = written && !published && !notSubmitted;
@@ -229,10 +245,31 @@ export function ResultPage({ examId }: { examId: string }) {
 
       {awaiting && !notSubmitted ? <p className="text-body text-muted">{t("result.written.awaiting")}</p> : null}
 
+      <ReviewCard kind="exam" id={examId} />
+
       {published && data.comment ? (
         <Card>
           <h2 className="text-label font-semibold text-muted">{t("result.written.comment")}</h2>
           <p className="mt-2 whitespace-pre-line text-text">{data.comment}</p>
+        </Card>
+      ) : null}
+
+      {written && data.answerPdf ? (
+        <Card>
+          <h2 className="text-label font-semibold text-muted">{t("result.written.yourAnswer")}</h2>
+          <Button className="mt-3" variant="secondary" onClick={() => setShowAnswer((value) => !value)} aria-expanded={showAnswer}>
+            {showAnswer ? t("result.written.hideAnswer") : t("result.written.viewAnswer")}
+          </Button>
+          {showAnswer ? (
+            <div className="mt-4">
+              <PdfViewer
+                load={() => apiBlob(answerPdfPath(examId))}
+                studentLine={user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined}
+                allowDownload={false}
+                label={t("result.written.yourAnswer")}
+              />
+            </div>
+          ) : null}
         </Card>
       ) : null}
 
@@ -311,11 +348,48 @@ export function ResultPage({ examId }: { examId: string }) {
         </section>
       ) : null}
 
-      {!written && !data.questions ? <p className="text-body text-muted">{t("result.review.afterDeadline")}</p> : null}
+      {/* A submitted MCQ whose review is still closed says when it opens; the page reads the result again at that time. */}
+      {!written && !data.questions ? (
+        data.reviewOpensAt ? (
+          <ReviewOpensNote opensAt={data.reviewOpensAt} onDue={result.refetch} />
+        ) : (
+          <p className="text-body text-muted">{t("result.review.afterDeadline")}</p>
+        )
+      ) : null}
 
-      <Link href={`/exam/${examId}/leaderboard`} className="text-accent underline underline-offset-4">
-        {t("result.page.leaderboard")}
-      </Link>
+      {/* The merit list reads the exam too, so the link is left out when the exam read is refused. */}
+      {exam.data ? (
+        <Link href={`/exam/${examId}/leaderboard`} className="text-accent underline underline-offset-4">
+          {t("result.page.leaderboard")}
+        </Link>
+      ) : null}
     </div>
   );
+}
+
+/** While a submitted MCQ's review is closed, the review (and the time it opens) is asked for again once that time comes. */
+const REVIEW_RECHECK_MS = 5_000;
+
+/**
+ * The note in place of the review. `onDue` reads the result again once `opensAt` has passed (on the server's clock), so the
+ * review appears without a reload. While the server still answers closed, it is asked again every few seconds.
+ */
+function ReviewOpensNote({ opensAt, onDue }: { opensAt: string; onDue: () => void }) {
+  const { t, locale } = useLocale();
+  const now = useServerNow(1000);
+  const dueAt = Date.parse(opensAt);
+  const invalid = Number.isNaN(dueAt);
+  const due = !invalid && now >= dueAt;
+  const askedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (!due) return;
+    if (askedAt.current !== null && now - askedAt.current < REVIEW_RECHECK_MS) return;
+    askedAt.current = now;
+    onDue();
+  }, [due, now, onDue]);
+
+  if (invalid) {
+    return <p className="text-body text-muted">{t("result.review.afterDeadline")}</p>;
+  }
+  return <p className="text-body font-semibold text-text">{t("result.review.opensAt", { time: formatDateTime(opensAt, locale) })}</p>;
 }

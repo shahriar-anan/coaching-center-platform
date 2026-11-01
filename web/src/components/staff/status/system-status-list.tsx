@@ -47,7 +47,7 @@ export function SystemStatusList() {
   ];
 
   if (status.isError) {
-    return <ErrorState message={t("staffAdmin.status.loadError")} onRetry={() => void status.refetch()} />;
+    return <ErrorState message={t("staffAdmin.status.loadError")} onRetry={() => void status.refetch()} error={status.error} />;
   }
   if (status.isPending) {
     return <Skeleton variant="rows" count={5} />;

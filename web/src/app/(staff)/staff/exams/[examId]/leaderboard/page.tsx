@@ -86,7 +86,7 @@ function Leaderboard({ examId }: { examId: string }) {
       ) : null}
 
       {board.isError ? (
-        <ErrorState onRetry={() => board.refetch()} />
+        <ErrorState onRetry={() => board.refetch()} error={board.error} />
       ) : (
         <Table
           columns={columns}

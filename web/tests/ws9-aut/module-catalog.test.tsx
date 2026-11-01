@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { ModuleList } from "@/components/staff/catalog/module-list";
 import { ModuleExams } from "@/components/staff/catalog/module-exams";
 import { ModuleSetup } from "@/components/staff/catalog/module-setup";
-import { InstructorTab } from "@/components/staff/catalog/instructor-tab";
 import type { StaffExam, StaffModule } from "@/lib/api/exam/staff-catalog";
 import { fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
 
@@ -141,26 +140,12 @@ describe("module setup steps (U4)", () => {
     expect(screen.getByText("প্যাকেজটি এখনো প্রকাশ হয়নি, তাই শিক্ষার্থীরা এখনো দেখতে বা কিনতে পারবেন না।")).toBeInTheDocument();
   });
 
-  it("Master Admin sees the teacher's name and that students can see and buy the module", () => {
+  // The package has no teacher step: teachers are set per exam, so the setup never names one (decided with the per-exam teacher).
+  it("Master Admin sees no teacher step on the package, and that students can see and buy the module", () => {
     mockApi({ [`GET /api/v1/live-exam-modules/${moduleId}/exams`]: { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 } });
-    renderWithProviders(
-      <ModuleSetup module={{ ...moduleFixture, instructor: { id: "i1", name: "ফারিহা রহমান", phone: null } }} />,
-      { user: fixtures.masterAdmin },
-    );
+    renderWithProviders(<ModuleSetup module={moduleFixture} />, { user: fixtures.masterAdmin });
 
-    expect(screen.getByText("ফারিহা রহমান")).toBeInTheDocument();
+    expect(screen.queryByText("শিক্ষক")).not.toBeInTheDocument();
     expect(screen.getByText("শিক্ষার্থীরা এখন প্যাকেজটি দেখতে ও কিনতে পারবেন।")).toBeInTheDocument();
-  });
-});
-
-describe("instructor on the module (G4)", () => {
-  it("shows the instructor from the module read, with remove for Master Admin", async () => {
-    mockApi({
-      [`GET /api/v1/live-exam-modules/${moduleId}`]: { ...moduleFixture, instructor: { id: "i1", name: "ফারিহা রহমান", phone: "01711000020" } },
-    });
-    renderWithProviders(<InstructorTab moduleId={moduleId} />, { user: fixtures.masterAdmin });
-
-    expect(await screen.findByText("ফারিহা রহমান")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "সরান" })).toBeInTheDocument();
   });
 });

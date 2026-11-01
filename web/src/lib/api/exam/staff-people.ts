@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
+import type { CategoryRef } from "@/lib/api/exam/staff-marking";
 import type { AccountStatus, ExamType, PageResponse } from "@/lib/api/exam/types";
 
 /*
@@ -196,13 +197,15 @@ export function useModuleOptions() {
 
 export type ParticipationRow = {
   examId: string;
-  moduleId: string;
-  moduleTitleEn: string;
-  moduleTitleBn: string;
-  /** The exam's own category (API: categoryId, categoryTitleEn, categoryTitleBn). */
+  /** Left out by the API when the exam is in no package. */
+  moduleId?: string | null;
+  moduleTitleEn?: string | null;
+  moduleTitleBn?: string | null;
+  /** The exam's own category (API: categoryId, categoryTitleEn, categoryTitleBn) and its chain, root first. */
   categoryId?: string | null;
   categoryTitleEn?: string | null;
   categoryTitleBn?: string | null;
+  categoryPath?: CategoryRef[];
   examType: ExamType;
   titleEn: string;
   titleBn: string;

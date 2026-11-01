@@ -44,6 +44,9 @@ function signedInApi(user: Record<string, unknown> = student) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
+      if (url.endsWith("/api/v1/auth/session")) {
+        return new Response(JSON.stringify({ hasSession: true }), { status: 200 });
+      }
       if (url.endsWith("/api/v1/auth/refresh")) {
         return new Response(JSON.stringify({ accessToken: "a1", expiresInSeconds: 900 }), { status: 200 });
       }

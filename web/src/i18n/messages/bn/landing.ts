@@ -14,12 +14,12 @@ const landing = {
   navResources: "রিসোর্স",
   comingSoonTitle: "শীঘ্রই আসছে",
   comingSoonBody: "এই অংশটি এখনো প্রস্তুত হয়নি। খুব শীঘ্রই এখানে নতুন কিছু পাবেন।",
-  comingSoonBack: "হোম পেজে ফিরে যান",
+  comingSoonBack: "হোম পাতায় ফিরে যান",
   registeredStudents: "নিবন্ধিত শিক্ষার্থী",
   examsTitle: "এক্সাম",
   signUpShort: "অ্যাকাউন্ট খুলুন",
 
-  heroLabel: "SYMAM LAW · সাইমাম ল'",
+  heroLabel: "Symam Law",
   heroTitle: "বিজেএস ও বার কাউন্সিল পরীক্ষার জন্য নিয়মিত ও সুপরিকল্পিত প্রস্তুতি",
   heroLead: "নির্ধারিত সময়সূচি অনুযায়ী লাইভ এমসিকিউ ও লিখিত পরীক্ষায় অংশগ্রহণ করুন।",
   chipOnline: "অনলাইন ব্যাচ",
@@ -37,15 +37,20 @@ const landing = {
   batchOpen: "এক্সাম দেখুন",
   batchCallOnly: "ভর্তির জন্য কল করুন",
 
-  numbersModules: "এক্সাম প্যাকেজ",
-  numbersMcq: "এমসিকিউ এক্সাম",
-  numbersWritten: "রিটেন এক্সাম",
+  statsLabel: "সংখ্যায় সাইমাম ল",
+  statsStudents: "শিক্ষার্থী",
+  statsMentors: "অভিজ্ঞ মেন্টর",
+  statsDownloads: "অ্যাপ ডাউনলোড",
+  statsMaterials: "লার্নিং ম্যাটেরিয়াল",
 
   categoriesTitle: "এক্সাম ক্যাটাগরি",
-  categoriesSubtitle: "সেরা ক্যাটাগরির প্রশ্নপত্রের মাধ্যমে আপনার সাফল্যের যাত্রা শুরু করুন এখান থেকেই!",
-  categoryModules: "{count}টি প্যাকেজ",
+  categoriesSubtitle: "পরীক্ষার ধরন বেছে নিন, তারপর আপনার ক্যাটাগরি।",
+  typeSwitchLabel: "পরীক্ষার ধরন",
+  // The switch's labels. The Bangla page's other type labels are English, so these are Bangla for this section.
+  typeMcq: "এমসিকিউ",
+  typeWritten: "রিটেন",
+  categoriesEmpty: "{type} এক্সামের কোনো ক্যাটাগরি এখনো যোগ হয়নি।",
   categoryFrom: "শুরু {price} থেকে",
-  categoryNoPrice: "মূল্য এখনো ঠিক হয়নি",
   categoryExplore: "এক্সপ্লোর করুন",
   categoryExploreMcq: "এমসিকিউ এক্সপ্লোর করুন",
   categoryExploreWritten: "লিখিত এক্সপ্লোর করুন",
@@ -53,6 +58,9 @@ const landing = {
 
   upcomingTitle: "আসন্ন পরীক্ষা",
   upcomingSubtitle: "সময়মতো বসুন। পরীক্ষা শুরু হওয়ার আগেই অ্যাকাউন্ট থাকা দরকার।",
+  // The next-exam spotlight and list. "Today" and "Tomorrow" come from catalog.routine.
+  upcomingInDays: "{count} দিন পরে",
+  upcomingView: "এক্সাম দেখুন",
 
   packagesTitle: "আমাদের প্যাকেজ",
   packagesSubtitle: "এক প্যাকেজে একাধিক পরীক্ষা।",
@@ -81,6 +89,11 @@ const landing = {
   closingTitle: "আপনার প্রস্তুতি আজই শুরু করুন",
   closingLead: "অ্যাকাউন্ট খোলার পর প্রয়োজনীয় পরীক্ষা নির্বাচন করে নির্ধারিত সময়ে অংশগ্রহণ করুন।",
   closingLogin: "আগে থেকেই অ্যাকাউন্ট আছে? প্রবেশ করুন",
+
+  // Numbers, steps, contact and closing (REQ-006 layout).
+  stepNumber: "ধাপ {n}",
+  paySecure: "SSLCommerz-এর মাধ্যমে নিরাপদ পেমেন্ট",
+  closingPackages: "প্যাকেজ দেখুন",
 };
 
 export default landing;

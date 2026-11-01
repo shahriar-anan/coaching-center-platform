@@ -107,6 +107,18 @@ async function loadMe(): Promise<Me | null> {
   }
 }
 
+/**
+ * Whether a refresh is worth trying on page load. Only an explicit "no cookie"
+ * answer skips it; a failed probe keeps the refresh call.
+ */
+async function mayHaveRefreshCookie(): Promise<boolean> {
+  try {
+    return (await api.sessionProbe()).hasSession !== false;
+  } catch {
+    return true;
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -143,6 +155,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // A visitor with no refresh cookie is anonymous without a refresh call, so
+      // no 401 reaches the console on every public page.
+      if (!(await mayHaveRefreshCookie())) {
+        if (!cancelled) {
+          setSession({ status: "anonymous" });
+        }
+        return;
+      }
       try {
         const tokens = await api.refresh();
         setAccessToken(tokens.accessToken);
