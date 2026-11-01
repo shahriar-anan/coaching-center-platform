@@ -187,7 +187,7 @@ record AccessState(boolean granted, String source /* ROSTER | MODULE | EXAM | BU
 record ChangeList(String revisionId, List<FieldChange> fields, List<QuestionChange> questions,
                   PaperChange paper, List<MembershipChange> packageExams, Impact impact) {}
 record FieldChange(String field, Object before, Object after) {}
-record QuestionChange(UUID questionId, Integer position, String change /* ADDED | REMOVED | STEM | OPTIONS_TEXT | CORRECT | MARKS | EXPLANATION | MULTIPLE */,
+record QuestionChange(UUID questionId, Integer position, String change /* ADDED | REMOVED | STEM | OPTIONS_TEXT | CORRECT | MARKS | EXPLANATION | MULTIPLE | POSITION */,
                       Object before, Object after) {}
 record PaperChange(Integer beforeVersion, Integer afterVersion, String afterFileName) {}
 record MembershipChange(UUID examId, String titleEn, String titleBn, String change /* ADDED | REMOVED */) {}

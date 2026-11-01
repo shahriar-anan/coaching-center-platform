@@ -54,7 +54,7 @@ Files go through `LocalFileStorage`: UUID name, local directory, no public URL. 
 | `GET /api/v1/live-exam-modules/{moduleId}/submissions` | Assigned instructor, or a staff reader. Read-only: it never posts a sitting. No web screen calls it; the staff screens use `GET /api/v1/live-exam-submissions`. |
 | `GET /api/v1/live-exam-participants/{id}/answer-pdf` | Marker download. |
 | `POST /api/v1/live-exam-participants/{id}/evaluation` | Marks, optional comment, and the marked PDF. The marked PDF is optional when one is already stored; a save without a file keeps it. The first save needs a PDF (`400 VALIDATION_FAILED`). A save to a paper that is not released yet is a draft. A save to a released paper is a correction: the student keeps the released mark, and the correction waits for Master Admin to release it (`releasePending` on the staff view, 2026-10-27). |
-| `GET /api/v1/live-exams/{id}/leaderboard` | Empty until five minutes after the window. Live rows only. Written rows wait until `evaluated_at` is set, except a failed-to-submit zero. |
+| `GET /api/v1/live-exams/{id}/leaderboard` | Empty until five minutes after the window. Live rows only. Written rows wait until `evaluated_at` is set, except a failed-to-submit zero. An instructor gets `404 RESOURCE_NOT_FOUND` on a written exam until one of its papers is released (`resultsReleased` on the staff exam read); Master Admin and System Admin are not held to that. |
 | `GET /api/v1/live-exams/{id}/evaluated-pdf` | The student, any time the file is stored. |
 
 ## Catalog reads that are staff-only or roster-gated
@@ -397,3 +397,111 @@ Fixes to the NR-01 UI Step 1 work. Two API behaviours change; the rest is web on
 - **Package exam order (student and public).** Unchanged: by date, soonest first with undated last, and by membership order among equal dates.
 - **Category on PATCH.** `PATCH /live-exams/{id}` accepts `categoryId` for any exam, in a package or standalone. Master Admin and System Admin only (`EXAM_MANAGE`), as before. The category must exist, not be deleted, and not be archived (nor sit under an archived branch). Otherwise `400 VALIDATION_FAILED` with `fieldErrors[0].field = "categoryId"`. A body that repeats the exam's current category is accepted even when that category has been archived since, so other fields can still be saved. Create (`POST /live-exams`, `POST /live-exam-modules/{id}/exams`) is unchanged: a package exam takes the package's category.
 - **Category on a published exam.** The change is staged like the other fields. The change list (`GET /live-exams/{id}/pending-changes`) names it as a field `categoryId` with the published and the staged category ids in `before` and `after`. It applies when the Master Admin publishes the revision.
+
+## Added 2026-11-01 (announcements by package, exam and student; plan `docs/exam-site/plans/ui-delivery/admin-reviews-enrol-announcements-plan.md`, step 1, API)
+
+All additive. `POST /api/v1/announcements` still takes `ALL` and `MODULE` as before, and the history keeps every field it had. Nulls are left out of JSON (the global `non_null` setting), so `moduleId`, `examId`, `withdrawnAt` and `exam` are absent when they are null.
+
+### Migrations
+
+- **V57** (`announcements`): `exam_id` (FK `live_exams`), `withdrawn_at` and `withdrawn_by` (FK `users`). The audience check now allows `ALL`, `MODULE`, `EXAM` and `SELECTED`. A target check: `module_id` is set for `MODULE` only, `exam_id` for `EXAM` only, and each is required for its own audience.
+
+### Audiences
+
+The holder rule is one class, `AnnouncementAudience`. The recipients of a send and the page check both use it, so they cannot drift. Every recipient is an active, non-deleted student.
+
+| Audience | Who gets the notice | Who sees it on the page |
+|---|---|---|
+| `ALL` | Every active student | Nobody on a page (Notices only) |
+| `MODULE` (package) | A roster row, a package grant, a grant on one of its exams, or a started attempt on one of its free exams | Every current holder of the package |
+| `EXAM` | A grant on the exam, or a roster row or package grant on a published package that actively contains it, or a started attempt on the exam if it is free | Every current holder of the exam, and any signed-in student if the exam is free (published and `is_free`) |
+| `SELECTED` | The students named (1 to 500, deduplicated) | Nobody on a page (Notices only) |
+
+- Expiry follows `AccessWindow` and `LiveExamAccess.moduleEnd`, written as SQL. An exam grant ends `access_days` after the later of the grant and the window end (or the publish time, for practice). A package grant or roster row ends when every paid exam it covers has run out; a package with no paid exam never ends. A revoked grant is not a holder, and nor is an expired one.
+- A started attempt makes a holder only on a free exam. A paid exam is open through a live grant or roster row, so an attempt on a paid exam whose grant has been revoked or has run out does not count.
+- A free package does not exist in the data model: `live_exam_modules` has only a nullable `price` and no free flag. Only exams are free.
+- A withdrawn announcement is not shown anywhere. A deleted target hides its notices, and its page shows nothing.
+
+### Endpoints
+
+- `POST /api/v1/announcements`: body `{titleEn, titleBn, bodyEn, bodyBn, audience, moduleId?, examId?, studentIds?}`. Response `{id, audience, moduleId, examId, recipients, createdAt}`. `moduleId` is required for `MODULE`, `examId` for `EXAM`, and `studentIds` (1 to 500) for `SELECTED`. Any other target field given for an audience is `VALIDATION_FAILED`. An unknown or deleted package or exam is 404. For `SELECTED`, an id that is not an active student is 400 `VALIDATION_FAILED`, with one `fieldErrors` entry per bad id (`field` is `studentIds`, and the message starts with the id). A package or exam with no recipients is allowed (`recipients` is 0).
+- `GET /api/v1/announcements/preview?audience=&moduleId=&examId=`: `{recipients}`. Audience `ALL`, `MODULE` or `EXAM`. `SELECTED`, or any other value, is 400. It writes nothing, and it uses the same rule and student filter as the send. Same permission as the send.
+- `GET /api/v1/announcements`: each row adds `examId`, `examTitleEn`, `examTitleBn`, `withdrawn` (boolean) and `withdrawnAt` (ISO string, or absent). Optional `audience=` filters the rows; any other value is 400. The body is still left out.
+- `PUT /api/v1/announcements/{id}/withdraw`: returns the history row. Idempotent: a second call changes nothing, keeps the first `withdrawnAt`, and is not audited again. Unknown id is 404. Audit action `ANNOUNCEMENT_WITHDRAWN` on the announcement entity, recorded on the first withdrawal.
+- `GET /api/v1/me/announcements?kind=package|exam&id=`: students only (`LIVE_EXAM_BROWSE` and role `STUDENT`, as `/me/notices`). A bare JSON array, newest first, at most 50, of `{id, titleEn, titleBn, bodyEn, bodyBn, createdAt}`; `createdAt` is an ISO instant. Only the non-withdrawn announcements for that target. A non-holder gets `[]` (200). An unknown or deleted target gets `[]`. An unknown `kind` is 404. No sign-in is 401.
+- Notices (`/me/notices`): `announcement` adds `examId`, which is set only for an `EXAM` announcement (`moduleId` only for `MODULE`). An `EXAM` announcement's notice is in the `ANNOUNCEMENTS` tab, and its `exam` is null, as for every announcement. The notice is hidden when its exam is deleted.
+- Withdrawn announcements are left out of `/me/notices`, `/me/notices/unread-count`, and `POST /me/notices/{id}/read` (404 for a withdrawn notice). `POST /me/notices/read-all` marks only the notices the inbox shows, so a withdrawn or deleted-target notice is not marked read.
+- Permission `LIVE_EXAM_ANNOUNCE` is now granted to `SYSTEM_ADMIN` as well as `MASTER_ADMIN`. Instructors and students get 403 `ACCESS_DENIED` on send, preview, history and withdraw.
+
+### Error codes (from the reviews work, documented here for the first time)
+
+- `REVIEW_NOT_ALLOWED` (403): a student tries to write a review without having sat the exam. For a package, the student must hold it and have sat one of its exams.
+- `REVIEW_NOT_FEATURABLE` (409): a feature or unfeature is asked for a review that is not `APPROVED` or has no comment.
+- `INSTRUCTOR_NOT_FOR_MCQ` (409): an instructor is assigned to an MCQ exam ("An MCQ exam has no instructor."). A package default skips MCQ exams without an error.
+
+### Known gaps
+
+- For an `EXAM` announcement, a student whose only route to the exam was a package the exam has since been removed from keeps exam access in `LiveExamAccess` (R4), but is not a holder here: the plan says "actively contains". Decide later whether the rule should follow R4.
+- Withdrawal is audited only on the first change, not on every repeat call.
+- Hidden notices of a deleted module keep the existing rule: an exam notice, including an `EXAM` announcement, is hidden when the exam's own legacy `module_id` names a deleted package.
+
+## Added 2026-11-01 (a submitted exam is final; the review waits while the live exam runs; API)
+
+The owner's rule: once a student submits an exam, the submission is final, and it is not reviewable again while the live exam is still going on. This replaces decision D21' of NR-01 for the key and the explanations (`new-requirements/nr-01/d-sitting.md` line 79, `progress/d-d4.md`): an MCQ submit no longer returns the key at once. The score still shows at once. A written upload is the submission: the script cannot be replaced, and the question paper is no longer offered while the sitting is open.
+
+### The review rule (`ReviewRule`, one definition for every read)
+
+The review of a submitted MCQ attempt is open when any of these holds at the server time:
+
+- (a) the attempt's own deadline (`participant.deadlineAt`) has been reached;
+- (b) the attempt is not a live-window attempt: its kind is `PRACTICE`, `ARCHIVED` or `RETAKE`, or the exam is in practice mode, or the live run is over. The live run is over at `ExamWindow.lastLiveDeadline`, the window end plus the duration, the latest a live sitting can still run. A sitting that started just before the window end runs to its own deadline, so the window end alone does not end the run;
+- (c) staff released the answers (`live_exams.answers_released_at` is set). Unsetting it closes the review again.
+
+While the review is closed, the key and the explanations are not returned, and `reviewOpensAt` says when the review opens on its own (ISO instant). That is the attempt's deadline: a live-window attempt started inside the window, so the live run ends after its deadline. Only if staff moved the window end before the attempt started is the live run's end earlier, and then it is that end.
+
+### Routes
+
+- `GET /api/v1/live-exams/{id}` (student): `questions` is left out for a submitted MCQ whose review is closed, and `reviewOpensAt` is set then. A running MCQ attempt gets its questions without the key, as before. `StudentExam` adds `reviewOpensAt`.
+- `GET /api/v1/live-exams/{id}/result`: the score, maximum, passed, status and position come as before. For a submitted MCQ whose review is closed, `questions` is left out and `reviewOpensAt` is set; when open, the questions come with the key and the explanations and `reviewOpensAt` is absent. `ReviewedResult` adds `reviewOpensAt`.
+- `GET /api/v1/me/exam-results`: unchanged. The score row is visible (`resultVisible`) as soon as the MCQ is submitted.
+- `GET /api/v1/live-exams/{id}/question-pdf` (student): once an answer script is stored and the sitting is open, it answers 409 `SITTING_NOT_OPEN`. After the sitting has ended it answers 404 as before.
+- Written: `StudentExam.questionPdf` is `true` only while the sitting is open and no answer is stored, and `false` once the script is stored. A stored script before the deadline gives status `SUBMITTED` (already the rule in `LiveExamStudentStatus`). A second upload is `ANSWER_ALREADY_SUBMITTED`, and the first file stays.
+- Older catalog path (`McqAttemptService`, `ExamResultService`): the score follows the release flags as before. The key, the explanations and the marks per question wait for the review. Its window is the component's; its review opens at the attempt's deadline, at the window end, or when staff publish results (`results_published`). The paths are `GET` and `POST` `/api/v1/catalog/exam-modules/{moduleId}/components/{componentId}/attempts`, `.../result` and `/api/v1/catalog/exam-modules/{moduleId}/papers/{paperId}/result`.
+
+### Read paths checked, and left alone
+
+- Staff reads (exam view, the staff result, the evaluation and submission feeds, the question-stats, the staff MCQ attempt list) keep the key.
+- The public preview (`LiveExamPreviewService`) never carried the key.
+- The written catalog result shows explanations only when staff publish results, as before.
+
+### Known gaps
+
+- The older catalog path has no release column of its own. Its staff release is `results_published`; the new path's is `answers_released_at`.
+- A question paper PDF that staff upload for an MCQ exam is still offered by `question-pdf` during the sitting. It is not a key, and the rule does not cover it.
+
+## 2026-11-01: a published exam's edit not showing on the student site
+
+**Reproduced:** no for the API. `ExamRevisionIT.everyStagedFieldReachesEveryStudentReadAfterThePublish` stages title, descriptions, rules, paper language, pass percent, duration, start time, negative marks, answers changeable, preview, access days, category, price and discount on a published MCQ exam, edits one question and adds one, publishes with the revision id, then reads the public exam, the old and new category lists, the package exam list, the student exam read (maximum 3), the routine and a running sitting (questions "New stem", "Added stem"). Every read returns the new values. All 13 tests in the class pass.
+
+**Root cause (web, confirmed by code trace):**
+- `web/src/lib/api/exam/catalog.ts` (the public catalog reads: tree, package, package exams, category exams, public exam, popular, upcoming, module search and the my-exams public rows) set `staleTime` 60 s and did not set `refetchOnWindowFocus`, so the global default `false` applied. An open list or package page kept the pre-publish title and price until a reload or a remount after 60 s. Nothing polled those reads.
+- `web/src/lib/api/exam/staff-catalog.ts`: the publish, discard, membership, popular and instructor mutations (`refreshChanged`, `usePublishPendingChanges`), the exam and package actions (`useExamAction`, `useModuleAction`) and archive (`useArchiveExam`) invalidated only the `staffCatalog` keys. Any student read cached in the same client (the public catalog, the routine, the student's own exam, the exam preview key `live-exam-preview`) was not refreshed.
+
+**Fix:**
+- `catalog.ts`: `refetchOnWindowFocus: true` on the public content reads, so a list that has gone stale refetches when the tab regains focus.
+- `staff-catalog.ts`: new `refreshStudentReads` invalidates `catalogKeys.all`, `["live-exam-preview"]` and, for an exam, `sittingKeys.exam(id)`. It runs from the publish, discard and membership path and from the exam and package actions and archive.
+
+**Found, not fixed (outside this report):**
+- `api/.../exams/ExamChangeListBuilder.java` `compare()` does not compare question `position`, so a position-only staged edit gives an empty change list and `LiveExamRevisionService.stage()` drops the revision. The staff UI cannot send such an edit today (see next item).
+- `web/src/components/staff/catalog/mcq-questions.tsx` move up and down sends `{ position }` only; `QuestionInput.parse` (`api/.../exams/QuestionInput.java`) requires `marks` and `stem`, so the reorder fails with 400 on draft and published exams.
+
+## Added 2026-11-01 (the MCQ answer review opens at submit; supersedes the review rule above; API)
+
+The owner decided on 1 November 2026 that the answers are shown at submit. Once a student submits an MCQ attempt, the answer key and the explanations are returned to that student at once, for every exam. The rule no longer depends on the live window, the attempt's own deadline, the release switch (`live_exams.answers_released_at`) or the catalog results flags. The score still shows at once, as before. Nothing else changes: a save after submit still gets 409 `ANSWER_ALREADY_SUBMITTED`, and written exams are unchanged.
+
+This supersedes the review rule of the section above ("a submitted exam is final; the review waits while the live exam runs"): clauses (a) to (c), the `reviewOpensAt` routes and the catalog wait for the deadline or a release. What still holds from that section: a running attempt never shows the key, and a submitted attempt is final.
+
+- `ReviewRule.open` returns true for a submitted attempt (live: `submittedAt` is set; catalog: status `SUBMITTED`). A running attempt is never open. `ReviewRule.opensAt` is removed.
+- `reviewOpensAt` is now always absent. `StudentExam.reviewOpensAt` and `ReviewedResult.reviewOpensAt` stay in the Java records and in the OpenAPI spec (the web contract check needs the property), but they are always null, so the JSON omits them. The web already shows the answers when the field is absent.
+- `GET /api/v1/live-exams/{id}` (student) and `GET /api/v1/live-exams/{id}/result` return `questions` with the key and the explanations for a submitted MCQ.
+- Catalog path (`McqAttemptService`, `ExamResultService`): a submitted attempt's key is returned wherever its result is returned. The result's own gate is unchanged (immediate results or results published), so while that gate is closed the result read is still refused, as before.

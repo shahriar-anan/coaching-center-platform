@@ -89,9 +89,10 @@ Bangla is the main language of the site, not a translation of the English. Write
 | Coming soon | শীঘ্রই আসছে | |
 | Retry | আবার চেষ্টা করুন | আবার চেষ্টা |
 | Nothing found | কিছু পাওয়া যায়নি | |
-| Staff-only / student-only page | এই পাতাটি শুধু অ্যাডমিন ও শিক্ষকদের জন্য / এই পাতাটি শুধু শিক্ষার্থীদের জন্য | এই অংশ কর্মীদের জন্য |
+| Staff-only / student-only page | এই পেজটি শুধু অ্যাডমিন ও শিক্ষকদের জন্য / এই পেজটি শুধু শিক্ষার্থীদের জন্য | এই অংশ কর্মীদের জন্য |
+| Web page (the word "page") | পেজ (পেজটি, পেজে, পেজের). Decided 31 Oct 2026 by Shahriar. Pagination labels follow: আগের পেজ, পরের পেজ | পাতা, পৃষ্ঠা |
 | Help | সাহায্য ও প্রশ্নোত্তর | |
-| Policy pages | শর্তাবলি / গোপনীয়তা নীতি / রিফান্ড নীতি / আমাদের সম্পর্কে / যোগাযোগ | ফেরত নীতি |
+| Policy pages | শর্তাবলি / প্রাইভেসি পলিসি (decided 31 Oct: the English term written in Bangla) / রিফান্ড নীতি / আমাদের সম্পর্কে / যোগাযোগ | ফেরত নীতি |
 | Menu / open / close | মেনু / খুলুন / বন্ধ করুন | |
 | Switch states | চালু / বন্ধ | |
 | Go to the admin panel | অ্যাডমিন প্যানেলে যান | |
