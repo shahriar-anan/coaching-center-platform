@@ -5,14 +5,19 @@
 #
 # Then deploy it with web/scripts/deploy-web.ps1. The build env is fixed here,
 # not typed by hand: the API base is empty (each host calls its own /api/) and
-# both host URLs are baked in. Override the hosts with SITE_URL and STAFF_URL.
+# both host URLs are baked in. The hosts are required, so a release always names
+# the hosts it was built for; nothing falls back to an old address.
+#
+#   SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.exam.symamlaw.com \
+#     bash web/scripts/release-build.sh <out.tgz>
+#
 # Under Git Bash an empty variable reaches Next; in PowerShell `$env:X=''`
 # deletes it and web/.env.local's localhost URL would win.
 set -euo pipefail
 
 out=${1:?usage: release-build.sh <out.tgz>}
-site=${SITE_URL:-https://srv2089893.hstgr.cloud}
-staff=${STAFF_URL:-https://admin.187-52-115-111.nip.io}
+site=${SITE_URL:?set SITE_URL to the student host, e.g. https://exam.symamlaw.com}
+staff=${STAFF_URL:?set STAFF_URL to the admin host, e.g. https://admin.exam.symamlaw.com}
 
 root=$(git rev-parse --show-toplevel)
 web="$root/web"
