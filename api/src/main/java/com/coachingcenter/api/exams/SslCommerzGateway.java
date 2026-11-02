@@ -57,6 +57,7 @@ class SslCommerzGateway implements LiveExamPaymentGateway {
 		form.add("cus_email", checkout.email());
 		form.add("cus_add1", "N/A");
 		form.add("cus_city", "Dhaka");
+		form.add("cus_postcode", "1000");
 		form.add("cus_country", "Bangladesh");
 		form.add("cus_phone", checkout.phone());
 		form.add("shipping_method", "NO");
@@ -228,7 +229,16 @@ class SslCommerzGateway implements LiveExamPaymentGateway {
 		if (!store.isBlank() && !properties.storeId().trim().equals(store)) {
 			return Verification.invalid();
 		}
-		return Verification.valid(echoed, amount, currency, valId, paymentChannel(node));
+		return Verification.valid(echoed, amount, currency, valId, paymentChannel(node), riskLevel(node));
+	}
+
+	/** SSLCommerz's risk flag for the payment ("0" or "1"), kept short; null when the reply has none. */
+	static String riskLevel(JsonNode node) {
+		String risk = node.path("risk_level").asText("").trim();
+		if (risk.isEmpty()) {
+			return null;
+		}
+		return risk.length() > 16 ? risk.substring(0, 16) : risk;
 	}
 
 	static String paymentChannel(JsonNode node) {

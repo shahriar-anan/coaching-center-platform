@@ -37,6 +37,9 @@ export function PaymentDetail({ row, canOpenRoster }: { row: StaffOrderRow; canO
             ? t("staffOps.paymentDetail.accessGranted", { product, scope })
             : t("staffOps.paymentDetail.accessNone")}
         </p>
+        {row.riskLevel === "1" ? (
+          <p className="mt-3 text-body text-danger">{t("staffOps.paymentDetail.riskFlagged")}</p>
+        ) : null}
       </Card>
 
       <Card>

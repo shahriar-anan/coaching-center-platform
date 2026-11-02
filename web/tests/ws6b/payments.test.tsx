@@ -30,6 +30,7 @@ const pendingModule: StaffOrderRow = {
   examTitleEn: null,
   examTitleBn: null,
   paymentChannel: null,
+  riskLevel: null,
   valId: null,
   accessGranted: false,
   studentId: "cccccccc-0000-4000-8000-000000000001",
@@ -54,6 +55,7 @@ const paidExam: StaffOrderRow = {
   examTitleEn: "CrPC",
   examTitleBn: "সিআরপিসি",
   paymentChannel: "BKASH-BKash",
+  riskLevel: "1",
   valId: "VAL-123",
   accessGranted: true,
 };

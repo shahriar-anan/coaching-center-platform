@@ -72,6 +72,7 @@ const staffOps = {
     openExam: "Open the exam",
     accessGranted: "Access open: {product}, {scope}",
     accessNone: "This payment gives no access.",
+    riskFlagged: "SSLCommerz flagged this payment as risky. Access was given. Check it in the merchant panel.",
     rosterLink: "Open direct enrolment to give access without payment",
     rosterHint: "A direct enrolment lets the student sit the exam without paying.",
     copyValId: "Copy validation id",

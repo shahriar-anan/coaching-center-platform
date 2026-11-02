@@ -26,6 +26,8 @@ export type StaffOrderRow = {
   examTitleBn: string | null;
   /** From the SSLCommerz validation, for example `BKASH-BKash`. Null before payment. */
   paymentChannel: string | null;
+  /** SSLCommerz's risk flag: "1" is risky, "0" is not. Null before payment and for older payments. */
+  riskLevel: string | null;
   valId: string | null;
   accessGranted: boolean;
   studentId: string;

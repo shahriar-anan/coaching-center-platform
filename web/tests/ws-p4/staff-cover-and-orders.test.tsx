@@ -56,6 +56,7 @@ const orderRow = (overrides: Partial<StaffOrderRow> = {}): StaffOrderRow => ({
   examTitleEn: null,
   examTitleBn: null,
   paymentChannel: "bKash",
+  riskLevel: null,
   valId: "VAL-1",
   accessGranted: true,
   studentId: "s1",

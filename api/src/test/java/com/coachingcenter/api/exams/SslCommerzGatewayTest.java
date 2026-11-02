@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,6 +50,8 @@ class SslCommerzGatewayTest {
 
 	private final AtomicBoolean amountSent = new AtomicBoolean();
 
+	private final AtomicReference<String> sessionBody = new AtomicReference<>("");
+
 	@BeforeEach
 	void setUp() throws Exception {
 		server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -84,6 +87,20 @@ class SslCommerzGatewayTest {
 	}
 
 	@Test
+	void sessionSendsTheCustomerFieldsAndPerPaymentCallbacks() {
+		responseBody.set("""
+				{"status":"SUCCESS","GatewayPageURL":"https://payments.example/pay"}
+				""");
+		gateway.start(checkout());
+		String sent = sessionBody.get();
+		assertThat(sent).contains("cus_postcode=1000");
+		assertThat(sent).contains("cus_city=Dhaka");
+		String base = URLEncoder.encode("https://callback.test/api/v1/live-exam-orders/" + TRAN, StandardCharsets.UTF_8);
+		assertThat(sent).contains("ipn_url=" + base + URLEncoder.encode("/ipn", StandardCharsets.UTF_8));
+		assertThat(sent).contains("success_url=" + base + URLEncoder.encode("/return?status=success", StandardCharsets.UTF_8));
+	}
+
+	@Test
 	void rejectedSessionLogsTheClassAndNotTheBody() {
 		responseBody.set("""
 				{"status":"FAILED","failedreason":"%s https://payments.example/secret","GatewayPageURL":""}
@@ -105,6 +122,22 @@ class SslCommerzGatewayTest {
 		assertThat(verification.currency()).isEqualTo("BDT");
 		assertThat(logText()).contains("sslcommerz validation accepted");
 		assertLogsHideSecrets();
+	}
+
+	@Test
+	void validationReadsTheRiskFlagAndAcceptsARepliesWithoutIt() {
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE).replace("\"card_type\"",
+				"\"risk_level\":\"1\",\"card_type\""));
+		LiveExamPaymentGateway.Verification risky = gateway.verify(TRAN, "val-1", AMOUNT, "BDT");
+		assertThat(risky.outcome()).isEqualTo(LiveExamPaymentGateway.Verification.Outcome.VALID);
+		assertThat(risky.riskLevel()).isEqualTo("1");
+
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE).replace("\"card_type\"",
+				"\"risk_level\":\"0\",\"card_type\""));
+		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").riskLevel()).isEqualTo("0");
+
+		responseBody.set(payment("VALID", "500.00", "BDT", STORE));
+		assertThat(gateway.verify(TRAN, "val-1", AMOUNT, "BDT").riskLevel()).isNull();
 	}
 
 	@Test
@@ -219,6 +252,7 @@ class SslCommerzGatewayTest {
 		if (body.contains("total_amount=500.00")) {
 			amountSent.set(true);
 		}
+		sessionBody.set(body);
 		byte[] bytes = responseBody.get().getBytes(StandardCharsets.UTF_8);
 		exchange.getResponseHeaders().set("Content-Type", "application/json");
 		exchange.sendResponseHeaders(200, bytes.length);

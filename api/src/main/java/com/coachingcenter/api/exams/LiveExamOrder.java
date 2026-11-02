@@ -72,6 +72,10 @@ public class LiveExamOrder {
 	@Column(name = "payment_channel", length = 64)
 	private String paymentChannel;
 
+	/** SSLCommerz's risk flag at the verified payment ("0" or "1"). Granted either way; shown to the Master Admin (V66). */
+	@Column(name = "risk_level", length = 16)
+	private String riskLevel;
+
 	/** The price the student saw at checkout, before the discount (NR-01, R19). */
 	@Column(name = "list_price", precision = 12, scale = 2)
 	private BigDecimal listPrice;
@@ -195,6 +199,14 @@ public class LiveExamOrder {
 
 	public void setPaymentChannel(String paymentChannel) {
 		this.paymentChannel = paymentChannel;
+	}
+
+	public String getRiskLevel() {
+		return riskLevel;
+	}
+
+	public void setRiskLevel(String riskLevel) {
+		this.riskLevel = riskLevel;
 	}
 
 	public Instant getCreatedAt() {

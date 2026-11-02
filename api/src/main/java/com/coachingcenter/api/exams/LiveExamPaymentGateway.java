@@ -19,9 +19,10 @@ public interface LiveExamPaymentGateway {
 
 	/**
 	 * {@code paymentChannel} is the payer's channel as the gateway names it (for example {@code BKASH-BKash}), or null.
+	 * {@code riskLevel} is the gateway's risk flag for the payment (SSLCommerz {@code risk_level}, "0" or "1"), or null.
 	 */
 	record Verification(Outcome outcome, String tranId, BigDecimal amount, String currency, String valId,
-			String paymentChannel) {
+			String paymentChannel, String riskLevel) {
 
 		public enum Outcome {
 
@@ -30,20 +31,25 @@ public interface LiveExamPaymentGateway {
 		}
 
 		public static Verification valid(String tranId, BigDecimal amount, String currency, String valId) {
-			return valid(tranId, amount, currency, valId, null);
+			return valid(tranId, amount, currency, valId, null, null);
 		}
 
 		public static Verification valid(String tranId, BigDecimal amount, String currency, String valId,
 				String paymentChannel) {
-			return new Verification(Outcome.VALID, tranId, amount, currency, valId, paymentChannel);
+			return valid(tranId, amount, currency, valId, paymentChannel, null);
+		}
+
+		public static Verification valid(String tranId, BigDecimal amount, String currency, String valId,
+				String paymentChannel, String riskLevel) {
+			return new Verification(Outcome.VALID, tranId, amount, currency, valId, paymentChannel, riskLevel);
 		}
 
 		public static Verification invalid() {
-			return new Verification(Outcome.INVALID, null, null, null, null, null);
+			return new Verification(Outcome.INVALID, null, null, null, null, null, null);
 		}
 
 		public static Verification unreachable() {
-			return new Verification(Outcome.UNREACHABLE, null, null, null, null, null);
+			return new Verification(Outcome.UNREACHABLE, null, null, null, null, null, null);
 		}
 
 	}

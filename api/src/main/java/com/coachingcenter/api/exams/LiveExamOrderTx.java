@@ -152,6 +152,7 @@ class LiveExamOrderTx {
 		order.setStatus(LiveExamOrder.SUCCEEDED);
 		order.setValId(verification.valId());
 		order.setPaymentChannel(verification.paymentChannel());
+		order.setRiskLevel(verification.riskLevel());
 		order.setUpdatedAt(clock.instant());
 		markPaid(order);
 		writeGrant(order);

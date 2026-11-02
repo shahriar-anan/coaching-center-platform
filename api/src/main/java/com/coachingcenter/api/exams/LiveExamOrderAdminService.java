@@ -72,7 +72,7 @@ public class LiveExamOrderAdminService {
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
 		String sql = """
 				select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, coalesce(o.module_id, pk.module_id) as module_id,
-				  o.exam_id, o.payment_channel, o.list_price, o.discount_percent,
+				  o.exam_id, o.payment_channel, o.risk_level, o.list_price, o.discount_percent,
 				  o.val_id, o.created_at, o.updated_at, o.paid_at, o.receipt_no,
 				  m.title_en as module_title_en, m.title_bn as module_title_bn,
 				  e.title_en as exam_title_en, e.title_bn as exam_title_bn, u.id as student_id, u.phone, u.email,
@@ -92,7 +92,7 @@ public class LiveExamOrderAdminService {
 						rs.getString("email"), rs.getString("student_code"), instant(rs.getTimestamp("created_at")),
 						instant(rs.getTimestamp("updated_at")), rs.getBigDecimal("list_price"),
 						rs.getObject("discount_percent", Integer.class), instant(rs.getTimestamp("paid_at")),
-						rs.getString("receipt_no")));
+						rs.getString("receipt_no"), rs.getString("risk_level")));
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
 
@@ -104,7 +104,7 @@ public class LiveExamOrderAdminService {
 			UUID moduleId, String moduleTitleEn, String moduleTitleBn, UUID examId, String examTitleEn, String examTitleBn,
 			String paymentChannel, String valId, boolean accessGranted, UUID studentId, String studentName,
 			String studentPhone, String studentEmail, String studentCode, Instant createdAt, Instant updatedAt,
-			BigDecimal listPrice, Integer discountPercent, Instant paidAt, String receiptNo) {
+			BigDecimal listPrice, Integer discountPercent, Instant paidAt, String receiptNo, String riskLevel) {
 	}
 
 }
