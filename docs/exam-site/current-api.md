@@ -511,3 +511,9 @@ This supersedes the review rule of the section above ("a submitted exam is final
 `POST /api/v1/live-exam-orders` used to return the student's open order for the same target unchanged, so a "Continue payment" after a price or discount change sent the old amount to SSLCommerz. Now, when the open order's `amount` differs from the price the student would pay now, that order is set to `CANCELLED` and a new order is made at the current price (`201`, new `tranId`). An open order at the same amount is reused as before (`200`, same `tranId`). If the gateway marked the old order paid in the meantime, the buy stops with `409 ALREADY_PURCHASED`.
 
 A payment that still completes on the old SSLCommerz page is granted at the old order's amount, as for any cancelled order the gateway later validates. Test: `LiveExamPurchaseIT.buyingAgainAfterAPriceChangeOpensANewOrderAtTheNewPrice` (written, not yet run).
+
+## Added 2026-11-02 (the payment's risk flag; API)
+
+- **V66** (`live_exam_orders`): `risk_level varchar(16)`, null. It holds SSLCommerz's `risk_level` from the validation reply ("0" or "1"), set when a payment is verified. Null before V66, before payment, and for an order the Master Admin confirmed by hand.
+- `GET /api/v1/live-exam-orders` adds `riskLevel` to each row, left out when null. A flagged payment is still granted (`decisions.md`, "SSLCommerz decisions").
+- The session request also sends `cus_postcode` (`1000`). Tests: `SslCommerzGatewayTest`, `LiveExamPurchaseIT.theMasterAdminFindsOrdersWithThePaymentChannelAndTheGrant` (written, not yet run).

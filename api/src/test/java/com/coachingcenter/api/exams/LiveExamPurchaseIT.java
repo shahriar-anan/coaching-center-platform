@@ -250,6 +250,7 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 		notice(failed.get("tranId").asText(), "success");
 		clock.set(TEN_AM.plusSeconds(60));
 		gateway.channel("BKASH-BKash");
+		gateway.riskLevel("1");
 		JsonNode paid = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
 		payTran(paid.get("tranId").asText());
 
@@ -263,6 +264,7 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.content[0].examTitleEn").value("Orders paper"))
 			.andExpect(jsonPath("$.content[0].moduleTitleEn").value("Orders"))
 			.andExpect(jsonPath("$.content[0].paymentChannel").value("BKASH-BKash"))
+			.andExpect(jsonPath("$.content[0].riskLevel").value("1"))
 			.andExpect(jsonPath("$.content[0].valId").value("val-1"))
 			.andExpect(jsonPath("$.content[0].accessGranted").value(true))
 			.andExpect(jsonPath("$.content[0].studentPhone").value(phone))

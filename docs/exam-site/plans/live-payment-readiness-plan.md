@@ -24,7 +24,7 @@ Checked on the box on 2 November 2026, read-only:
 
 | Item | Files | State |
 |---|---|---|
-| A repeat Buy after a price or discount change opens a new order at the current price, and cancels the old one. Before, SSLCommerz was sent the old amount | `LiveExamOrderService.java`, `LiveExamPurchaseIT.java` (new test), `current-api.md` | Written. **Test not run** (no test runs until Shahriar says). Not committed |
+| A repeat Buy after a price or discount change opens a new order at the current price, and cancels the old one. Before, SSLCommerz was sent the old amount | `LiveExamOrderService.java`, `LiveExamPurchaseIT.java` (new test), `current-api.md` | Committed. **Test not run** (no test runs until Shahriar says) |
 | Nginx sites for the two new hosts, copies of the live ones with only `server_name` changed | `docs/exam-site/deploy/nginx/` | Ready to install |
 | Read-only preflight for a sandbox or live test | `docs/exam-site/deploy/live-payment-preflight.sh` | Run once against the current hosts: 0 failed |
 
@@ -40,12 +40,13 @@ Sound and left alone: access is granted only after the validation API returns `V
 | `staging` refuses the live host and `prod` refuses the sandbox host (`SslCommerzProfileGuard`) | By design. A live payment needs `SPRING_PROFILES_ACTIVE=prod` |
 | CORS and the payment return page follow `WEB_ORIGIN` (first entry = student host, second = admin host, also used in mail links) | Config only. No code change needed for the new hosts |
 | `/ipn` answers an unauthenticated caller with the order view, including the receipt email | Left. The tran id cannot be guessed and the response is a documented contract. Possible later hardening |
-| `risk_level` from SSLCommerz is not checked; risky payments are granted | Open decision (`decisions.md`, Still open) |
+| `risk_level` from SSLCommerz was not kept; risky payments were granted unseen | Decided 2 November: still granted, now stored (`V66`) and marked on the staff payments list and detail |
 | No refund through the API | Known. Refunds go through the merchant panel |
+| An order already `FAILED` or `CANCELLED` that is paid afterwards still grants on an IPN or browser return. If both are lost, the recheck job and the Master Admin's confirm skip it, because they handle `INITIATED` orders only | Left. Rare. The payment shows in the merchant panel, and a manual grant gives access. No receipt is sent |
 
-## Code work for the new hosts and the live test (2 November, uncommitted, for review)
+## Code work for the new hosts and the live test (2 November, committed on `demo/client-review`)
 
-Nothing here has been run: no tests, no build, no server change. Each item is for the owner to test and merge.
+Nothing here has been run: no tests, no build, no server change. Each item is for the owner to test.
 
 | Change | File | Why |
 |---|---|---|
@@ -53,6 +54,7 @@ Nothing here has been run: no tests, no build, no server change. Each item is fo
 | Launch host values in the env template, with the staging values noted | `web/.env.example` | Documents `exam.symamlaw.com` and `admin.exam.symamlaw.com` as the launch hosts |
 | Session sends `cus_postcode=1000` (Dhaka placeholder) | `api/.../exams/SslCommerzGateway.java` | SSLCommerz's customer fields list a postcode. The sandbox accepted the request without it, so the live store may not. Confirm with SSLCommerz if the live test rejects it |
 | New test: the session sends the customer fields and the per-payment success and IPN URLs | `api/src/test/.../exams/SslCommerzGatewayTest.java` | Locks in what the live store receives. Not run |
+| The risk flag: stored by `V66`, returned on the staff order list, a "Risky" pill on the list and a warning on the detail | `SslCommerzGateway`, `LiveExamOrder`, `LiveExamOrderTx`, `LiveExamOrderAdminService`, `payments-table.tsx`, `payment-detail.tsx`, tests | Decision of 2 November. Tests written, not run. The two Bangla strings need the owner's check |
 
 **Already in place, no change needed:**
 - Host routing (`web/src/lib/url/host-routing.ts`, `proxy.ts`) reads `SITE_URL`/`STAFF_URL` at request time, and the API's CORS and mail links read `WEB_ORIGIN`. None of these has a hard-coded host.
@@ -61,13 +63,13 @@ Nothing here has been run: no tests, no build, no server change. Each item is fo
 
 **To do on the box (not code):** the new Nginx sites and certificates (guide phase 2), the `coaching-web` unit's `SITE_URL` and `STAFF_URL`, the API env values (guide phase 3), and the website build with the two host variables set.
 
-**Decision still open:** whether `risk_level` payments are granted. The code grants them, and nothing in the repo checks it.
+**Migration order:** `V66` (this work) and `V65` (`live-exam-changes`, not committed yet) must reach any database together. Flyway refuses `V65` on a database that already has `V66`.
 
 ## Remaining work, in order
 
 | # | Step | Who | Needs first | Done when |
 |---|---|---|---|---|
-| 1 | Decide: host names (default above), the live test date, that the review data may be cleared, and whether `risk_level` stays as is | Shahriar, with the client | — | written in `decisions.md` |
+| 1 | Decide the live test date and that the review data may be cleared. Host names and `risk_level` were decided on 2 November | Shahriar, with the client | — | written in `decisions.md` |
 | 2 | Find out whether the old site and the exam site share the live store, and get SSLCommerz to confirm the callback rules (guide, phase 6) | Client, SSLCommerz | 1 | written answer from SSLCommerz |
 | 3 | Run the API tests for the repricing change (`LiveExamPurchaseIT`, `BundleOrderIT`), then commit | Agent, on Shahriar's word | — | tests pass, committed |
 | 4 | Release the current branch to the box on today's hosts: backups, jar, website (Flyway 55 → current) | Agent, with Shahriar's OK | 3 | preflight `MODE=sandbox` with today's hosts passes |

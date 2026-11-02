@@ -107,7 +107,12 @@ export function PaymentsTable({
       nowrap: true,
       cell: (row) => {
         const key = paymentStatusKey(row.status);
-        return <Pill tone={paymentStatusTone(key)}>{t(`staffOps.payments.status.${key}`)}</Pill>;
+        return (
+          <span className="grid justify-items-start gap-1.5">
+            <Pill tone={paymentStatusTone(key)}>{t(`staffOps.payments.status.${key}`)}</Pill>
+            {row.riskLevel === "1" ? <Pill tone="danger">{t("staffOps.payments.riskFlag")}</Pill> : null}
+          </span>
+        );
       },
     },
     {

@@ -125,7 +125,7 @@ class SslCommerzGatewayTest {
 	}
 
 	@Test
-	void validationReadsTheRiskFlagAndAcceptsARepliesWithoutIt() {
+	void validationReadsTheRiskFlagAndAcceptsAReplyWithoutIt() {
 		responseBody.set(payment("VALID", "500.00", "BDT", STORE).replace("\"card_type\"",
 				"\"risk_level\":\"1\",\"card_type\""));
 		LiveExamPaymentGateway.Verification risky = gateway.verify(TRAN, "val-1", AMOUNT, "BDT");

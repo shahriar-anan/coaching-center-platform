@@ -5,6 +5,7 @@ const staffOps = {
   payments: {
     title: "পেমেন্ট",
     readOnly: "পেমেন্ট শুধু দেখা যায়। এই পাতা থেকে কোনো অর্ডার বদলানো যায় না।",
+    riskFlag: "ঝুঁকিপূর্ণ",
     searchLabel: "শিক্ষার্থী খুঁজুন",
     searchPlaceholder: "নাম, ফোন, ইমেইল বা কোড দিয়ে খুঁজুন",
     tranIdLabel: "লেনদেন নম্বর",

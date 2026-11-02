@@ -5,6 +5,7 @@ const staffOps = {
   payments: {
     title: "Payments",
     readOnly: "Payments are read only. No order can be changed from this page.",
+    riskFlag: "Risky",
     searchLabel: "Find a student",
     searchPlaceholder: "Search by name, phone, email or code",
     tranIdLabel: "Transaction id",

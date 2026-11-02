@@ -55,7 +55,6 @@ const paidExam: StaffOrderRow = {
   examTitleEn: "CrPC",
   examTitleBn: "সিআরপিসি",
   paymentChannel: "BKASH-BKash",
-  riskLevel: "1",
   valId: "VAL-123",
   accessGranted: true,
 };
@@ -88,6 +87,24 @@ describe("staff payments list", () => {
     expect(sent?.search).toContain("q=rahim");
   });
 
+  it("marks only a payment SSLCommerz flagged as risky", async () => {
+    mockApi({
+      "GET /api/v1/live-exam-orders": {
+        content: [paidExam, { ...paidExam, tranId: "TRAN-RISK-3", riskLevel: "1" }],
+        page: 0,
+        size: 20,
+        totalElements: 2,
+        totalPages: 1,
+      },
+    });
+    renderWithProviders(<PaymentsPage />, { user: fixtures.systemAdmin, route: "/staff/payments" });
+
+    const risky = (await screen.findAllByText("TRAN-RISK-3"))[0].closest("tr");
+    const plain = screen.getAllByText("TRAN-PAID-2")[0].closest("tr");
+    expect(risky).toHaveTextContent("ঝুঁকিপূর্ণ");
+    expect(plain).not.toHaveTextContent("ঝুঁকিপূর্ণ");
+  });
+
   it("is open to System Admin, and shows no action that changes an order", async () => {
     mockApi({
       "GET /api/v1/live-exam-orders": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
@@ -115,6 +132,16 @@ describe("payment detail", () => {
 
     renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster={false} />);
     expect(screen.queryByRole("link", { name: "পেমেন্ট ছাড়া দিতে সরাসরি ভর্তি খুলুন" })).toBeNull();
+  });
+
+  it("warns on a payment flagged risky, and on no other", () => {
+    const warning = /ঝুঁকিপূর্ণ হিসেবে চিহ্নিত/;
+    const { unmount } = renderWithProviders(<PaymentDetail row={{ ...paidExam, riskLevel: "1" }} canOpenRoster={false} />);
+    expect(screen.getByText(warning)).toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(<PaymentDetail row={{ ...paidExam, riskLevel: "0" }} canOpenRoster={false} />);
+    expect(screen.queryByText(warning)).toBeNull();
   });
 
   it("names the grant on a paid exam and says so when there is none", () => {

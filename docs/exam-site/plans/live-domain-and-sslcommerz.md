@@ -224,7 +224,8 @@ If the IPN line is missing but the order became paid through the browser return,
 
 ## Things to know
 
-- A payment marked risky by SSLCommerz (`risk_level`) is granted today. That is an open decision.
+- A payment SSLCommerz marks risky (`risk_level` 1) is granted, and shows a "Risky" pill on the staff payments list and a warning on its detail. The Master Admin checks it in the merchant panel within a day and refunds it there if it is fraud.
+- An order already failed or cancelled that is paid afterwards still grants on an IPN or browser return. If both are lost, neither the recheck job nor the Master Admin's confirm picks it up. Find the payment in the merchant panel and give access with a manual grant. No receipt is sent.
 - A student who clicks Buy again after a price change gets a new order at the new price, and the old one is cancelled (2 November change). If they still finish the old SSLCommerz page, that payment is granted at the old amount.
 - The recheck job's give-up counter lives in memory, so a restart lets it ask again. That is harmless.
 - `www.symamlaw.com` has a certificate problem on the old server (audit of 23 October). It does not affect the exam hosts.
