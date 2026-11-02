@@ -424,7 +424,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           >
             {badge("content")}
             {exam.examType === "MCQ" ? (
-              <McqQuestions exam={exam} locked={!canEdit} canDelete={role.canAuthor} />
+              <McqQuestions exam={exam} />
             ) : (
               <WrittenPaper exam={exam} locked={!canEdit} />
             )}

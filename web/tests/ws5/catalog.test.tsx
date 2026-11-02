@@ -6,7 +6,6 @@ import { ModuleDetails } from "@/components/staff/catalog/module-details";
 import { RosterTab } from "@/components/staff/catalog/roster-tab";
 import { ExamMetaForm } from "@/components/staff/catalog/exam-meta-form";
 import { McqQuestions } from "@/components/staff/catalog/mcq-questions";
-import { QuestionEditor } from "@/components/staff/catalog/question-editor";
 import { WrittenPaper } from "@/components/staff/catalog/written-paper";
 import type { StaffExam, StaffModule } from "@/lib/api/exam/staff-catalog";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
@@ -173,26 +172,11 @@ describe("roster (Master Admin)", () => {
   });
 });
 
-describe("MCQ editor", () => {
-  it("adds the marks into the running total", async () => {
-    renderWithProviders(<McqQuestions exam={mcqExam} locked={false} canDelete />, { user: fixtures.masterAdmin });
+describe("MCQ paper on the exam page", () => {
+  it("adds the marks into the running total and links to the question editor", async () => {
+    renderWithProviders(<McqQuestions exam={mcqExam} />, { user: fixtures.masterAdmin });
     expect(screen.getByText(/মোট ৫০ নম্বর/)).toBeInTheDocument();
-  });
-
-  it("asks for exactly one correct option and clears the previous one", async () => {
-    renderWithProviders(
-      <QuestionEditor examId={mcqExam.id} nextPosition={3} open onOpenChange={() => undefined} structureLocked={false} onStructureLocked={() => undefined} />,
-      { user: fixtures.masterAdmin },
-    );
-    await userEvent.click(screen.getByRole("button", { name: "প্রশ্ন সেভ করুন" }));
-    expect(await screen.findByText("প্রশ্ন লিখুন।")).toBeInTheDocument();
-    expect(screen.getByText("একটি অপশন সঠিক হিসেবে বেছে নিন।")).toBeInTheDocument();
-
-    const radios = screen.getAllByRole("radio");
-    await userEvent.click(radios[0]);
-    await userEvent.click(radios[1]);
-    expect(radios[0]).not.toBeChecked();
-    expect(radios[1]).toBeChecked();
+    expect(screen.getByRole("link", { name: "প্রশ্ন সম্পাদনা পাতা খুলুন" })).toHaveAttribute("href", `/staff/exams/${mcqExam.id}/questions`);
   });
 });
 
@@ -226,12 +210,12 @@ describe("written question PDF", () => {
   it("offers view and a replace upload while not locked", () => {
     renderWithProviders(<WrittenPaper exam={written} locked={false} />, { user: fixtures.masterAdmin });
     expect(screen.getByRole("button", { name: "দেখুন" })).toBeInTheDocument();
-    expect(screen.queryByText("শুরুর সময় পেরিয়ে গেছে, তাই ফাইল এখন বদলানো যাবে না।")).not.toBeInTheDocument();
+    expect(screen.queryByText("এই পাতায় প্রশ্নপত্র শুধু দেখা যাবে; এখান থেকে ফাইল বদলানো যাবে না।")).not.toBeInTheDocument();
   });
 
   it("hides the replace control once locked", () => {
     renderWithProviders(<WrittenPaper exam={written} locked />, { user: fixtures.masterAdmin });
-    expect(screen.getByText("শুরুর সময় পেরিয়ে গেছে, তাই ফাইল এখন বদলানো যাবে না।")).toBeInTheDocument();
+    expect(screen.getByText("এই পাতায় প্রশ্নপত্র শুধু দেখা যাবে; এখান থেকে ফাইল বদলানো যাবে না।")).toBeInTheDocument();
   });
 });
 

@@ -730,7 +730,7 @@ public class LiveExamService {
 				status.status(), status.retakeAvailable(), null, plain.mode(), plain.phase(), plain.categoryId(),
 				plain.packages(), null, plain.negativeMarks(), plain.answersChangeable(), plain.previewEnabled(),
 				plain.popular(), plain.accessDays(), plain.pricing(), null, accessView,
-				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl(), null);
+				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl(), null, null);
 	}
 
 	/** One student's attempts at one exam: the latest, and how many there are. */
@@ -835,6 +835,72 @@ public class LiveExamService {
 			saved.add(options.save(row));
 		}
 		return saved;
+	}
+
+	/**
+	 * Puts the questions in the order the body gives: {@code questionIds} must name every live question exactly once. A published
+	 * exam stages the order. It is allowed after a student starts, since no question or option is added or removed.
+	 */
+	@Transactional
+	public void reorderQuestions(UUID examId, JsonNode body, UUID actorId) {
+		LiveExam exam = requireMcq(examId);
+		List<UUID> order = questionOrder(body);
+		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			stagedReorderQuestions(exam, order, actorId);
+			return;
+		}
+		markDraft(exam);
+		List<LiveExamQuestion> current = questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId);
+		requireSameQuestions(order, current.stream().map(LiveExamQuestion::getId).toList());
+		Map<UUID, LiveExamQuestion> byId = new HashMap<>();
+		for (LiveExamQuestion question : current) {
+			byId.put(question.getId(), question);
+		}
+		for (int position = 0; position < order.size(); position++) {
+			byId.get(order.get(position)).setPosition(position);
+		}
+	}
+
+	private void stagedReorderQuestions(LiveExam exam, List<UUID> order, UUID actorId) {
+		ExamState working = staging.working(exam);
+		requireSameQuestions(order, working.questions.stream().map(question -> question.id).toList());
+		Map<UUID, ExamState.QuestionState> byId = new HashMap<>();
+		for (ExamState.QuestionState question : working.questions) {
+			byId.put(question.id, question);
+		}
+		for (int position = 0; position < order.size(); position++) {
+			byId.get(order.get(position)).position = position;
+		}
+		working.questions.sort(Comparator.comparingInt(question -> question.position));
+		staging.stage(exam, working, actorId);
+	}
+
+	private static List<UUID> questionOrder(JsonNode body) {
+		JsonNode ids = body == null ? null : body.get("questionIds");
+		if (ids == null || !ids.isArray()) {
+			throw orderInvalid();
+		}
+		List<UUID> order = new ArrayList<>();
+		for (JsonNode id : ids) {
+			try {
+				order.add(UUID.fromString(id.asText()));
+			}
+			catch (IllegalArgumentException exception) {
+				throw orderInvalid();
+			}
+		}
+		return order;
+	}
+
+	private static void requireSameQuestions(List<UUID> order, List<UUID> live) {
+		if (order.size() != live.size() || new HashSet<>(order).size() != order.size() || !new HashSet<>(order).equals(new HashSet<>(live))) {
+			throw orderInvalid();
+		}
+	}
+
+	private static ApiException orderInvalid() {
+		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+				List.of(new FieldErrorDetail("questionIds", "Name every question of the exam exactly once, in the new order.")));
 	}
 
 	/** Once anyone has started the exam, its questions and options cannot be added or removed (R16). */
@@ -983,7 +1049,7 @@ public class LiveExamService {
 				staff ? instructorOf(shown) : null, shown.getNegativeMarks(), shown.isAnswersChangeable(),
 				shown.isPreviewEnabled(), exam.isPopular(), shown.getAccessDays(), ExamPricing.view(shown, now, false),
 				staff ? working != null : null, null, null, null, ExamCoverService.coverPath(exam),
-				staff ? resultsReleased(exam) : null);
+				staff ? resultsReleased(exam) : null, staff ? participants.existsByExamId(exam.getId()) : null);
 	}
 
 	/**
@@ -1410,7 +1476,7 @@ public class LiveExamService {
 			Boolean retakeAvailable, String answersReleasedAt, String mode, String phase, UUID categoryId,
 			List<PackageRef> packages, InstructorRef instructor, BigDecimal negativeMarks, boolean answersChangeable,
 			boolean previewEnabled, boolean popular, Integer accessDays, PriceView pricing, Boolean pendingChanges,
-			AccessView access, Integer attempts, String myStatusDetail, String coverUrl, Boolean resultsReleased) {
+			AccessView access, Integer attempts, String myStatusDetail, String coverUrl, Boolean resultsReleased, Boolean started) {
 	}
 
 	/** A student's access to one exam. {@code endsAt} is an ISO-8601 instant, null when access never ends. */

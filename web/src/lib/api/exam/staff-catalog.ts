@@ -139,6 +139,8 @@ export type StaffExam = {
   pendingChanges?: boolean | null;
   /** True once the results are released to students. Sent by the API for the staff read; optional until it is. */
   resultsReleased?: boolean;
+  /** True once any student has started the exam: questions and options can no longer be added or removed. Staff read only. */
+  started?: boolean | null;
 };
 
 export type StudentMatch = { id: string; fullName: string; phone: string | null; email: string | null };
@@ -878,6 +880,16 @@ export function useUpdateQuestion(examId: string) {
         method: "PATCH",
         body,
       }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: staffCatalogKeys.exam(examId) }),
+  });
+}
+
+/** Puts the questions in the given order. The list names every question once; a published exam stages the order. */
+export function useReorderQuestions(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (questionIds: string[]) =>
+      apiRequest<void>(`/api/v1/live-exams/${examId}/questions/reorder`, { method: "POST", body: { questionIds } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: staffCatalogKeys.exam(examId) }),
   });
 }

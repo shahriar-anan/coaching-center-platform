@@ -87,11 +87,11 @@ describe("exam editor sections (U5)", () => {
     expect(screen.queryByRole("button", { name: "পরীক্ষা মুছুন" })).not.toBeInTheDocument();
   });
 
-  it("System Admin can delete a question, which the server allows (EXAM_MANAGE)", async () => {
+  it("System Admin reaches the question editor from the exam, where questions are changed", async () => {
     mockApi(routes(mcqExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
-    expect((await screen.findAllByRole("button", { name: "প্রশ্ন মুছুন" })).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("link", { name: "প্রশ্ন সম্পাদনা পাতা খুলুন" })).toHaveAttribute("href", `/staff/exams/${examId}/questions`);
   });
 
   it("System Admin is told who assigns the teacher for a written exam without one", async () => {

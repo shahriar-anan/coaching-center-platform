@@ -148,6 +148,13 @@ public class LiveExamController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(exams.addQuestion(id, body, actorId()));
 	}
 
+	@PostMapping("/api/v1/live-exams/{id}/questions/reorder")
+	public ResponseEntity<Void> reorderQuestions(@PathVariable UUID id, @RequestBody JsonNode body) {
+		require(Permissions.EXAM_MANAGE);
+		exams.reorderQuestions(id, body, actorId());
+		return ResponseEntity.noContent().build();
+	}
+
 	@PatchMapping("/api/v1/live-exams/{id}/questions/{questionId}")
 	public LiveExamService.QuestionView updateQuestion(@PathVariable UUID id, @PathVariable UUID questionId,
 			@RequestBody JsonNode body) {
