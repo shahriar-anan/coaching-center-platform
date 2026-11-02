@@ -26,7 +26,8 @@ import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
-import { PasteQuestions } from "@/components/staff/catalog/paste-questions";
+import { WordQuestionImport } from "@/components/staff/catalog/word-question-import";
+import { EditImpactNotes, editNeedsPrompt } from "@/components/staff/catalog/edit-impact";
 import {
   blankDraft,
   draftFromQuestion,
@@ -115,8 +116,8 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [keepChoice, setKeepChoice] = useState(false);
   const [query, setQuery] = useState("");
-  const [pasting, setPasting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [askSave, setAskSave] = useState<{ goNext: boolean } | null>(null);
   const [preview, setPreview] = useState(readPreviewPreference);
   // The question just saved with Save & next, shown above the blank question that follows it.
   const [previous, setPrevious] = useState<StaffQuestion | null>(null);
@@ -192,6 +193,15 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
     if (Object.keys(messages).length > 0) {
       return;
     }
+    // A new question or a change of marks moves the paper's total, so it is asked about first when it can reach students.
+    if (editNeedsPrompt(exam) && (!current || Number(draft.marks) !== current.marks)) {
+      setAskSave({ goNext });
+      return;
+    }
+    await send(goNext);
+  }
+
+  async function send(goNext: boolean) {
     const body = questionRequest(draft, current?.position ?? nextPosition);
     try {
       const saved = current ? await update.mutateAsync({ questionId: current.id, body }) : await add.mutateAsync(body);
@@ -242,7 +252,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
 
   // Ctrl+S saves; Ctrl+Enter saves and goes to the next question.
   useEffect(() => {
-    if (readOnly) {
+    if (readOnly || askSave) {
       return;
     }
     function onKey(event: KeyboardEvent) {
@@ -341,9 +351,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
               <Button variant="secondary" onClick={() => open(null)}>
                 {t("staffCatalog.questionPage.newQuestion")}
               </Button>
-              <Button variant="secondary" onClick={() => setPasting(true)}>
-                {t("staffCatalog.paste.open")}
-              </Button>
+              <WordQuestionImport exam={exam} />
             </div>
           ) : null}
         </nav>
@@ -385,6 +393,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
 
           <fieldset disabled={readOnly} className="min-w-0">
             <QuestionForm
+              banglaPaper={exam.paperLanguage === "BN"}
               draft={draft}
               setDraft={setDraft}
               errors={errors}
@@ -422,27 +431,52 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
           ) : null}
         </section>
 
-        {preview ? <QuestionPreview draft={draft} /> : null}
+        {preview ? <QuestionPreview draft={draft} banglaPaper={exam.paperLanguage === "BN"} /> : null}
       </div>
-
-      {!readOnly ? (
-        <PasteQuestions
-          exam={exam}
-          nextPosition={nextPosition}
-          open={pasting}
-          onOpenChange={setPasting}
-        />
-      ) : null}
 
       <ConfirmDialog
         open={deleting}
         onOpenChange={(next) => !next && setDeleting(false)}
         title={t("staffCatalog.mcq.deleteTitle", { stem: shortStem(current?.stem ?? "") })}
-        body={t("staffCatalog.mcq.deleteBody")}
+        body={
+          editNeedsPrompt(exam)
+            ? t("staffCatalog.editImpact.deleteLead", {
+                count: formatNumber(questions.length),
+                nextCount: formatNumber(questions.length - 1),
+                before: formatNumber(total),
+                after: formatNumber(total - (current?.marks ?? 0)),
+              })
+            : t("staffCatalog.mcq.deleteBody")
+        }
         confirmLabel={t("staffCatalog.mcq.deleteConfirm")}
         tone="danger"
         onConfirm={confirmDelete}
-      />
+      >
+        {editNeedsPrompt(exam) ? <EditImpactNotes exam={exam} kind="questions" masterAdmin={role.canPublishExam} totalChanges /> : null}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={askSave !== null}
+        onOpenChange={(next) => !next && setAskSave(null)}
+        title={t(current ? "staffCatalog.editImpact.marksTitle" : "staffCatalog.editImpact.addTitle")}
+        body={
+          current
+            ? t("staffCatalog.editImpact.marksLead", {
+                before: formatNumber(total),
+                after: formatNumber(total - current.marks + Number(draft.marks)),
+              })
+            : t("staffCatalog.editImpact.addLead", {
+                count: formatNumber(questions.length),
+                nextCount: formatNumber(questions.length + 1),
+                before: formatNumber(total),
+                after: formatNumber(total + Number(draft.marks)),
+              })
+        }
+        confirmLabel={t("staffCatalog.editImpact.confirm")}
+        onConfirm={() => send(askSave?.goNext ?? false)}
+      >
+        <EditImpactNotes exam={exam} kind="questions" masterAdmin={role.canPublishExam} totalChanges />
+      </ConfirmDialog>
     </>
   );
 }

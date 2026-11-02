@@ -34,6 +34,9 @@ public class ExamState {
 
 	public String paperLanguage;
 
+	/** The paper header read from a Word file, one line per line of the file; null when the exam has none. */
+	public String paperHeader;
+
 	/** The category of the exam (NR-01 UI Step 1 fix). Null only in a state staged before the field existed. */
 	public UUID categoryId;
 
@@ -93,6 +96,7 @@ public class ExamState {
 		rulesEn = exam.getRulesEn();
 		rulesBn = exam.getRulesBn();
 		paperLanguage = exam.getPaperLanguage();
+		paperHeader = exam.getPaperHeader();
 		categoryId = exam.getCategoryId();
 		mode = exam.getMode();
 		liveAt = text(exam.getLiveAt());
@@ -120,6 +124,7 @@ public class ExamState {
 		exam.setRulesEn(rulesEn);
 		exam.setRulesBn(rulesBn);
 		exam.setPaperLanguage(paperLanguage);
+		exam.setPaperHeader(paperHeader);
 		if (categoryId != null) {
 			exam.setCategoryId(categoryId);
 		}

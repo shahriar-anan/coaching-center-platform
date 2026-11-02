@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { TextInput } from "@/components/ui/text-input";
@@ -20,6 +20,7 @@ export function ConfirmDialog({
   confirmLabel,
   tone,
   typeToConfirm,
+  children,
   onConfirm,
 }: {
   open: boolean;
@@ -29,6 +30,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   tone?: "danger";
   typeToConfirm?: string;
+  /** More than `body` can say, such as a list of consequences. */
+  children?: ReactNode;
   onConfirm: () => Promise<void>;
 }) {
   const { t } = useLocale();
@@ -79,6 +82,7 @@ export function ConfirmDialog({
         </>
       }
     >
+      {children}
       {typeToConfirm ? (
         <Field label={t("common.confirm.typeToConfirm", { name: typeToConfirm })}>
           <TextInput

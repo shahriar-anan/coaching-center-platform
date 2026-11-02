@@ -45,7 +45,16 @@ public class McqAttemptSnapshot {
 		Snapshot snapshot = live(exam.getId());
 		snapshot.negativeMarks = exam.getNegativeMarks();
 		snapshot.passPercent = exam.getPassPercent();
+		snapshot.paperHeader = exam.getPaperHeader();
 		return json.writeValueAsString(snapshot);
+	}
+
+	/** The paper header an attempt is shown: the one it started with, or the exam's own for an attempt from before snapshots. */
+	public String paperHeader(LiveExamParticipant attempt, LiveExam exam) {
+		if (attempt.getQuestionSnapshot() == null) {
+			return exam.getPaperHeader();
+		}
+		return read(attempt).paperHeader;
 	}
 
 	/**
@@ -114,6 +123,9 @@ public class McqAttemptSnapshot {
 		public BigDecimal negativeMarks;
 
 		public Integer passPercent;
+
+		/** The paper header the attempt was started under. Null when the exam had none, or on a copy taken before it was stored. */
+		public String paperHeader;
 
 		/** The answer key for scoring, one entry per question in position order. */
 		public List<McqScoring.QuestionKey> key() {

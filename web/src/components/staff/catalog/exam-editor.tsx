@@ -394,7 +394,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             <ExamMetaForm exam={exam} section="details" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
-          <SectionBlock id="exam-text" number={numberFor(1)} title={t("staffCatalog.sections.text")} description={t("staffCatalog.examMeta.textHint")} state={sectionState.text}>
+          <SectionBlock id="exam-text" number={numberFor(1)} title={t("staffCatalog.sections.textOptional")} description={t("staffCatalog.examMeta.textHint")} state={sectionState.text}>
             {badge("text")}
             <ExamMetaForm exam={exam} section="text" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
@@ -419,7 +419,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           >
             {badge("content")}
             {exam.examType === "MCQ" ? (
-              <McqQuestions exam={exam} />
+              <McqQuestions exam={exam} locked={!canEdit} />
             ) : (
               <WrittenPaper exam={exam} locked={!canEdit} />
             )}

@@ -35,6 +35,7 @@ export function QuestionForm({
   keepChoice,
   onKindChange,
   onKeep,
+  banglaPaper = false,
 }: {
   draft: QuestionDraft;
   setDraft: Dispatch<SetStateAction<QuestionDraft>>;
@@ -42,6 +43,7 @@ export function QuestionForm({
   keepChoice: boolean;
   onKindChange: (on: boolean) => void;
   onKeep: (index: number) => void;
+  banglaPaper?: boolean;
 }) {
   const { t, locale } = useLocale();
   const { formatNumber } = useFormat();
@@ -118,7 +120,7 @@ export function QuestionForm({
                   onChange={() => setDraft((c) => toggleCorrect(c, index))}
                 />
               )}
-              <span aria-hidden="true">{optionLetter(index, locale)}</span>
+              <span aria-hidden="true">{optionLetter(index, banglaPaper ? "bn" : locale)}</span>
               <span className="sr-only">{t("staffCatalog.question.correctFor", { n: formatNumber(index + 1) })}</span>
             </label>
             <TextInput

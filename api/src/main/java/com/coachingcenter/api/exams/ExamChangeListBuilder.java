@@ -75,6 +75,7 @@ class ExamChangeListBuilder {
 		add(changes, "endAt", dhaka(before.endsAt), dhaka(after.endsAt));
 		add(changes, "durationMinutes", before.durationMinutes, after.durationMinutes);
 		add(changes, "passPercent", before.passPercent, after.passPercent);
+		add(changes, "paperHeader", before.paperHeader, after.paperHeader);
 		add(changes, "maximum", before.writtenMaximum, after.writtenMaximum);
 		add(changes, "price", before.price, after.price);
 		add(changes, "free", before.free, after.free);

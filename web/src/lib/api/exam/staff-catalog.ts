@@ -908,6 +908,54 @@ export function useDeleteQuestion(examId: string) {
   });
 }
 
+/** One problem in an uploaded question file. `question` is the question number, or null for the file as a whole. */
+export type QuestionFileProblem = { question: number | null; code: string };
+
+/** A question as read from an uploaded Word file. */
+export type QuestionFileQuestion = {
+  number: number;
+  stem: string;
+  /** Absent when the file gives this question no explanation. */
+  explanation?: string | null;
+  options: { text: string; correct: boolean }[];
+};
+
+/** What the preview of an uploaded question file says, before anything is saved. */
+export type QuestionFilePreview = {
+  header: string[];
+  fullMarks: number | null;
+  durationMinutes: number | null;
+  questions: QuestionFileQuestion[];
+  problems: QuestionFileProblem[];
+  warnings: string[];
+  currentQuestions: number;
+  staged: boolean;
+};
+
+/** Reads an uploaded question file and saves nothing. */
+export function useQuestionFilePreview(examId: string) {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiUpload<QuestionFilePreview>(`/api/v1/live-exams/${examId}/questions/import/preview`, form);
+    },
+  });
+}
+
+/** Replaces the exam's questions with the uploaded file's. Refused, and nothing saved, when the file has a problem. */
+export function useApplyQuestionFile(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiUpload<{ questions: number; staged: boolean }>(`/api/v1/live-exams/${examId}/questions/import`, form);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: staffCatalogKeys.exam(examId) }),
+  });
+}
+
 /** Uploads the written paper PDF. Progress is reported while the file is sent. */
 export function useUploadQuestionPdf(examId: string) {
   const queryClient = useQueryClient();

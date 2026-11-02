@@ -23,15 +23,44 @@ export function PaperHead({ exam, paperLocale, studentLine, t }: Props) {
   const title = exam.titleBn ?? exam.titleEn;
   const rules = pickText({ rulesEn: exam.rulesEn, rulesBn: exam.rulesBn }, "rules", paperLocale);
   const negative = exam.negativeMarks ?? 0;
+  // The client's Word file sets the paper header; a line with two columns is split on the gap between them.
+  const headerLines = (exam.paperHeader ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   return (
     <div className={`flex flex-col items-center gap-2 border-b pb-4 text-center ${paperClass.line} ${paperClass.ink}`}>
-      <h1 className={`font-bold leading-snug ${paperClass.title}`}>{title}</h1>
-      <p className={`tabular-nums ${paperClass.meta}`}>
-        {t("sitting.paper.time", { minutes: formatNumber(exam.durationMinutes, paperLocale) })}
-        {" · "}
-        {t("sitting.paper.fullMarks", { marks: formatNumber(exam.maximum, paperLocale) })}
-      </p>
+      {headerLines.length > 0 ? (
+        <>
+          <h1 className="sr-only">{title}</h1>
+          {headerLines.map((line, index) => {
+            const columns = line.split(/\s{2,}/);
+            return columns.length === 2 ? (
+              <p
+                key={index}
+                className={`flex w-full justify-between gap-4 tabular-nums ${paperClass.meta}`}
+              >
+                <span>{columns[0]}</span>
+                <span>{columns[1]}</span>
+              </p>
+            ) : (
+              <p key={index} className={`font-bold leading-snug ${paperClass.title}`}>
+                {line}
+              </p>
+            );
+          })}
+        </>
+      ) : (
+        <>
+          <h1 className={`font-bold leading-snug ${paperClass.title}`}>{title}</h1>
+          <p className={`tabular-nums ${paperClass.meta}`}>
+            {t("sitting.paper.time", { minutes: formatNumber(exam.durationMinutes, paperLocale) })}
+            {" · "}
+            {t("sitting.paper.fullMarks", { marks: formatNumber(exam.maximum, paperLocale) })}
+          </p>
+        </>
+      )}
       {negative > 0 ? (
         <p className={`tabular-nums ${paperClass.meta}`}>
           {t("sitting.paper.negative", { marks: formatNumber(negative, paperLocale) })}

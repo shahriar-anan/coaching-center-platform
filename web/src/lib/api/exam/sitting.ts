@@ -64,6 +64,8 @@ export type StudentExam = {
   answersChangeable?: boolean | null;
   /** The exam's negative mark per wrong answer, when it has one (API: `negativeMarks`). Absent or 0 means none. */
   negativeMarks?: number | null;
+  /** The paper header read from the client's Word file, one line per line; null when the paper has none (API: `paperHeader`). */
+  paperHeader?: string | null;
   /** The student's own sitting, or null when there is none (API: `sitting`). */
   sitting: SittingBlock | null;
   /** True once the student's written script is stored on the server (API: `answerStored`). */

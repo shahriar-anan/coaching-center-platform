@@ -8,7 +8,9 @@ import { useRole } from "@/lib/auth/guards";
 import { useSaveExam, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
+import { EditImpactNotes, editNeedsPrompt } from "@/components/staff/catalog/edit-impact";
 import { catalogErrorKey, clashExamFor, fieldErrorFor, isApiError, type ClashExam } from "@/components/staff/catalog/errors";
 import {
   SECTION_KEYS,
@@ -62,6 +64,7 @@ export function ExamMetaForm({
   const [errors, setErrors] = useState<ExamFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [clash, setClash] = useState<ClashExam | null>(null);
+  const [askMaximum, setAskMaximum] = useState(false);
   const dirty = sectionDirty(form, saved, section);
   useUnsavedChangesGuard(dirty);
   useEffect(() => {
@@ -90,6 +93,15 @@ export function ExamMetaForm({
       return;
     }
     setErrors({});
+    // A written exam's full marks are asked about first when the change can reach students; the rest of the section waits with it.
+    if (section === "schedule" && context.written && Number(form.maximum) !== Number(saved.maximum) && editNeedsPrompt(exam)) {
+      setAskMaximum(true);
+      return;
+    }
+    await send();
+  }
+
+  async function send() {
     try {
       const next = examFormState(await save.mutateAsync(examBodyFor(form, section, context)));
       setSaved((current) => mergeSection(current, next, section));
@@ -156,6 +168,17 @@ export function ExamMetaForm({
         </p>
       ) : null}
       {footer}
+
+      <ConfirmDialog
+        open={askMaximum}
+        onOpenChange={setAskMaximum}
+        title={t("staffCatalog.editImpact.maximumTitle")}
+        body={t("staffCatalog.editImpact.maximumLead", { before: saved.maximum, after: form.maximum })}
+        confirmLabel={t("staffCatalog.editImpact.confirm")}
+        onConfirm={send}
+      >
+        <EditImpactNotes exam={exam} kind="maximum" masterAdmin={role.canPublishExam} totalChanges />
+      </ConfirmDialog>
     </form>
   );
 }

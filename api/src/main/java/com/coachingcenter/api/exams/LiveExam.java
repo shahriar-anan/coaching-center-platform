@@ -107,6 +107,10 @@ public class LiveExam extends BaseEntity {
 	@Column(name = "paper_language", length = 8)
 	private String paperLanguage;
 
+	/** The header of an MCQ paper read from a Word file, one line per line of the file. Null when the exam has none. */
+	@Column(name = "paper_header", columnDefinition = "TEXT")
+	private String paperHeader;
+
 	@Column(name = "live_at")
 	private Instant liveAt;
 
@@ -210,6 +214,14 @@ public class LiveExam extends BaseEntity {
 
 	public void setPaperLanguage(String paperLanguage) {
 		this.paperLanguage = paperLanguage;
+	}
+
+	public String getPaperHeader() {
+		return paperHeader;
+	}
+
+	public void setPaperHeader(String paperHeader) {
+		this.paperHeader = paperHeader;
 	}
 
 	public Instant getLiveAt() {

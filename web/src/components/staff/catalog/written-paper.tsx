@@ -11,6 +11,9 @@ import { Dialog } from "@/components/ui/dialog";
 import { FileDrop } from "@/components/ui/file-drop";
 import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
+import { EditImpactNotes, editNeedsPrompt } from "@/components/staff/catalog/edit-impact";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useRole } from "@/lib/auth/guards";
 
 /** The API's limit for a question PDF (100 MiB, `MATERIAL_MAX_BYTES`). */
 const QUESTION_PDF_LIMIT_MB = 100;
@@ -24,12 +27,23 @@ export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolea
   const { t } = useLocale();
   const { formatNumber } = useFormat();
   const { toast } = useToast();
+  const role = useRole();
   const upload = useUploadQuestionPdf(exam.id);
   const [viewing, setViewing] = useState(false);
   const [progress, setProgress] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<File | null>(null);
 
-  async function onFile(file: File) {
+  /** Replacing the paper asks first. The very first PDF of a draft replaces nothing and reaches nobody. */
+  function onFile(file: File) {
+    if (exam.questionPdf || editNeedsPrompt(exam)) {
+      setPending(file);
+    } else {
+      void send(file);
+    }
+  }
+
+  async function send(file: File) {
     setError(null);
     setProgress(0);
     try {
@@ -77,6 +91,22 @@ export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolea
           />
         </div>
       )}
+
+      <ConfirmDialog
+        open={pending !== null}
+        onOpenChange={(next) => !next && setPending(null)}
+        title={t("staffCatalog.editImpact.paperTitle")}
+        body={t("staffCatalog.editImpact.paperLead")}
+        confirmLabel={t("staffCatalog.editImpact.paperConfirm")}
+        onConfirm={async () => {
+          // The upload's progress and any error show on the page, so the dialog closes at once.
+          if (pending) {
+            void send(pending);
+          }
+        }}
+      >
+        <EditImpactNotes exam={exam} kind="paper" masterAdmin={role.canPublishExam} />
+      </ConfirmDialog>
 
       <Dialog open={viewing} onOpenChange={setViewing} title={t("staffCatalog.written.viewTitle")}>
         {viewing ? (

@@ -148,6 +148,8 @@ public class LiveExamSittingService {
 		boolean ownRules = participant != null && (open || !Boolean.TRUE.equals(standing.status().retakeAvailable()));
 		int shownMaximum = ownRules ? maximum(exam, participant) : shell.maximum();
 		Integer shownPassPercent = ownRules ? passPercent(exam, participant) : shell.passPercent();
+		// The paper header is the one the attempt started with, like its rules. A paper with no header shows its title as before.
+		String shownHeader = ownRules && mcq ? snapshots.paperHeader(participant, exam) : exam.getPaperHeader();
 		BigDecimal shownNegativeMarks = !mcq ? null
 				: ownRules ? snapshots.settings(participant, exam).negativeMarks() : exam.getNegativeMarks();
 		return new StudentExam(shell.id(), shell.moduleId(), shell.examType(), shell.paperLanguage(), shell.titleEn(),
@@ -158,7 +160,7 @@ public class LiveExamSittingService {
 				participant != null && participant.getAnswerStoredFileName() != null, standing.status().detail(),
 				standing.attempts(),
 				new AccessView(state.granted(), state.source(), state.endsAt() == null ? null : state.endsAt().toString(),
-						state.expired()), shell.coverUrl(), exam.isAnswersChangeable(), null, shownNegativeMarks);
+						state.expired()), shell.coverUrl(), exam.isAnswersChangeable(), null, shownNegativeMarks, shownHeader);
 	}
 
 	/** The first attempt. A student with an open attempt gets it back; one with a finished attempt must use {@link #retake}. */
@@ -906,7 +908,8 @@ public class LiveExamSittingService {
 			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
 			Boolean retakeAvailable, SittingView sitting, Boolean answerStored, String myStatusDetail, int attempts,
-			AccessView access, String coverUrl, boolean answersChangeable, String reviewOpensAt, BigDecimal negativeMarks) {
+			AccessView access, String coverUrl, boolean answersChangeable, String reviewOpensAt, BigDecimal negativeMarks,
+			String paperHeader) {
 	}
 
 	public record AccessView(boolean granted, String source, String endsAt, boolean expired) {

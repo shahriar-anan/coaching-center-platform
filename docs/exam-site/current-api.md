@@ -520,3 +520,25 @@ A payment that still completes on the old SSLCommerz page is granted at the old 
 - **V66** (`live_exam_orders`): `risk_level varchar(16)`, null. It holds SSLCommerz's `risk_level` from the validation reply ("0" or "1"), set when a payment is verified. Null before V66, before payment, and for an order the Master Admin confirmed by hand.
 - `GET /api/v1/live-exam-orders` adds `riskLevel` to each row, left out when null. A flagged payment is still granted (`decisions.md`, "SSLCommerz decisions").
 - The session request also sends `cus_postcode` (`1000`). Tests: `SslCommerzGatewayTest`, `LiveExamPurchaseIT.theMasterAdminFindsOrdersWithThePaymentChannelAndTheGrant` (written, not yet run).
+
+## Added 2026-11-02 (MCQ questions from a Word file, and the paper header; API)
+
+Staff can replace an MCQ exam's questions from a `.docx` file (plan `docs/exam-site/plans/mcq-docx-upload/README.md`). The file is read by `McqDocxParser` (zip and StAX, no DTD or external entities, 20 MB cap, no new library). Its layout:
+
+- Lines before question 1 are the **paper header**, kept as one line per line. `পূর্ণমান: n` sets the full marks and `সময়: n মিনিট` the minutes. Bangla digits are read.
+- A question is a line that starts with a number and a dot (`1.`, `১।`).
+- An option starts with `ক)`, `খ)`, `গ)` or `ঘ)`, at the start of a line or after a space.
+- The correct option is the one whose bold characters are at least half of its non-space characters. A question with no bold option, or with more than one, is a problem.
+
+**V68** (`live_exams`): `paper_header text`, null. Set by the file import, or left null.
+
+Routes (both need `EXAM_MANAGE`; multipart field `file`):
+
+- `POST /api/v1/live-exams/{id}/questions/import/preview`: reads the file and saves nothing. Returns `header`, `fullMarks`, `durationMinutes`, `questions` (`number`, `stem`, `options[{text, correct}]`), `problems` (`question`, `code`), `warnings`, `currentQuestions` and `staged`.
+- `POST /api/v1/live-exams/{id}/questions/import`: saves the file's questions, options, header and paper language `BN`, and sets the duration when the file has one. A draft replaces its questions now (old rows are soft-deleted). A published exam, or a withdrawn one that was published, stages the change for the Master Admin and returns `staged: true`. Returns `{ questions, staged }`.
+
+A time in the header longer than the exam's window (the staged window on a published exam) is the problem `DURATION_OUTSIDE_WINDOW`, shown in the preview. A file with any problem is refused with `409 QUESTION_FILE_HAS_PROBLEMS` and nothing is saved; the problems come in `fieldErrors` (`where`, `code`). A file that is not a `.docx` is refused the same way. An exam that is not MCQ gets `EXAM_TYPE_MISMATCH`.
+
+The header is shown on the student's sitting (`StudentExam.paperHeader`) in place of the title and time line. The exam's own `titleEn` and `titleBn` do not change. A pinned attempt keeps the header it started with (`McqAttemptSnapshot`). The header is a field of the change list (`paperHeader`).
+
+Known gaps: `McqDocxParserTest` is written but not run, as requested, and the import endpoints have no integration test yet. The Bangla problem and warning texts are proposals until the client confirms them. The change list has no summary line for a large question replacement.

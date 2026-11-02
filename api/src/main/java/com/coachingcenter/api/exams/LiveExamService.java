@@ -443,6 +443,7 @@ public class LiveExamService {
 		copy.setRulesEn(working.rulesEn);
 		copy.setRulesBn(working.rulesBn);
 		copy.setPaperLanguage(working.paperLanguage);
+		copy.setPaperHeader(working.paperHeader);
 		copy.setDurationMinutes(working.durationMinutes);
 		copy.setPassPercent(working.passPercent);
 		copy.setWrittenMaximum(working.writtenMaximum);

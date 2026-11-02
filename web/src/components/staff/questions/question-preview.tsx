@@ -8,7 +8,7 @@ import { optionLetter } from "@/components/staff/questions/question-form";
  * The question as a student meets it in the sitting: the stem, then the options with their letters. It reads the draft,
  * so it moves as the editor is typed in. Nothing is saved from here.
  */
-export function QuestionPreview({ draft }: { draft: QuestionDraft }) {
+export function QuestionPreview({ draft, banglaPaper = false }: { draft: QuestionDraft; banglaPaper?: boolean }) {
   const { t, locale } = useLocale();
   // Keep each option's own index, so a blank option in the middle does not shift the letters after it.
   const filled = draft.options.map((option, index) => ({ text: option.text, index })).filter((option) => option.text.trim() !== "");
@@ -24,7 +24,7 @@ export function QuestionPreview({ draft }: { draft: QuestionDraft }) {
         {filled.map((option) => (
           <li key={option.index} className="flex items-start gap-3 rounded-control border border-border px-3 py-2 text-body">
             <span aria-hidden="true" className="w-5 shrink-0 font-semibold text-muted">
-              {optionLetter(option.index, locale)}
+              {optionLetter(option.index, banglaPaper ? "bn" : locale)}
             </span>
             <span>{option.text}</span>
           </li>

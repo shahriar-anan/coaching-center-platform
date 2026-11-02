@@ -50,7 +50,7 @@ const publishedExam: StaffExam = {
 
 const archivedExam: StaffExam = { ...publishedExam, status: "ARCHIVED" };
 const ARCHIVED_NOTICE =
-  "এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি এখনো বদলানো যাবে। আগে প্রকাশিত হয়ে থাকলে বদল প্রধান প্রশাসক প্রকাশ না করা পর্যন্ত অপেক্ষায় থাকবে।";
+  "এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি এখনো বদলানো যাবে। আগে প্রকাশিত হয়ে থাকলে বদল মাস্টার অ্যাডমিন প্রকাশ না করা পর্যন্ত অপেক্ষায় থাকবে।";
 
 describe("exam archive (decided 2026-10-27: hidden from students, Master Admin only)", () => {
   it("Master Admin archives a published exam after confirming, and the editor shows it archived", async () => {
