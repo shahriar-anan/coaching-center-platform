@@ -758,6 +758,7 @@ const staffCatalog = {
     EXAM_WINDOW_INVALID: "The end must be after the start, and at least the duration after it.",
     EXAM_ARCHIVED: "This exam is withdrawn, so this cannot be done. Restore it first.",
     EXAM_SITTING_OPEN: "Students are sitting this exam now. Withdraw it after the sitting ends.",
+    CATALOG_SITTING_OPEN: "Students are sitting an exam under this now. Try again after the sitting ends.",
     WRITTEN_MAXIMUM_BELOW_MARK: "The maximum cannot be lower than a mark already given or waiting to be marked.",
     ANSWER_LOCKED: "This answer can no longer be changed.",
     PENDING_CHANGES_STALE: "These changes were updated after you read them. Read them again.",
