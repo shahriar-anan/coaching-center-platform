@@ -1,5 +1,7 @@
 # Guide: the client's domain and live SSLCommerz payments
 
+**Status: planned, not deployed.** The steps below have not been run on the live server, except the DNS records (added in Namecheap by the owner on 2 November) and the read-only preflight. Do not start phase 2 or later without the owner's go-ahead.
+
 2 November 2026. **Audience:** Shahriar, and the agent helping him on the box. **What it covers:** putting the exam site on `exam.symamlaw.com` (students) and `admin.exam.symamlaw.com` (staff), then taking real payments through the client's live SSLCommerz store. Who does what, and in what order, is in [live-payment-readiness-plan.md](live-payment-readiness-plan.md).
 
 No store id, store password, panel login or card number goes in this file, in Git, or in a chat. The live store values stay in the gitignored `docs/exam-site/config-files/payment-credentials.md` and in `/etc/coaching-api.env` on the box.
@@ -32,6 +34,8 @@ The old site is not touched. `admin.symamlaw.com` belongs to it, which is why th
 
 The box runs the release of 30 October (database at Flyway 55). The branch is ahead (migrations up to V64, the repricing fix of 2 November). Release it on today's hosts first, so the host move and the live switch are not mixed with a code change.
 
+The release script now requires the hosts. For the current staging hosts, pass them explicitly: `SITE_URL=https://srv2089893.hstgr.cloud STAFF_URL=https://admin.187-52-115-111.nip.io bash web/scripts/release-build.sh <out.tgz>`.
+
 Use the usual procedure from [vps-staging-deploy.md](vps-staging-deploy.md) and [../reports/client-review-deploy.md](../reports/client-review-deploy.md): database dump first, previous jar and website kept, the jar installed as `deploy:deploy 640`, the website built with `bash web/scripts/release-build.sh <out.tgz>` under Git Bash and swapped in with `web/scripts/deploy-web.ps1`. Record it in `client-review-deploy.md`.
 
 Check: the preflight with today's hosts passes.
@@ -60,7 +64,7 @@ Resolve-DnsName exam.symamlaw.com -Type A -Server 8.8.8.8
 Resolve-DnsName admin.exam.symamlaw.com -Type A -Server 8.8.8.8
 ```
 
-`exam` answered `88.222.215.187` before this, through the wildcard; the new record replaces that answer. `admin.exam` had no answer at all, because a wildcard covers one level only.
+Both names answered `88.222.215.187` before this, through the wildcard. Once the `exam` record exists, the wildcard no longer covers anything under `exam`, so `admin.exam` answers "name does not exist" until its own record is added. A resolver can keep the old wildcard answer until its cached TTL ends (up to 4 hours), so if a resolver disagrees, ask Namecheap directly: `Resolve-DnsName exam.symamlaw.com -Type A -Server dns1.registrar-servers.com`.
 
 ## Phase 2. Nginx and certificates
 

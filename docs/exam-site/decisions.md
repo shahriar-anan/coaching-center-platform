@@ -62,6 +62,20 @@ Shahriar agreed these on 2026-10-23. They override the client brief and the Phas
 - The exam site runs on a dedicated Hostinger KVM 2. Shared-VPS rules are outdated. Shahriar bought the box and it was provisioned on 23 October 2026. SSH alias `exam-kvm`, IPv4 `187.52.115.111`, hostname `srv2089893.hstgr.cloud`. The API is running there. The record is [reports/new-vps-provision-audit.md](reports/new-vps-provision-audit.md). `symamlaw.com` DNS still points at the old VPS. Sandbox payment testing ran on the Hostinger hostname on 25 October 2026, so it no longer waits for a `symamlaw.com` name. The read-only investigation of the old VPS is in [Server migration](#server-migration). It is not feature work in this repository.
 - Password recovery stays the existing email reset, plus Google. Do not add an admin action that sets a student's password. The reset and the registration verification mail use the SMTP account below.
 
+## SSLCommerz decisions (2 November 2026)
+
+Accepted by Shahriar on 2 November 2026, from the recommendations in the chat. The plans say how each is carried out.
+
+- **Risky payments (`risk_level`):** granted, as before. The API now stores the flag (migration `V66`, `live_exam_orders.risk_level`, "0" or "1"), and the staff payment detail shows a warning on a payment flagged "1". The Master Admin checks it in the merchant panel within a day, and refunds it there if it is fraud. Holding payments was rejected: it would block honest students.
+- **Callback host:** `exam.symamlaw.com` for students and `admin.exam.symamlaw.com` for staff. The old site keeps `symamlaw.com`, `www`, `admin` and `backoffice`.
+- **Shared live store:** check with SSLCommerz before any panel change. Do not change the old site's IPN or success URLs. Add only the paths SSLCommerz approves for the new host.
+- **Panel IPN field:** left empty, so the per-payment `ipn_url` the API sends is used.
+- **Refunds:** from the merchant panel. An API refund is not planned until real sales have happened.
+- **Customer address fields:** `cus_add1` is `N/A`, `cus_city` is Dhaka, `cus_postcode` is 1000 for every student. Keep these unless SSLCommerz's live store rejects them. Ask the store to confirm.
+- **Repeat Buy after a price change:** a new order at the current price, and the old open order is cancelled.
+- **Stuck orders** (paid at SSLCommerz, not granted): the Master Admin's confirm action, after the recheck job has had a run. Not automatic.
+- **Live test:** a 10 BDT exam, the owner's own account, a planned refund in the panel, before the site is announced.
+
 ## Server migration
 
 Shahriar added this on 2026-10-23 so another agent can investigate the current server. This section is the handoff. It does not choose a callback hostname, and it does not choose sandbox or live SSLCommerz credentials.
@@ -119,7 +133,7 @@ Shahriar confirms this split with the client in the next meeting. If the client 
 
 - The exam site's launch address. The old site keeps `symamlaw.com` (Shahriar, 25 October 2026). Then `WEB_ORIGIN`, `SSLCZ_CALLBACK_BASE_URL`, DNS, a certificate, and the live store's registered URL follow.
 - When to switch from the sandbox store to the live store. The client confirms bKash and Nagad are enabled on it.
-- Whether payments SSLCommerz marks risky (`risk_level`) are granted, held, or flagged. The API grants them today. Shahriar is leaving it as it is for now.
+- ~~Whether payments SSLCommerz marks risky (`risk_level`) are granted, held, or flagged.~~ Decided 2 November 2026: see "SSLCommerz decisions (2 November 2026)" below.
 - Whether any data from the client's current exam must be migrated. Do not invent a migration.
 
 Status pills were confirmed on 25 October 2026 and built as A4 (`myStatus`). The sandbox store was chosen for the client test.

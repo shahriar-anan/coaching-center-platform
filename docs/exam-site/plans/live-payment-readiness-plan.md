@@ -1,5 +1,7 @@
 # Live payment readiness plan
 
+**Status: planned, not deployed.** Nothing in this plan has been run on the live server. The nginx files and the preflight script are in the repo only; the box still runs the 30 October release and the sandbox setup.
+
 2 November 2026. **Audience:** Shahriar and the agent helping him. **Outcome:** the exam site runs on the client's domain, `exam.symamlaw.com` for students and `admin.exam.symamlaw.com` for staff, and one real SSLCommerz payment has been taken, granted and refunded. The old site keeps `symamlaw.com`, `www`, `admin` and `backoffice`.
 
 The how-to for each step is in [live-domain-and-sslcommerz.md](live-domain-and-sslcommerz.md). This file says what is left, who does it and in what order. No store id, store password or other secret belongs in either file.
@@ -40,6 +42,26 @@ Sound and left alone: access is granted only after the validation API returns `V
 | `/ipn` answers an unauthenticated caller with the order view, including the receipt email | Left. The tran id cannot be guessed and the response is a documented contract. Possible later hardening |
 | `risk_level` from SSLCommerz is not checked; risky payments are granted | Open decision (`decisions.md`, Still open) |
 | No refund through the API | Known. Refunds go through the merchant panel |
+
+## Code work for the new hosts and the live test (2 November, uncommitted, for review)
+
+Nothing here has been run: no tests, no build, no server change. Each item is for the owner to test and merge.
+
+| Change | File | Why |
+|---|---|---|
+| Release build requires `SITE_URL` and `STAFF_URL`; the old staging hosts are no longer the default | `web/scripts/release-build.sh` | A release names its hosts every time. Before, a build with no variables silently baked the old hosts. Syntax checked with `bash -n` only |
+| Launch host values in the env template, with the staging values noted | `web/.env.example` | Documents `exam.symamlaw.com` and `admin.exam.symamlaw.com` as the launch hosts |
+| Session sends `cus_postcode=1000` (Dhaka placeholder) | `api/.../exams/SslCommerzGateway.java` | SSLCommerz's customer fields list a postcode. The sandbox accepted the request without it, so the live store may not. Confirm with SSLCommerz if the live test rejects it |
+| New test: the session sends the customer fields and the per-payment success and IPN URLs | `api/src/test/.../exams/SslCommerzGatewayTest.java` | Locks in what the live store receives. Not run |
+
+**Already in place, no change needed:**
+- Host routing (`web/src/lib/url/host-routing.ts`, `proxy.ts`) reads `SITE_URL`/`STAFF_URL` at request time, and the API's CORS and mail links read `WEB_ORIGIN`. None of these has a hard-coded host.
+- The return and IPN paths are open without a login, and the API has CSRF off, so SSLCommerz's browser return and server notice reach the API.
+- The live profile guard (`prod` requires `securepay`, `staging` requires the sandbox) and the `WEB_ORIGIN` requirement are in `ProfileStartup` and `SslCommerzProfileGuard`.
+
+**To do on the box (not code):** the new Nginx sites and certificates (guide phase 2), the `coaching-web` unit's `SITE_URL` and `STAFF_URL`, the API env values (guide phase 3), and the website build with the two host variables set.
+
+**Decision still open:** whether `risk_level` payments are granted. The code grants them, and nothing in the repo checks it.
 
 ## Remaining work, in order
 
