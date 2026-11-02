@@ -69,7 +69,7 @@ function renderText(source: StaffExam) {
 }
 
 describe("description and rules section", () => {
-  it("names the empty text and sends nothing while another text is still missing", async () => {
+  it("saves with the other texts still blank, and sends them as empty text (D18)", async () => {
     const api = renderText(exam);
 
     const box = await screen.findByRole("textbox", { name: "Description (English)" });
@@ -80,9 +80,17 @@ describe("description and rules section", () => {
     // The box's Save comes before the section footer's Save in the page.
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
 
-    // The rules are still empty, so the save stops before the server and says which text is missing.
-    expect(await screen.findByText("The English rules are empty. Write them before saving.")).toBeInTheDocument();
-    expect(patches(api.calls)).toHaveLength(0);
+    await waitFor(() => expect(patches(api.calls)).toHaveLength(1));
+    expect(patches(api.calls)[0].body).toMatchObject({ descriptionBn: "", rulesEn: "", rulesBn: "" });
+    expect(screen.queryByText(/are empty/)).not.toBeInTheDocument();
+  });
+
+  it("opens as a preview when only one text is saved, with no editor box", () => {
+    renderText({ ...exam, descriptionEn: "<p>Only the English description</p>" });
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByText("Only the English description")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
   it("opens as a preview of all four texts when they are all saved, and Edit reopens the editors", async () => {
@@ -103,10 +111,13 @@ describe("description and rules section", () => {
     expect(screen.getByText("English description")).toBeInTheDocument();
   });
 
-  it("turns into the preview once the last missing text is saved", async () => {
+  it("returns to the preview once the text being edited is saved", async () => {
     const api = renderText({ ...written, rulesBn: null });
 
-    await userEvent.click(await screen.findByRole("button", { name: "বাংলা •" }));
+    // One text is saved, so the section opens as a preview. Edit opens the editors; the rules' Bangla switch is the second one.
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "বাংলা" }))[1]);
     const box = await screen.findByRole("textbox", { name: "Rules (বাংলা)" });
     await userEvent.click(box);
     await userEvent.keyboard("শেষ নিয়ম");

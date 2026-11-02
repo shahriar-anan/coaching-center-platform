@@ -44,9 +44,10 @@ function TopicPreview({ topic }: { topic: RichTextTopic }) {
 }
 
 /**
- * A group of rich text topics, each in English and Bangla. While any text is missing, or there are unsaved changes, it
- * shows one editor box per topic, each with its own Save. Once every text is written and saved it turns into a preview of
- * how students will read them, with an Edit button at the top. Cancel, when the group was complete, discards the changes.
+ * A group of rich text topics, each in English and Bangla. Until some text is saved, or while there are unsaved changes,
+ * it shows one editor box per topic, each with its own Save. Once any text is saved it turns into a preview of how
+ * students will read them, with an Edit button at the top. Cancel, when some text is saved, discards the changes.
+ * The texts are optional (D18), so a group with nothing saved is valid.
  */
 export function RichTextTopics({
   topics,
@@ -60,17 +61,17 @@ export function RichTextTopics({
   previewNote: string;
 }) {
   const { t } = useLocale();
-  const complete = topics.every((topic) => !isRichTextEmpty(topic.savedEn) && !isRichTextEmpty(topic.savedBn));
+  const hasSaved = topics.some((topic) => !isRichTextEmpty(topic.savedEn) || !isRichTextEmpty(topic.savedBn));
   const dirty = topics.some((topic) => topic.valueEn !== topic.savedEn || topic.valueBn !== topic.savedBn);
   const failed = topics.some((topic) => Boolean(topic.errorEn || topic.errorBn));
-  const [editing, setEditing] = useState(!complete || dirty);
+  const [editing, setEditing] = useState(!hasSaved || dirty);
 
-  // A save, or a cancel, that leaves nothing unsaved in a complete group returns to the preview. (State adjusted while
-  // rendering, not in an effect.)
+  // A save, or a cancel, that leaves nothing unsaved in a group with saved text returns to the preview. (State adjusted
+  // while rendering, not in an effect.)
   const [wasDirty, setWasDirty] = useState(dirty);
   if (dirty !== wasDirty) {
     setWasDirty(dirty);
-    if (wasDirty && !dirty && complete && !saving && !failed) {
+    if (wasDirty && !dirty && hasSaved && !saving && !failed) {
       setEditing(false);
     }
   }
@@ -101,7 +102,7 @@ export function RichTextTopics({
 
   return (
     <>
-      {complete ? (
+      {hasSaved ? (
         <div className="flex justify-end">
           <Button variant="ghost" onClick={cancel} disabled={saving}>
             {t("common.actions.cancel")}

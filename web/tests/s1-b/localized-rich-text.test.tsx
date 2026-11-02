@@ -28,23 +28,23 @@ function render(props: Partial<React.ComponentProps<typeof LocalizedRichText>> =
 }
 
 describe("localized rich text", () => {
-  it("shows one editor, starting with English, and marks the empty language", async () => {
+  it("shows one editor, starting with English, and puts no mark on the empty language", async () => {
     render();
 
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
     expect(await screen.findByRole("textbox", { name: "Description (English)" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "বাংলা •" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "বাংলা" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("switches to the Bangla text without losing the English text", async () => {
     render();
 
-    await userEvent.click(screen.getByRole("button", { name: "বাংলা •" }));
+    await userEvent.click(screen.getByRole("button", { name: "বাংলা" }));
     expect(await screen.findByRole("textbox", { name: "Description (বাংলা)" })).toBeInTheDocument();
     expect(screen.getByText("Nothing written yet")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "বাংলা •" }));
+    await userEvent.click(screen.getByRole("button", { name: "বাংলা" }));
     await userEvent.click(screen.getByRole("button", { name: "English" }));
     const english = await screen.findByRole("textbox", { name: "Description (English)" });
     expect(await within(english).findByText("Hello")).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("localized rich text", () => {
   it("reports an edit with the language that was open", async () => {
     const onChange = render();
 
-    await userEvent.click(screen.getByRole("button", { name: "বাংলা •" }));
+    await userEvent.click(screen.getByRole("button", { name: "বাংলা" }));
     const box = await screen.findByRole("textbox", { name: "Description (বাংলা)" });
     await userEvent.click(box);
     await userEvent.keyboard("x");

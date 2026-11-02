@@ -80,7 +80,7 @@ class LiveExamArchiveIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void anArchivedExamCannotBeChangedOrPublishedAndArchivingTwiceIsHarmless() throws Exception {
+	void aWithdrawnExamTakesEditsButCannotBePublishedUntilItIsRestoredAndWithdrawingTwiceIsHarmless() throws Exception {
 		String master = token(seed("MASTER_ADMIN"));
 		UUID module = publishModule(master, "Archive edit module");
 		UUID exam = createMcqExam(master, module, "Locked after archive", "বন্ধ");
@@ -91,11 +91,13 @@ class LiveExamArchiveIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("ARCHIVED"));
 
+		// A withdrawn exam takes edits (D5). It was never published, so the edit applies directly.
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"titleEn\":\"Renamed\"}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("EXAM_ARCHIVED"));
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.titleEn").value("Renamed"));
+		// Publishing still needs a restore first (D8).
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EXAM_ARCHIVED"));

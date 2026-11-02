@@ -116,8 +116,8 @@ const staffOps = {
     columns: {
       name: "নাম",
       rank: "স্থান",
-      score: "প্রাপ্ত নম্বর",
-      maximum: "পূর্ণমান",
+      score: "প্রাপ্ত নম্বর / পূর্ণমান",
+      percent: "শতাংশ",
       pass: "ফল",
     },
     passed: "উত্তীর্ণ",

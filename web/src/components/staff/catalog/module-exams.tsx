@@ -30,7 +30,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
 import { NewExamDialog } from "@/components/staff/catalog/new-exam-dialog";
 import { alsoInCount, hasPendingDot, movedOrder, priceOfRow } from "@/components/staff/catalog/package-rows";
@@ -296,7 +296,7 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
     {
       key: "status",
       header: t("staffCatalog.moduleExams.columns.status"),
-      cell: (exam) => <StatusPill status={exam.status} />,
+      cell: (exam) => <ExamStatusPill status={exam.status} />,
     },
     {
       key: "teacher",

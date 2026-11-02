@@ -220,7 +220,7 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void publishingAKeyChangeRescoresTheSubmittedPapersAndLogsIt() throws Exception {
+	void publishingAKeyChangeLeavesTheSubmittedPapersAloneAndLogsNoRescore() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID module = fx.module(staff, "Rescore");
@@ -252,17 +252,18 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 			.content(AuthoringFixture.questionJson("Pick", 1, null, true, "*A", "B", "*C")))
 			.andExpect(status().isOk());
 		JsonNode changes = pending(staff, exam);
-		assertThat(changes.get("impact").get("papersToRescore").asInt()).isEqualTo(1);
+		// No submitted paper is re-scored on publish (D10): the submitted attempt keeps the key it was marked with.
+		assertThat(changes.get("impact").get("papersToRescore").asInt()).isZero();
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"revisionId\":\"" + changes.get("revisionId").asText() + "\"}"))
 			.andExpect(status().isOk());
 
 		assertThat(fx.jdbc().queryForObject("select score from live_exam_participants where id = ?", BigDecimal.class, participant))
-			.isEqualByComparingTo("0");
+			.isEqualByComparingTo("1");
 		assertThat(fx.jdbc().queryForObject(
 				"select rescored from live_exam_change_log where exam_id = ? order by published_at desc limit 1",
-				Integer.class, exam)).isEqualTo(1);
+				Integer.class, exam)).isZero();
 	}
 
 	@Test

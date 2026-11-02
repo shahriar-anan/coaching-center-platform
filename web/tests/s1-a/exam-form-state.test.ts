@@ -186,16 +186,24 @@ describe("publish checklist", () => {
     expect(examPublishable(short, items)).toBe(false);
   });
 
-  it("blocks publish while the description or the rules are blank", () => {
+  it("does not ask for the description or the rules, so blank text does not block publish (D18)", () => {
     const blank = exam({ rulesBn: "   " });
     const items = examChecklist(blank, t);
-    expect(items.find((item) => item.key === "examText")?.done).toBe(false);
-    expect(examPublishable(blank, items)).toBe(false);
+    expect(items.find((item) => item.key === "examText")).toBeUndefined();
+    expect(examPublishable(blank, items)).toBe(true);
   });
 
   it("never publishes a published exam directly: its changes go through the change list", () => {
     const published = exam({ status: "PUBLISHED" });
     expect(examPublishable(published, examChecklist(published, t))).toBe(false);
+  });
+});
+
+describe("optional description and rules (D18)", () => {
+  it("accepts blank texts and sends them as empty values, so clearing a text clears it", () => {
+    const blank = { ...examFormState(exam()), descriptionEn: "", descriptionBn: "", rulesEn: "", rulesBn: "" };
+    expect(examFormErrors(blank, "text", mcq)).toEqual({});
+    expect(examBodyFor(blank, "text", mcq)).toEqual({ descriptionEn: "", descriptionBn: "", rulesEn: "", rulesBn: "" });
   });
 });
 

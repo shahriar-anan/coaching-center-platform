@@ -48,6 +48,7 @@ const auth = {
   register: {
     title: "Create account",
     breadcrumb: "Create account",
+    googleButton: "Continue with Google",
     fullName: "Name",
     phone: "Phone",
     phoneHelp: "Starts with 01, 11 digits in all.",

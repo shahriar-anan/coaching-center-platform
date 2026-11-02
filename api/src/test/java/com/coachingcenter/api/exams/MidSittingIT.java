@@ -74,7 +74,7 @@ class MidSittingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aChangePublishedMidSittingKeepsTheDeadlineShowsTheNewWordingAndScoresTheOpenPaperAtSubmit() throws Exception {
+	void aChangePublishedMidSittingKeepsTheDeadlineKeepsTheStartedWordingAndScoresEveryPaperOnItsOwnKey() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID category = fx.category(staff, "Mid sitting");
@@ -101,6 +101,7 @@ class MidSittingIT extends PostgresIntegrationTest {
 		answerAll(token2, exam, before, "A", "A", "A");
 		clock.set(Instant.parse("2026-10-20T04:08:00Z"));
 		submit(token2, exam);
+		JsonNode s2Before = bodyOf(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + token2)));
 
 		// S1 starts at 10:10: deadline 10:50.
 		clock.set(Instant.parse("2026-10-20T04:10:00Z"));
@@ -127,10 +128,10 @@ class MidSittingIT extends PostgresIntegrationTest {
 			.content("{\"revisionId\":\"%s\"}".formatted(revisionId)))
 			.andExpect(status().isOk());
 
-		// S1 reloads: the new wording shows, the key does not, and the deadline is still 10:50.
+		// S1 reloads: the paper it started with still shows (D9, D13), the key does not show, and the deadline is still 10:50.
 		clock.set(Instant.parse("2026-10-20T04:25:00Z"));
 		JsonNode seen = bodyOf(mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + token1)));
-		assertThat(seen.get("questions").get(0).get("stem").asText()).isEqualTo("Reworded stem one");
+		assertThat(seen.get("questions").get(0).get("stem").asText()).isEqualTo("Stem one");
 		for (JsonNode question : seen.get("questions")) {
 			for (JsonNode option : question.get("options")) {
 				assertThat(option.path("correct").asBoolean(false)).isFalse();
@@ -138,23 +139,20 @@ class MidSittingIT extends PostgresIntegrationTest {
 		}
 		assertThat(seen.get("sitting").get("deadlineAt").asText()).isEqualTo("2026-10-20T10:50:00+06:00");
 
-		// S1 answers B on question 1 (the new key), and A on the others. Submitted at 10:30 on the clock.
-		JsonNode now = fx.exam(staff, exam);
-		answerAll(token1, exam, now, "B", "A", "A");
+		// S1 answers A, A, A on its own paper, the same answers S2 gave under the same key. Submitted at 10:30 on the clock.
+		answerAll(token1, exam, seen, "A", "A", "A");
 		clock.set(Instant.parse("2026-10-20T04:30:00Z"));
 		submit(token1, exam);
-		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + token1))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(4));
+		JsonNode s1After = bodyOf(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + token1)));
+		assertThat(s1After.get("score").asDouble()).isEqualTo(s2Before.get("score").asDouble());
 
 		// S3 starts at 10:30, after the change: the new 60 minute duration gives 11:30.
 		clock.set(Instant.parse("2026-10-20T04:30:00Z"));
 		take(token3, exam).andExpect(jsonPath("$.deadlineAt").value("2026-10-20T11:30:00+06:00"));
 
-		// S2 submitted before the change with A on question 1: the publish re-scored that paper, so question 1 is 0.
-		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + token2))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.score").value(2));
+		// S2 submitted before the change: the publish does not re-score that paper (D10), so its score is unchanged.
+		JsonNode s2After = bodyOf(mockMvc.perform(get("/api/v1/live-exams/" + exam + "/result").header("Authorization", "Bearer " + token2)));
+		assertThat(s2After.get("score").asDouble()).isEqualTo(s2Before.get("score").asDouble());
 	}
 
 	private void grant(String master, UUID student, UUID exam) throws Exception {

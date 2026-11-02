@@ -31,7 +31,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionNav, type SectionNavItem } from "@/components/ui/section-nav";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
 import { ExamChecklist } from "@/components/staff/catalog/exam-checklist";
 import { ExamEnrol } from "@/components/staff/enrol/exam-enrol";
@@ -40,13 +40,7 @@ import { McqQuestions } from "@/components/staff/catalog/mcq-questions";
 import { SectionBlock, type SectionState } from "@/components/staff/catalog/section-block";
 import { WrittenPaper } from "@/components/staff/catalog/written-paper";
 import { ExamCoverUploader } from "@/components/staff/catalog/exam-cover-uploader";
-import {
-  examChecklist,
-  examPublishable,
-  hasExamText,
-  windowFits,
-  type ExamSection,
-} from "@/components/staff/catalog/exam-form-state";
+import { examChecklist, examPublishable, windowFits, type ExamSection } from "@/components/staff/catalog/exam-form-state";
 import { ChangeListDialog } from "@/components/staff/catalog/change-list-dialog";
 import { PendingChangesBanner, PendingSectionBadge, changedSections, type ChangedSection } from "@/components/staff/catalog/pending-changes-banner";
 import { ExamInstructorSection } from "@/components/staff/catalog/exam-details-fields";
@@ -247,14 +241,14 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   }, []);
   const dirty = Object.values(dirtySections).some(Boolean);
 
-  // An archived exam is read-only for everyone: no edits, no final save, no publish (the API refuses them too).
+  // A withdrawn (archived) exam takes edits like any other. If it was published, the API stages them for the Master Admin.
   const archived = exam.status === "ARCHIVED";
-  const canEdit = role.canAuthor && !archived;
+  const canEdit = role.canAuthor;
   // Publishing is the Master Admin's act; a System Admin edits and sees the staged state.
   const masterAdmin = role.canPublishExam;
   const items = examChecklist(exam, (key) => t(key));
   const publishable = examPublishable(exam, items);
-  const primary = primaryExamAction(exam, { dirty, masterAdmin, publishable });
+  const primary = primaryExamAction(exam, { dirty, masterAdmin, publishable, withdrawnExam: true });
   const title = pickTitle(exam);
   const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data) : null;
   const categories = useMemo(() => categoryNames(categoryTree.data), [categoryTree.data]);
@@ -263,7 +257,8 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
 
   const sectionState: Record<"details" | "text" | "schedule" | "content" | "price" | "publish", SectionState> = {
     details: "done",
-    text: hasExamText(exam) ? "done" : "todo",
+    // Descriptions and rules are optional (D18), so the section is always done.
+    text: "done",
     schedule: exam.passPercent !== null && windowFits(exam) ? "done" : "todo",
     content: (exam.examType === "MCQ" ? (exam.questions?.length ?? 0) > 0 : exam.questionPdf === true) ? "done" : "todo",
     price: exam.price !== null || exam.free ? "done" : "todo",
@@ -338,7 +333,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
         }
         actions={
           <div id="exam-actions" className="flex flex-wrap items-center gap-2 scroll-mt-24">
-            <StatusPill status={exam.status} />
+            <ExamStatusPill status={exam.status} />
             <Button variant="secondary" onClick={() => setPreviewing(true)}>
               {t("staffCatalog.preview.open")}
             </Button>
@@ -524,6 +519,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           open={reviewing}
           onOpenChange={setReviewing}
           changes={changes.data}
+          written={exam.examType === "WRITTEN"}
           onPublish={async (revisionId) => {
             await publishChanges.mutateAsync(revisionId);
             toast({ title: t("staffCatalog.staged.published"), tone: "ok" });

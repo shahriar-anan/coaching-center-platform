@@ -87,18 +87,22 @@ export function impactCounts(changes: PendingChangeList): { papers: number; stud
 /**
  * The staged changes of a published exam or package: every field before and after, the question changes, the paper
  * version and the impact. The Master Admin publishes them with the revision the list was read at. A stale list is
- * closed with a message to read it again (PENDING_CHANGES_STALE).
+ * closed with a message to read it again (PENDING_CHANGES_STALE). Publishing never re-scores a submitted MCQ (D10), so
+ * the copy says what a student keeps.
  */
 export function ChangeListDialog({
   open,
   onOpenChange,
   changes,
+  written = false,
   onPublish,
   onFailed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   changes: PendingChangeList | null;
+  /** A written exam: a pass-percent change does not re-judge posted results (D17). */
+  written?: boolean;
   onPublish: (revisionId: string) => Promise<unknown>;
   onFailed: (message: string) => void;
 }) {
@@ -133,6 +137,7 @@ export function ChangeListDialog({
     ? changeRows(teacherWords(changes.fields, t("staffCatalog.staged.teacherAssigned"), t("staffCatalog.staged.teacherNone")), words, categoryName, (iso) => formatDateTime(iso))
     : [];
   const impact = changes ? impactCounts(changes) : null;
+  const changedFields = new Set(changes?.fields.map((change) => change.field));
 
   return (
     <Dialog
@@ -192,7 +197,9 @@ export function ChangeListDialog({
                   })}
                 </li>
               ) : null}
-              {impact.papers > 0 ? <li>{t("staffCatalog.changes.papers", { count: formatNumber(impact.papers) })}</li> : null}
+              {impact.questions > 0 ? <li>{t("staffCatalog.changes.mcqKeepScores")}</li> : null}
+              {written && changedFields.has("passPercent") ? <li>{t("staffCatalog.changes.passNotRejudged")}</li> : null}
+              {written && changedFields.has("maximum") ? <li>{t("staffCatalog.changes.maximumRefused")}</li> : null}
               <li>
                 {impact.notify && impact.students > 0
                   ? t("staffCatalog.changes.students", { count: formatNumber(impact.students) })

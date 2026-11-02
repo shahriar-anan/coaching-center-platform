@@ -8,7 +8,7 @@ import { useAddQuestion, type QuestionInput, type StaffExam } from "@/lib/api/ex
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
+import { catalogErrorKey } from "@/components/staff/catalog/errors";
 
 /**
  * The paste format (F7). Questions are separated by a blank line. Each block:
@@ -104,13 +104,11 @@ export function PasteQuestions({
   nextPosition,
   open,
   onOpenChange,
-  onStructureLocked,
 }: {
   exam: StaffExam;
   nextPosition: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStructureLocked?: () => void;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -133,9 +131,6 @@ export function PasteQuestions({
         setProgress({ done: offset + 1, total: ready.length });
       } catch (e) {
         setProgress(null);
-        if (isApiError(e, "QUESTION_STRUCTURE_LOCKED")) {
-          onStructureLocked?.();
-        }
         setError(t("staffCatalog.paste.stopped", { n: formatNumber(block.index), reason: t(catalogErrorKey(e)) }));
         return;
       }

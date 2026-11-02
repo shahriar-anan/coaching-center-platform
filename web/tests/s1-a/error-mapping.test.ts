@@ -12,7 +12,9 @@ function apiError(code: string, fieldErrors?: { field: string; message: string }
 describe("catalog error mapping", () => {
   it.each([
     "EXAM_WINDOW_INVALID",
-    "QUESTION_STRUCTURE_LOCKED",
+    "EXAM_ARCHIVED",
+    "EXAM_SITTING_OPEN",
+    "WRITTEN_MAXIMUM_BELOW_MARK",
     "ANSWER_LOCKED",
     "PENDING_CHANGES_STALE",
     "NO_PENDING_CHANGES",

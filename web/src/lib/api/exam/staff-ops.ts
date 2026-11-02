@@ -184,12 +184,16 @@ export function useAuditLog(page: number) {
   });
 }
 
-/** One row of `GET /api/v1/live-exams/{id}/leaderboard`. Ranks are shared on a tie. */
+/**
+ * One row of `GET /api/v1/live-exams/{id}/leaderboard`. Ranks are shared on a tie. `maximum` is the attempt's own full
+ * marks; `percent` is the score as a percent of it (2 decimals), or `null` when that maximum is 0.
+ */
 export type LeaderboardRow = {
   name: string;
   rank: number;
   score: number;
   maximum: number;
+  percent: number | null;
   passed: boolean;
 };
 

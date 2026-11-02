@@ -48,6 +48,7 @@ const auth = {
   register: {
     title: "অ্যাকাউন্ট খুলুন",
     breadcrumb: "অ্যাকাউন্ট খুলুন",
+    googleButton: "গুগল দিয়ে চালিয়ে যান",
     fullName: "নাম",
     phone: "ফোন",
     phoneHelp: "০১ দিয়ে শুরু করে মোট ১১টি সংখ্যা লিখুন।",

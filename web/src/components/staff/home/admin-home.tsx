@@ -8,7 +8,7 @@ import { useServerNow } from "@/lib/time/clock";
 import { useQueries } from "@tanstack/react-query";
 import { moduleExamsQuery, useCategoryTree, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import { useParticipationRows, useParticipationSummary, useOpenOrderCount, type ParticipationRow } from "@/lib/api/exam/staff-home";
-import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
 import { Card } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import { useListParams } from "@/lib/url/list-params";
@@ -125,7 +125,7 @@ function AgendaRow({ row, status }: { row: ParticipationRow; status: StaffExam["
         </span>
       </span>
       <span className="flex flex-wrap items-center gap-3 text-meta">
-        {status ? <StatusPill status={status} /> : null}
+        {status ? <ExamStatusPill status={status} /> : null}
         <span className="tabular-nums">{t("staffCatalog.home.agenda.participants", { n: formatNumber(row.sitting) })}</span>
         {/* An exam in no package has no module page to open. */}
         {row.moduleId ? (

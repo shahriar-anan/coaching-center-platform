@@ -4,7 +4,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { RichTextTopics } from "@/components/staff/catalog/rich-text-topics";
 import { richTextValue, type SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
 
-/** The description and the rules, each in English and Bangla (plan 7.2, section 2): editors until all four are saved, then a preview. */
+/** The description and the rules, each in English and Bangla (plan 7.2, section 2): editors until some text is saved, then a preview. */
 export function ExamTextFields({ form, set, errors, saved, saving, onSave }: SectionFieldsProps) {
   const { t } = useLocale();
   return (

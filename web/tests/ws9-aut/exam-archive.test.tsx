@@ -49,6 +49,8 @@ const publishedExam: StaffExam = {
 };
 
 const archivedExam: StaffExam = { ...publishedExam, status: "ARCHIVED" };
+const ARCHIVED_NOTICE =
+  "এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি এখনো বদলানো যাবে। আগে প্রকাশিত হয়ে থাকলে বদল প্রধান প্রশাসক প্রকাশ না করা পর্যন্ত অপেক্ষায় থাকবে।";
 
 describe("exam archive (decided 2026-10-27: hidden from students, Master Admin only)", () => {
   it("Master Admin archives a published exam after confirming, and the editor shows it archived", async () => {
@@ -66,7 +68,7 @@ describe("exam archive (decided 2026-10-27: hidden from students, Master Admin o
     await waitFor(() =>
       expect(api.calls.some((call) => call.method === "POST" && call.path === `/api/v1/live-exams/${examId}/archive`)).toBe(true),
     );
-    expect(await screen.findByText("এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি বদলানো যাবে না।")).toBeInTheDocument();
+    expect(await screen.findByText(ARCHIVED_NOTICE)).toBeInTheDocument();
   });
 
   it("System Admin sees no archive control on the exam", async () => {
@@ -87,7 +89,7 @@ describe("exam archive (decided 2026-10-27: hidden from students, Master Admin o
     });
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
-    expect(await screen.findByText("এই পরীক্ষা প্রত্যাহার করা হয়েছে। শিক্ষার্থীরা এটি দেখতে পাবে না। প্রকাশিত ফল দেখা যাবে। এটি বদলানো যাবে না।")).toBeInTheDocument();
+    expect(await screen.findByText(ARCHIVED_NOTICE)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "প্রত্যাহার" })).not.toBeInTheDocument();
   });
 });

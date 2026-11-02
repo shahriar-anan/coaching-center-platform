@@ -128,7 +128,10 @@ export type LeaderboardRow = {
   name: string;
   rank: number;
   score: number;
+  /** The attempt's own full marks (API: `maximum`). */
   maximum: number;
+  /** The score as a percent of the attempt's maximum, or `null` when that maximum is 0 (API: `percent`). */
+  percent?: number | null;
   passed: boolean;
   /** True only on the requesting student's own row. */
   mine: boolean;

@@ -26,14 +26,12 @@ export function optionLetter(index: number, locale: string) {
 
 /**
  * The fields of one question: wording, marks, the answer kind, the options (each letter ticks the correct answer), and the
- * explanation. The page owns the draft; this form only edits it. A locked question keeps its wording and key editable, but
- * options cannot be added or removed.
+ * explanation. The page owns the draft; this form only edits it.
  */
 export function QuestionForm({
   draft,
   setDraft,
   errors,
-  structureLocked,
   keepChoice,
   onKindChange,
   onKeep,
@@ -41,7 +39,6 @@ export function QuestionForm({
   draft: QuestionDraft;
   setDraft: Dispatch<SetStateAction<QuestionDraft>>;
   errors: Record<string, string>;
-  structureLocked: boolean;
   keepChoice: boolean;
   onKindChange: (on: boolean) => void;
   onKeep: (index: number) => void;
@@ -132,7 +129,7 @@ export function QuestionForm({
                 setDraft((c) => ({ ...c, options: c.options.map((o, i) => (i === index ? { text } : o)) }));
               }}
             />
-            {draft.options.length > MIN_OPTIONS && !structureLocked ? (
+            {draft.options.length > MIN_OPTIONS ? (
               <IconButton
                 label={t("staffCatalog.question.removeOption", { n: formatNumber(index + 1) })}
                 icon={<Trash2 className="size-4" />}
@@ -141,7 +138,7 @@ export function QuestionForm({
             ) : null}
           </div>
         ))}
-        {draft.options.length < MAX_OPTIONS && !structureLocked ? (
+        {draft.options.length < MAX_OPTIONS ? (
           <div>
             <Button variant="ghost" onClick={() => setDraft((c) => ({ ...c, options: [...c.options, { text: "" }] }))}>
               <Plus aria-hidden="true" className="size-4" />
@@ -149,7 +146,6 @@ export function QuestionForm({
             </Button>
           </div>
         ) : null}
-        {structureLocked ? <p className="text-meta text-muted">{t("staffCatalog.question.lockedOptions")}</p> : null}
       </fieldset>
 
       <Field label={t("staffCatalog.question.explanation")} hint={t("staffCatalog.question.explanationHint")}>

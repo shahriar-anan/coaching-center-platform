@@ -115,12 +115,12 @@ describe("question editor page", () => {
     expect(radios[1]).toBeChecked();
   });
 
-  it("hides adding a question and says why once a student has started", async () => {
+  it("keeps adding a question after a student has started, with no lock notice (D11)", async () => {
     mockApi({ [`GET /api/v1/live-exams/${examId}`]: examWith({ started: true }) });
     renderWithProviders(<QuestionPage examId={examId} />, { user: fixtures.masterAdmin });
 
-    expect(await screen.findByText(/শিক্ষার্থী এই পরীক্ষা শুরু করেছে/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "নতুন প্রশ্ন" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "নতুন প্রশ্ন" })).toBeInTheDocument();
+    expect(screen.queryByText(/শিক্ষার্থী এই পরীক্ষা শুরু করেছে/)).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("প্রশ্ন এক")).toBeInTheDocument();
   });
 

@@ -24,8 +24,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
-import { StatusPill } from "@/components/staff/catalog/status-pill";
-import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
+import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
+import { catalogErrorKey } from "@/components/staff/catalog/errors";
 import { PasteQuestions } from "@/components/staff/catalog/paste-questions";
 import {
   blankDraft,
@@ -64,8 +64,8 @@ function shortStem(stem: string) {
 
 /**
  * The question editor for an MCQ paper: a navigator of every question, the editor for the selected one, and an optional
- * student-view preview. Saving follows the exam's rules: a published exam stages the change for the Master Admin, and once
- * a student has started, questions and options cannot be added or removed.
+ * student-view preview. Saving follows the exam's rules: a published exam stages the change for the Master Admin. A sitting
+ * that has started keeps the questions it started with.
  */
 export function QuestionPage({ examId }: { examId: string }) {
   const { t } = useLocale();
@@ -97,8 +97,8 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
   const router = useRouter();
   const params = useSearchParams();
   const role = useRole();
-  // An archived exam is read-only for everyone; so is an account that cannot author (the API refuses those saves too).
-  const readOnly = exam.status === "ARCHIVED" || !role.canAuthor;
+  // An account that cannot author is read-only (the API refuses those saves too). A withdrawn exam takes edits (D5).
+  const readOnly = !role.canAuthor;
 
   const questions = useMemo(() => [...(exam.questions ?? [])].sort((a, b) => a.position - b.position), [exam.questions]);
   const total = questions.reduce((sum, question) => sum + question.marks, 0);
@@ -114,8 +114,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [keepChoice, setKeepChoice] = useState(false);
-  // Set once the server refuses a question change because a student has started (the exam may not have said so yet).
-  const [refused, setRefused] = useState(false);
   const [query, setQuery] = useState("");
   const [pasting, setPasting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -123,7 +121,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
   // The question just saved with Save & next, shown above the blank question that follows it.
   const [previous, setPrevious] = useState<StaffQuestion | null>(null);
 
-  const structureLocked = exam.started === true || refused;
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
   const index = current ? questions.findIndex((question) => question.id === current.id) : -1;
 
@@ -208,9 +205,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
         show(following ?? saved);
       }
     } catch (caught) {
-      if (isApiError(caught, "QUESTION_STRUCTURE_LOCKED")) {
-        setRefused(true);
-      }
       setFormError(t(catalogErrorKey(caught)));
     }
   }
@@ -226,9 +220,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
       toast({ title: t("staffCatalog.mcq.deleted"), tone: "ok" });
       show(neighbour);
     } catch (caught) {
-      if (isApiError(caught, "QUESTION_STRUCTURE_LOCKED")) {
-        setRefused(true);
-      }
       throw new Error(t(catalogErrorKey(caught)));
     }
   }
@@ -290,7 +281,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill status={exam.status} />
+            <ExamStatusPill status={exam.status} />
             <Button variant="secondary" href={`/staff/exams/${exam.id}`}>
               {t("staffCatalog.questionPage.back")}
             </Button>
@@ -304,11 +295,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
       </p>
       <p className="mb-4 text-meta text-muted">{t("staffCatalog.questionPage.shortcuts")}</p>
 
-      {structureLocked ? (
-        <p role="status" className="mb-4 rounded-control border border-warn/40 bg-warn/10 p-3 text-meta">
-          {t("staffCatalog.questionPage.lockedBanner")}
-        </p>
-      ) : null}
       {readOnly ? (
         <p role="status" className="mb-4 rounded-control border border-border bg-field p-3 text-meta">
           {t("staffCatalog.questionPage.readOnly")}
@@ -350,7 +336,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
               );
             })}
           </ol>
-          {!readOnly && !structureLocked ? (
+          {!readOnly ? (
             <div className="grid gap-2 border-t border-border pt-3">
               <Button variant="secondary" onClick={() => open(null)}>
                 {t("staffCatalog.questionPage.newQuestion")}
@@ -402,7 +388,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
               draft={draft}
               setDraft={setDraft}
               errors={errors}
-              structureLocked={structureLocked}
               keepChoice={keepChoice}
               onKindChange={onKindChange}
               onKeep={onKeep}
@@ -421,7 +406,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
                 {dirty ? t("staffCatalog.questionPage.unsaved") : t("staffCatalog.questionPage.allSaved")}
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                {current && !structureLocked ? (
+                {current ? (
                   <Button variant="secondary" disabled={busy} onClick={() => setDeleting(true)}>
                     {t("staffCatalog.mcq.delete")}
                   </Button>
@@ -446,7 +431,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
           nextPosition={nextPosition}
           open={pasting}
           onOpenChange={setPasting}
-          onStructureLocked={() => setRefused(true)}
         />
       ) : null}
 
