@@ -143,17 +143,22 @@ public class LiveExamSittingService {
 			questionPdf = participant.getAnswerStoredFileName() == null;
 		}
 		AccessState state = standing.access();
-		// The full marks on the paper are the attempt's own, so a student on an earlier version is not shown a later total (D9).
-		int shownMaximum = participant != null && mcq ? maximum(exam, participant) : shell.maximum();
+		// The full marks, pass mark and negative mark shown are the attempt's own (D9). Once a retake is on offer they are the
+		// current ones instead, because that is what the retake would be sat on.
+		boolean ownRules = participant != null && (open || !Boolean.TRUE.equals(standing.status().retakeAvailable()));
+		int shownMaximum = ownRules ? maximum(exam, participant) : shell.maximum();
+		Integer shownPassPercent = ownRules ? passPercent(exam, participant) : shell.passPercent();
+		BigDecimal shownNegativeMarks = !mcq ? null
+				: ownRules ? snapshots.settings(participant, exam).negativeMarks() : exam.getNegativeMarks();
 		return new StudentExam(shell.id(), shell.moduleId(), shell.examType(), shell.paperLanguage(), shell.titleEn(),
 				shell.titleBn(), shell.descriptionEn(), shell.descriptionBn(), shell.rulesEn(), shell.rulesBn(),
-				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shell.passPercent(), shownMaximum,
+				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shownPassPercent, shownMaximum,
 				shell.status(), shell.finallySaved(), shell.price(), questionPdf, questionViews,
 				standing.status().status(), standing.status().retakeAvailable(), sittingView(participant),
 				participant != null && participant.getAnswerStoredFileName() != null, standing.status().detail(),
 				standing.attempts(),
 				new AccessView(state.granted(), state.source(), state.endsAt() == null ? null : state.endsAt().toString(),
-						state.expired()), shell.coverUrl(), exam.isAnswersChangeable(), null);
+						state.expired()), shell.coverUrl(), exam.isAnswersChangeable(), null, shownNegativeMarks);
 	}
 
 	/** The first attempt. A student with an open attempt gets it back; one with a finished attempt must use {@link #retake}. */
@@ -326,7 +331,7 @@ public class LiveExamSittingService {
 		return new ReviewedResult(score, maximum(exam, participant), passed, participant.getStatus(), questionViews, comment,
 				evaluatedPdf, LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 				participant.getAttemptNo(), leaderboards.positionOf(exam, participant), grant, exam.getTitleEn(),
-				exam.getTitleBn(), exam.getExamType(), exam.getPassPercent(), answerPdf, null);
+				exam.getTitleBn(), exam.getExamType(), passPercent(exam, participant), answerPdf, null);
 	}
 
 	/** The student's own attempts, oldest first. */
@@ -395,7 +400,7 @@ public class LiveExamSittingService {
 			rows.add(new MyExamResult(exam.getId(), exam.getTitleEn(), exam.getTitleBn(), exam.getExamType(),
 					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
 					module == null ? null : module.getTitleBn(), exam.getLiveAt() == null ? null : format(exam.getLiveAt()),
-					exam.getPassPercent(), status.status(), status.detail(), LiveExamParticipant.legacyKind(latest.getKind()),
+					passPercent(exam, latest), status.status(), status.detail(), LiveExamParticipant.legacyKind(latest.getKind()),
 					own.size(), latest.getSubmittedAt() == null ? null : format(latest.getSubmittedAt()), visible,
 					visible ? McqScoring.plain(latest.getScore()) : null, maximum(exam, latest), visible ? latest.getPassed() : null));
 		}
@@ -609,10 +614,18 @@ public class LiveExamSittingService {
 			.findFirst();
 	}
 
+	/** The pass percent an attempt is judged on: the one it started with, for either exam type. */
+	private Integer passPercent(LiveExam exam, LiveExamParticipant attempt) {
+		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+			return attempt.writtenPassPercent(exam);
+		}
+		return snapshots.settings(attempt, exam).passPercent();
+	}
+
 	/** The highest mark an attempt can give: a written exam's maximum, or the sum of the marks of the attempt's own questions. */
 	private int maximum(LiveExam exam, LiveExamParticipant attempt) {
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
-			return exam.getWrittenMaximum() == null ? 0 : exam.getWrittenMaximum();
+			return attempt.writtenMaximum(exam);
 		}
 		return McqScoring.maximum(snapshots.of(attempt).key());
 	}
@@ -801,6 +814,11 @@ public class LiveExamSittingService {
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
 			participant.setQuestionSnapshot(snapshots.capture(exam));
 		}
+		// A written attempt keeps the maximum it is sat on, so a later change to the exam's maximum does not re-percent it.
+		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+			participant.setWrittenMaximum(exam.getWrittenMaximum());
+			participant.setWrittenPassPercent(exam.getPassPercent());
+		}
 		return participants.save(participant);
 	}
 
@@ -888,7 +906,7 @@ public class LiveExamSittingService {
 			String endAt, int durationMinutes, Integer passPercent, int maximum, String status, boolean finallySaved,
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
 			Boolean retakeAvailable, SittingView sitting, Boolean answerStored, String myStatusDetail, int attempts,
-			AccessView access, String coverUrl, boolean answersChangeable, String reviewOpensAt) {
+			AccessView access, String coverUrl, boolean answersChangeable, String reviewOpensAt, BigDecimal negativeMarks) {
 	}
 
 	public record AccessView(boolean granted, String source, String endsAt, boolean expired) {

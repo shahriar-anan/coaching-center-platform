@@ -133,7 +133,7 @@ public class LiveExamEvaluationService {
 			throw new ApiException(ErrorCode.EVALUATION_NOT_ALLOWED, HttpStatus.CONFLICT,
 					"A paper with no stored PDF cannot be marked.");
 		}
-		int maximum = maximum(exam);
+		int maximum = maximum(exam, participant);
 		if (marks < 0 || marks > maximum) {
 			throw new ApiException(ErrorCode.MARKS_OUT_OF_RANGE, HttpStatus.BAD_REQUEST,
 					"Marks must be from 0 through the maximum.");
@@ -152,7 +152,7 @@ public class LiveExamEvaluationService {
 			// A released result keeps its mark and PDF for the student. A save now is a correction, held until release.
 			discard = hadPending ? participant.getPendingStoredFileName() : null;
 			participant.setPendingScore(BigDecimal.valueOf(marks));
-			participant.setPendingPassed(passed(marks, exam, maximum));
+			participant.setPendingPassed(passed(marks, participant.writtenPassPercent(exam), maximum));
 			participant.setPendingComment(comment == null || comment.isBlank() ? null : comment.trim());
 			participant.setPendingEvaluatedBy(actor.userId());
 			participant.setPendingEvaluatedAt(clock.instant());
@@ -175,7 +175,7 @@ public class LiveExamEvaluationService {
 		else {
 			discard = participant.getEvaluatedStoredFileName();
 			participant.setScore(BigDecimal.valueOf(marks));
-			participant.setPassed(passed(marks, exam, maximum));
+			participant.setPassed(passed(marks, participant.writtenPassPercent(exam), maximum));
 			participant.setComment(comment == null || comment.isBlank() ? null : comment.trim());
 			participant.setEvaluatedBy(actor.userId());
 			participant.setEvaluatedAt(clock.instant());
@@ -426,7 +426,7 @@ public class LiveExamEvaluationService {
 			.map(found -> new RetakeGrantView(found.getId(), found.getUsedParticipantId() != null))
 			.orElse(null);
 		return new SubmissionView(participant.getId(), exam.getId(), participant.getStudentId(),
-				studentName(participant.getStudentId()), participant.getStatus(), McqScoring.plain(scoreOf(participant)), maximum(exam),
+				studentName(participant.getStudentId()), participant.getStatus(), McqScoring.plain(scoreOf(participant)), maximum(exam, participant),
 				passedOf(participant), LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 				participant.getAnswerStoredFileName() != null,
 				storedFileOf(participant) == null ? null : Boolean.TRUE, evaluatorName,
@@ -617,9 +617,9 @@ public class LiveExamEvaluationService {
 		return students.findById(studentId).map(profile -> profile.getFullName()).orElse("");
 	}
 
-	private int maximum(LiveExam exam) {
+	private int maximum(LiveExam exam, LiveExamParticipant attempt) {
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
-			return exam.getWrittenMaximum() == null ? 0 : exam.getWrittenMaximum();
+			return attempt.writtenMaximum(exam);
 		}
 		int sum = 0;
 		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId())) {
@@ -628,8 +628,8 @@ public class LiveExamEvaluationService {
 		return sum;
 	}
 
-	static boolean passed(int score, LiveExam exam, int maximum) {
-		int percent = exam.getPassPercent() == null ? 0 : exam.getPassPercent();
+	static boolean passed(int score, Integer passPercent, int maximum) {
+		int percent = passPercent == null ? 0 : passPercent;
 		return (long) score * 100 >= (long) percent * maximum;
 	}
 

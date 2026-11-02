@@ -186,6 +186,10 @@ public class LiveExamModuleService {
 	public void delete(UUID id) {
 		LiveExamModule module = require(id);
 		Instant now = clock.instant();
+		if (participants.hasOpenSittingInPackage(module.getId(), LiveExamParticipant.IN_PROGRESS, now)) {
+			throw new ApiException(ErrorCode.CATALOG_SITTING_OPEN, HttpStatus.CONFLICT,
+					"Students are sitting an exam in this package now. Try again after the sitting ends.");
+		}
 		module.setDeletedAt(now);
 		for (LiveExamPackageExam link : memberships.findActiveByModuleId(module.getId())) {
 			link.setRemovedAt(now);

@@ -9,7 +9,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -100,10 +99,9 @@ public class LiveExamLeaderboardService {
 			for (LiveExamParticipant row : board) {
 				standings.put(row.getId(), standing(exam, row, liveMaximum));
 			}
-			// Ranked by percent of each attempt's own maximum (D15). Ties keep the old order: earlier submit, then name.
+			// Ranked by raw marks (D15, changed 2 November 2026). Ties: earlier submit, then name. Each row still shows its own maximum.
 			List<LiveExamParticipant> ordered = board.stream()
-				.sorted(Comparator.comparing((LiveExamParticipant p) -> standings.get(p.getId()).percent(),
-						Comparator.nullsLast(Comparator.<BigDecimal>reverseOrder()))
+				.sorted(Comparator.comparing(LiveExamParticipant::getScore, Comparator.reverseOrder())
 					.thenComparing(LiveExamParticipant::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder()))
 					.thenComparing(p -> names.getOrDefault(p.getStudentId(), "")))
 				.toList();
@@ -112,10 +110,10 @@ public class LiveExamLeaderboardService {
 			for (int index = 0; index < ordered.size(); index++) {
 				LiveExamParticipant row = ordered.get(index);
 				Standing standing = standings.get(row.getId());
-				if (index > 0 && !Objects.equals(standing.percent(), previous)) {
+				if (previous != null && row.getScore().compareTo(previous) != 0) {
 					rank = index + 1;
 				}
-				previous = standing.percent();
+				previous = row.getScore();
 				rows.add(new LeaderboardRow(names.getOrDefault(row.getStudentId(), ""), rank, McqScoring.plain(row.getScore()),
 						standing.maximum(), true, student && actor.userId().equals(row.getStudentId()), standing.percent()));
 			}
@@ -155,14 +153,7 @@ public class LiveExamLeaderboardService {
 		if (!Boolean.TRUE.equals(attempt.getPassed())) {
 			return new Position(type, null, board.size(), true);
 		}
-		int liveMaximum = maximum(exam);
-		BigDecimal percent = standing(exam, attempt, liveMaximum).percent();
-		int ahead = 0;
-		for (LiveExamParticipant row : board) {
-			if (above(standing(exam, row, liveMaximum).percent(), percent)) {
-				ahead++;
-			}
-		}
+		int ahead = (int) board.stream().filter(p -> p.getScore().compareTo(attempt.getScore()) > 0).count();
 		return new Position(type, ahead + 1, board.size(), false);
 	}
 
@@ -172,14 +163,13 @@ public class LiveExamLeaderboardService {
 		if (LiveExam.MCQ.equals(exam.getExamType()) && attempt.getQuestionSnapshot() != null) {
 			maximum = McqScoring.maximum(snapshots.read(attempt).key());
 		}
+		// A written attempt is ranked on the maximum it was sat on (V67), not the exam's current one.
+		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+			maximum = attempt.writtenMaximum(exam);
+		}
 		BigDecimal percent = maximum == 0 ? null
 				: attempt.getScore().multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(maximum), 2, RoundingMode.HALF_UP);
 		return new Standing(maximum, percent);
-	}
-
-	/** Whether a percent ranks above another. A null percent (a zero maximum) ranks last. */
-	private static boolean above(BigDecimal percent, BigDecimal other) {
-		return percent != null && (other == null || percent.compareTo(other) > 0);
 	}
 
 	/** Has a result a student may see ranked: posted for an MCQ, released (or a no-submit zero) for a written paper. */

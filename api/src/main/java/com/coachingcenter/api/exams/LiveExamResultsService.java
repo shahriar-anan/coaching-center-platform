@@ -173,7 +173,7 @@ public class LiveExamResultsService {
 	 */
 	private int maximum(LiveExam exam, LiveExamParticipant attempt) {
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
-			return exam.getWrittenMaximum() == null ? 0 : exam.getWrittenMaximum();
+			return attempt.writtenMaximum(exam);
 		}
 		return McqScoring.maximum(snapshots.of(attempt).key());
 	}

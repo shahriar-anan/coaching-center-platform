@@ -66,6 +66,14 @@ public class LiveExamParticipant extends BaseEntity {
 	@Column(name = "question_snapshot", columnDefinition = "TEXT")
 	private String questionSnapshot;
 
+	/** The maximum a written attempt was sat on (D9 for written). Null for an attempt started before this was stored. */
+	@Column(name = "written_maximum")
+	private Integer writtenMaximum;
+
+	/** The pass percent a written attempt was sat on. Null for an attempt started before this was stored. */
+	@Column(name = "written_pass_percent")
+	private Integer writtenPassPercent;
+
 	@Column(nullable = false, length = 32)
 	private String status;
 
@@ -222,6 +230,34 @@ public class LiveExamParticipant extends BaseEntity {
 
 	public String getQuestionSnapshot() {
 		return questionSnapshot;
+	}
+
+	public Integer getWrittenMaximum() {
+		return writtenMaximum;
+	}
+
+	public void setWrittenMaximum(Integer writtenMaximum) {
+		this.writtenMaximum = writtenMaximum;
+	}
+
+	/**
+	 * The maximum this written attempt is marked out of: the one it was sat on. An attempt from before that was stored takes the
+	 * exam's current maximum, which is the only one it could have had.
+	 */
+	public int writtenMaximum(LiveExam exam) {
+		if (writtenMaximum != null) {
+			return writtenMaximum;
+		}
+		return exam.getWrittenMaximum() == null ? 0 : exam.getWrittenMaximum();
+	}
+
+	public void setWrittenPassPercent(Integer writtenPassPercent) {
+		this.writtenPassPercent = writtenPassPercent;
+	}
+
+	/** The pass percent this written attempt is judged on: the one it was sat on, or the exam's current one for an older attempt. */
+	public Integer writtenPassPercent(LiveExam exam) {
+		return writtenPassPercent != null ? writtenPassPercent : exam.getPassPercent();
 	}
 
 	public void setQuestionSnapshot(String questionSnapshot) {

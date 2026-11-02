@@ -2,6 +2,7 @@ package com.coachingcenter.api.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -214,43 +215,6 @@ class ExamRulesWithdrawIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aWrittenMaximumBelowTheHighestMarkIsRefusedAtEditAndAtPublish() throws Exception {
-		String staff = fx.staff();
-		String master = fx.master();
-		UUID module = fx.module(staff, "Written maximum");
-		UUID exam = fx.createExam(staff, module, "WRITTEN", "Written maximum", AuthoringFixture.LIVE_AT, 40, null);
-		fx.uploadPdf(staff, exam);
-		fx.publishNew(master, exam);
-		UUID student = takeExam(module, exam);
-		fx.jdbc().update(
-				"update live_exam_participants set status = 'SUBMITTED', score = 8, submitted_at = now() where exam_id = ? and student_id = ?",
-				exam, student);
-
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"maximum\":5}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("WRITTEN_MAXIMUM_BELOW_MARK"))
-			.andExpect(jsonPath("$.fieldErrors[0].field").value("writtenMaximum"));
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"maximum\":8}"))
-			.andExpect(status().isOk());
-
-		// A mark given after the edit was staged is caught at publish.
-		fx.jdbc().update("update live_exam_participants set score = 9 where exam_id = ?", exam);
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("WRITTEN_MAXIMUM_BELOW_MARK"));
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"maximum\":9}"))
-			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
-			.andExpect(status().isOk());
-	}
-
-	@Test
 	void publishingAChangedKeyDoesNotRescoreSubmittedPapers() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
@@ -319,6 +283,9 @@ class ExamRulesWithdrawIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/archive").header("Authorization", "Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("CATALOG_SITTING_OPEN"));
+		mockMvc.perform(delete("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CATALOG_SITTING_OPEN"));
 
 		// Once the sitting has ended the package can be archived.
 		clock.set(AFTER_DEADLINE);
@@ -366,6 +333,39 @@ class ExamRulesWithdrawIT extends PostgresIntegrationTest {
 		// The control: a published exam's time change is announced; the withdrawn one's is not (students cannot see it).
 		assertThat(timeNotices(live)).isPositive();
 		assertThat(timeNotices(withdrawn)).isZero();
+	}
+
+	@Test
+	void aWrittenResultKeepsTheMaximumItWasSatOnWhenTheExamMaximumChanges() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Written maximum kept");
+		UUID exam = fx.createExam(staff, module, "WRITTEN", "Written kept", AuthoringFixture.LIVE_AT, 40, null);
+		fx.uploadPdf(staff, exam);
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"maximum\":10}"))
+			.andExpect(status().isOk());
+		fx.publishNew(master, exam);
+		UUID student = takeExam(module, exam);
+		// Marked 8 out of 10, released (V67: the attempt keeps the maximum it was sat on).
+		fx.jdbc().update("update live_exam_participants set status = 'SUBMITTED', score = 8, passed = true, submitted_at = now(),"
+				+ " published_at = now() where exam_id = ? and student_id = ?", exam, student);
+
+		// The maximum can be raised or lowered after marking, even below the mark given, and the marked paper does not move.
+		for (int maximum : List.of(20, 5)) {
+			mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"maximum\":" + maximum + "}"))
+				.andExpect(status().isOk());
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+				.andExpect(status().isOk());
+			mockMvc.perform(get("/api/v1/live-exams/" + exam + "/leaderboard").header("Authorization", "Bearer " + master))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rows[0].score").value(8))
+				.andExpect(jsonPath("$.rows[0].maximum").value(10))
+				.andExpect(jsonPath("$.rows[0].percent").value(80.0));
+		}
 	}
 
 	private int timeNotices(UUID exam) {

@@ -194,7 +194,7 @@ class LiveRosterIT extends PostgresIntegrationTest {
 		new JdbcTemplate(dataSource).update("""
 				INSERT INTO live_exam_participants (id, exam_id, student_id, kind, started_at, deadline_at, status,
 				                                    created_at, updated_at)
-				VALUES (gen_random_uuid(), ?, ?, 'LIVE', now(), now(), 'IN_PROGRESS', now(), now())
+				VALUES (gen_random_uuid(), ?, ?, 'LIVE', '2026-10-20T03:00:00Z', '2026-10-20T03:30:00Z', 'IN_PROGRESS', now(), now())
 				""", exam, bela.id());
 
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)

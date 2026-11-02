@@ -1,6 +1,5 @@
 package com.coachingcenter.api.exams;
 
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
-import com.coachingcenter.api.common.error.FieldErrorDetail;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -55,8 +53,6 @@ public class LiveExamRevisionService {
 
 	private final LiveExamQuestionPaperRepository papers;
 
-	private final LiveExamParticipantRepository participants;
-
 	private final LiveExamChangeLogRepository changeLog;
 
 	private final ExamChangeListBuilder builder;
@@ -76,7 +72,7 @@ public class LiveExamRevisionService {
 	public LiveExamRevisionService(LiveExamRepository exams, LiveExamRevisionRepository revisions,
 			LiveExamModuleRevisionRepository moduleRevisions, LiveExamModuleRepository modules,
 			LiveExamQuestionRepository questions, LiveExamOptionRepository options,
-			LiveExamQuestionPaperRepository papers, LiveExamParticipantRepository participants,
+			LiveExamQuestionPaperRepository papers,
 			LiveExamChangeLogRepository changeLog, ExamChangeListBuilder builder,
 			StudentNoticeWriter notices, AfterCommit afterCommit, AuditRecorder audit,
 			LiveExamCatalogVisibility visibility, Clock clock, ObjectMapper json) {
@@ -87,7 +83,6 @@ public class LiveExamRevisionService {
 		this.questions = questions;
 		this.options = options;
 		this.papers = papers;
-		this.participants = participants;
 		this.changeLog = changeLog;
 		this.builder = builder;
 		this.notices = notices;
@@ -177,10 +172,15 @@ public class LiveExamRevisionService {
 		revisions.delete(revision.get());
 	}
 
+	/** The students told about a change. A withdrawn exam is hidden from students, so nobody is told about it. */
+	private List<UUID> announced(LiveExam exam) {
+		return LiveExam.ARCHIVED.equals(exam.getStatus()) ? List.of() : exams.findActiveStudentsWithAccessToExam(exam.getId());
+	}
+
 	private ChangeList changes(LiveExam exam, LiveExamRevision revision) {
 		ExamState before = published(exam, true);
 		ExamState after = readRevision(exam, revision.getPayload());
-		return builder.build(token(revision), before, after, exams.findActiveStudentsWithAccessToExam(exam.getId()).size());
+		return builder.build(token(revision), before, after, announced(exam).size());
 	}
 
 	/**
@@ -200,7 +200,7 @@ public class LiveExamRevisionService {
 		ExamState before = published(exam, true);
 		ExamState after = readRevision(exam, revision.getPayload());
 		requirePublishable(exam, after);
-		List<UUID> recipients = exams.findActiveStudentsWithAccessToExam(exam.getId());
+		List<UUID> recipients = announced(exam);
 		ChangeList changes = builder.build(token, before, after, recipients.size());
 		apply(exam, after);
 		exams.flush();
@@ -214,8 +214,7 @@ public class LiveExamRevisionService {
 		changeLog.save(entry);
 		audit.record(AuditRecorder.LIVE_EXAM_REVISION_PUBLISH, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());
 		revisions.delete(revision);
-		// A withdrawn exam is hidden from students, so a time change on it is not announced to them.
-		if (changes.impact().notifiesStudents() && !LiveExam.ARCHIVED.equals(exam.getStatus())) {
+		if (changes.impact().notifiesStudents()) {
 			UUID examId = exam.getId();
 			afterCommit.run(() -> notices.examTimeChanged(examId, recipients));
 		}
@@ -237,9 +236,6 @@ public class LiveExamRevisionService {
 		else if (state.writtenMaximum == null || state.paperId == null) {
 			throw new ApiException(ErrorCode.WRITTEN_PAPER_REQUIRED, HttpStatus.CONFLICT,
 					"A written exam needs a maximum and a question PDF.");
-		}
-		else {
-			requireMaximumCovers(exam.getId(), state.writtenMaximum);
 		}
 		ExamWindow.validate(state.mode, ExamState.instant(state.liveAt), ExamState.instant(state.endsAt),
 				state.durationMinutes);
@@ -418,22 +414,6 @@ public class LiveExamRevisionService {
 
 	private LiveExam exam(UUID examId) {
 		return exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
-	}
-
-	/**
-	 * A written maximum cannot sit below the highest mark already given, saved or pending (D16). Checked on edit and on
-	 * publish. A null maximum is left for the publish to refuse.
-	 */
-	void requireMaximumCovers(UUID examId, Integer maximum) {
-		if (maximum == null) {
-			return;
-		}
-		BigDecimal highest = participants.highestMarkGiven(examId);
-		if (highest != null && BigDecimal.valueOf(maximum).compareTo(highest) < 0) {
-			throw new ApiException(ErrorCode.WRITTEN_MAXIMUM_BELOW_MARK, HttpStatus.CONFLICT,
-					"The maximum cannot be below the highest mark already given.",
-					List.of(new FieldErrorDetail("writtenMaximum", "The maximum cannot be below the highest mark already given.")));
-		}
 	}
 
 	private ApiException noPending() {

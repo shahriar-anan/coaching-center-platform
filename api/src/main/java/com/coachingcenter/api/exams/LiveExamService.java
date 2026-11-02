@@ -148,7 +148,7 @@ public class LiveExamService {
 		exam.setExamType(examType);
 		exam.setStatus(LiveExam.DRAFT);
 		exam.setFinallySaved(false);
-		applyEdit(exam, null, body, true);
+		applyEdit(exam, body, true);
 		LiveExam saved = exams.save(exam);
 		if (module != null) {
 			memberships.attach(module.getId(), saved.getId(), clock.instant());
@@ -166,12 +166,12 @@ public class LiveExamService {
 		if (takesStagedEdits(exam)) {
 			ExamState working = staging.working(exam);
 			LiveExam probe = settingsOf(exam, working);
-			applyEdit(probe, exam.getId(), body, false);
+			applyEdit(probe, body, false);
 			working.readSettingsFrom(probe);
 			staging.stage(exam, working, actorId);
 			return view(exam, true);
 		}
-		applyEdit(exam, exam.getId(), body, false);
+		applyEdit(exam, body, false);
 		exam.setFinallySaved(false);
 		return view(exam, true);
 	}
@@ -179,10 +179,9 @@ public class LiveExamService {
 	/**
 	 * Applies the fields of a create or update body to {@code exam} and checks the result as a whole: the window against
 	 * the duration, and the price against the discount and the free flag. There is no lock (E27, E30): the schedule, the
-	 * scoring and the text can change at any time. {@code popular} is not read here; it has its own route. {@code examId}
-	 * is the stored exam the edit is for; a staged edit passes a transient copy, so it cannot be read from {@code exam}.
+	 * scoring and the text can change at any time. {@code popular} is not read here; it has its own route.
 	 */
-	private void applyEdit(LiveExam exam, UUID examId, JsonNode body, boolean create) {
+	private void applyEdit(LiveExam exam, JsonNode body, boolean create) {
 		rejectMaximumOnMcq(exam.getExamType(), body);
 		applyText(exam, body, create);
 		if (!create && body.has("categoryId")) {
@@ -199,11 +198,7 @@ public class LiveExamService {
 			exam.setPassPercent(readPassPercent(body, !create));
 		}
 		if (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum")) {
-			Integer maximum = readMaximum(body, !create);
-			if (!create) {
-				staging.requireMaximumCovers(examId, maximum);
-			}
-			exam.setWrittenMaximum(maximum);
+			exam.setWrittenMaximum(readMaximum(body, !create));
 		}
 		if (body.has("price")) {
 			exam.setPrice(readPrice(body.get("price")));
@@ -641,9 +636,6 @@ public class LiveExamService {
 			throw new ApiException(ErrorCode.WRITTEN_PAPER_REQUIRED, HttpStatus.CONFLICT,
 					"A written exam needs a maximum and a question PDF.");
 		}
-		else {
-			staging.requireMaximumCovers(exam.getId(), exam.getWrittenMaximum());
-		}
 		// An ended window is fine: archived participants can still sit the exam (D20). Windows may overlap (D17).
 		visibility.requireOpen(exam.getCategoryId());
 		exam.setStatus(LiveExam.PUBLISHED);
@@ -745,7 +737,7 @@ public class LiveExamService {
 				status.status(), status.retakeAvailable(), null, plain.mode(), plain.phase(), plain.categoryId(),
 				plain.packages(), null, plain.negativeMarks(), plain.answersChangeable(), plain.previewEnabled(),
 				plain.popular(), plain.accessDays(), plain.pricing(), null, accessView,
-				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl(), null, null);
+				mine == null ? 0 : mine.attempts(), status.status(), plain.coverUrl(), null, null, null);
 	}
 
 	/** One student's attempts at one exam: the latest, and how many there are. */
@@ -1061,7 +1053,8 @@ public class LiveExamService {
 				staff ? instructorOf(shown) : null, shown.getNegativeMarks(), shown.isAnswersChangeable(),
 				shown.isPreviewEnabled(), exam.isPopular(), shown.getAccessDays(), ExamPricing.view(shown, now, false),
 				staff ? working != null : null, null, null, null, ExamCoverService.coverPath(exam),
-				staff ? resultsReleased(exam) : null, staff ? participants.existsByExamId(exam.getId()) : null);
+				staff ? resultsReleased(exam) : null, staff ? participants.existsByExamId(exam.getId()) : null,
+				staff && exam.getPublishedAt() != null ? exam.getPublishedAt().toString() : null);
 	}
 
 	/**
@@ -1479,7 +1472,8 @@ public class LiveExamService {
 			Boolean retakeAvailable, String answersReleasedAt, String mode, String phase, UUID categoryId,
 			List<PackageRef> packages, InstructorRef instructor, BigDecimal negativeMarks, boolean answersChangeable,
 			boolean previewEnabled, boolean popular, Integer accessDays, PriceView pricing, Boolean pendingChanges,
-			AccessView access, Integer attempts, String myStatusDetail, String coverUrl, Boolean resultsReleased, Boolean started) {
+			AccessView access, Integer attempts, String myStatusDetail, String coverUrl, Boolean resultsReleased, Boolean started,
+			String publishedAt) {
 	}
 
 	/** A student's access to one exam. {@code endsAt} is an ISO-8601 instant, null when access never ends. */

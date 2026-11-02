@@ -57,7 +57,7 @@ public class McqAttemptSnapshot {
 			return new Settings(exam.getNegativeMarks(), exam.getPassPercent());
 		}
 		Snapshot snapshot = read(attempt);
-		return new Settings(snapshot.negativeMarks, snapshot.passPercent);
+		return new Settings(snapshot.negativeMarks, snapshot.passPercent != null ? snapshot.passPercent : exam.getPassPercent());
 	}
 
 	/** The question set an attempt answers: its stored copy, or the live rows when it has none. */

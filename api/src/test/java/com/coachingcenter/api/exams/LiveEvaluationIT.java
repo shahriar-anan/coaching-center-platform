@@ -267,6 +267,46 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aWrittenPaperIsMarkedAndJudgedOnTheMaximumAndPassPercentItWasSatOn() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID module = publishModule(staff, "Pinned rules");
+		Instructor instructor = instructor(master, "Pinned Marker");
+		UUID exam = writtenExam(staff, module, instructor.id());
+		Student student = seedStudent("Pinned Paper");
+		mark(master, module, student.id());
+		clock.set(Instant.parse("2026-10-20T06:10:00Z"));
+		UUID participant = take(student, exam);
+		upload(student, exam);
+
+		// After the student has sat it, the exam changes from 50 percent of 10 to 90 percent of 20.
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"passPercent\":90,\"maximum\":20}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + student.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.maximum").value(10))
+			.andExpect(jsonPath("$.passPercent").value(50));
+		// The paper's own maximum is still 10, so 11 is out of range even though the exam now allows 20.
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("over.pdf"))
+			.param("marks", "11")
+			.header("Authorization", "Bearer " + instructor.token()))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("MARKS_OUT_OF_RANGE"));
+		// 7 of 10 passes at 50 percent. It would fail at 90 percent of 20.
+		mockMvc.perform(multipart("/api/v1/live-exam-participants/" + participant + "/evaluation").file(sheet("mark.pdf"))
+			.param("marks", "7")
+			.header("Authorization", "Bearer " + instructor.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.maximum").value(10))
+			.andExpect(jsonPath("$.passed").value(true));
+	}
+
+	@Test
 	void aLaterMarkReplacesThePdfAndChangesTheRank() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String staff = token(seed("SYSTEM_ADMIN", "Staff"));

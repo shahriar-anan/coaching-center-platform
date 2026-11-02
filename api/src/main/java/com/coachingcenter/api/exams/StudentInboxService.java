@@ -58,7 +58,9 @@ public class StudentInboxService {
 			  n.module_id as notice_module_id, a.id as announcement_id, a.title_en as announcement_title_en,
 			  a.title_bn as announcement_title_bn, a.body_en as announcement_body_en, a.body_bn as announcement_body_bn,
 			  a.audience as announcement_audience, a.exam_id as announcement_exam_id,
-			  case when e.exam_type = 'WRITTEN' then coalesce(e.written_maximum, 0)
+			  case when e.exam_type = 'WRITTEN' then coalesce(p.written_maximum, e.written_maximum, 0)
+			    when p.question_snapshot is not null then (select coalesce(sum((q ->> 'marks')::int), 0)
+			          from jsonb_array_elements(p.question_snapshot::jsonb -> 'questions') q)
 			    else (select coalesce(sum(q.marks), 0) from live_exam_questions q
 			          where q.exam_id = e.id and q.deleted_at is null) end as maximum
 			""";

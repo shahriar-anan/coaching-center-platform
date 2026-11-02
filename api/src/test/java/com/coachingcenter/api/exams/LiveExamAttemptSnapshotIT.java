@@ -198,7 +198,7 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void theLeaderboardRanksByPercentAcrossTwoVersions() throws Exception {
+	void theLeaderboardRanksByRawMarksAcrossTwoVersions() throws Exception {
 		Paper paper = paper("Board");
 		// Version 1 is worth 4 marks: the first student gets all of them, 100 percent.
 		Student first = enrol(paper);
@@ -220,20 +220,19 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 			.formatted(paper.q1(), paper.b(), paper.q2(), paper.x()));
 		clock.set(Instant.parse("2026-10-20T06:35:00Z"));
 		submit(paper, second).andExpect(jsonPath("$.score").value(6));
-		// Raw marks put the second student first (6 over 4). Percent puts the first student first (100 over 75).
+		// Ranked by raw marks: the second student is first (6 over 4), though the first student has the higher percent. Each row keeps its own maximum.
 		mockMvc.perform(get("/api/v1/live-exams/" + paper.exam() + "/leaderboard").header("Authorization", "Bearer " + paper.master()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.rows[0].rank").value(1))
-			.andExpect(jsonPath("$.rows[0].score").value(4))
-			.andExpect(jsonPath("$.rows[0].maximum").value(4))
-			.andExpect(jsonPath("$.rows[0].percent").value(100.0))
+			.andExpect(jsonPath("$.rows[0].score").value(6))
+			.andExpect(jsonPath("$.rows[0].maximum").value(8))
+			.andExpect(jsonPath("$.rows[0].percent").value(75.0))
 			.andExpect(jsonPath("$.rows[1].rank").value(2))
-			.andExpect(jsonPath("$.rows[1].score").value(6))
-			.andExpect(jsonPath("$.rows[1].maximum").value(8))
-			.andExpect(jsonPath("$.rows[1].percent").value(75.0));
+			.andExpect(jsonPath("$.rows[1].score").value(4))
+			.andExpect(jsonPath("$.rows[1].maximum").value(4))
+			.andExpect(jsonPath("$.rows[1].percent").value(100.0));
 	}
 
-	/** One exam with two questions, Q1 (A right, B wrong) and Q2 (X right, Y wrong), each worth two marks, published. */
 	@Test
 	void theStaffResultsShowEachAttemptsOwnMaximum() throws Exception {
 		Paper paper = paper("Results");
@@ -279,7 +278,7 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 		// Staff turn on one mark off per wrong answer after the first student has started (a published change).
 		clock.set(Instant.parse("2026-10-20T06:12:00Z"));
 		mockMvc.perform(patch("/api/v1/live-exams/" + paper.exam()).header("Authorization", "Bearer " + paper.staff())
-			.contentType(MediaType.APPLICATION_JSON).content("{\"negativeMarks\":1}"))
+			.contentType(MediaType.APPLICATION_JSON).content("{\"negativeMarks\":1,\"passPercent\":95}"))
 			.andExpect(status().isOk());
 		publishRevision(paper);
 		Student late = enrol(paper);
@@ -310,6 +309,50 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.maximum").value(4));
 	}
 
+	@Test
+	void aStudentPaperShowsTheNegativeMarkAndPassPercentOfTheAttempt() throws Exception {
+		Paper paper = paper("Paper rules");
+		Student early = enrol(paper);
+		clock.set(SITTING);
+		take(paper, early);
+		int passAtStart = json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + paper.exam())
+			.header("Authorization", "Bearer " + early.token())).andReturn().getResponse().getContentAsString()).get("passPercent").asInt();
+		clock.set(Instant.parse("2026-10-20T06:12:00Z"));
+		mockMvc.perform(patch("/api/v1/live-exams/" + paper.exam()).header("Authorization", "Bearer " + paper.staff())
+			.contentType(MediaType.APPLICATION_JSON).content("{\"negativeMarks\":1,\"passPercent\":95}"))
+			.andExpect(status().isOk());
+		publishRevision(paper);
+		Student late = enrol(paper);
+		clock.set(Instant.parse("2026-10-20T06:14:00Z"));
+		take(paper, late);
+
+		JsonNode earlyView = json.readTree(mockMvc.perform(get("/api/v1/live-exams/" + paper.exam())
+			.header("Authorization", "Bearer " + early.token())).andReturn().getResponse().getContentAsString());
+		assertThat(earlyView.get("passPercent").asInt()).isEqualTo(passAtStart).isNotEqualTo(95);
+		assertThat(earlyView.path("negativeMarks").asDouble(0)).isZero();
+		mockMvc.perform(get("/api/v1/live-exams/" + paper.exam()).header("Authorization", "Bearer " + late.token()))
+			.andExpect(jsonPath("$.passPercent").value(95))
+			.andExpect(jsonPath("$.negativeMarks").value(1));
+	}
+
+	@Test
+	void aScoreNoticeKeepsTheMaximumOfTheAttempt() throws Exception {
+		Paper paper = paper("Notice marks");
+		Student first = enrol(paper);
+		clock.set(SITTING);
+		take(paper, first);
+		clock.set(SUBMIT);
+		submit(paper, first).andExpect(status().isOk());
+		clock.set(Instant.parse("2026-10-20T06:22:00Z"));
+		edit(paper, paper.q2(), "{\"stem\":\"Second question\",\"marks\":6,\"explanation\":\"Because\",\"options\":"
+				+ "[{\"text\":\"X\",\"correct\":true},{\"text\":\"Y\",\"correct\":false}]}");
+		publishRevision(paper);
+		// The paper was out of 4 when it was sat. The notice says 4, not the current 8.
+		mockMvc.perform(get("/api/v1/me/notices").param("size", "50").header("Authorization", "Bearer " + first.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.content[?(@.kind == 'MCQ_SCORE')].maximum").value(org.hamcrest.Matchers.contains(4)));
+	}
+
 	private record Paper(UUID exam, UUID module, UUID q1, UUID q2, UUID a, UUID b, UUID x, UUID y, String staff, String master) {
 	}
 
@@ -317,6 +360,7 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 	private record Student(UUID id, String token) {
 	}
 
+	/** One exam with two questions, Q1 (A right, B wrong) and Q2 (X right, Y wrong), each worth two marks, published. */
 	private Paper paper(String title) throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
 		String master = token(seed("MASTER_ADMIN"));
