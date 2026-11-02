@@ -148,7 +148,7 @@ public class LiveExamService {
 		exam.setExamType(examType);
 		exam.setStatus(LiveExam.DRAFT);
 		exam.setFinallySaved(false);
-		applyEdit(exam, body, true);
+		applyEdit(exam, null, body, true);
 		LiveExam saved = exams.save(exam);
 		if (module != null) {
 			memberships.attach(module.getId(), saved.getId(), clock.instant());
@@ -162,16 +162,16 @@ public class LiveExamService {
 	 */
 	@Transactional
 	public ExamView update(UUID id, JsonNode body, UUID actorId) {
-		LiveExam exam = requireEditable(id);
-		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		LiveExam exam = require(id);
+		if (takesStagedEdits(exam)) {
 			ExamState working = staging.working(exam);
 			LiveExam probe = settingsOf(exam, working);
-			applyEdit(probe, body, false);
+			applyEdit(probe, exam.getId(), body, false);
 			working.readSettingsFrom(probe);
 			staging.stage(exam, working, actorId);
 			return view(exam, true);
 		}
-		applyEdit(exam, body, false);
+		applyEdit(exam, exam.getId(), body, false);
 		exam.setFinallySaved(false);
 		return view(exam, true);
 	}
@@ -179,9 +179,10 @@ public class LiveExamService {
 	/**
 	 * Applies the fields of a create or update body to {@code exam} and checks the result as a whole: the window against
 	 * the duration, and the price against the discount and the free flag. There is no lock (E27, E30): the schedule, the
-	 * scoring and the text can change at any time. {@code popular} is not read here; it has its own route.
+	 * scoring and the text can change at any time. {@code popular} is not read here; it has its own route. {@code examId}
+	 * is the stored exam the edit is for; a staged edit passes a transient copy, so it cannot be read from {@code exam}.
 	 */
-	private void applyEdit(LiveExam exam, JsonNode body, boolean create) {
+	private void applyEdit(LiveExam exam, UUID examId, JsonNode body, boolean create) {
 		rejectMaximumOnMcq(exam.getExamType(), body);
 		applyText(exam, body, create);
 		if (!create && body.has("categoryId")) {
@@ -198,7 +199,11 @@ public class LiveExamService {
 			exam.setPassPercent(readPassPercent(body, !create));
 		}
 		if (LiveExam.WRITTEN.equals(exam.getExamType()) && body.has("maximum")) {
-			exam.setWrittenMaximum(readMaximum(body, !create));
+			Integer maximum = readMaximum(body, !create);
+			if (!create) {
+				staging.requireMaximumCovers(examId, maximum);
+			}
+			exam.setWrittenMaximum(maximum);
 		}
 		if (body.has("price")) {
 			exam.setPrice(readPrice(body.get("price")));
@@ -234,8 +239,8 @@ public class LiveExamService {
 	}
 
 	/**
-	 * The titles and the rich text. A create may leave the description and rules blank (R1); publish refuses them. Both
-	 * the draft and the staged edit come through here, and the rich text is cleaned before it is stored (R3).
+	 * The titles and the rich text. The description and rules may be left blank, on create and on edit (D18); the titles
+	 * are required. Both the draft and the staged edit come through here, and the rich text is cleaned before it is stored (R3).
 	 */
 	private void applyText(LiveExam exam, JsonNode body, boolean create) {
 		for (String field : List.of("titleEn", "titleBn", "descriptionEn", "descriptionBn", "rulesEn", "rulesBn")) {
@@ -243,7 +248,7 @@ public class LiveExamService {
 				continue;
 			}
 			boolean richText = field.startsWith("description") || field.startsWith("rules");
-			String value = create && richText ? textOrBlank(body, field) : requiredText(body, field);
+			String value = richText ? textOrBlank(body, field) : requiredText(body, field);
 			switch (field) {
 				case "titleEn" -> exam.setTitleEn(value);
 				case "titleBn" -> exam.setTitleBn(value);
@@ -339,8 +344,7 @@ public class LiveExamService {
 	@Transactional
 	public QuestionView addQuestion(UUID examId, JsonNode body, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
-		requireStructureOpen(exam.getId());
-		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		if (takesStagedEdits(exam)) {
 			return stagedAddQuestion(exam, body, actorId);
 		}
 		markDraft(exam);
@@ -356,15 +360,12 @@ public class LiveExamService {
 	@Transactional
 	public QuestionView updateQuestion(UUID examId, UUID questionId, JsonNode body, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
-		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		if (takesStagedEdits(exam)) {
 			return stagedUpdateQuestion(exam, questionId, body, actorId);
 		}
 		markDraft(exam);
 		LiveExamQuestion question = questions.findByIdAndExamIdAndDeletedAtIsNull(questionId, examId)
 			.orElseThrow(this::notFound);
-		if (optionCountChanges(question.getId(), body.get("options"))) {
-			requireStructureOpen(exam.getId());
-		}
 		int position = body.has("position") && !body.get("position").isNull() ? body.get("position").asInt()
 				: question.getPosition();
 		boolean multiple = readMultipleAnswer(body, question.isMultipleAnswer());
@@ -375,8 +376,7 @@ public class LiveExamService {
 	@Transactional
 	public void deleteQuestion(UUID examId, UUID questionId, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
-		requireStructureOpen(exam.getId());
-		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		if (takesStagedEdits(exam)) {
 			stagedDeleteQuestion(exam, questionId, actorId);
 			return;
 		}
@@ -525,7 +525,7 @@ public class LiveExamService {
 				new java.io.ByteArrayInputStream(bytes), bytes.length);
 		// No earlier file is replaced; the call only removes this one if the transaction rolls back.
 		files.commitReplacement(stored.storedFileName(), null);
-		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		if (takesStagedEdits(exam)) {
 			// The new version waits in the revision; students keep the published paper until the publish (E29).
 			LiveExam probe = new LiveExam();
 			probe.setQuestionStoredFileName(stored.storedFileName());
@@ -547,11 +547,19 @@ public class LiveExamService {
 		return view(exam, true);
 	}
 
-	/** Takes a draft or published exam off the student website. Its posted results stay readable. */
+	/**
+	 * Withdraws a draft or published exam: it leaves the student website and its posted results stay readable. Refused while a
+	 * student is sitting it (D7). The row lock is taken first, as in publish, so a sitting cannot start halfway through.
+	 */
 	@Transactional
 	public ExamView archive(UUID id) {
-		LiveExam exam = require(id);
+		LiveExam exam = exams.lockById(id).orElseThrow(this::notFound);
 		if (!LiveExam.ARCHIVED.equals(exam.getStatus())) {
+			if (participants.existsByExamIdAndStatusAndSubmittedAtIsNullAndDeadlineAtAfterAndDeletedAtIsNull(exam.getId(),
+					LiveExamParticipant.IN_PROGRESS, clock.instant())) {
+				throw new ApiException(ErrorCode.EXAM_SITTING_OPEN, HttpStatus.CONFLICT,
+						"Students are sitting this exam now. Withdraw it after the sitting ends.");
+			}
 			exam.setStatus(LiveExam.ARCHIVED);
 			audit.record(AuditRecorder.LIVE_EXAM_ARCHIVE, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());
 		}
@@ -559,14 +567,14 @@ public class LiveExamService {
 	}
 
 	/**
-	 * Puts an archived exam back to draft. Students see nothing until a Master Admin publishes it again, and the publish needs
+	 * Puts a withdrawn exam back to draft. Students see nothing until a Master Admin publishes it again, and the publish needs
 	 * a final save again. The published content already on the row stays as it is. Refused under an archived category.
 	 */
 	@Transactional
 	public ExamView restore(UUID id) {
 		LiveExam exam = exams.lockById(id).orElseThrow(this::notFound);
 		if (!LiveExam.ARCHIVED.equals(exam.getStatus())) {
-			throw new ApiException(ErrorCode.NOT_ARCHIVED, HttpStatus.CONFLICT, "Only an archived exam can be restored.");
+			throw new ApiException(ErrorCode.NOT_ARCHIVED, HttpStatus.CONFLICT, "Only a withdrawn exam can be restored.");
 		}
 		if (visibility.branchHidden(exam.getCategoryId())) {
 			throw new ApiException(ErrorCode.CATEGORY_ARCHIVED, HttpStatus.CONFLICT,
@@ -580,7 +588,7 @@ public class LiveExamService {
 
 	@Transactional
 	public ExamView finalSave(UUID id) {
-		LiveExam exam = requireEditable(id);
+		LiveExam exam = require(id);
 		exam.setFinallySaved(true);
 		return view(exam, true);
 	}
@@ -599,12 +607,14 @@ public class LiveExamService {
 	@Transactional
 	public ExamView publish(UUID id, String revisionId, UUID actorId) {
 		LiveExam exam = exams.lockById(id).orElseThrow(this::notFound);
-		if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
-			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT, "An archived exam cannot be changed.");
-		}
-		if (LiveExam.PUBLISHED.equals(exam.getStatus()) && staging.hasRevision(exam.getId())) {
+		// A withdrawn exam's staged revision publishes too, and the exam stays withdrawn (D6).
+		if (takesStagedEdits(exam) && staging.hasRevision(exam.getId())) {
 			staging.publish(exam, revisionId, actorId);
 			return view(exam, true);
+		}
+		if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
+			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT,
+					"A withdrawn exam must be restored before it can be published.");
 		}
 		if (revisionId != null) {
 			throw new ApiException(ErrorCode.PENDING_CHANGES_STALE, HttpStatus.CONFLICT,
@@ -617,8 +627,6 @@ public class LiveExamService {
 			throw new ApiException(ErrorCode.PASS_PERCENT_REQUIRED, HttpStatus.CONFLICT,
 					"Publish requires a pass percent from 0 through 100.");
 		}
-		LiveExamRevisionService.requireTexts(exam.getDescriptionEn(), exam.getDescriptionBn(), exam.getRulesEn(),
-				exam.getRulesBn());
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
 			if (questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId()).isEmpty()) {
 				throw new ApiException(ErrorCode.QUESTIONS_REQUIRED, HttpStatus.CONFLICT,
@@ -628,6 +636,9 @@ public class LiveExamService {
 		else if (exam.getWrittenMaximum() == null || exam.getQuestionStoredFileName() == null) {
 			throw new ApiException(ErrorCode.WRITTEN_PAPER_REQUIRED, HttpStatus.CONFLICT,
 					"A written exam needs a maximum and a question PDF.");
+		}
+		else {
+			staging.requireMaximumCovers(exam.getId(), exam.getWrittenMaximum());
 		}
 		// An ended window is fine: archived participants can still sit the exam (D20). Windows may overlap (D17).
 		visibility.requireOpen(exam.getCategoryId());
@@ -758,9 +769,19 @@ public class LiveExamService {
 
 	/** An unfinished exam is a draft: only a first save of a published one changes nothing, and a draft takes the edit. */
 	private void markDraft(LiveExam exam) {
-		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		if (!takesStagedEdits(exam)) {
 			exam.setFinallySaved(false);
 		}
+	}
+
+	/**
+	 * Whether an edit to this exam is staged as a revision rather than written to its rows. A published exam is staged. A
+	 * withdrawn exam is staged too when it was ever published, because its rows are the published content (D5). A withdrawn
+	 * exam that was never published takes the edit directly.
+	 */
+	private static boolean takesStagedEdits(LiveExam exam) {
+		return LiveExam.PUBLISHED.equals(exam.getStatus())
+				|| (LiveExam.ARCHIVED.equals(exam.getStatus()) && exam.getPublishedAt() != null);
 	}
 
 	private void applyQuestion(LiveExamQuestion question, JsonNode body, int position, boolean multiple) {
@@ -824,8 +845,11 @@ public class LiveExamService {
 			}
 			return saved;
 		}
-		options.deleteAll(current);
-		options.flush();
+		// Rows are never hard-deleted: a pinned answer still points at its option (D12).
+		Instant now = clock.instant();
+		for (LiveExamOption removed : current) {
+			removed.setDeletedAt(now);
+		}
 		for (int position = 0; position < node.size(); position++) {
 			LiveExamOption row = new LiveExamOption();
 			row.setQuestionId(questionId);
@@ -839,13 +863,13 @@ public class LiveExamService {
 
 	/**
 	 * Puts the questions in the order the body gives: {@code questionIds} must name every live question exactly once. A published
-	 * exam stages the order. It is allowed after a student starts, since no question or option is added or removed.
+	 * or withdrawn exam stages the order. It is allowed after a student starts, since no question or option is added or removed.
 	 */
 	@Transactional
 	public void reorderQuestions(UUID examId, JsonNode body, UUID actorId) {
 		LiveExam exam = requireMcq(examId);
 		List<UUID> order = questionOrder(body);
-		if (LiveExam.PUBLISHED.equals(exam.getStatus())) {
+		if (takesStagedEdits(exam)) {
 			stagedReorderQuestions(exam, order, actorId);
 			return;
 		}
@@ -903,19 +927,6 @@ public class LiveExamService {
 				List.of(new FieldErrorDetail("questionIds", "Name every question of the exam exactly once, in the new order.")));
 	}
 
-	/** Once anyone has started the exam, its questions and options cannot be added or removed (R16). */
-	private void requireStructureOpen(UUID examId) {
-		if (participants.existsByExamId(examId)) {
-			throw new ApiException(ErrorCode.QUESTION_STRUCTURE_LOCKED, HttpStatus.CONFLICT,
-					"A student has started this exam, so its questions and options can no longer be added or removed.");
-		}
-	}
-
-	private boolean optionCountChanges(UUID questionId, JsonNode node) {
-		return node != null && node.isArray()
-				&& node.size() != options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId).size();
-	}
-
 	/** A question added to a published exam: it goes into the staged revision, with ids the publish will give rows. */
 	private QuestionView stagedAddQuestion(LiveExam exam, JsonNode body, UUID actorId) {
 		QuestionInput input = QuestionInput.parse(body);
@@ -931,7 +942,7 @@ public class LiveExamService {
 		return stagedQuestionView(question);
 	}
 
-	/** A question edit on a published exam: the option count is locked after a start, as for a draft (R16). */
+	/** A question edit on a published or withdrawn exam: the change is staged, and the option count may change (D11). */
 	private QuestionView stagedUpdateQuestion(LiveExam exam, UUID questionId, JsonNode body, UUID actorId) {
 		ExamState working = staging.working(exam);
 		ExamState.QuestionState question = working.question(questionId);
@@ -941,9 +952,6 @@ public class LiveExamService {
 		QuestionInput input = QuestionInput.parse(body);
 		boolean multiple = input.multiple(question.multipleAnswer);
 		input.requireKey(multiple);
-		if (input.options().size() != question.options.size()) {
-			requireStructureOpen(exam.getId());
-		}
 		if (input.position() != null) {
 			question.position = input.position();
 		}
@@ -1226,15 +1234,6 @@ public class LiveExamService {
 
 	private LiveExam require(UUID id) {
 		return exams.findByIdAndDeletedAtIsNull(id).orElseThrow(this::notFound);
-	}
-
-	/** An archived exam cannot be changed. Staff reads still use {@link #require(UUID)}. */
-	private LiveExam requireEditable(UUID id) {
-		LiveExam exam = require(id);
-		if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
-			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT, "An archived exam cannot be changed.");
-		}
-		return exam;
 	}
 
 	private LiveExamModule requireModule(UUID id) {

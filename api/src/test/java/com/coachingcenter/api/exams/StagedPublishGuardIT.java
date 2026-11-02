@@ -74,7 +74,7 @@ class StagedPublishGuardIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aStagedAddedQuestionCannotBePublishedOnceAStudentHasStarted() throws Exception {
+	void aStagedAddedQuestionPublishesOnceAStudentHasStarted() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID module = fx.module(staff, "Added question");
@@ -93,27 +93,22 @@ class StagedPublishGuardIT extends PostgresIntegrationTest {
 		JsonNode changes = pending(staff, exam);
 		assertThat(questionChanges(changes)).contains("ADDED");
 
+		// A question added after a start publishes (D11). The student's running attempt keeps its own paper (D9).
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"revisionId\":\"" + changes.get("revisionId").asText() + "\"}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("QUESTION_STRUCTURE_LOCKED"));
+			.andExpect(status().isOk());
 
-		assertThat(questionCount(exam)).isEqualTo(1);
+		assertThat(questionCount(exam)).isEqualTo(2);
 		assertThat(fx.jdbc().queryForObject("select status from live_exams where id = ?", String.class, exam))
 			.isEqualTo("PUBLISHED");
 		assertThat(fx.jdbc().queryForObject("select count(*) from live_exam_revisions where exam_id = ?", Integer.class, exam))
-			.isOne();
-		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.pendingChanges").value(true));
-
-		discard(staff, exam);
+			.isZero();
 		wordingOnlyEditPublishesAfterAStart(staff, master, exam, stem, "*A", "B");
 	}
 
 	@Test
-	void aStagedRemovedOptionCannotBePublishedOnceAStudentHasStarted() throws Exception {
+	void aStagedRemovedOptionPublishesOnceAStudentHasStarted() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID module = fx.module(staff, "Removed option");
@@ -131,20 +126,20 @@ class StagedPublishGuardIT extends PostgresIntegrationTest {
 		startSitting(studentId, exam);
 
 		JsonNode changes = pending(staff, exam);
+		// A removed option publishes after a start (D11). The removed row is soft-deleted, so a pinned answer still points at it (D12).
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"revisionId\":\"" + changes.get("revisionId").asText() + "\"}"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("QUESTION_STRUCTURE_LOCKED"));
+			.andExpect(status().isOk());
 
-		assertThat(optionCount(stem)).isEqualTo(3);
+		assertThat(optionCount(stem)).isEqualTo(2);
 		assertThat(fx.jdbc().queryForObject("select status from live_exams where id = ?", String.class, exam))
 			.isEqualTo("PUBLISHED");
-		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff))
-			.andExpect(jsonPath("$.pendingChanges").value(true));
-
-		discard(staff, exam);
-		wordingOnlyEditPublishesAfterAStart(staff, master, exam, stem, "*A", "B", "C");
+		// A changed option count gives the question fresh option ids (applyInput), so all three old rows are soft-deleted, not just one.
+		// A pinned answer to any of them still resolves (D12).
+		assertThat(fx.jdbc().queryForObject("select count(*) from live_exam_options where question_id = ? and deleted_at is not null",
+				Integer.class, stem)).isEqualTo(3);
+		wordingOnlyEditPublishesAfterAStart(staff, master, exam, stem, "*A", "B");
 	}
 
 	/**
@@ -175,11 +170,6 @@ class StagedPublishGuardIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + student)
 			.contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isOk());
-	}
-
-	private void discard(String staff, UUID exam) throws Exception {
-		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/pending-changes").header("Authorization", "Bearer " + staff))
-			.andExpect(status().isNoContent());
 	}
 
 	private int questionCount(UUID exam) {

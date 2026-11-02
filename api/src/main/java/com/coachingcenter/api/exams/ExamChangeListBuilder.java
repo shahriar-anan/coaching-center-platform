@@ -32,39 +32,22 @@ class ExamChangeListBuilder {
 		this.papers = papers;
 	}
 
-	/** What an edit changes. {@code submittedMcq} and {@code recipients} come from the caller, who counts the rows. */
-	ChangeList build(String revisionId, ExamState before, ExamState after, int submittedMcq, int recipients) {
+	/**
+	 * What an edit changes. {@code recipients} comes from the caller, who counts the rows. Publishing never re-scores a
+	 * submitted paper (D10), so the impact always reports none.
+	 */
+	ChangeList build(String revisionId, ExamState before, ExamState after, int recipients) {
 		List<FieldChange> fields = fields(before, after);
 		List<QuestionChange> questions = questions(before, after);
 		PaperChange paper = paper(before, after);
-		boolean scoring = scoringChanged(fields, questions);
 		boolean notifies = timeChanged(fields);
-		Impact impact = new Impact(scoring ? submittedMcq : 0, notifies, notifies ? recipients : 0);
+		Impact impact = new Impact(0, notifies, notifies ? recipients : 0);
 		return new ChangeList(revisionId, fields, questions, paper, List.of(), impact);
 	}
 
 	/** True when the diff is empty, so a revision that was edited back to the published state can be dropped. */
 	static boolean isEmpty(ChangeList changes) {
 		return changes.fields().isEmpty() && changes.questions().isEmpty() && changes.paper() == null;
-	}
-
-	/** True when a re-score is due: the answer key, the marks, a multi-answer flag, negative marks or the pass percent changed. */
-	static boolean scoringChanged(ChangeList changes) {
-		return scoringChanged(changes.fields(), changes.questions());
-	}
-
-	private static boolean scoringChanged(List<FieldChange> fields, List<QuestionChange> questions) {
-		for (FieldChange field : fields) {
-			if ("negativeMarks".equals(field.field()) || "passPercent".equals(field.field())) {
-				return true;
-			}
-		}
-		for (QuestionChange question : questions) {
-			if (Set.of("CORRECT", "MARKS", "MULTIPLE", "ADDED", "REMOVED").contains(question.change())) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/** True when the publish changes the live time, the end time or the duration. */

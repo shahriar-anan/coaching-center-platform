@@ -73,8 +73,8 @@ public class LiveExamModuleService {
 		module.setCategoryId(categoryId);
 		module.setTitleEn(requiredText(body, "titleEn"));
 		module.setTitleBn(requiredText(body, "titleBn"));
-		module.setDescriptionEn(sanitizer.clean(requiredText(body, "descriptionEn")));
-		module.setDescriptionBn(sanitizer.clean(requiredText(body, "descriptionBn")));
+		module.setDescriptionEn(sanitizer.clean(textOrBlank(body, "descriptionEn")));
+		module.setDescriptionBn(sanitizer.clean(textOrBlank(body, "descriptionBn")));
 		module.setAccessMode(LiveExamModule.MANUAL);
 		module.setStatus(LiveExamModule.DRAFT);
 		module.setFinallySaved(false);
@@ -220,8 +220,8 @@ public class LiveExamModuleService {
 	private PackageRevisionService.Draft edit(LiveExamModule module, PackageRevisionService.Draft current, JsonNode body) {
 		String titleEn = optionalText(body, "titleEn", current.titleEn());
 		String titleBn = optionalText(body, "titleBn", current.titleBn());
-		String descriptionEn = sanitizer.clean(optionalText(body, "descriptionEn", current.descriptionEn()));
-		String descriptionBn = sanitizer.clean(optionalText(body, "descriptionBn", current.descriptionBn()));
+		String descriptionEn = sanitizer.clean(optionalRichText(body, "descriptionEn", current.descriptionEn()));
+		String descriptionBn = sanitizer.clean(optionalRichText(body, "descriptionBn", current.descriptionBn()));
 		UUID categoryId = current.categoryId();
 		boolean categoryChanged = false;
 		if (body.has("categoryId")) {
@@ -328,6 +328,16 @@ public class LiveExamModuleService {
 
 	private static String optionalText(JsonNode body, String field, String current) {
 		return body.has(field) && !body.get(field).isNull() ? requiredText(body, field) : current;
+	}
+
+	/** A description may be left blank: it is stored as an empty string, never refused (D18). */
+	private static String optionalRichText(JsonNode body, String field, String current) {
+		return body.has(field) && !body.get(field).isNull() ? textOrBlank(body, field) : current;
+	}
+
+	private static String textOrBlank(JsonNode body, String field) {
+		JsonNode node = body.get(field);
+		return node == null || node.isNull() ? "" : node.asText().trim();
 	}
 
 	private static String requiredText(JsonNode body, String field) {

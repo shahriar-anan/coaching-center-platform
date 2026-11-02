@@ -1,0 +1,310 @@
+package com.coachingcenter.api.exams;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
+import javax.sql.DataSource;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import com.coachingcenter.api.MutableClock;
+import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.auth.CapturingEmailConfig;
+
+import tools.jackson.databind.ObjectMapper;
+
+/**
+ * Agent B's rules, written and not yet run: a withdrawn exam takes edits (staged when it was published), withdraw is refused
+ * during an open sitting, questions change after a start, rows are soft-deleted, texts are optional, a written maximum
+ * cannot fall below a mark, and publishing does not re-score.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@Import({ CapturingEmailConfig.class, ExamRulesWithdrawIT.ClockConfig.class })
+class ExamRulesWithdrawIT extends PostgresIntegrationTest {
+
+	private static final Instant TEN_AM = Instant.parse("2026-10-20T04:00:00Z");
+
+	/** The window opens at 12:00 Dhaka. A student who takes at 12:10 Dhaka has a deadline at 12:50 Dhaka. */
+	private static final Instant TAKEN_AT = Instant.parse("2026-10-20T06:10:00Z");
+
+	private static final Instant AFTER_DEADLINE = Instant.parse("2026-10-20T07:00:00Z");
+
+	@Autowired
+	private MockMvc mockMvc;
+
+	@Autowired
+	private DataSource dataSource;
+
+	@Autowired
+	private PasswordEncoder passwords;
+
+	@Autowired
+	private ObjectMapper json;
+
+	@Autowired
+	private MutableClock clock;
+
+	private AuthoringFixture fx;
+
+	@BeforeEach
+	void setUp() {
+		clock.set(TEN_AM);
+		fx = new AuthoringFixture(mockMvc, dataSource, passwords, json);
+	}
+
+	@Test
+	void editsToAWithdrawnExamThatWasPublishedAreStagedUntilThePublish() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID category = fx.category(staff, "Withdrawn staged");
+		UUID exam = fx.createStandalone(staff, category, "MCQ", "Old title", AuthoringFixture.LIVE_AT, 40, null);
+		fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		withdraw(master, exam);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"titleEn\":\"New title\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"))
+			.andExpect(jsonPath("$.pendingChanges").value(true));
+		assertThat(titleInRow(exam)).isEqualTo("Old title");
+
+		// The staged revision of a withdrawn exam publishes, and the exam stays withdrawn (D6).
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"))
+			.andExpect(jsonPath("$.pendingChanges").value(false));
+		assertThat(titleInRow(exam)).isEqualTo("New title");
+	}
+
+	@Test
+	void editsToAWithdrawnExamThatWasNeverPublishedApplyDirectly() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID category = fx.category(staff, "Withdrawn draft");
+		UUID exam = fx.createStandalone(staff, category, "MCQ", "Draft title", AuthoringFixture.LIVE_AT, 40, null);
+		withdraw(master, exam);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"titleEn\":\"Renamed draft\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"))
+			.andExpect(jsonPath("$.titleEn").value("Renamed draft"))
+			.andExpect(jsonPath("$.pendingChanges").value(false));
+		assertThat(titleInRow(exam)).isEqualTo("Renamed draft");
+
+		// Still no publish without a restore: the withdrawn exam says so.
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_ARCHIVED"));
+	}
+
+	@Test
+	void withdrawIsRefusedWhileAStudentIsSittingAndAllowedAfterTheDeadline() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Withdraw sitting");
+		UUID exam = fx.createExam(staff, module, "MCQ", "Sitting now", AuthoringFixture.LIVE_AT, 40, null);
+		fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		takeExam(module, exam);
+
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("EXAM_SITTING_OPEN"));
+
+		clock.set(AFTER_DEADLINE);
+		withdraw(master, exam);
+	}
+
+	@Test
+	void questionsCanBeAddedAndRemovedAfterAStudentStarted() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Structure after start");
+		UUID exam = fx.createExam(staff, module, "MCQ", "Structure", AuthoringFixture.LIVE_AT, 40, null);
+		UUID first = fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		takeExam(module, exam);
+
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/questions").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(AuthoringFixture.questionJson("Added after start", 2, "Because", false, "*A", "B")))
+			.andExpect(status().isCreated());
+		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + first).header("Authorization", "Bearer " + staff))
+			.andExpect(status().is2xxSuccessful());
+	}
+
+	@Test
+	void aChangedOptionCountKeepsTheOldOptionRows() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID category = fx.category(staff, "Soft delete");
+		UUID exam = fx.createStandalone(staff, category, "MCQ", "Options", AuthoringFixture.LIVE_AT, 40, null);
+		UUID question = fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		UUID firstOption = fx.jdbc().queryForObject(
+				"select id from live_exam_options where question_id = ? and position = 0", UUID.class, question);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam + "/questions/" + question)
+			.header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(AuthoringFixture.questionJson("Stem", 1, "Because", false, "*A", "B", "C")))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		// The two replaced options are soft-deleted, not removed, so a pinned answer still points at a real row (D12).
+		assertThat(fx.jdbc().queryForObject(
+				"select count(*) from live_exam_options where question_id = ? and deleted_at is not null", Integer.class,
+				question)).isEqualTo(2);
+		assertThat(fx.jdbc().queryForObject("select count(*) from live_exam_options where id = ?", Integer.class,
+				firstOption)).isEqualTo(1);
+	}
+
+	@Test
+	void descriptionsAndRulesCanBeBlankOnAPackageAndAnExam() throws Exception {
+		String staff = fx.staff();
+		UUID category = fx.category(staff, "Blank package text");
+		MvcResult created = mockMvc.perform(post("/api/v1/live-exam-modules").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(json.writeValueAsString(Map.of("categoryId", category, "titleEn", "Blank package", "titleBn", "মডিউল",
+					"descriptionEn", "", "descriptionBn", ""))))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.descriptionEn").value(""))
+			.andReturn();
+		UUID module = fx.id(created);
+		mockMvc.perform(patch("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"descriptionEn\":\"\",\"descriptionBn\":\"\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.descriptionBn").value(""));
+
+		UUID exam = fx.createStandalone(staff, category, "MCQ", "Blank exam text", AuthoringFixture.LIVE_AT, 40, null);
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"descriptionEn\":\"\",\"rulesEn\":\"\",\"rulesBn\":\"\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rulesEn").value(""));
+	}
+
+	@Test
+	void aWrittenMaximumBelowTheHighestMarkIsRefusedAtEditAndAtPublish() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Written maximum");
+		UUID exam = fx.createExam(staff, module, "WRITTEN", "Written maximum", AuthoringFixture.LIVE_AT, 40, null);
+		fx.uploadPdf(staff, exam);
+		fx.publishNew(master, exam);
+		UUID student = takeExam(module, exam);
+		fx.jdbc().update(
+				"update live_exam_participants set status = 'SUBMITTED', score = 8, submitted_at = now() where exam_id = ? and student_id = ?",
+				exam, student);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"maximum\":5}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("WRITTEN_MAXIMUM_BELOW_MARK"))
+			.andExpect(jsonPath("$.fieldErrors[0].field").value("writtenMaximum"));
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"maximum\":8}"))
+			.andExpect(status().isOk());
+
+		// A mark given after the edit was staged is caught at publish.
+		fx.jdbc().update("update live_exam_participants set score = 9 where exam_id = ?", exam);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("WRITTEN_MAXIMUM_BELOW_MARK"));
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"maximum\":9}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+	}
+
+	@Test
+	void publishingAChangedKeyDoesNotRescoreSubmittedPapers() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "No rescore");
+		UUID exam = fx.createExam(staff, module, "MCQ", "No rescore", AuthoringFixture.LIVE_AT, 40, null);
+		UUID question = fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		UUID student = takeExam(module, exam);
+		fx.jdbc().update(
+				"update live_exam_participants set status = 'SUBMITTED', score = 1, submitted_at = now() where exam_id = ? and student_id = ?",
+				exam, student);
+
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam + "/questions/" + question).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(AuthoringFixture.questionJson("Stem", 1, "Because", false, "A", "*B")))
+			.andExpect(status().isOk());
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+
+		BigDecimal score = fx.jdbc().queryForObject("select score from live_exam_participants where exam_id = ?",
+				BigDecimal.class, exam);
+		assertThat(score).isEqualByComparingTo("1");
+		assertThat(fx.jdbc().queryForObject("select rescored from live_exam_change_log where exam_id = ?", Integer.class,
+				exam)).isZero();
+	}
+
+	private void withdraw(String master, UUID exam) throws Exception {
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("ARCHIVED"));
+	}
+
+	/** A student is granted the package and takes the exam at 12:10 Dhaka. Returns the student's id. */
+	private UUID takeExam(UUID module, UUID exam) throws Exception {
+		UUID student = fx.seed("STUDENT");
+		fx.grantModule(module, student);
+		clock.set(TAKEN_AT);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/take").header("Authorization", "Bearer " + fx.token(student)))
+			.andExpect(status().is2xxSuccessful());
+		return student;
+	}
+
+	private String titleInRow(UUID exam) {
+		return fx.jdbc().queryForObject("select title_en from live_exams where id = ?", String.class, exam);
+	}
+
+	@TestConfiguration
+	static class ClockConfig {
+
+		@Bean
+		@Primary
+		MutableClock mutableClock() {
+			return new MutableClock(TEN_AM);
+		}
+
+	}
+
+}

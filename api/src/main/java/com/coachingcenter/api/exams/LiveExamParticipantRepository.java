@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,22 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 	List<LiveExamParticipant> findByExamIdAndDeletedAtIsNull(UUID examId);
 
 	boolean existsByExamId(UUID examId);
+
+	/** Is a student sitting this exam now: in progress, not submitted, and the deadline not yet passed (D7). */
+	boolean existsByExamIdAndStatusAndSubmittedAtIsNullAndDeadlineAtAfterAndDeletedAtIsNull(UUID examId, String status,
+			Instant now);
+
+	/**
+	 * The highest mark given to a paper of this exam: the saved mark, or the pending one when a correction waits for release
+	 * (D16). Null when no paper has a mark yet.
+	 */
+	@Query("""
+			select max(case when p.pendingScore is not null and (p.score is null or p.pendingScore > p.score)
+			  then p.pendingScore else p.score end)
+			from LiveExamParticipant p
+			where p.examId = :examId and p.deletedAt is null
+			""")
+	BigDecimal highestMarkGiven(@Param("examId") UUID examId);
 
 	boolean existsByEvaluatedBy(UUID evaluatedBy);
 

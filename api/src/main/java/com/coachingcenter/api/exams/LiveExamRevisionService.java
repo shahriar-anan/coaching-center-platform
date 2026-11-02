@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -60,8 +61,6 @@ public class LiveExamRevisionService {
 
 	private final ExamChangeListBuilder builder;
 
-	private final McqRescorer rescorer;
-
 	private final StudentNoticeWriter notices;
 
 	private final AfterCommit afterCommit;
@@ -78,7 +77,7 @@ public class LiveExamRevisionService {
 			LiveExamModuleRevisionRepository moduleRevisions, LiveExamModuleRepository modules,
 			LiveExamQuestionRepository questions, LiveExamOptionRepository options,
 			LiveExamQuestionPaperRepository papers, LiveExamParticipantRepository participants,
-			LiveExamChangeLogRepository changeLog, ExamChangeListBuilder builder, McqRescorer rescorer,
+			LiveExamChangeLogRepository changeLog, ExamChangeListBuilder builder,
 			StudentNoticeWriter notices, AfterCommit afterCommit, AuditRecorder audit,
 			LiveExamCatalogVisibility visibility, Clock clock, ObjectMapper json) {
 		this.exams = exams;
@@ -91,7 +90,6 @@ public class LiveExamRevisionService {
 		this.participants = participants;
 		this.changeLog = changeLog;
 		this.builder = builder;
-		this.rescorer = rescorer;
 		this.notices = notices;
 		this.afterCommit = afterCommit;
 		this.audit = audit;
@@ -129,7 +127,7 @@ public class LiveExamRevisionService {
 	 * edit that was undone leaves nothing waiting.
 	 */
 	void stage(LiveExam exam, ExamState state, UUID actorId) {
-		ChangeList changes = builder.build("", published(exam, true), state, 0, 0);
+		ChangeList changes = builder.build("", published(exam, true), state, 0);
 		Optional<LiveExamRevision> existing = revisions.findByExamId(exam.getId());
 		if (ExamChangeListBuilder.isEmpty(changes)) {
 			existing.ifPresent(revisions::delete);
@@ -168,20 +166,7 @@ public class LiveExamRevisionService {
 	private ChangeList changes(LiveExam exam, LiveExamRevision revision) {
 		ExamState before = published(exam, true);
 		ExamState after = readRevision(exam, revision.getPayload());
-		return builder.build(token(revision), before, after, submittedMcq(exam), exams.findActiveStudentsWithAccessToExam(exam.getId()).size());
-	}
-
-	private int submittedMcq(LiveExam exam) {
-		if (!LiveExam.MCQ.equals(exam.getExamType())) {
-			return 0;
-		}
-		int count = 0;
-		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(exam.getId())) {
-			if (LiveExamParticipant.SUBMITTED.equals(participant.getStatus())) {
-				count++;
-			}
-		}
-		return count;
+		return builder.build(token(revision), before, after, exams.findActiveStudentsWithAccessToExam(exam.getId()).size());
 	}
 
 	/**
@@ -202,23 +187,14 @@ public class LiveExamRevisionService {
 		ExamState after = readRevision(exam, revision.getPayload());
 		requirePublishable(exam, after);
 		List<UUID> recipients = exams.findActiveStudentsWithAccessToExam(exam.getId());
-		ChangeList changes = builder.build(token, before, after, submittedMcq(exam), recipients.size());
-		if (structureChanged(changes, before, after) && participants.existsByExamId(exam.getId())) {
-			throw new ApiException(ErrorCode.QUESTION_STRUCTURE_LOCKED, HttpStatus.CONFLICT,
-					"A student has started this exam since these edits were staged. Questions and options can no longer be added or removed; discard the staged changes and edit again.");
-		}
+		ChangeList changes = builder.build(token, before, after, recipients.size());
 		apply(exam, after);
 		exams.flush();
-		int rescored = 0;
-		if (LiveExam.MCQ.equals(exam.getExamType()) && ExamChangeListBuilder.scoringChanged(changes)) {
-			questions.flush();
-			options.flush();
-			rescored = rescorer.rescore(exam.getId());
-		}
 		LiveExamChangeLog entry = new LiveExamChangeLog();
 		entry.setExamId(exam.getId());
 		entry.setChanges(write(changes));
-		entry.setRescored(rescored);
+		// Publishing no longer re-scores a submitted MCQ paper (D10), so nothing is rescored.
+		entry.setRescored(0);
 		entry.setPublishedBy(actorId);
 		entry.setPublishedAt(clock.instant());
 		changeLog.save(entry);
@@ -237,7 +213,6 @@ public class LiveExamRevisionService {
 			throw new ApiException(ErrorCode.PASS_PERCENT_REQUIRED, HttpStatus.CONFLICT,
 					"Publish requires a pass percent from 0 through 100.");
 		}
-		requireTexts(state.descriptionEn, state.descriptionBn, state.rulesEn, state.rulesBn);
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
 			if (state.questions.isEmpty()) {
 				throw new ApiException(ErrorCode.QUESTIONS_REQUIRED, HttpStatus.CONFLICT,
@@ -248,27 +223,14 @@ public class LiveExamRevisionService {
 			throw new ApiException(ErrorCode.WRITTEN_PAPER_REQUIRED, HttpStatus.CONFLICT,
 					"A written exam needs a maximum and a question PDF.");
 		}
+		else {
+			requireMaximumCovers(exam.getId(), state.writtenMaximum);
+		}
 		ExamWindow.validate(state.mode, ExamState.instant(state.liveAt), ExamState.instant(state.endsAt),
 				state.durationMinutes);
 		ExamPricing.validate(state.price, state.free, state.discountPercent, ExamState.instant(state.discountEndsAt));
 		// An ended window is fine: archived participants can still sit the exam (D20). Windows may overlap (D17).
 		visibility.requireOpen(exam.getCategoryId());
-	}
-
-	/** True when the edit adds or removes a question or changes the number of options in one. */
-	private static boolean structureChanged(ChangeList changes, ExamState before, ExamState after) {
-		for (QuestionChange change : changes.questions()) {
-			if ("ADDED".equals(change.change()) || "REMOVED".equals(change.change())) {
-				return true;
-			}
-		}
-		for (ExamState.QuestionState question : after.questions) {
-			ExamState.QuestionState earlier = before.question(question.id);
-			if (earlier != null && earlier.options.size() != question.options.size()) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private void apply(LiveExam exam, ExamState after) {
@@ -319,6 +281,7 @@ public class LiveExamRevisionService {
 	}
 
 	private void syncOptions(UUID questionId, ExamState.QuestionState state) {
+		Instant now = clock.instant();
 		Map<UUID, LiveExamOption> rows = new HashMap<>();
 		for (LiveExamOption row : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(questionId)) {
 			rows.put(row.getId(), row);
@@ -334,7 +297,10 @@ public class LiveExamRevisionService {
 			row.setPosition(option.position);
 			options.save(row);
 		}
-		options.deleteAll(rows.values());
+		// Rows are never hard-deleted: a pinned answer still points at its option (D12).
+		for (LiveExamOption removed : rows.values()) {
+			removed.setDeletedAt(now);
+		}
 	}
 
 	private List<ExamState.QuestionState> questionsOf(UUID examId) {
@@ -440,31 +406,19 @@ public class LiveExamRevisionService {
 	}
 
 	/**
-	 * The four text fields a publish needs (R1). Create accepts them blank; publish does not. Each blank field is named in
-	 * {@code fieldErrors}, so the form can show the message under it.
+	 * A written maximum cannot sit below the highest mark already given, saved or pending (D16). Checked on edit and on
+	 * publish. A null maximum is left for the publish to refuse.
 	 */
-	static void requireTexts(String descriptionEn, String descriptionBn, String rulesEn, String rulesBn) {
-		List<FieldErrorDetail> missing = new ArrayList<>();
-		if (blank(descriptionEn)) {
-			missing.add(new FieldErrorDetail("descriptionEn", "The English description is needed to publish."));
+	void requireMaximumCovers(UUID examId, Integer maximum) {
+		if (maximum == null) {
+			return;
 		}
-		if (blank(descriptionBn)) {
-			missing.add(new FieldErrorDetail("descriptionBn", "The Bangla description is needed to publish."));
+		BigDecimal highest = participants.highestMarkGiven(examId);
+		if (highest != null && BigDecimal.valueOf(maximum).compareTo(highest) < 0) {
+			throw new ApiException(ErrorCode.WRITTEN_MAXIMUM_BELOW_MARK, HttpStatus.CONFLICT,
+					"The maximum cannot be below the highest mark already given.",
+					List.of(new FieldErrorDetail("writtenMaximum", "The maximum cannot be below the highest mark already given.")));
 		}
-		if (blank(rulesEn)) {
-			missing.add(new FieldErrorDetail("rulesEn", "The English rules are needed to publish."));
-		}
-		if (blank(rulesBn)) {
-			missing.add(new FieldErrorDetail("rulesBn", "The Bangla rules are needed to publish."));
-		}
-		if (!missing.isEmpty()) {
-			throw new ApiException(ErrorCode.EXAM_TEXT_REQUIRED, HttpStatus.CONFLICT,
-					"Publish requires the English and Bangla descriptions and rules.", missing);
-		}
-	}
-
-	private static boolean blank(String value) {
-		return value == null || value.isBlank();
 	}
 
 	private ApiException noPending() {

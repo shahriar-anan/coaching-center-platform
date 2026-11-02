@@ -126,7 +126,7 @@ class ExamQuestionMultiAnswerIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aStartedExamKeepsItsQuestionAndOptionCountButTakesEveryKeyAndWordingEdit() throws Exception {
+	void aStartedExamTakesQuestionAndOptionCountChangesAndEveryKeyAndWordingEdit() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID module = fx.module(staff, "Locked");
@@ -143,15 +143,14 @@ class ExamQuestionMultiAnswerIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isOk());
 
+		// Once a student has started, questions and option counts may still change (D11). A running attempt keeps its own paper (D9).
 		postQuestion(staff, exam, AuthoringFixture.questionJson("Late", 1, null, false, "*A", "B"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("QUESTION_STRUCTURE_LOCKED"));
+			.andExpect(status().isCreated());
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/questions/" + dropped).header("Authorization", "Bearer " + staff))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("QUESTION_STRUCTURE_LOCKED"));
+			.andExpect(status().is2xxSuccessful());
 		patchQuestion(staff, exam, kept, AuthoringFixture.questionJson("Keep", 1, "Why", false, "*A", "B", "C", "D"))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("QUESTION_STRUCTURE_LOCKED"));
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.options", org.hamcrest.Matchers.hasSize(4)));
 
 		// Wording, key, marks, explanation and the multi-answer setting still change, and the row keeps its id.
 		patchQuestion(staff, exam, kept, AuthoringFixture.questionJson("Reworded", 3, "Because", true, "A", "*B", "*C"))

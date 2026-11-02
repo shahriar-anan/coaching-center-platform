@@ -137,39 +137,21 @@ class ExamAuthoringStep1IT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void publishRefusesBlankTextAndNamesEachField() throws Exception {
+	void publishAcceptsBlankTextAndStillNeedsAQuestion() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID category = fx.category(staff, "Publish text");
 		UUID exam = created(staff, examJson(category, "BN", "", "", ""));
 		fx.finalSave(staff, exam);
 
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("EXAM_TEXT_REQUIRED"))
-			.andExpect(jsonPath("$.fieldErrors.length()").value(3))
-			.andExpect(jsonPath("$.fieldErrors[0].field").value("descriptionEn"))
-			.andExpect(jsonPath("$.fieldErrors[2].field").value("rulesBn"));
-
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"descriptionEn\":\"Now filled\"}"))
-			.andExpect(status().isOk());
-		fx.finalSave(staff, exam);
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.fieldErrors.length()").value(2))
-			.andExpect(jsonPath("$.fieldErrors[0].field").value("rulesEn"));
-
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"rulesEn\":\"English rules\",\"rulesBn\":\"বাংলা নিয়ম\"}"))
-			.andExpect(status().isOk());
-		fx.finalSave(staff, exam);
-		// The text gate passes now; the exam has no question yet, which is the next refusal.
+		// The four texts are optional now (D18), so the text gate is gone; the exam has no question yet, which is the refusal.
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("QUESTIONS_REQUIRED"));
+
+		fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		assertThat(fx.exam(staff, exam).get("status").asText()).isEqualTo("PUBLISHED");
 	}
 
 	@Test
