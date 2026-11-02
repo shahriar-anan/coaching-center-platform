@@ -16,6 +16,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
 import { CODE_DEAD, FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+import { GoogleSignInButton } from "@/app/(auth)/_components/google-sign-in-button";
+import { googleEnabled } from "@/lib/config";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import {
@@ -153,6 +155,12 @@ function RegisterForm() {
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.register.breadcrumb") }]}
       />
       <Card padding="lg" className="grid gap-5">
+        {googleEnabled ? (
+          <div className="grid gap-3">
+            <GoogleSignInButton label={t("auth.register.googleButton")} next={next} />
+            <p className="text-center text-body text-muted">{t("auth.login.divider")}</p>
+          </div>
+        ) : null}
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
           <Field label={t("auth.register.fullName")} error={errors.fullName} required>
             <TextInput
