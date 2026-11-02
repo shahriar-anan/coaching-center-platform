@@ -1,6 +1,6 @@
 import { apiBaseUrl, apiUrl } from "@/lib/config";
 import { ApiError } from "@/lib/api/errors";
-import type { ApiErrorBody, CourseNodeView } from "@/lib/api/types";
+import type { ApiErrorBody, CourseNodeView, TokenResponse } from "@/lib/api/types";
 import { getAccessToken, setAccessToken } from "@/lib/auth/token-store";
 import { recordServerDate } from "@/lib/time/clock";
 
@@ -79,14 +79,17 @@ async function rawFetch(path: string, options: RequestOptions = {}): Promise<Res
   return response;
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
+type RefreshResult = { tokens: TokenResponse } | { status: number; error: ApiError };
+
+let refreshInFlight: Promise<RefreshResult> | null = null;
 
 /**
  * Trades the refresh cookie for a new access token. The API rotates the cookie
- * on every use and ends the session when a used one comes back, so requests
- * that fail together share this one call.
+ * on every use and ends the session when a used one comes back, so everything
+ * that refreshes at the same time shares this one call: requests that fail
+ * together, the session start-up, and the page Google returns to.
  */
-function refreshAccessToken(): Promise<boolean> {
+function sharedRefresh(): Promise<RefreshResult> {
   refreshInFlight ??= (async () => {
     try {
       const response = await rawFetch("/api/v1/auth/refresh", {
@@ -96,16 +99,20 @@ function refreshAccessToken(): Promise<boolean> {
       });
       if (!response.ok) {
         setAccessToken(null);
-        return false;
+        return { status: response.status, error: await parseError(response) };
       }
-      const data = (await response.json()) as { accessToken: string };
-      setAccessToken(data.accessToken);
-      return true;
+      const tokens = (await response.json()) as TokenResponse;
+      setAccessToken(tokens.accessToken);
+      return { tokens };
     } finally {
       refreshInFlight = null;
     }
   })();
   return refreshInFlight;
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  return "tokens" in (await sharedRefresh());
 }
 
 /**
@@ -296,12 +303,15 @@ export const api = {
     });
   },
 
-  refresh() {
-    return apiRequest<import("@/lib/api/types").TokenResponse>("/api/v1/auth/refresh", {
-      method: "POST",
-      body: {},
-      skipAuthRetry: true,
-    });
+  async refresh() {
+    const result = await sharedRefresh();
+    if ("tokens" in result) {
+      return result.tokens;
+    }
+    if (result.status === 401) {
+      sessionLostHandler?.();
+    }
+    throw result.error;
   },
 
   /** Whether the browser holds a refresh cookie. Reads no token and never refreshes. */

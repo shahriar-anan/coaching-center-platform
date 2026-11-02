@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiBlob, apiRequest, onSessionLost } from "@/lib/api/client";
+import { api, apiBlob, apiRequest, onSessionLost } from "@/lib/api/client";
 import { getAccessToken, setAccessToken } from "@/lib/auth/token-store";
 
 /**
@@ -110,6 +110,29 @@ describe("access token refresh", () => {
     expect(calls.refresh).toBe(1);
     expect(lost).toBeGreaterThan(0);
     expect(getAccessToken()).toBeNull();
+  });
+
+  it("the session start-up and the Google return page share one refresh", async () => {
+    const calls = fakeApi();
+    setAccessToken(null);
+
+    const [first, second] = await Promise.all([api.refresh(), api.refresh()]);
+
+    expect(calls.refresh).toBe(1);
+    expect(second.accessToken).toBe(first.accessToken);
+    expect(getAccessToken()).toBe(first.accessToken);
+    expect(lost).toBe(0);
+  });
+
+  it("a refused refresh from a page ends the session once and rejects every caller", async () => {
+    const calls = fakeApi({ refreshWorks: false });
+    setAccessToken(null);
+
+    const results = await Promise.allSettled([api.refresh(), api.refresh()]);
+
+    expect(calls.refresh).toBe(1);
+    expect(results.map((result) => result.status)).toEqual(["rejected", "rejected"]);
+    expect(lost).toBe(2);
   });
 
   it("a later expiry refreshes again with the rotated cookie", async () => {
