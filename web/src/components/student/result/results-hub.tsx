@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,9 +15,7 @@ import { useMyExamResults, type MyExamResult } from "@/lib/api/exam/sitting";
 import { formatDate, formatNumber, pickTitle } from "@/lib/format";
 import { ExamStatusPill } from "@/components/student/catalog/status-pill";
 import { TypeFilter, typeLabelKey, useTypeFilterParam } from "@/components/student/catalog/type-filter";
-import { RateLink, canRateSitting } from "@/components/student/reviews/rate-link";
 import type { MyStatus } from "@/lib/api/exam/catalog";
-import { reviewedTargets, useMyReviews } from "@/lib/api/exam/reviews";
 import { isMissing } from "@/lib/api/missing";
 
 type Tab = "results" | "marking" | "other";
@@ -46,8 +43,6 @@ export function ResultsHub() {
   const list = useMyExamResults(type);
   const rows = useMemo(() => list.data?.pages.flatMap((page) => page.content) ?? [], [list.data]);
   // The reviews the student has written, so a row already rated shows no "Rate". A failed read hides the action.
-  const myReviews = useMyReviews(true);
-  const reviewed = reviewedTargets(myReviews.data);
 
   const resultRows = rows.filter((row) => tabOf(row) === "results");
   const markingRows = rows.filter((row) => tabOf(row) === "marking");
@@ -126,37 +121,50 @@ export function ResultsHub() {
             const moduleTitle = pickTitle({ titleEn: row.moduleTitleEn, titleBn: row.moduleTitleBn }, locale);
             return (
               <li key={row.examId}>
-                <Card padding="sm" href={tab === "other" ? `/exam/${row.examId}` : `/exam/${row.examId}/result`}>
-                  {moduleTitle ? <p className="text-meta text-muted">{moduleTitle}</p> : null}
-                  <p className="text-body font-semibold text-text">{pickTitle(row, locale)}</p>
-                  {!isMissing(row.passPercent) ? (
-                    <p className="text-meta text-muted">{t("result.hub.passLine", { p: n(row.passPercent) })}</p>
-                  ) : null}
-                  <p className="mt-0.5 flex flex-wrap items-center gap-2 text-meta text-muted">
-                    <span>{row.examType === "MCQ" ? t("result.hub.mcq") : t("result.hub.written")}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{row.liveAt ? formatDate(row.liveAt, locale) : t("result.hub.undated")}</span>
-                    {tab === "results" ? (
-                      <Pill tone={row.passed ? "ok" : "muted"}>
-                        {isMissing(row.score)
-                          ? t("result.stat.none")
-                          : t("result.stat.score", { score: n(row.score), maximum: n(row.maximum) })}
-                        {" · "}
-                        {row.passed ? t("result.outcome.passed") : t("result.outcome.failed")}
-                      </Pill>
-                    ) : null}
-                    {row.kind === "RETAKE" ? <Pill tone="warn">{t("result.page.practice")}</Pill> : null}
-                    {tab === "marking" ? <Pill tone="warn">{t("result.hub.awaiting")}</Pill> : null}
-                    {tab === "other" ? (
-                      <ExamStatusPill status={row.status as MyStatus} examType={row.examType} retakeAvailable={null} />
-                    ) : null}
-                  </p>
-                </Card>
-                {tab !== "other" && canRateSitting(row.status, row.examId, reviewed) ? (
-                  <div className="mt-1 flex justify-end">
-                    <RateLink examId={row.examId} />
+                <div className="group relative grid gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent hover:bg-text/[0.06]">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="grid min-w-0 gap-0.5">
+                      {moduleTitle ? <p className="text-meta text-muted">{moduleTitle}</p> : null}
+                      <Link
+                        href={tab === "other" ? `/exam/${row.examId}` : `/exam/${row.examId}/result`}
+                        prefetch={false}
+                        className="text-body font-semibold text-text after:absolute after:inset-0 after:content-[''] group-hover:text-text-accent"
+                      >
+                        {pickTitle(row, locale)}
+                      </Link>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {tab === "results" ? (
+                        <Pill tone={row.passed ? "ok" : "muted"}>
+                          {isMissing(row.score)
+                            ? t("result.stat.none")
+                            : t("result.stat.score", { score: n(row.score), maximum: n(row.maximum) })}
+                          {" · "}
+                          {row.passed ? t("result.outcome.passed") : t("result.outcome.failed")}
+                        </Pill>
+                      ) : null}
+                      {row.kind === "RETAKE" ? <Pill tone="warn">{t("result.page.practice")}</Pill> : null}
+                      {tab === "marking" ? <Pill tone="warn">{t("result.hub.awaiting")}</Pill> : null}
+                      {tab === "other" ? (
+                        <ExamStatusPill status={row.status as MyStatus} examType={row.examType} retakeAvailable={null} />
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
+                  <dl className="grid grid-cols-3 gap-3 border-t border-border pt-3 text-meta">
+                    <div className="grid gap-0.5">
+                      <dt className="text-muted">{t("result.hub.typeLabel")}</dt>
+                      <dd className="font-medium text-text">{row.examType === "MCQ" ? t("result.hub.mcq") : t("result.hub.written")}</dd>
+                    </div>
+                    <div className="grid gap-0.5">
+                      <dt className="text-muted">{t("result.hub.dateLabel")}</dt>
+                      <dd className="font-medium text-text">{row.liveAt ? formatDate(row.liveAt, locale) : t("result.hub.undated")}</dd>
+                    </div>
+                    <div className="grid gap-0.5">
+                      <dt className="text-muted">{t("result.hub.passLabel")}</dt>
+                      <dd className="font-medium text-text">{isMissing(row.passPercent) ? t("result.stat.none") : `${n(row.passPercent)}%`}</dd>
+                    </div>
+                  </dl>
+                </div>
               </li>
             );
           })}

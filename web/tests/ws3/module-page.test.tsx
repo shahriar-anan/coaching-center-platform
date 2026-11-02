@@ -94,11 +94,11 @@ it("shows the coming-soon card on a door with no categories", async () => {
   expect(await screen.findByText("Coming soon")).toBeInTheDocument();
 });
 
-it("lists only the exams of the door's type on a module page", async () => {
+it("lists every exam of the package on a module page, MCQ and written alike, each with its own type", async () => {
   renderWithQuery(<ModulePage door="written" moduleId="m1" />);
 
   expect(await screen.findByRole("link", { name: /Evidence written/ })).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: /CrPC MCQ/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /CrPC MCQ/ })).toBeInTheDocument();
 });
 
 it("offers the whole-module purchase to a signed-out visitor as a login link", async () => {

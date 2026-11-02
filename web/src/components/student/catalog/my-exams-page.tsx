@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { FileText, ListChecks, Package, Receipt, type LucideIcon } from "lucide-react";
 import {
   useMyLiveExamAccess,
   usePublicExamsById,
@@ -13,47 +14,29 @@ import type { PublicExam, PublicModule } from "@/lib/api/exam/types";
 import { formatDate, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { accessSourceKey } from "@/components/student/result/access-source";
-import { RateLink, canRateSitting } from "@/components/student/reviews/rate-link";
-import { reviewedTargets, useMyReviews } from "@/lib/api/exam/reviews";
-import { useMyExamResults } from "@/lib/api/exam/sitting";
 import { doorPath, examPath, modulePath } from "./catalog-helpers";
 import { accessEnd, orderedRows, type AccessEnd } from "./my-exams-rows";
 import { TypeFilter, filterByType, typeLabelKey, useTypeFilterParam } from "./type-filter";
 
 type Tab = "exams" | "packages";
 
-/** The access, as a word in the row's grey line: lifetime, the end date, or expired (plan S1.3). Coloured only where it matters. */
-function AccessText({ end }: { end: AccessEnd }) {
+/** The access as a pill at the card's top right: lifetime in green, an end date plain, expired in amber (plan S1.3). */
+function AccessPill({ end }: { end: AccessEnd }) {
   const { t, locale } = useLocale();
   if (end.kind === "expired") {
-    return <span className="font-semibold text-warn">{t("catalog.myExams.expired")}</span>;
+    return <Pill tone="warn">{t("catalog.myExams.expired")}</Pill>;
   }
   if (end.kind === "lifetime") {
-    return <span className="font-semibold text-ok">{t("catalog.myExams.accessLifetime")}</span>;
+    return <Pill tone="ok">{t("catalog.myExams.accessLifetime")}</Pill>;
   }
-  return <span>{t("catalog.myExams.accessUntil", { date: formatDate(end.endsAt, locale, { year: "auto" }) })}</span>;
-}
-
-/** The grey line under a row's title: each fact in turn, with a dot between them. Empty facts are left out. */
-function FactLine({ facts }: { facts: React.ReactNode[] }) {
-  const shown = facts.filter((fact) => fact !== null && fact !== false && fact !== undefined);
-  return (
-    <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-muted">
-      {shown.map((fact, index) => (
-        <span key={index} className="flex items-center gap-1.5">
-          {index > 0 ? <span aria-hidden="true">·</span> : null}
-          {fact}
-        </span>
-      ))}
-    </p>
-  );
+  return <Pill tone="muted">{t("catalog.myExams.accessUntil", { date: formatDate(end.endsAt, locale, { year: "auto" }) })}</Pill>;
 }
 
 /** A title, or what the row shows while its title loads or when the read fails. */
@@ -63,63 +46,75 @@ function TitleText({ title, pending, href }: { title: string; pending: boolean; 
     return <span className="text-muted">{pending ? t("catalog.loading") : t("catalog.myExams.detailsMissing")}</span>;
   }
   return (
-    <Link href={href} prefetch={false} className="font-semibold text-text hover:underline underline-offset-4">
+    <Link href={href} prefetch={false} className="font-semibold text-text underline-offset-4 hover:underline">
       {title}
     </Link>
   );
 }
 
-/** "View payment" for a row bought with an order (Phase 4, S4.6). A roster or manual grant has no order, so no link. */
+/** "View payment" for a row bought with an order (Phase 4, S4.6). A roster or manual grant has no order, so no button. */
 function PaymentLink({ orderId }: { orderId: string }) {
   const { t } = useLocale();
   return (
     <Link
       href={`/account/payments?order=${encodeURIComponent(orderId)}`}
       prefetch={false}
-      className="inline-flex min-h-11 shrink-0 items-center rounded-control text-label font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-control border border-border px-3 text-meta font-semibold text-text transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
+      <Receipt aria-hidden="true" className="size-4" />
       {t("catalog.myExams.viewPayment")}
     </Link>
   );
 }
 
-function ExamRow({
-  grant,
-  exam,
-  pending,
-  rateable,
+/**
+ * One owned exam or package: a type icon, the title with the access pill at its right, a line of facts (type and how it was
+ * got), and the payment button when it was bought.
+ */
+function OwnedCard({
+  icon: Icon,
+  title,
+  access,
+  facts,
+  orderId,
 }: {
-  grant: OwnExamGrant;
-  exam: PublicExam | undefined;
-  pending: boolean;
-  /** The student sat this exam and has not reviewed it: show "Rate". */
-  rateable: boolean;
+  icon: LucideIcon;
+  title: ReactNode;
+  access: ReactNode;
+  facts: (string | null)[];
+  orderId?: string | null;
 }) {
+  const shown = facts.filter((fact): fact is string => Boolean(fact));
+  return (
+    <li>
+      <div className="flex gap-3 rounded-card border border-border bg-card p-4">
+        <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-control bg-accent/15 text-text-accent">
+          <Icon className="size-5" />
+        </span>
+        <div className="grid min-w-0 flex-1 gap-1.5">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <p className="min-w-0 text-body">{title}</p>
+            {access}
+          </div>
+          {shown.length ? <p className="text-meta text-muted">{shown.join(" · ")}</p> : null}
+          {orderId ? <PaymentLink orderId={orderId} /> : null}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function ExamRow({ grant, exam, pending }: { grant: OwnExamGrant; exam: PublicExam | undefined; pending: boolean }) {
   const { t, locale } = useLocale();
   const sourceKey = accessSourceKey(grant.via);
   return (
-    <li>
-      <Card padding="sm">
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="grid min-w-0 flex-1 gap-1">
-            <p className="text-body">
-              <TitleText title={exam ? pickTitle(exam, locale) : ""} pending={pending} href={examPath(grant.examId)} />
-            </p>
-            <FactLine
-              facts={[
-                exam ? t(typeLabelKey(exam.examType)) : null,
-                <AccessText key="access" end={accessEnd(grant)} />,
-                sourceKey ? t(sourceKey) : null,
-              ]}
-            />
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-x-3">
-            {grant.orderId ? <PaymentLink orderId={grant.orderId} /> : null}
-            {rateable ? <RateLink examId={grant.examId} /> : null}
-          </div>
-        </div>
-      </Card>
-    </li>
+    <OwnedCard
+      icon={exam?.examType === "WRITTEN" ? FileText : ListChecks}
+      title={<TitleText title={exam ? pickTitle(exam, locale) : ""} pending={pending} href={examPath(grant.examId)} />}
+      access={<AccessPill end={accessEnd(grant)} />}
+      facts={[exam ? t(typeLabelKey(exam.examType)) : null, sourceKey ? t(sourceKey) : null]}
+      orderId={grant.orderId}
+    />
   );
 }
 
@@ -127,23 +122,13 @@ function PackageRow({ grant, pkg, pending }: { grant: OwnModuleGrant; pkg: Publi
   const { t, locale } = useLocale();
   const sourceKey = accessSourceKey(grant.via);
   return (
-    <li>
-      <Card padding="sm">
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="grid min-w-0 flex-1 gap-1">
-            <p className="text-body">
-              <TitleText title={pkg ? pickTitle(pkg, locale) : ""} pending={pending} href={modulePath("mcq", grant.moduleId)} />
-            </p>
-            <FactLine facts={[<AccessText key="access" end={accessEnd(grant)} />, sourceKey ? t(sourceKey) : null]} />
-          </div>
-          {grant.orderId ? (
-            <div className="flex shrink-0 items-center">
-              <PaymentLink orderId={grant.orderId} />
-            </div>
-          ) : null}
-        </div>
-      </Card>
-    </li>
+    <OwnedCard
+      icon={Package}
+      title={<TitleText title={pkg ? pickTitle(pkg, locale) : ""} pending={pending} href={modulePath("mcq", grant.moduleId)} />}
+      access={<AccessPill end={accessEnd(grant)} />}
+      facts={[sourceKey ? t(sourceKey) : null]}
+      orderId={grant.orderId}
+    />
   );
 }
 
@@ -161,13 +146,6 @@ export function MyExamsPage() {
   const packageGrants = grants?.modules ?? [];
   const examReads = usePublicExamsById(examGrants.map((grant) => grant.examId));
   const packageReads = usePublicModulesById(packageGrants.map((grant) => grant.moduleId));
-  // The sittings the student has made (the first pages) give the status of each exam, and the reviews show which are rated.
-  const sittings = useMyExamResults(null);
-  const sittingStatus = new Map(
-    (sittings.data?.pages.flatMap((page) => page.content) ?? []).map((row): [string, string] => [row.examId, row.status]),
-  );
-  const myReviews = useMyReviews(true);
-  const reviewed = reviewedTargets(myReviews.data);
   const crumbs = [{ label: t("catalog.home"), href: "/" }, { label: t("catalog.myExams.title") }];
 
   if (access.isPending) {
@@ -251,13 +229,7 @@ export function MyExamsPage() {
           ) : (
             <ul className="grid gap-2">
               {typedExamRows.map((row) => (
-                <ExamRow
-                  key={row.examId}
-                  grant={row}
-                  exam={row.exam}
-                  pending={row.pending}
-                  rateable={canRateSitting(sittingStatus.get(row.examId), row.examId, reviewed)}
-                />
+                <ExamRow key={row.examId} grant={row} exam={row.exam} pending={row.pending} />
               ))}
             </ul>
           )

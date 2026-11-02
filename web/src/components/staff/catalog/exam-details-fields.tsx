@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { useRole } from "@/lib/auth/guards";
 import {
@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { TextInput } from "@/components/ui/text-input";
+import { SearchInput } from "@/components/ui/search-input";
+import { cn } from "@/components/ui/cn";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
 import { SettingRow } from "@/components/staff/catalog/setting-row";
 import type { SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
@@ -55,32 +57,52 @@ function MasterControls({ exam }: { exam: StaffExam }) {
           {failure}
         </p>
       ) : null}
-      {/* An MCQ exam has no instructor: the field is left out and one line says so. A written exam keeps the field. */}
+    </>
+  );
+}
+
+/**
+ * The exam's teacher, as its own section (`#exam-instructor`). It is set right away, so it is not a staged change and
+ * the section says so. An MCQ exam has no teacher and one line says so.
+ */
+export function ExamInstructorSection({ exam, badge }: { exam: StaffExam; badge?: ReactNode }) {
+  const { t } = useLocale();
+  const role = useRole();
+  return (
+    <section id="exam-instructor" className="scroll-mt-24 grid gap-4 rounded-card border border-border bg-card p-5">
+      <div className="grid gap-1">
+        <h2 className="text-label font-semibold text-text">{t("staffCatalog.examMeta.instructor")}</h2>
+        <p className="text-meta text-muted">{t("staffCatalog.examMeta.instructorHint")}</p>
+        {badge}
+      </div>
       {exam.examType === "MCQ" ? (
         <p className="text-meta text-muted">{t("staffCatalog.examMeta.mcqNoInstructor")}</p>
       ) : role.canAssignInstructor ? (
         <InstructorPicker exam={exam} />
       ) : (
         <div className="grid gap-1.5">
-          <span className="text-label font-medium text-text">{t("staffCatalog.examMeta.instructor")}</span>
           <p className="text-body">{exam.instructor?.name ?? t("staffCatalog.examMeta.noInstructor")}</p>
           <p className="text-meta text-muted">{t("staffCatalog.examMeta.masterOnlyReason")}</p>
         </div>
       )}
-    </>
+    </section>
   );
 }
 
-/** Chooses or clears the exam's instructor. The list is the active instructor directory. */
+/**
+ * Chooses or clears the exam's instructor. Search by name, email or phone; pick one in the list, then Assign.
+ */
 function InstructorPicker({ exam }: { exam: StaffExam }) {
   const { t } = useLocale();
   const { toast } = useToast();
-  const directory = useInstructorDirectory({ status: "ACTIVE" });
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const assigned = Boolean(exam.instructor);
+  const directory = useInstructorDirectory({ status: "ACTIVE", q: query.trim() });
   const assign = useAssignExamInstructor(exam.id);
   const unassign = useUnassignExamInstructor(exam.id);
-  const [picked, setPicked] = useState("");
-  const [failure, setFailure] = useState<string | null>(null);
-  const selectId = useId();
+  const rows = directory.data?.content ?? [];
 
   async function run(action: () => Promise<unknown>, done: string) {
     setFailure(null);
@@ -92,38 +114,68 @@ function InstructorPicker({ exam }: { exam: StaffExam }) {
     }
   }
 
+  if (assigned && exam.instructor) {
+    return (
+      <div className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-ok/50 bg-ok/10 px-4 py-3">
+          <div className="grid gap-0.5">
+            <span className="text-meta font-semibold uppercase tracking-wide text-ok-text">{t("staffCatalog.examMeta.currentInstructorLabel")}</span>
+            <span className="text-body font-bold text-text">{exam.instructor.name}</span>
+          </div>
+          <Button variant="secondary" disabled={unassign.isPending} loading={unassign.isPending} onClick={() => run(() => unassign.mutateAsync(), "staffCatalog.examMeta.instructorRemoved")}>
+            {t("staffCatalog.examMeta.instructorRemove")}
+          </Button>
+        </div>
+        <p className="text-meta text-muted">{t("staffCatalog.examMeta.changeInstructorHint")}</p>
+        {failure ? (
+          <p role="alert" className="text-meta text-danger">
+            {failure}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-1.5">
-      <label htmlFor={selectId} className="text-label font-medium text-text">
-        {t("staffCatalog.examMeta.instructor")}
-      </label>
-      {/* The select and its buttons share one row, centred on the 44 px control height. */}
+    <div className="grid gap-3">
+      <SearchInput value={query} onChange={setQuery} placeholder={t("staffCatalog.examMeta.instructorSearch")} />
+      {rows.length === 0 ? (
+        <p className="text-meta text-muted">{directory.isPending ? t("catalog.loading") : t("staffCatalog.examMeta.instructorNone")}</p>
+      ) : (
+        <ul className="grid max-h-72 gap-2 overflow-y-auto">
+          {rows.map((row) => {
+            const active = picked === row.id;
+            return (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setPicked(row.id)}
+                  className={cn(
+                    "grid w-full gap-0.5 rounded-control border px-3 py-2 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    active ? "border-action bg-action/10" : "border-border bg-card hover:border-accent",
+                  )}
+                >
+                  <span className="font-semibold text-text">{row.fullName ?? row.email ?? row.phone ?? row.id}</span>
+                  {row.email || row.phone ? (
+                    <span className="text-meta text-muted">{[row.email, row.phone].filter(Boolean).join(" · ")}</span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <div className="flex flex-wrap items-center gap-3">
-        <Select id={selectId} className="sm:w-80" value={picked} onChange={(e) => setPicked(e.target.value)}>
-          <option value="">{t("staffCatalog.examMeta.instructorPick")}</option>
-          {(directory.data?.content ?? []).map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.fullName ?? row.email ?? row.phone ?? row.id}
-            </option>
-          ))}
-        </Select>
         <Button
           variant="secondary"
           disabled={!picked || assign.isPending}
           loading={assign.isPending}
-          onClick={() => run(() => assign.mutateAsync(picked), "staffCatalog.examMeta.instructorSaved")}
+          onClick={() => picked && run(() => assign.mutateAsync(picked), "staffCatalog.examMeta.instructorSaved")}
         >
           {t("staffCatalog.examMeta.instructorAssign")}
         </Button>
-        {exam.instructor ? (
-          <Button variant="secondary" disabled={unassign.isPending} onClick={() => run(() => unassign.mutateAsync(), "staffCatalog.examMeta.instructorRemoved")}>
-            {t("staffCatalog.examMeta.instructorRemove")}
-          </Button>
-        ) : null}
       </div>
-      <p className="text-meta text-muted">
-        {exam.instructor ? t("staffCatalog.examMeta.currentInstructor", { name: exam.instructor.name }) : t("staffCatalog.examMeta.noInstructor")}
-      </p>
       {failure ? (
         <p role="alert" className="text-meta text-danger">
           {failure}

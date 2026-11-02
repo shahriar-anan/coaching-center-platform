@@ -115,7 +115,7 @@ public class LiveExamGrantAdminService {
 		grant.setReason(request.reason().trim());
 		grant.setCreatedAt(now);
 		grants.saveAndFlush(grant);
-		notices.purchaseGranted(student.getId(), exam == null ? moduleId : exam.getId(), scope);
+		notices.accessGranted(student.getId(), exam == null ? moduleId : exam.getId(), scope);
 		audit.record(AuditRecorder.ACCESS_GRANTED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grant.getId());
 		return view(grant);
 	}

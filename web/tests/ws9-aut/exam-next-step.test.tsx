@@ -67,7 +67,7 @@ describe("next step after an exam is created (decided 2026-10-27: another exam, 
       `/staff/modules/${moduleId}?tab=exams&new=1`,
     );
     // The teacher is set per exam, so the choice jumps to the teacher field on this page, not to a package tab.
-    expect(screen.getByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).toHaveAttribute("href", "#exam-details");
+    expect(screen.getByRole("link", { name: /শিক্ষক নিয়োগ দিন/ })).toHaveAttribute("href", "#exam-instructor");
     // A clean draft has no unsaved edits, so the header offers its next step: the final save (plan 7.2 header table).
     expect(screen.getByRole("button", { name: "চূড়ান্ত করুন" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "সব পরিবর্তন সংরক্ষণ করুন" })).not.toBeInTheDocument();

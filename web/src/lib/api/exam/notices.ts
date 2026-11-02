@@ -13,6 +13,8 @@ export type NoticeKind =
   | "EXAM_OPEN"
   | "PURCHASE_GRANTED"
   | "EXAM_PUBLISHED"
+  | "EXAM_TIME_CHANGED"
+  | "ACCESS_GRANTED"
   | "RETAKE_AVAILABLE"
   | "ANNOUNCEMENT"
   | "MCQ_SCORE"

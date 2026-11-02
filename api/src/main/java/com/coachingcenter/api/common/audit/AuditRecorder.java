@@ -119,6 +119,12 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_RETAKE_REVOKE = "LIVE_EXAM_RETAKE_REVOKE";
 
+	/** A student asked for another written retake. */
+	public static final String LIVE_EXAM_RETAKE_REQUEST = "LIVE_EXAM_RETAKE_REQUEST";
+
+	/** The centre declined a retake request. */
+	public static final String LIVE_EXAM_RETAKE_DECLINE = "LIVE_EXAM_RETAKE_DECLINE";
+
 	public static final String LIVE_EXAM_PACKAGE_EXAM_ADD = "LIVE_EXAM_PACKAGE_EXAM_ADD";
 
 	public static final String LIVE_EXAM_PACKAGE_EXAM_REMOVE = "LIVE_EXAM_PACKAGE_EXAM_REMOVE";

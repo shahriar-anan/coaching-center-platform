@@ -53,7 +53,7 @@ describe("written result states (ST-6 follow-up)", () => {
     expect(screen.queryByRole("button", { name: "মূল্যায়ন করা খাতা দেখুন" })).not.toBeInTheDocument();
   });
 
-  it("published with the marked script: the download control opens and closes the script", async () => {
+  it("published with the marked script: the evaluated paper opens in its tab", async () => {
     renderWritten({
       ...base,
       score: 36,
@@ -61,9 +61,8 @@ describe("written result states (ST-6 follow-up)", () => {
       status: "RESULT_READY",
       evaluatedPdf: { name: "marked.pdf" },
     });
-    const control = await screen.findByRole("button", { name: "মূল্যায়ন করা খাতা দেখুন" });
-    expect(control).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(control);
-    expect(screen.getByRole("button", { name: "খাতাটি বন্ধ করুন" })).toHaveAttribute("aria-expanded", "true");
+    // The evaluated paper is the first tab, open by default, and its script is downloadable there (the student's own script).
+    expect(await screen.findByRole("tab", { name: "মূল্যায়িত উত্তরপত্র" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("button", { name: "খাতাটি বন্ধ করুন" })).not.toBeInTheDocument();
   });
 });

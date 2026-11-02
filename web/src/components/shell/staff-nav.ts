@@ -9,6 +9,7 @@ import {
   Package,
   Receipt,
   ScrollText,
+  RotateCcw,
   ShieldCheck,
   Tags,
   Trophy,
@@ -37,6 +38,7 @@ export type StaffNavKey =
   | "orders"
   | "announcements"
   | "reviews"
+  | "retakeRequests"
   | "systemStatus";
 
 /** The sidebar groups, in the order they show. Group names are in `common.staffNavGroup`. */
@@ -139,6 +141,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/reviews",
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "read" },
     icon: MessageSquareQuote,
+  },
+  {
+    key: "retakeRequests",
+    group: "exams",
+    href: "/staff/retake-requests",
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    icon: RotateCcw,
   },
   {
     key: "students",

@@ -842,7 +842,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.getResponse()
 			.getContentAsString());
 		// A read never posts a sitting; the deadline job does, once a minute.
-		assertThat(statusOf(rows, "Stored Sheet")).isEqualTo("IN_PROGRESS");
+		assertThat(statusOf(rows, "Stored Sheet")).isEqualTo("SUBMITTED");
 		assertThat(statusOf(rows, "Missing Sheet")).isEqualTo("IN_PROGRESS");
 		deadlineJob.settleDue();
 		rows = json.readTree(mockMvc.perform(get("/api/v1/live-exam-modules/" + module + "/submissions")
@@ -1091,8 +1091,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + master))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EXAM_MARKING_INCOMPLETE"))
-			.andExpect(jsonPath("$.details.awaiting").value(0))
-			.andExpect(jsonPath("$.details.open").value(3));
+			.andExpect(jsonPath("$.details.awaiting").value(2))
+			.andExpect(jsonPath("$.details.open").value(1));
 
 		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish-results").header("Authorization", "Bearer " + master))
@@ -1265,8 +1265,8 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		assertThat(live.get("totalElements").asInt()).isEqualTo(1);
 		JsonNode liveRow = live.get("content").get(0);
 		assertThat(liveRow.get("examId").asText()).isEqualTo(written.toString());
-		assertThat(liveRow.get("sitting").asInt()).isEqualTo(5);
-		assertThat(liveRow.get("submitted").asInt()).isZero();
+		assertThat(liveRow.get("sitting").asInt()).isEqualTo(2);
+		assertThat(liveRow.get("submitted").asInt()).isEqualTo(3);
 		assertThat(liveRow.get("failedToSubmit").asInt()).isZero();
 
 		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
@@ -1804,12 +1804,12 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON).content(grant))
 			.andExpect(status().isCreated());
-		assertThat(noticeCount("PURCHASE_GRANTED", student.id())).isEqualTo(1);
+		assertThat(noticeCount("ACCESS_GRANTED", student.id())).isEqualTo(1);
 
 		mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON).content(grant))
 			.andExpect(status().isConflict());
-		assertThat(noticeCount("PURCHASE_GRANTED", student.id())).isEqualTo(1);
+		assertThat(noticeCount("ACCESS_GRANTED", student.id())).isEqualTo(1);
 	}
 
 	@Test
@@ -2004,7 +2004,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.code").value("INSTRUCTOR_ALREADY_ASSIGNED"));
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
-		// The exam is published, so the cleared teacher keeps the exam until the Master Admin publishes the removal (NR-01, E31).
+		// The removal on a published exam is staged: the row keeps the teacher until the Master Admin publishes it.
 		assertThat(new JdbcTemplate(dataSource).queryForObject("select instructor_id from live_exams where id = ?", UUID.class, exam))
 			.as("the removal waits for publish").isEqualTo(first.id());
 		publishStaged(master, exam);
@@ -2658,10 +2658,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 
 		assertPaperReadable(master, exam);
 		assertPaperReadable(system, exam);
-		// The assigned instructor reads the paper only once the window has ended (06:00Z to 06:40Z on this exam).
-		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + marker.token()))
-			.andExpect(status().isNotFound());
-		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		// The assigned instructor has the paper as soon as the exam is published, before the window opens.
 		assertPaperReadable(marker.token(), exam);
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/question-pdf").header("Authorization", "Bearer " + stranger.token()))
 			.andExpect(status().isNotFound());

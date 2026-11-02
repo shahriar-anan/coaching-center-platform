@@ -16,6 +16,8 @@ const rows: Record<(typeof NOTICE_KINDS)[number], { notice: Record<string, unkno
   EXAM_OPEN: { notice: { exam }, href: "/exam/e1" },
   PURCHASE_GRANTED: { notice: { exam }, href: "/exam/e1" },
   EXAM_PUBLISHED: { notice: { exam }, href: "/exam/e1" },
+  EXAM_TIME_CHANGED: { notice: { exam }, href: "/exam/e1" },
+  ACCESS_GRANTED: { notice: { exam }, href: "/exam/e1" },
   RETAKE_AVAILABLE: { notice: { exam }, href: "/exam/e1" },
   ANNOUNCEMENT: {
     notice: {

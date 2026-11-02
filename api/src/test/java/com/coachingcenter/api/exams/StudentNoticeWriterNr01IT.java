@@ -37,22 +37,34 @@ class StudentNoticeWriterNr01IT extends PostgresIntegrationTest {
 	private JdbcTemplate jdbc;
 
 	@Test
-	void anExamUpdateNoticeGoesToEachStudentOnceAPublishAndNotToAnInstructor() {
+	void aTimeChangeNoticeGoesToStudentsOnly() {
 		UUID student = insertUser("STUDENT");
 		UUID instructor = insertUser("INSTRUCTOR");
 		UUID exam = insertExam();
 		clock.set(TEN_AM);
 
-		notices.examUpdated(exam, List.of(student, instructor));
-		assertThat(countNotices("EXAM_UPDATED", student)).isEqualTo(1);
-		assertThat(countNotices("EXAM_UPDATED", instructor)).isZero();
+		notices.examTimeChanged(exam, List.of(student, instructor));
+		assertThat(countNotices("EXAM_TIME_CHANGED", student)).isEqualTo(1);
+		assertThat(countNotices("EXAM_TIME_CHANGED", instructor)).isZero();
+	}
 
-		notices.examUpdated(exam, List.of(student));
-		assertThat(countNotices("EXAM_UPDATED", student)).as("the same publish instant adds nothing").isEqualTo(1);
+	@Test
+	void aTimeNoticeGoesToEachStudentOnceAPublishAndNotToAnInstructor() {
+		UUID student = insertUser("STUDENT");
+		UUID instructor = insertUser("INSTRUCTOR");
+		UUID exam = insertExam();
+		clock.set(TEN_AM);
+
+		notices.examTimeChanged(exam, List.of(student, instructor));
+		assertThat(countNotices("EXAM_TIME_CHANGED", student)).isEqualTo(1);
+		assertThat(countNotices("EXAM_TIME_CHANGED", instructor)).isZero();
+
+		notices.examTimeChanged(exam, List.of(student));
+		assertThat(countNotices("EXAM_TIME_CHANGED", student)).as("the same publish instant adds nothing").isEqualTo(1);
 
 		clock.set(TEN_AM.plusSeconds(60));
-		notices.examUpdated(exam, List.of(student));
-		assertThat(countNotices("EXAM_UPDATED", student)).as("a later publish adds its own notice").isEqualTo(2);
+		notices.examTimeChanged(exam, List.of(student));
+		assertThat(countNotices("EXAM_TIME_CHANGED", student)).as("a later publish adds its own notice").isEqualTo(2);
 	}
 
 	@Test

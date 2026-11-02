@@ -78,7 +78,7 @@ describe("the instructor field in the exam details", () => {
     mockApi(routes(writtenExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin, locale: "en" });
 
-    expect(await screen.findByLabelText("Instructor")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Instructor" })).toBeInTheDocument();
     expect(screen.queryByText("An MCQ exam has no instructor.")).toBeNull();
   });
 });

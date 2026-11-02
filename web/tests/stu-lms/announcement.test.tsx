@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import NoticesPage from "@/app/(site)/notices/page";
@@ -44,7 +44,7 @@ describe("announcement text (S-020)", () => {
 });
 
 describe("announcement row (S-020)", () => {
-  it("shows the first lines, expands on request, and marks the notice read", async () => {
+  it("the card shows the title; Read announcement opens the full text and marks the notice read", async () => {
     const { calls } = mockApi({
       "GET /api/v1/me/notices": { content: [announcement], page: 0, totalPages: 1 },
       "POST /api/v1/me/notices/a1/read": { ...announcement, readAt: "2026-11-01T05:00:00Z" },
@@ -52,11 +52,8 @@ describe("announcement row (S-020)", () => {
     renderWithProviders(<NoticesPage />, { user: fixtures.student });
 
     expect(await screen.findByText("কেন্দ্র বন্ধ")).toBeInTheDocument();
-    expect(screen.queryByText(/পঞ্চম লাইন/)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "আরও দেখুন" }));
-    expect(screen.getByText(/পঞ্চম লাইন/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "কম দেখুন" })).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(screen.getByRole("button", { name: "ঘোষণাটি পড়ুন" }));
+    expect(within(await screen.findByRole("dialog")).getByText(/পঞ্চম লাইন/)).toBeInTheDocument();
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
   });
 
@@ -87,8 +84,10 @@ describe("announcement row (S-020)", () => {
     renderWithProviders(<NoticesPage />, { user: fixtures.student, locale: "en" });
 
     expect(await screen.findByText("Module update")).toBeInTheDocument();
-    expect(screen.getByText("Mock on Sunday")).toBeInTheDocument();
-    // A package announcement now links to its package (announcements plan, section 9). The package read has no mock here, so the door is the default.
-    expect(screen.getByRole("link", { name: "Open the package" })).toHaveAttribute("href", "/mcq/m/m-9");
+    // The full announcement, with its link to the package, opens from the card (announcements plan, section 9).
+    await userEvent.click(screen.getByRole("button", { name: "Read announcement" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Mock on Sunday")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Open the package" })).toHaveAttribute("href", "/mcq/m/m-9");
   });
 });

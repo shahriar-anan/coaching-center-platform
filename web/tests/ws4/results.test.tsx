@@ -235,16 +235,15 @@ describe("result page", () => {
     expect(screen.queryByRole("button", { name: "View marked script" })).not.toBeInTheDocument();
   });
 
-  it("written, published: shows the comment and the marked-script control", async () => {
+  it("written, published: shows the comment at the top and the evaluated paper in its tab", async () => {
     mockApi({
       "GET /api/v1/live-exams/ex-1": exam({ examType: "WRITTEN", myStatus: "RESULT_READY" }),
       "GET /api/v1/live-exams/ex-1/result": { score: 42, maximum: 50, passed: true, status: "RESULT_READY", questions: null, comment: "ভালো লিখেছেন।", evaluatedPdf: true },
     });
     renderWithProviders(<ResultPage examId="ex-1" />, { locale: "bn" });
     expect(await screen.findByText("ভালো লিখেছেন।")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "মূল্যায়ন করা খাতা দেখুন" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "মূল্যায়িত উত্তরপত্র" })).toHaveAttribute("aria-selected", "true");
   });
-
   it("an archived exam refuses the exam read, but the result still shows its title and score", async () => {
     mockApi({
       "GET /api/v1/live-exams/ex-1": apiError(404, "RESOURCE_NOT_FOUND"),
@@ -281,7 +280,7 @@ describe("result page", () => {
 });
 
 describe("written answer on the result page", () => {
-  it("shows the submitted answer above the marked script and requests the answer PDF", async () => {
+  it("shows the evaluated and submitted papers as tabs, and loads the answer when its tab opens", async () => {
     const user = userEvent.setup();
     const api = mockApi({
       "GET /api/v1/live-exams/ex-1": exam({ examType: "WRITTEN", myStatus: "RESULT_READY" }),
@@ -297,28 +296,26 @@ describe("written answer on the result page", () => {
       },
     });
     renderWithProviders(<ResultPage examId="ex-1" />, { locale: "en" });
-    const answer = await screen.findByRole("heading", { name: "Your submitted answer" });
-    const marked = screen.getByRole("button", { name: "View marked script" });
-    expect(answer.compareDocumentPosition(marked) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "View your answer" }));
+    expect(await screen.findByRole("tab", { name: "Evaluated paper" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Submitted paper" }));
     expect(await screen.findByTestId("pdf-viewer")).toHaveTextContent("Your submitted answer");
     await waitFor(() =>
       expect(api.calls.some((call) => call.method === "GET" && call.path === "/api/v1/live-exams/ex-1/answer-pdf")).toBe(true),
     );
   });
-
-  it("shows the section while the script is being marked, before any mark is published", async () => {
+  it("shows the submitted tab while the script is being marked, and says the evaluated paper is not ready", async () => {
+    const user = userEvent.setup();
     mockApi({
       "GET /api/v1/live-exams/ex-1": exam({ examType: "WRITTEN", myStatus: "AWAITING_RESULT" }),
       "GET /api/v1/live-exams/ex-1/result": { score: null, maximum: 50, passed: null, status: "SUBMITTED", questions: null, comment: null, evaluatedPdf: null, answerPdf: true },
     });
     renderWithProviders(<ResultPage examId="ex-1" />, { locale: "en" });
-    expect(await screen.findByRole("heading", { name: "Your submitted answer" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View marked script" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Submitted paper" })).toBeInTheDocument();
+    expect(screen.getByText("The evaluated paper is not available yet.")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Submitted paper" }));
+    expect(await screen.findByTestId("pdf-viewer")).toHaveTextContent("Your submitted answer");
   });
-
-  it("shows the section when the exam read is refused for an archived written exam", async () => {
+  it("shows the submitted tab when the exam read is refused for an archived written exam", async () => {
     const user = userEvent.setup();
     const api = mockApi({
       "GET /api/v1/live-exams/ex-1": apiError(404, "RESOURCE_NOT_FOUND"),
@@ -339,14 +336,13 @@ describe("written answer on the result page", () => {
       },
     });
     renderWithProviders(<ResultPage examId="ex-1" />, { locale: "en" });
-    expect(await screen.findByRole("heading", { name: "Your submitted answer" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Submitted paper" })).toBeInTheDocument();
     expect(screen.queryByText("This exam was not found")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "View your answer" }));
+    await user.click(screen.getByRole("tab", { name: "Submitted paper" }));
     await waitFor(() =>
       expect(api.calls.some((call) => call.method === "GET" && call.path === "/api/v1/live-exams/ex-1/answer-pdf")).toBe(true),
     );
   });
-
   it("does not show the section when the attempt has no stored answer", async () => {
     mockApi({
       "GET /api/v1/live-exams/ex-1": exam({ examType: "WRITTEN", myStatus: "AWAITING_RESULT" }),

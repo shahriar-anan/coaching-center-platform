@@ -9,6 +9,7 @@ import {
   type StudentExam,
 } from "@/lib/api/exam/catalog";
 import { isUnknownItemError } from "@/lib/api/errors";
+import { RetakeRequestPanel } from "@/components/student/result/retake-request-panel";
 import { studentHome } from "@/lib/config";
 import { useSession } from "@/lib/auth/session-context";
 import { PurchaseSheet } from "@/components/student/purchase/purchase-sheet";
@@ -318,6 +319,9 @@ export function ExamPage({ examId }: { examId: string }) {
       >
         {/* The announcements of this exam, for its holder or for a free exam. A visitor or a non-holder asks for none. */}
         <AnnouncementCard kind="exam" id={examId} enabled={isStudent && (ownsExam || Boolean(data.pricing?.free))} />
+
+        {/* A written exam the student has sat can be asked for another retake here, as on the result page. */}
+        <RetakeRequestPanel examId={examId} enabled={isStudent && ownsExam && examType === "WRITTEN"} />
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-card border border-border bg-card p-5 md:grid-cols-3">
           <Fact label={t("catalog.exam.duration")} value={formatDuration(data.durationMinutes, locale)} />

@@ -276,7 +276,8 @@ public class LiveExamSittingService {
 			throw notOpen();
 		}
 		if (clock.instant().isBefore(participant.getDeadlineAt())) {
-			if (LiveExam.MCQ.equals(exam.getExamType()) && participant.getSubmittedAt() == null) {
+			boolean written = LiveExam.WRITTEN.equals(exam.getExamType()) && participant.getAnswerStoredFileName() != null;
+			if ((LiveExam.MCQ.equals(exam.getExamType()) || written) && participant.getSubmittedAt() == null) {
 				post(participant, exam);
 			}
 			return posted(participant, exam);
@@ -516,6 +517,8 @@ public class LiveExamSittingService {
 		participant.setAnswerByteSize(stored.byteSize());
 		participant.setAnswerContentType("application/pdf");
 		files.commitReplacement(stored.storedFileName(), null);
+		// The upload is the student's submission: the script is posted now, whatever time is left in the sitting.
+		post(participant, exam);
 	}
 
 	private TakeView firstAttempt(LiveExam exam, UUID studentId) {
@@ -784,8 +787,15 @@ public class LiveExamSittingService {
 	private LiveExamParticipant openParticipant(UUID examId, UUID studentId) {
 		LiveExamParticipant participant = latest(examId, studentId)
 			.orElseThrow(LiveExamSittingService::notOpen);
-		if (!LiveExamParticipant.IN_PROGRESS.equals(participant.getStatus())
-				|| !clock.instant().isBefore(participant.getDeadlineAt())) {
+		// Past the deadline a late upload is a deadline refusal, whatever was already posted.
+		if (!clock.instant().isBefore(participant.getDeadlineAt())) {
+			throw new ApiException(ErrorCode.DEADLINE_PASSED, HttpStatus.CONFLICT, "The sitting deadline has passed.");
+		}
+		// A script already posted (a submitted written sitting) is refused as submitted, not as a late upload.
+		if (LiveExamParticipant.SUBMITTED.equals(participant.getStatus()) || participant.getSubmittedAt() != null) {
+			throw new ApiException(ErrorCode.ANSWER_ALREADY_SUBMITTED, HttpStatus.CONFLICT, "The answer script was already submitted.");
+		}
+		if (!LiveExamParticipant.IN_PROGRESS.equals(participant.getStatus())) {
 			throw new ApiException(ErrorCode.DEADLINE_PASSED, HttpStatus.CONFLICT, "The sitting deadline has passed.");
 		}
 		return participant;

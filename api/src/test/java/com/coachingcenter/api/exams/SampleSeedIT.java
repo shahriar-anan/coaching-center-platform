@@ -278,7 +278,7 @@ class SampleSeedIT extends PostgresIntegrationTest {
 				Integer.class, REVIEW)).isEqualTo(1);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exam_reviews WHERE id::text LIKE ? AND featured", Integer.class,
 				REVIEW)).isEqualTo(2);
-		// Announcements: six, one withdrawn. Notices: 7 purchases, 15 MCQ scores, 2 published results, 1 retake, 14 announcement rows.
+		// Announcements: six, one withdrawn. Notices: 5 purchases, 2 access grants, 15 MCQ scores, 2 published results, 1 retake, 14 announcement rows.
 		assertThat(count("announcements", ANNOUNCEMENT)).isEqualTo(6);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM announcements WHERE id::text LIKE ? AND withdrawn_at IS NOT NULL",
 				Integer.class, ANNOUNCEMENT)).isEqualTo(1);
@@ -287,7 +287,8 @@ class SampleSeedIT extends PostgresIntegrationTest {
 		assertThat(noticeCount("WRITTEN_RESULT")).isEqualTo(2);
 		assertThat(noticeCount("RETAKE_AVAILABLE")).isOne();
 		assertThat(noticeCount("ANNOUNCEMENT")).isEqualTo(14);
-		assertThat(noticeCount("PURCHASE_GRANTED")).isEqualTo(7);
+		assertThat(noticeCount("PURCHASE_GRANTED")).isEqualTo(5);
+		assertThat(noticeCount("ACCESS_GRANTED")).isEqualTo(2);
 		// Instructors: three exams each, assigned on the exam itself.
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM live_exams WHERE id::text LIKE ? AND instructor_id = ?", Integer.class,
 				EXAM, SampleSeed.id('6', 1))).isEqualTo(3);

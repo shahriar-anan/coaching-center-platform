@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Info, RotateCcw } from "lucide-react";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,13 +10,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat, StatRow } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
 import { ReviewCard } from "@/components/student/reviews/review-card";
+import { RetakeRequestPanel } from "@/components/student/result/retake-request-panel";
+import { ResultSummary } from "@/components/student/result/result-summary";
 import { McqQuestion, resolvePaperLanguage, type OptionLabels } from "@/components/student/sitting/mcq-question";
-import { PaperTextSizeControl, usePaperTextSize } from "@/components/student/sitting/paper-text-size";
+import { usePaperTextSize } from "@/components/student/sitting/paper-text-size";
 import { useLocale } from "@/i18n/locale-context";
 import { useUser } from "@/lib/auth/session-context";
 import { useNotice } from "@/lib/notices/use-notice";
@@ -71,8 +73,8 @@ export function positionKey(position: SittingPosition): "result.position.belowPa
 }
 
 const jumpTone: Record<Outcome, string> = {
-  right: "border-ok bg-ok/10 text-ok",
-  wrong: "border-danger bg-danger/10 text-danger",
+  right: "border-ok/50 bg-ok/10 text-ok-text",
+  wrong: "border-danger/50 bg-danger/10 text-danger",
   skipped: "border-border bg-bg text-muted",
   withheld: "border-border bg-bg text-muted",
 };
@@ -90,11 +92,12 @@ export function ResultPage({ examId }: { examId: string }) {
   // The merit list is empty until it opens; once it is, the student's own row gives their rank.
   const board = useLeaderboard(examId);
   const mine = board.data?.rows.find((row) => row.mine) ?? null;
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [showScript, setShowScript] = useState(false);
+  const [paperTab, setPaperTab] = useState<"evaluated" | "submitted">("evaluated");
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const textSize = usePaperTextSize();
   const user = useUser();
+
+  const studentLine = user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined;
 
   // The exam read refuses an archived or unpublished exam, so the result's own title stands in for it.
   const examTitle = exam.data ?? (result.data?.examTitleEn ? { titleEn: result.data.examTitleEn, titleBn: result.data.examTitleBn } : null);
@@ -192,6 +195,11 @@ export function ResultPage({ examId }: { examId: string }) {
   const paperScript = resolvePaperLanguage(exam.data?.paperLanguage, locale);
   const letters = paperScript === "EN" ? LETTERS_EN : LETTERS_BN;
 
+  const verdict = notSubmitted || isMissing(data.passed) ? "muted" : data.passed ? "ok" : "danger";
+  const meterPercent =
+    !written && !isMissing(data.score) && data.maximum > 0 ? Math.min(100, Math.max(0, (data.score / data.maximum) * 100)) : null;
+  const passPercent = !isMissing(data.passPercent) ? data.passPercent : null;
+
   const reviewItems = (data.questions ?? []).map((question, index) => ({
     question,
     number: index + 1,
@@ -215,35 +223,56 @@ export function ResultPage({ examId }: { examId: string }) {
       {header}
 
       {data.kind === "RETAKE" ? (
-        <Pill tone="warn">{t("result.page.practice")}</Pill>
+        <div role="note" className="flex items-center gap-2 rounded-card border border-warn/40 bg-warn/10 px-4 py-3 text-meta font-semibold text-warn">
+          <Info aria-hidden="true" className="size-4 shrink-0" />
+          {t("result.page.practice")}
+        </div>
       ) : null}
 
-      <StatRow className="[&>div>span:first-child]:text-accent">
-        <Stat value={written && awaiting ? t("result.stat.none") : scoreCell} label={t("result.stat.obtained")} />
-        <Stat
-          value={awaiting ? t("result.stat.none") : outcome}
-          label={t("result.stat.outcome")}
+      {written ? (
+        <StatRow className="[&>div>span:first-child]:text-accent">
+          <Stat value={written && awaiting ? t("result.stat.none") : scoreCell} label={t("result.stat.obtained")} />
+          <Stat
+            value={awaiting ? t("result.stat.none") : outcome}
+            label={t("result.stat.outcome")}
+          />
+          <Stat
+            value={written && awaiting ? t("result.outcome.pending") : mine ? n(mine.rank) : t("result.stat.none")}
+            label={written && awaiting ? t("result.stat.marking") : t("result.stat.rank")}
+          />
+        </StatRow>
+      ) : (
+        <ResultSummary
+          scoreLabel={t("result.stat.obtained")}
+          score={scoreCell}
+          percent={meterPercent}
+          passPercent={passPercent}
+          passLabel={passPercent !== null ? t("result.hub.passLine", { p: n(passPercent) }) : null}
+          outcome={outcome}
+          verdict={verdict}
+          rankLabel={t("result.stat.rank")}
+          rank={mine ? n(mine.rank) : t("result.stat.none")}
+          maximumLabel={t("result.board.maximum")}
+          maximum={n(data.maximum)}
         />
-        <Stat
-          value={written && awaiting ? t("result.outcome.pending") : mine ? n(mine.rank) : t("result.stat.none")}
-          label={written && awaiting ? t("result.stat.marking") : t("result.stat.rank")}
-        />
-      </StatRow>
+      )}
 
-      {!written && data.position ? (
-        <p className="text-body text-text">
+      {!written && data.position && (data.position.belowPass || data.position.of > 0) ? (
+        <p className="flex items-center gap-2 text-meta text-muted">
+          <Info aria-hidden="true" className="size-4 shrink-0" />
           {t(positionKey(data.position), { rank: n(data.position.rank), of: n(data.position.of) })}
         </p>
       ) : null}
 
-      {!written && !isMissing(data.passed) ? (
-        <Pill tone={data.passed ? "ok" : "danger"}>{outcome}</Pill>
-      ) : null}
-
       {!written && exam.data?.retakeAvailable === true ? (
-        <Card>
-          <p className="text-body text-muted">{t("result.page.retakeNote")}</p>
-          <Button className="mt-3" href={`/exam/${examId}/sit?start=retake`}>
+        <Card className="flex flex-wrap items-center justify-between gap-4 border-accent/40">
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/15 text-accent-text">
+              <RotateCcw className="size-5" />
+            </span>
+            <p className="text-body text-text">{t("result.page.retakeNote")}</p>
+          </div>
+          <Button href={`/exam/${examId}/sit?start=retake`} className="shrink-0">
             {t("result.page.retake")}
           </Button>
         </Card>
@@ -254,50 +283,53 @@ export function ResultPage({ examId }: { examId: string }) {
 
       {awaiting && !notSubmitted ? <p className="text-body text-muted">{t("result.written.awaiting")}</p> : null}
 
-      <ReviewCard kind="exam" id={examId} />
-
-      {published && data.comment ? (
-        <Card>
+      {written && published && data.comment ? (
+        <Card padding="sm" className="grid gap-1">
           <h2 className="text-label font-semibold text-muted">{t("result.written.comment")}</h2>
-          <p className="mt-2 whitespace-pre-line text-text">{data.comment}</p>
+          <p className="whitespace-pre-line text-text">{data.comment}</p>
         </Card>
       ) : null}
 
-      {written && data.answerPdf ? (
-        <Card>
-          <h2 className="text-label font-semibold text-muted">{t("result.written.yourAnswer")}</h2>
-          <Button className="mt-3" variant="secondary" onClick={() => setShowAnswer((value) => !value)} aria-expanded={showAnswer}>
-            {showAnswer ? t("result.written.hideAnswer") : t("result.written.viewAnswer")}
-          </Button>
-          {showAnswer ? (
-            <div className="mt-4">
-              <PdfViewer
-                load={() => apiBlob(answerPdfPath(examId))}
-                studentLine={user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined}
-                allowDownload={false}
-                label={t("result.written.yourAnswer")}
-              />
-            </div>
-          ) : null}
-        </Card>
-      ) : null}
+      {written ? <RetakeRequestPanel examId={examId} enabled /> : null}
 
-      {published && data.evaluatedPdf ? (
-        <Card>
-          <Button variant="secondary" onClick={() => setShowScript((value) => !value)} aria-expanded={showScript}>
-            {showScript ? t("result.written.hideMarked") : t("result.written.viewMarked")}
-          </Button>
-          {showScript ? (
-            <div className="mt-4">
-              <PdfViewer
-                load={() => apiBlob(evaluatedPdfPath(examId))}
-                studentLine={user ? (user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName) : undefined}
-                allowDownload={false}
-                label={t("result.written.markedScript")}
-              />
+      {written && (data.answerPdf || data.evaluatedPdf) ? (
+        <section className="grid gap-4">
+          <Tabs
+            ariaLabel={t("result.written.tabsLabel")}
+            variant="pill"
+            tabs={[
+              { value: "evaluated", label: t("result.written.tabEvaluated") },
+              { value: "submitted", label: t("result.written.tabSubmitted") },
+            ]}
+            value={paperTab}
+            onChange={(value) => setPaperTab(value as "evaluated" | "submitted")}
+          />
+          {paperTab === "evaluated" ? (
+            <div className="grid gap-4">
+              {published && data.evaluatedPdf ? (
+                <PdfViewer
+                  load={() => apiBlob(evaluatedPdfPath(examId))}
+                  studentLine={studentLine}
+                  allowDownload
+                  fileName="evaluated-paper.pdf"
+                  label={t("result.written.markedScript")}
+                />
+              ) : (
+                <p className="text-body text-muted">{t("result.written.noMarked")}</p>
+              )}
             </div>
-          ) : null}
-        </Card>
+          ) : data.answerPdf ? (
+            <PdfViewer
+              load={() => apiBlob(answerPdfPath(examId))}
+              studentLine={studentLine}
+              allowDownload
+              fileName="submitted-paper.pdf"
+              label={t("result.written.yourAnswer")}
+            />
+          ) : (
+            <p className="text-body text-muted">{t("result.written.noAnswer")}</p>
+          )}
+        </section>
       ) : null}
 
       {!written && data.questions ? (
@@ -322,14 +354,13 @@ export function ResultPage({ examId }: { examId: string }) {
             ariaLabel={t("result.review.title")}
           />
           {anyWithheld ? <p className="text-meta text-muted">{t("result.review.filterWhy")}</p> : null}
-          <PaperTextSizeControl size={textSize} className="justify-end" />
-          <nav aria-label={t("result.review.jumpLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-2">
+          <nav aria-label={t("result.review.jumpLabel")} className="flex flex-wrap gap-2">
             {visibleItems.map((item) => (
               <a
                 key={item.question.id}
                 href={`#review-q-${item.number}`}
                 aria-label={t("result.review.jumpItem", { number: n(item.number), outcome: outcomeLabel[item.outcome] })}
-                className={`flex h-11 items-center justify-center rounded-control border text-body tabular-nums ${jumpTone[item.outcome]}`}
+                className={`inline-flex size-10 items-center justify-center rounded-control border text-body font-semibold tabular-nums transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-accent ${jumpTone[item.outcome]}`}
               >
                 {n(item.number)}
               </a>
@@ -372,6 +403,11 @@ export function ResultPage({ examId }: { examId: string }) {
           {t("result.page.leaderboard")}
         </Link>
       ) : null}
+
+      {/* The rate form sits at the end of the page, after the answers and the merit list. */}
+      <div id="exam-review" className="scroll-mt-24">
+        <ReviewCard kind="exam" id={examId} />
+      </div>
     </div>
   );
 }

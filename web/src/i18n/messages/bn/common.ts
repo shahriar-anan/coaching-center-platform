@@ -75,6 +75,7 @@ const common = {
   staffNav: {
     announcements: "ঘোষণা",
     reviews: "রিভিউ",
+    retakeRequests: "পুনঃপরীক্ষার অনুরোধ",
     systemStatus: "সিস্টেম স্ট্যাটাস",
     orders: "অপেক্ষমাণ পেমেন্ট",
     dashboard: "ড্যাশবোর্ড",

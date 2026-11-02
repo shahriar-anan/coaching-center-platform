@@ -31,11 +31,17 @@ class StudentNoticeWriter {
 
 	static final String WRITTEN_RESULT = "WRITTEN_RESULT";
 
-	/** An exam's time, duration or paper changed on publish. In-app only (NR-01, P-e). */
-	static final String EXAM_UPDATED = "EXAM_UPDATED";
+	/** An exam's live time, end time or duration changed on publish. In-app only. */
+	static final String EXAM_TIME_CHANGED = "EXAM_TIME_CHANGED";
+
+	/** The centre added the student to an exam or package by hand. It is not a purchase, so it offers no payment. */
+	static final String ACCESS_GRANTED = "ACCESS_GRANTED";
 
 	/** A written retake was granted on the student's result (NR-01, R14). */
 	static final String RETAKE_AVAILABLE = "RETAKE_AVAILABLE";
+
+	/** The centre declined a student's retake request. The note is shown on the exam's result page. */
+	static final String RETAKE_DECLINED = "RETAKE_DECLINED";
 
 	private static final String INSERT = """
 			insert into student_notices (id, user_id, kind, message_key, exam_id, participant_id, created_at)
@@ -100,20 +106,22 @@ class StudentNoticeWriter {
 		}
 	}
 
-	/**
-	 * Joins the caller's transaction. Called when a publish changes an exam's time, duration or paper, for each student with
-	 * access. The publish instant is in the key, so each publish adds its own notice.
-	 */
-	void examUpdated(UUID examId, Collection<UUID> studentIds) {
+	/** Joins the caller's transaction. Called when a publish changes an exam's live time, end time or duration. */
+	void examTimeChanged(UUID examId, Collection<UUID> studentIds) {
 		long publishedAt = clock.instant().toEpochMilli();
 		for (UUID studentId : studentIds) {
-			insert(EXAM_UPDATED, studentId + ":" + examId + ":" + publishedAt, studentId, examId, null);
+			insert(EXAM_TIME_CHANGED, studentId + ":" + examId + ":" + publishedAt, studentId, examId, null);
 		}
 	}
 
 	/** Joins the caller's transaction. Called when a written retake is granted on a student's result (R14). */
 	void retakeAvailable(UUID examId, UUID studentId) {
 		insert(RETAKE_AVAILABLE, studentId + ":" + examId + ":" + clock.instant().toEpochMilli(), studentId, examId, null);
+	}
+
+	/** Joins the caller's transaction. Called when a retake request is declined. */
+	void retakeDeclined(UUID examId, UUID studentId) {
+		insert(RETAKE_DECLINED, studentId + ":" + examId + ":" + clock.instant().toEpochMilli(), studentId, examId, null);
 	}
 
 	/**
@@ -126,6 +134,15 @@ class StudentNoticeWriter {
 			insert(PURCHASE_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId, null);
 		} else if (LiveExamOrder.MODULE.equals(scope)) {
 			insertForModule(PURCHASE_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId);
+		}
+	}
+
+	/** Joins the caller's transaction. Called when the centre grants access by hand (a roster or a manual grant). */
+	void accessGranted(UUID studentId, UUID moduleOrExamId, String scope) {
+		if (LiveExamOrder.EXAM.equals(scope)) {
+			insert(ACCESS_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId, null);
+		} else if (LiveExamOrder.MODULE.equals(scope)) {
+			insertForModule(ACCESS_GRANTED, studentId + ":" + scope + ":" + moduleOrExamId, studentId, moduleOrExamId);
 		}
 	}
 

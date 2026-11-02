@@ -93,6 +93,7 @@ const catalog: typeof bn = {
   colDate: "Date",
   colTime: "Time",
   examListTitle: "Exams",
+  examListEmpty: "This package has no exams yet.",
   examListEmptyMcq: "This package has no MCQ exams yet.",
   examListEmptyWritten: "This package has no written exams yet.",
   otherTypeHint: "This package's written exams are under Written.",

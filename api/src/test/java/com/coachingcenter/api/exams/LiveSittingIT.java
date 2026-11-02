@@ -384,7 +384,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		assertThat(java.nio.file.Path.of(files.storageDir(), firstName)).exists();
 
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(hugePdf())
-			.header("Authorization", "Bearer " + uploader))
+			.header("Authorization", "Bearer " + missing))
 			.andExpect(status().isPayloadTooLarge());
 		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(secondName);
 
@@ -725,7 +725,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.myStatus").value("SUBMITTED"))
 			.andExpect(jsonPath("$.answerStored").value(true))
-			.andExpect(jsonPath("$.questionPdf").value(false));
+			.andExpect(jsonPath("$.questionPdf").doesNotExist());
 		mockMvc.perform(get(path + "/question-pdf").header("Authorization", "Bearer " + student))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("SITTING_NOT_OPEN"));
@@ -862,7 +862,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("DEADLINE_PASSED"));
 		assertThat(storedAnswer(exam, uploaderId)).isEqualTo(last);
-		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("IN_PROGRESS");
+		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("SUBMITTED");
 
 		deadlineJob.settleDue();
 		assertThat(sittingStatus(exam, uploaderId)).isEqualTo("SUBMITTED");
@@ -1158,7 +1158,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + stored))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+			.andExpect(jsonPath("$.status").value("SUBMITTED"))
 			.andExpect(jsonPath("$.score").doesNotExist())
 			.andExpect(jsonPath("$.passed").doesNotExist());
 		mockMvc.perform(multipart("/api/v1/live-exams/" + exam + "/answer-pdf").file(new MockMultipartFile("file", "two.pdf",

@@ -160,35 +160,30 @@ describe("saved mark and comment (G1)", () => {
   });
 });
 
-describe("saved comment snippets (UF4)", () => {
-  it("saves the comment on this device, inserts it with one click, and deletes it", async () => {
+describe("comment only save", () => {
+  it("saves the comment with the saved mark, leaves the script out, and says the comment is saved", async () => {
     mockApi({});
-    renderWithProviders(<SubmissionForm paper={paper()} canMark canPublish={false} />, { user: fixtures.instructor });
-    const comment = screen.getByRole("textbox", { name: /শিক্ষকের মন্তব্য/ });
-
-    await userEvent.type(comment, "ভালো হয়েছে");
-    await userEvent.click(screen.getByRole("button", { name: "মন্তব্য সংরক্ষণ করুন" }));
-    expect(screen.getByRole("button", { name: "ভালো হয়েছে" })).toBeInTheDocument();
-    expect(JSON.parse(window.localStorage.getItem("marking:comment-snippets") ?? "[]")).toEqual(["ভালো হয়েছে"]);
-
-    await userEvent.clear(comment);
-    await userEvent.click(screen.getByRole("button", { name: "ভালো হয়েছে" }));
-    expect(comment).toHaveValue("ভালো হয়েছে");
-
-    await userEvent.click(screen.getByRole("button", { name: "“ভালো হয়েছে” মুছুন" }));
-    expect(screen.queryByRole("button", { name: "ভালো হয়েছে" })).toBeNull();
-  });
-
-  it("keeps at most twenty snippets", () => {
-    window.localStorage.setItem(
-      "marking:comment-snippets",
-      JSON.stringify(Array.from({ length: 20 }, (_, index) => `মন্তব্য ${index}`)),
-    );
-    mockApi({});
-    renderWithProviders(<SubmissionForm paper={paper({ comment: "নতুন মন্তব্য" })} canMark canPublish={false} />, {
-      user: fixtures.instructor,
+    const sent: FormData[] = [];
+    const send = vi.spyOn(XMLHttpRequest.prototype, "send").mockImplementation(function (this: XMLHttpRequest, body) {
+      sent.push(body as FormData);
+      Object.defineProperty(this, "status", { value: 200 });
+      Object.defineProperty(this, "responseText", { value: JSON.stringify({ id: "p1", score: 40 }) });
+      this.onload?.(new ProgressEvent("load"));
     });
-    expect(screen.getByRole("button", { name: "মন্তব্য সংরক্ষণ করুন" })).toBeDisabled();
-    expect(screen.getByText(/সর্বোচ্চ ২০টি মন্তব্য রাখা যাবে/)).toBeInTheDocument();
+    try {
+      renderWithProviders(
+        <SubmissionForm paper={paper({ score: 40, evaluatedPdf: true, evaluatedFileName: "rahim-marked.pdf" })} canMark canPublish={false} />,
+        { user: fixtures.instructor },
+      );
+      await userEvent.type(screen.getByRole("textbox", { name: /মন্তব্য/ }), "ভালো হয়েছে");
+      await userEvent.click(screen.getByRole("button", { name: "মন্তব্য সংরক্ষণ করুন" }));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0].get("marks")).toBe("40");
+      expect(sent[0].get("comment")).toBe("ভালো হয়েছে");
+      expect(sent[0].has("file")).toBe(false);
+      expect(await screen.findByText("মন্তব্য সংরক্ষিত হয়েছে।")).toBeInTheDocument();
+    } finally {
+      send.mockRestore();
+    }
   });
 });

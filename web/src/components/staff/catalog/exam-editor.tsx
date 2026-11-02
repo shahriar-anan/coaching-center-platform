@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
@@ -14,6 +14,7 @@ import {
   useDiscardPendingChanges,
   useExam,
   useExamAction,
+  useCategoryTree,
   useModule,
   usePendingChanges,
   usePublishPendingChanges,
@@ -47,7 +48,9 @@ import {
   type ExamSection,
 } from "@/components/staff/catalog/exam-form-state";
 import { ChangeListDialog } from "@/components/staff/catalog/change-list-dialog";
-import { PendingChangesBanner } from "@/components/staff/catalog/pending-changes-banner";
+import { PendingChangesBanner, PendingSectionBadge, changedSections, type ChangedSection } from "@/components/staff/catalog/pending-changes-banner";
+import { ExamInstructorSection } from "@/components/staff/catalog/exam-details-fields";
+import { categoryNames } from "@/components/staff/exams/exam-groups";
 
 /** The exam's own forms that have a save button. Save all submits each of them that has changes. */
 const SECTION_FORMS = ["exam-details-form", "exam-text-form", "exam-schedule-form", "exam-price-form"];
@@ -97,6 +100,7 @@ function StudentPreview({ exam }: { exam: StaffExam }) {
 function PublishSummary({
   exam,
   moduleTitle,
+  categoryName,
   open,
   pending,
   onOpenChange,
@@ -104,6 +108,7 @@ function PublishSummary({
 }: {
   exam: StaffExam;
   moduleTitle: string | null;
+  categoryName: string | null;
   open: boolean;
   pending: boolean;
   onOpenChange: (open: boolean) => void;
@@ -113,7 +118,6 @@ function PublishSummary({
   const { formatDateTime, formatMoney, formatNumber, pickTitle } = useFormat();
   const isWritten = exam.examType === "WRITTEN";
   const total = (exam.questions ?? []).reduce((sum, q) => sum + q.marks, 0);
-  const door = t(`staffCatalog.examType.${exam.examType}`);
 
   return (
     <Dialog
@@ -159,10 +163,12 @@ function PublishSummary({
           </dd>
         </div>
         <div className="grid gap-0.5">
-          <dt className="text-meta text-muted">{t("staffCatalog.publish.where")}</dt>
-          <dd>
-            {moduleTitle ? t("staffCatalog.publish.whereValue", { module: moduleTitle, door }) : t("staffCatalog.publish.whereStandalone", { door })}
-          </dd>
+          <dt className="text-meta text-muted">{t("staffCatalog.publish.category")}</dt>
+          <dd className="font-medium">{categoryName ?? t("staffCatalog.publish.noCategory")}</dd>
+        </div>
+        <div className="grid gap-0.5">
+          <dt className="text-meta text-muted">{t("staffCatalog.publish.package")}</dt>
+          <dd className="font-medium">{moduleTitle ?? t("staffCatalog.publish.noPackage")}</dd>
         </div>
       </dl>
     </Dialog>
@@ -190,7 +196,7 @@ function NextStepCard({ moduleId, examType, canAssign }: { moduleId: string | nu
           <span className="text-meta text-muted">{t("staffCatalog.next.anotherBody")}</span>
         </Link>
         {examType === "WRITTEN" && canAssign ? (
-          <Link href="#exam-details" className={choice}>
+          <Link href="#exam-instructor" className={choice}>
             <span className="font-medium">{t("staffCatalog.next.assignTitle")}</span>
             <span className="text-meta text-muted">{t("staffCatalog.next.assignBody")}</span>
           </Link>
@@ -214,6 +220,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const { toast } = useToast();
   const moduleId = exam.moduleId;
   const moduleQuery = useModule(moduleId ?? undefined);
+  const categoryTree = useCategoryTree();
   const finalSave = useExamAction(exam.id, "final-save");
   const publish = useExamAction(exam.id, "publish");
   const remove = useDeleteExam(exam.id, moduleId ?? "");
@@ -250,6 +257,9 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
   const primary = primaryExamAction(exam, { dirty, masterAdmin, publishable });
   const title = pickTitle(exam);
   const moduleTitle = moduleQuery.data ? pickTitle(moduleQuery.data) : null;
+  const categories = useMemo(() => categoryNames(categoryTree.data), [categoryTree.data]);
+  const categoryFound = exam.categoryId ? categories.get(exam.categoryId) : undefined;
+  const categoryName = categoryFound ? (locale === "bn" ? categoryFound.titleBn : categoryFound.titleEn) : null;
 
   const sectionState: Record<"details" | "text" | "schedule" | "content" | "price" | "publish", SectionState> = {
     details: "done",
@@ -272,6 +282,10 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
     { id: "exam-publish", label: `${numberFor(5)} ${t("staffCatalog.sections.publish")}`, state: sectionState.publish },
   ];
   const banner = exam.pendingChanges ? <PendingChangesBanner masterAdmin={masterAdmin} /> : null;
+  // A badge only on the sections whose fields changed; the full notice stays once, at the top.
+  const changed = changedSections(changes.data);
+  const badge = (section: ChangedSection) =>
+    changed.has(section) ? <PendingSectionBadge /> : null;
 
   function saveAll() {
     for (const id of SECTION_FORMS) {
@@ -367,6 +381,8 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
         </p>
       ) : null}
 
+      {banner ? <div className="mb-6">{banner}</div> : null}
+
       <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:items-start">
         <SectionNav sections={navSections} />
 
@@ -378,13 +394,13 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             description={t("staffCatalog.sections.about.details")}
             state={sectionState.details}
           >
-            {banner}
+            {badge("details")}
             {role.canManageCover ? <ExamCoverUploader exam={exam} /> : null}
             <ExamMetaForm exam={exam} section="details" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
           <SectionBlock id="exam-text" number={numberFor(1)} title={t("staffCatalog.sections.text")} description={t("staffCatalog.examMeta.textHint")} state={sectionState.text}>
-            {banner}
+            {badge("text")}
             <ExamMetaForm exam={exam} section="text" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
@@ -395,7 +411,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             description={t("staffCatalog.sections.about.schedule")}
             state={sectionState.schedule}
           >
-            {banner}
+            {badge("schedule")}
             <ExamMetaForm exam={exam} section="schedule" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
 
@@ -406,7 +422,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             description={t(exam.examType === "MCQ" ? "staffCatalog.sections.about.mcq" : "staffCatalog.sections.about.written")}
             state={sectionState.content}
           >
-            {banner}
+            {badge("content")}
             {exam.examType === "MCQ" ? (
               <McqQuestions exam={exam} locked={!canEdit} canDelete={role.canAuthor} />
             ) : (
@@ -415,9 +431,11 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           </SectionBlock>
 
           <SectionBlock id="exam-price" number={numberFor(4)} title={t("staffCatalog.sections.price")} description={t("staffCatalog.sections.about.price")} state={sectionState.price}>
-            {banner}
+            {badge("price")}
             <ExamMetaForm exam={exam} section="price" canEdit={canEdit} onDirtyChange={onDirtyChange} />
           </SectionBlock>
+
+          <ExamInstructorSection exam={exam} badge={badge("instructor")} />
 
           {masterAdmin ? (
             <section className="grid gap-3">
@@ -447,7 +465,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
                 {role.canAssignInstructor ? (
                   <>
                     {t("staffCatalog.editor.noTeacherWarning")}{" "}
-                    <a href="#exam-details" className="font-medium underline-offset-2 hover:underline">
+                    <a href="#exam-instructor" className="font-medium underline-offset-2 hover:underline">
                       {t("staffCatalog.editor.assignTeacher")}
                     </a>
                   </>
@@ -494,6 +512,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
       <PublishSummary
         exam={exam}
         moduleTitle={moduleTitle}
+        categoryName={categoryName}
         open={publishing}
         pending={publish.isPending}
         onOpenChange={setPublishing}

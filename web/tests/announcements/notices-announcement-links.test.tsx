@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import NoticesPage from "@/app/(site)/notices/page";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
@@ -53,7 +54,7 @@ const writtenPackageNotice = {
 };
 
 describe("package and exam announcements on the Notices page (announcements plan, section 9)", () => {
-  it("shows an exam announcement as an announcement, with the exam chip and an Open the exam link", async () => {
+  it("shows an exam announcement on the card, and its full text with an Open the exam link in the dialog", async () => {
     mockApi({ "GET /api/v1/me/notices": { content: [examNotice], page: 0, totalPages: 1 } });
     renderWithProviders(<NoticesPage />, { user: fixtures.student, locale: "en" });
 
@@ -61,36 +62,42 @@ describe("package and exam announcements on the Notices page (announcements plan
     // The kind is no longer a line of its own: it is read out before the title, and the tab already names it.
     const heading = screen.getByRole("heading", { name: /Exam postponed/ });
     expect(heading).toHaveTextContent("Announcement from the centre");
-    expect(screen.getByText("Exam one")).toBeInTheDocument();
-    const links = screen.getAllByRole("link");
+    expect(screen.queryByText("View result")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Read announcement" }));
+    const dialog = await screen.findByRole("dialog");
+    const links = within(dialog).getAllByRole("link");
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/exam/e1");
     expect(links[0]).toHaveTextContent("Open the exam");
-    expect(screen.queryByText("View result")).not.toBeInTheDocument();
   });
 
-  it("shows a package announcement with the package chip and an Open the package link to its page", async () => {
+  it("shows a package announcement with its package chip, and opens its page from the dialog", async () => {
     mockApi({
       "GET /api/v1/me/notices": { content: [packageNotice], page: 0, totalPages: 1 },
       "GET /api/v1/public/live-exam-modules/m1": { ...fixtures.module, id: "m1", titleEn: "BCS Prelim", mcqCount: 4, writtenCount: 0 },
     });
     renderWithProviders(<NoticesPage />, { user: fixtures.student, locale: "en" });
 
-    expect(await screen.findByText("Mock on Sunday")).toBeInTheDocument();
-    expect(await screen.findByText("BCS Prelim")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "BCS Prelim. Open the package" });
+    expect((await screen.findAllByText("BCS Prelim")).length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("button", { name: "Read announcement" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Mock on Sunday")).toBeInTheDocument();
+    const link = within(dialog).getByRole("link", { name: "Open the package" });
     expect(link).toHaveAttribute("href", "/mcq/m/m1");
-    expect(link).toHaveTextContent("Open the package");
   });
 
-  it("opens a written-only package on the written door", async () => {
+  it("opens a written-only package on the written door from the dialog", async () => {
     mockApi({
       "GET /api/v1/me/notices": { content: [writtenPackageNotice], page: 0, totalPages: 1 },
       "GET /api/v1/public/live-exam-modules/m2": { ...fixtures.module, id: "m2", titleEn: "Written course", mcqCount: 0, writtenCount: 3 },
     });
     renderWithProviders(<NoticesPage />, { user: fixtures.student, locale: "en" });
 
-    expect(await screen.findByRole("link", { name: "Written course. Open the package" })).toHaveAttribute("href", "/written/m/m2");
+    expect((await screen.findAllByText("Written course")).length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("button", { name: "Read announcement" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("link", { name: "Open the package" })).toHaveAttribute("href", "/written/m/m2");
   });
 
   it("keeps an announcement to everyone without a link", async () => {

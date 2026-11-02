@@ -226,7 +226,7 @@ public class LiveExamRevisionService {
 		revisions.delete(revision);
 		if (changes.impact().notifiesStudents()) {
 			UUID examId = exam.getId();
-			afterCommit.run(() -> notices.examUpdated(examId, recipients));
+			afterCommit.run(() -> notices.examTimeChanged(examId, recipients));
 		}
 		return changes;
 	}

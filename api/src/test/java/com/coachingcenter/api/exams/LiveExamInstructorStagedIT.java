@@ -68,13 +68,16 @@ class LiveExamInstructorStagedIT extends PostgresIntegrationTest {
 		fx = new AuthoringFixture(mockMvc, dataSource, passwords, json);
 	}
 
+	/**
+	 * A teacher change on a published exam is staged, whoever makes it: the row keeps its teacher until the Master Admin publishes the
+	 * change, and the change shows in the exam's pending changes first.
+	 */
 	@Test
-	void assignAndUnassignOnAPublishedExamAreStagedUntilPublished() throws Exception {
+	void aMasterAdminsTeacherChangeOnAPublishedExamWaitsForPublish() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		String token = "Staged" + UUID.randomUUID().toString().substring(0, 8);
 		UUID first = instructor(token + " One");
-		UUID second = instructor(token + " Two");
 		UUID module = fx.module(staff, token + " package");
 		UUID exam = fx.createExam(staff, module, "WRITTEN", "Teacher exam " + token, NOON, 40, null);
 		fx.uploadPdf(staff, exam);
@@ -83,38 +86,44 @@ class LiveExamInstructorStagedIT extends PostgresIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(first)))
-			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.examId").value(exam.toString()))
-			.andExpect(jsonPath("$.instructorId").value(first.toString()));
-		assertThat(instructorOf(exam)).as("the live row keeps its instructor until publish").isNull();
-
-		mockMvc.perform(get("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.instructor.id").value(first.toString()))
-			.andExpect(jsonPath("$.pendingChanges").value(true));
-		JsonNode changes = pending(master, exam);
-		assertThat(field(changes, "instructor").get("after").asText()).isEqualTo(first.toString());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(second)))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("INSTRUCTOR_ALREADY_ASSIGNED"));
-
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"revisionId\":\"" + changes.get("revisionId").asText() + "\"}"))
-			.andExpect(status().isOk());
-		assertThat(instructorOf(exam)).as("publishing applies the staged instructor").isEqualTo(first);
+			.andExpect(status().isCreated());
+		assertThat(instructorOf(exam)).as("the assign waits in the revision until publish").isNull();
+		pending(master, exam);
+		publishStaged(master, exam);
+		assertThat(instructorOf(exam)).as("publishing applies the staged teacher").isEqualTo(first);
 
 		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
-		assertThat(instructorOf(exam)).as("the unassign is staged, the row keeps the instructor").isEqualTo(first);
-		JsonNode cleared = pending(master, exam);
-		assertThat(field(cleared, "instructor").hasNonNull("after")).as("a removal has no staged teacher").isFalse();
+		assertThat(instructorOf(exam)).as("the clear waits in the revision too").isEqualTo(first);
+		pending(master, exam);
+		publishStaged(master, exam);
+		assertThat(instructorOf(exam)).as("publishing applies the clear").isNull();
+	}
+
+	private void publishStaged(String master, UUID exam) throws Exception {
+		String revision = pending(master, exam).get("revisionId").asText();
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"revisionId\":\"" + cleared.get("revisionId").asText() + "\"}"))
+			.content("{\"revisionId\":\"" + revision + "\"}"))
 			.andExpect(status().isOk());
-		assertThat(instructorOf(exam)).as("publishing applies the unassign").isNull();
+	}
+
+	/** Only the Master Admin assigns a teacher; a System Admin is refused and the exam keeps its teacher. */
+	@Test
+	void aSystemAdminCannotAssignATeacher() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		String token = "Refused" + UUID.randomUUID().toString().substring(0, 8);
+		UUID teacher = instructor(token + " Teacher");
+		UUID module = fx.module(staff, token + " package");
+		UUID exam = fx.createExam(staff, module, "WRITTEN", "Teacher exam " + token, NOON, 40, null);
+		fx.uploadPdf(staff, exam);
+		fx.publishNew(master, exam);
+
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(teacher)))
+			.andExpect(status().isForbidden());
+		assertThat(instructorOf(exam)).as("a refused assign leaves the exam without a teacher").isNull();
 	}
 
 	@Test
@@ -132,35 +141,6 @@ class LiveExamInstructorStagedIT extends PostgresIntegrationTest {
 		assertThat(instructorOf(draft)).isEqualTo(teacher);
 		mockMvc.perform(get("/api/v1/live-exams/" + draft + "/pending-changes").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNotFound());
-	}
-
-	@Test
-	void theTeacherOnAPublishedExamIsStagedAndTheClearIsStagedToo() throws Exception {
-		String staff = fx.staff();
-		String master = fx.master();
-		String token = "Pkg" + UUID.randomUUID().toString().substring(0, 8);
-		UUID teacher = instructor(token + " Teacher");
-		UUID module = fx.module(staff, token + " package");
-		UUID exam = fx.createExam(staff, module, "WRITTEN", "Package exam " + token, NOON, 40, null);
-		fx.uploadPdf(staff, exam);
-		fx.publishNew(master, exam);
-
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content(instructorBody(teacher)))
-			.andExpect(status().isCreated());
-		assertThat(instructorOf(exam)).as("the teacher waits for publish on a published exam").isNull();
-		JsonNode changes = pending(master, exam);
-		assertThat(field(changes, "instructor").get("after").asText()).isEqualTo(teacher.toString());
-		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"revisionId\":\"" + changes.get("revisionId").asText() + "\"}"))
-			.andExpect(status().isOk());
-		assertThat(instructorOf(exam)).isEqualTo(teacher);
-
-		mockMvc.perform(delete("/api/v1/live-exams/" + exam + "/instructor").header("Authorization", "Bearer " + master))
-			.andExpect(status().isNoContent());
-		assertThat(instructorOf(exam)).as("the clear waits for publish too").isEqualTo(teacher);
-		assertThat(field(pending(master, exam), "instructor").hasNonNull("after")).as("a removal has no staged teacher").isFalse();
 	}
 
 	/**

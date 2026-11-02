@@ -65,8 +65,9 @@ export function examFormState(exam: StaffExam): ExamFormState {
     answersChangeable: exam.answersChangeable ?? true,
     price: exam.price == null ? "" : String(exam.price),
     free: exam.free ?? false,
-    discountPercent: exam.discountPercent == null ? "" : String(exam.discountPercent),
-    discountEndsAt: exam.discountEndsAt ?? null,
+    // The exam view carries the discount in its price block; the top-level fields are kept as a fallback.
+    discountPercent: (exam.pricing?.discountPercent ?? exam.discountPercent) == null ? "" : String(exam.pricing?.discountPercent ?? exam.discountPercent),
+    discountEndsAt: exam.pricing?.discountEndsAt ?? exam.discountEndsAt ?? null,
     accessDays: exam.accessDays == null ? "" : String(exam.accessDays),
   };
 }

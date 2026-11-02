@@ -365,8 +365,9 @@ public class LiveExamEvaluationService {
 
 	/**
 	 * The written question paper for staff readers. An unassigned instructor gets 404, not 403. With a participant, the
-	 * paper that participant sat (E29); without one, the exam's published paper. An instructor reads a live exam's paper
-	 * once its window has ended, and a practice exam's paper only through a participant, after that participant's deadline.
+	 * paper that participant sat (E29); without one, the exam's published paper. An assigned instructor reads a live exam's
+	 * paper at any time once it is published, and a practice exam's paper only through a participant, after that
+	 * participant's deadline.
 	 */
 	@Transactional(readOnly = true)
 	public byte[] questionPdf(UUID examId, CurrentActor actor, UUID participantId) {
@@ -407,11 +408,11 @@ public class LiveExamEvaluationService {
 		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
 			return false;
 		}
-		Instant now = clock.instant();
 		if (LiveExam.MODE_PRACTICE.equals(exam.getMode())) {
-			return participant != null && !now.isBefore(participant.getDeadlineAt());
+			return participant != null && !clock.instant().isBefore(participant.getDeadlineAt());
 		}
-		return ExamWindow.ENDED.equals(ExamWindow.phase(exam, now));
+		// A published paper is open to its assigned instructor at any time, before, during or after the window (reads() limits it).
+		return true;
 	}
 
 	private SubmissionView view(LiveExamParticipant participant, LiveExam exam, LiveExamModule module) {

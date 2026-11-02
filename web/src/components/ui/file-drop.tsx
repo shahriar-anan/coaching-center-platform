@@ -16,7 +16,12 @@ async function startsWithPdfMagic(file: File): Promise<boolean> {
   return PDF_MAGIC.every((byte, i) => head[i] === byte);
 }
 
+/** A file size in KB below one megabyte (so a small PDF is not shown as 0 MB), and in MB above it. */
 function megabytes(bytes: number, locale: "bn" | "en"): string {
+  if (bytes < 1024 * 1024) {
+    const kilobytes = Math.max(1, Math.round(bytes / 1024));
+    return `${formatNumber(kilobytes, locale)} ${locale === "bn" ? "কেবি" : "KB"}`;
+  }
   const value = Math.round((bytes / (1024 * 1024)) * 10) / 10;
   return `${formatNumber(value, locale)} ${locale === "bn" ? "এমবি" : "MB"}`;
 }

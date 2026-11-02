@@ -29,7 +29,7 @@ export type PdfViewerProps = {
 };
 import { PdfSkeleton } from "./pdf-skeleton";
 import { PdfWatermark, pageStrip } from "./pdf-watermark";
-import { clampZoom, ZOOM_STEP } from "./zoom";
+import { clampZoom, MIN_ZOOM, ZOOM_STEP } from "./zoom";
 
 export const PDF_WORKER_SRC = "/pdf.worker.min.mjs";
 
@@ -253,7 +253,11 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
             className={control}
             aria-label={full ? t("sitting.pdf.exitFullScreen") : t("sitting.pdf.fullScreen")}
             aria-pressed={full}
-            onClick={() => setFull((value) => !value)}
+            onClick={() => {
+              // Full screen opens at 50% so a whole page is in view; leaving it does not change the zoom.
+              if (!full) setZoom(MIN_ZOOM);
+              setFull((value) => !value);
+            }}
           >
             <FullScreenIcon exit={full} />
           </button>

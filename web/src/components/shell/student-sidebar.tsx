@@ -6,6 +6,8 @@ import { Bell, CalendarDays, CircleUserRound, ClipboardList, Home, Star, Trophy,
 import { useLocale } from "@/i18n/locale-context";
 import { Logo } from "@/components/shell/logo";
 import { cn } from "@/components/ui/cn";
+import { useUnreadCount } from "@/lib/api/exam/notices";
+import { formatNumber } from "@/lib/format";
 
 type StudentNavKey = "home" | "myExams" | "results" | "routine" | "notices" | "favourites" | "account";
 type StudentNavItem = { href: string; key: StudentNavKey; icon: LucideIcon };
@@ -84,8 +86,15 @@ function isActive(pathname: string, href: string): boolean {
  * It collapses to an 80 px icon rail; the shell keeps the choice. Below desktop width the bottom tab bar takes over.
  */
 export function StudentSidebar({ collapsed }: { collapsed: boolean }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const pathname = usePathname() ?? "/";
+  const { data: unread } = useUnreadCount();
+  // Results counts the unread results; Notices counts every unread notice. Other items have no count.
+  const countFor = (key: StudentNavKey): number => {
+    if (key === "notices") return unread?.count ?? 0;
+    if (key === "results") return unread?.byGroup?.RESULTS ?? 0;
+    return 0;
+  };
   return (
     <aside
       data-collapsed={collapsed || undefined}
@@ -116,6 +125,7 @@ export function StudentSidebar({ collapsed }: { collapsed: boolean }) {
                   const active = isActive(pathname, item.href);
                   const Icon = item.icon;
                   const label = t(`common.nav.${item.key}`);
+                  const count = countFor(item.key);
                   return (
                     <li key={item.href} className="relative">
                       <Link
@@ -133,6 +143,15 @@ export function StudentSidebar({ collapsed }: { collapsed: boolean }) {
                         {active ? <span aria-hidden="true" className="absolute inset-y-2 start-0 w-1 rounded-full bg-accent" /> : null}
                         <Icon aria-hidden="true" className={cn("size-5 shrink-0", active && "text-text-accent")} />
                         <span className={cn("min-w-0 flex-1 truncate text-start", collapsed && "sr-only")}>{label}</span>
+                        {count > 0 && !collapsed ? (
+                          <span className="rounded-full bg-warn-fill px-2 py-0.5 text-pill font-semibold text-on-warn tabular-nums">
+                            {formatNumber(count, locale)}
+                            <span className="sr-only">{t("common.unreadNotices", { count: formatNumber(count, locale) })}</span>
+                          </span>
+                        ) : null}
+                        {count > 0 && collapsed ? (
+                          <span aria-hidden="true" className="absolute end-2 top-2 size-2.5 rounded-full bg-warn-fill" />
+                        ) : null}
                       </Link>
                     </li>
                   );

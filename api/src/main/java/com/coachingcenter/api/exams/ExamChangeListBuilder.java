@@ -38,7 +38,7 @@ class ExamChangeListBuilder {
 		List<QuestionChange> questions = questions(before, after);
 		PaperChange paper = paper(before, after);
 		boolean scoring = scoringChanged(fields, questions);
-		boolean notifies = timeChanged(fields) || paper != null || !questions.isEmpty();
+		boolean notifies = timeChanged(fields);
 		Impact impact = new Impact(scoring ? submittedMcq : 0, notifies, notifies ? recipients : 0);
 		return new ChangeList(revisionId, fields, questions, paper, List.of(), impact);
 	}
@@ -67,7 +67,8 @@ class ExamChangeListBuilder {
 		return false;
 	}
 
-	private static boolean timeChanged(List<FieldChange> fields) {
+	/** True when the publish changes the live time, the end time or the duration. */
+	static boolean timeChanged(List<FieldChange> fields) {
 		for (FieldChange field : fields) {
 			if (Set.of("liveAt", "endAt", "durationMinutes").contains(field.field())) {
 				return true;

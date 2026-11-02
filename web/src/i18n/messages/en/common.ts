@@ -75,6 +75,7 @@ const common = {
   staffNav: {
     announcements: "Announcements",
     reviews: "Reviews",
+    retakeRequests: "Retake requests",
     systemStatus: "System status",
     orders: "Pending orders",
     dashboard: "Dashboard",

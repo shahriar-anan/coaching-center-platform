@@ -108,12 +108,13 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
 
   const tree = useCategoryTree(type);
   const moduleQuery = usePublicModule(moduleId, signedIn);
-  const exams = usePublicModuleExams(moduleId, type, signedIn);
+  // Every exam in the package, MCQ and written: the door only sets the category tree. Each row shows its own type.
+  const exams = usePublicModuleExams(moduleId, null, signedIn);
   // Ownership comes from the access object on the responses. The student's exam reads are
   // only asked for when the student owns something here, so a visitor makes no such request.
   const moduleAccess = resolveAccess(moduleQuery.data?.access);
   const anyExamOwned = (exams.data ?? []).some((exam) => resolveAccess(exam.access).owned);
-  const myExams = useMyModuleExams(moduleId, type, isStudent && (moduleAccess.owned || anyExamOwned));
+  const myExams = useMyModuleExams(moduleId, null, isStudent && (moduleAccess.owned || anyExamOwned));
   // The purchase of this package, when the student bought it (S4.6): its date and a link to the payment.
   const bought = useBoughtGrant({ moduleId }, isStudent && moduleAccess.owned);
   const [buying, setBuying] = useState(false);
@@ -195,7 +196,7 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
   const nextDated = list.find((e) => e.endAt && Date.parse(e.endAt) > now && e.liveAt);
   const price = data.price;
   const loginHref = `/login?next=${encodeURIComponent(modulePath(door, moduleId))}`;
-  const countLine = type === "MCQ" ? t("catalog.countMcq", { n: formatNumber(list.length, locale) }) : t("catalog.countWritten", { n: formatNumber(list.length, locale) });
+  const countLine = t("catalog.countExams", { n: formatNumber(list.length, locale) });
   const summaryLine = nextDated?.liveAt
     ? `${countLine} · ${t("catalog.summaryNext", { date: formatDate(nextDated.liveAt, locale, { year: "auto" }) })}`
     : countLine;
@@ -315,8 +316,7 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
             {activeTab === "exams" ? (
               list.length === 0 ? (
                 <EmptyState
-                  title={t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}
-                  body={t(type === "MCQ" ? "catalog.otherTypeHint" : "catalog.otherTypeHintWritten")}
+                  title={t("catalog.examListEmpty")}
                 />
               ) : shown.length === 0 ? (
                 <EmptyState title={t(examViewEmptyKey(view))} body={t("catalog.examView.emptyHint")} />
@@ -371,7 +371,7 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
 
             {activeTab === "routine" ? (
               list.length === 0 ? (
-                <p className="text-muted">{t(type === "MCQ" ? "catalog.examListEmptyMcq" : "catalog.examListEmptyWritten")}</p>
+                <p className="text-muted">{t("catalog.examListEmpty")}</p>
               ) : (
                 <>
                   <ul className="grid gap-2 md:hidden">

@@ -91,6 +91,7 @@ const catalog = {
   colDate: "তারিখ",
   colTime: "সময়",
   examListTitle: "পরীক্ষার তালিকা",
+  examListEmpty: "এই প্যাকেজে এখনো কোনো পরীক্ষা নেই।",
   examListEmptyMcq: "এই প্যাকেজে এখনো কোনো MCQ পরীক্ষা নেই।",
   examListEmptyWritten: "এই প্যাকেজে এখনো কোনো Written পরীক্ষা নেই।",
   otherTypeHint: "এই প্যাকেজের Written পরীক্ষাগুলো Written পাতায় আছে।",

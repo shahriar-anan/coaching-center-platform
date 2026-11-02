@@ -13,7 +13,6 @@ import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Textarea } from "@/components/ui/textarea";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
-import { CommentSnippets } from "@/components/staff/marking/comment-snippets";
 import { isTodayInDhaka, paperStatus, statusTone, statusWordKey } from "@/components/staff/marking/marking-queue";
 import { MarkedPdfView } from "@/components/staff/marking/marked-pdf-view";
 import { useLocale } from "@/i18n/locale-context";
@@ -58,6 +57,7 @@ export function SubmissionForm({
   const draft = useDraftForm<Marks>(`marking:${paper.id}`, saved);
   const { marks, comment } = draft.value;
   const [file, setFile] = useState<File | null>(null);
+  const [commentSaved, setCommentSaved] = useState(false);
   const [errors, setErrors] = useState<{ marks?: string; file?: string; form?: string }>({});
   const [confirmPublish, setConfirmPublish] = useState(false);
   // The grading panel is three tabs, so nothing needs a long scroll. A marker starts on the marks.
@@ -107,6 +107,17 @@ export function SubmissionForm({
       setFile(null);
       toast({ title: t("staffMarking.form.saved"), tone: "ok" });
       onSaved?.({ saveAndNext });
+    } catch (caught) {
+      setErrors({ form: saveErrorText(caught) });
+    }
+  }
+
+  /** Saves only the comment, with the mark that is already saved. The script is not sent again. */
+  async function saveComment() {
+    setErrors({});
+    try {
+      await save.mutateAsync({ marks: Number(saved.marks), comment, file: null });
+      setCommentSaved(true);
     } catch (caught) {
       setErrors({ form: saveErrorText(caught) });
     }
@@ -219,12 +230,31 @@ export function SubmissionForm({
 
               <section id="comment" className="grid gap-3 scroll-mt-24">
                 <Field label={t("staffMarking.form.comment")} hint={t("staffMarking.form.commentHint")}>
-                  <Textarea value={comment} onChange={(event) => setField({ comment: event.target.value })} rows={3} />
+                  <Textarea
+                    value={comment}
+                    onChange={(event) => {
+                      setCommentSaved(false);
+                      setField({ comment: event.target.value });
+                    }}
+                    rows={4}
+                  />
                 </Field>
-                <CommentSnippets
-                  comment={comment}
-                  onInsert={(text) => setField({ comment: comment.trim() ? `${comment.trim()} ${text}` : text })}
-                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    disabled={!canMark || save.isPending || isMissing(paper.score)}
+                    loading={save.isPending}
+                    onClick={saveComment}
+                  >
+                    {t("staffMarking.form.saveComment")}
+                  </Button>
+                  {commentSaved ? (
+                    <p role="status" className="text-meta font-medium text-ok-text">
+                      {t("staffMarking.form.commentSaved")}
+                    </p>
+                  ) : null}
+                </div>
+                {isMissing(paper.score) ? <p className="text-meta text-muted">{t("staffMarking.form.commentNeedsMark")}</p> : null}
               </section>
 
               <section id="marked-file" className="grid gap-2 scroll-mt-24">

@@ -289,7 +289,8 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk());
 		int mailBefore = fx.jdbc().queryForObject("select count(*) from exam_outbound_mail", Integer.class);
 		publishStaged(master, exam, staff);
-		assertThat(updateNotices(exam, studentId)).isEqualTo(1);
+		assertThat(timeNotices(exam, studentId)).as("a live-time change tells the student the time changed").isEqualTo(1);
+		assertThat(updateNotices(exam, studentId)).as("and not the general update").isZero();
 		assertThat(fx.jdbc().queryForObject("select count(*) from exam_outbound_mail", Integer.class)).isEqualTo(mailBefore);
 
 		assertThat(fx.jdbc().queryForObject(
@@ -635,6 +636,12 @@ class ExamRevisionIT extends PostgresIntegrationTest {
 			}
 		}
 		throw new AssertionError("The exam " + exam + " is not listed.");
+	}
+
+	private int timeNotices(UUID exam, UUID student) {
+		return fx.jdbc().queryForObject(
+				"select count(*) from student_notices where exam_id = ? and user_id = ? and kind = 'EXAM_TIME_CHANGED'", Integer.class,
+				exam, student);
 	}
 
 	private int updateNotices(UUID exam, UUID student) {

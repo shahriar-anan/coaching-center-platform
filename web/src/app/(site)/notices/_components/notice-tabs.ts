@@ -1,11 +1,24 @@
 import type { Notice, NoticeGroup, UnreadCounts } from "@/lib/api/exam/notices";
 
-/** The tabs, in the order they show (N1, Phase 4 A8). */
-export const NOTICE_TABS: readonly NoticeGroup[] = ["RESULTS", "EXAMS", "ANNOUNCEMENTS"];
+/** A tab: All (every notice, newest first) or one group. */
+export type NoticeTab = NoticeGroup | "ALL";
 
-/** The `tab` query value, or null when it is absent or not one of the three tabs. */
-export function parseNoticeTab(value: string | null | undefined): NoticeGroup | null {
+/** The tabs, in the order they show. All comes first (N1, Phase 4 A8). */
+export const NOTICE_TABS: readonly NoticeTab[] = ["ALL", "RESULTS", "EXAMS", "ANNOUNCEMENTS"];
+
+/** The `tab` query value, or null when it is absent or not one of the tabs. */
+export function parseNoticeTab(value: string | null | undefined): NoticeTab | null {
   return NOTICE_TABS.find((tab) => tab === value) ?? null;
+}
+
+/** The group the API is asked for: null on All, which asks for every notice. */
+export function groupFilter(tab: NoticeTab): NoticeGroup | null {
+  return tab === "ALL" ? null : tab;
+}
+
+/** The group a row belongs to: its own on the All tab, the tab's otherwise. */
+export function rowGroup(notice: Pick<Notice, "group">, tab: NoticeTab): NoticeGroup {
+  return tab === "ALL" ? (notice.group ?? "EXAMS") : tab;
 }
 
 /**

@@ -494,11 +494,14 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"discountPercent\":20}"))
 			.andExpect(status().isForbidden());
+		// A published exam's edit is staged until the Master Admin publishes it: the discount waits in the revision.
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"discountPercent\":20}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.pendingChanges").value(true));
+		assertThat(fx.jdbc().queryForObject("select discount_percent from live_exams where id = ?", Integer.class, exam))
+			.isEqualTo(30);
 	}
 
 	private String token(String role) throws Exception {

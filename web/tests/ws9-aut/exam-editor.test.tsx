@@ -108,7 +108,7 @@ describe("exam editor sections (U5)", () => {
 
     // The teacher is set per exam: the link goes to the teacher field in this exam's details, not to a package tab.
     const link = await screen.findByRole("link", { name: "শিক্ষক দিন" });
-    expect(link).toHaveAttribute("href", "#exam-details");
+    expect(link).toHaveAttribute("href", "#exam-instructor");
   });
 });
 
@@ -126,7 +126,8 @@ describe("publish summary and next step (UF7, F3)", () => {
     expect(within(dialog).getByText("প্রকাশের আগে দেখে নিন")).toBeInTheDocument();
     expect(within(dialog).getByText("২টি প্রশ্ন · মোট ৫০ নম্বর")).toBeInTheDocument();
     expect(within(dialog).getByText("মূল্য এখনো ঠিক হয়নি")).toBeInTheDocument();
-    expect(within(dialog).getByText(/প্যাকেজে, এমসিকিউ দরজায়/)).toBeInTheDocument();
+    expect(within(dialog).getByText("ক্যাটাগরি")).toBeInTheDocument();
+    expect(within(dialog).getByText("প্যাকেজ")).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "প্রকাশ করুন" }));
     await waitFor(() => expect(api.calls.some((call) => call.method === "POST" && call.path.endsWith("/publish"))).toBe(true));

@@ -647,7 +647,7 @@ public class SampleSeed {
 			UUID target = module ? id('b', grant.target()) : exam(grant.target()).id();
 			jdbc.update(INSERT_GRANT, id('d', grant.number()), id('5', grant.student()), grant.scope(), module ? target : null,
 					module ? null : target, null, ts(at(s, grant.day(), grant.hour())), "MANUAL");
-			notices.purchaseGranted(id('5', grant.student()), target, grant.scope());
+			notices.accessGranted(id('5', grant.student()), target, grant.scope());
 		}
 	}
 

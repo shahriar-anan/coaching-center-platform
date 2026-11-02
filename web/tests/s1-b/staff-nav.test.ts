@@ -67,7 +67,7 @@ describe("staff navigation by role", () => {
 
   it("the reviews item sits in the exams group right after announcements, and reads as read-only for a teacher", () => {
     const exams = staffNavFor("MASTER_ADMIN").filter((item) => item.group === "exams").map((item) => item.key);
-    expect(exams).toEqual(["participation", "submissions", "announcements", "reviews"]);
+    expect(exams).toEqual(["participation", "submissions", "announcements", "reviews", "retakeRequests"]);
     const reviews = STAFF_NAV.find((item) => item.key === "reviews");
     expect(reviews?.access).toEqual({ MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "read" });
     expect(keysFor("STUDENT")).not.toContain("reviews");
