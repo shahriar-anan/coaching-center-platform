@@ -96,6 +96,20 @@ class RetakeRequestIT extends PostgresIntegrationTest {
 		upload(approvedToken, exam);
 		upload(declinedToken, exam);
 
+		// A retake is asked for once the result is out: both first sheets are marked and published.
+		for (UUID student : new UUID[] { approved, declined }) {
+			UUID sheet = new JdbcTemplate(dataSource).queryForObject(
+				"select id from live_exam_participants where exam_id = ? and student_id = ? and attempt_no = 1 and deleted_at is null",
+				UUID.class, exam, student);
+			mockMvc.perform(multipart("/api/v1/live-exam-participants/" + sheet + "/evaluation")
+				.file(new MockMultipartFile("file", "mark.pdf", "application/pdf", realPdf()))
+				.param("marks", "6")
+				.header("Authorization", "Bearer " + master))
+				.andExpect(status().isOk());
+			mockMvc.perform(post("/api/v1/live-exam-participants/" + sheet + "/publish").header("Authorization", "Bearer " + master))
+				.andExpect(status().isOk());
+		}
+
 		// Before a request: the student can ask.
 		mockMvc.perform(get("/api/v1/live-exams/" + exam + "/retake-request").header("Authorization", "Bearer " + approvedToken))
 			.andExpect(status().isOk())

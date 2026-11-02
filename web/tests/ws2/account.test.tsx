@@ -131,8 +131,8 @@ describe("notices", () => {
   it("shows the empty sentence", async () => {
     mockApi({ "GET /api/v1/me/notices": emptyPage });
     renderWithProviders(<NoticesPage />, { user: fixtures.student, route: "/notices" });
-    // With no unread notices the page opens on the Exams tab, and that tab's empty sentence shows (Phase 4, S4.5).
-    expect(await screen.findByText("পরীক্ষার কোনো নোটিশ এখনো নেই।")).toBeInTheDocument();
+    // The page always opens on the All tab, and that tab's empty sentence shows.
+    expect(await screen.findByText("এখনো কোনো নোটিশ নেই।")).toBeInTheDocument();
   });
 
   it("shows the unread count on the bell", async () => {

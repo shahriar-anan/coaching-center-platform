@@ -20,6 +20,34 @@ function dateParts(iso: string, locale: Locale) {
   return { day, month: month.join(" "), year };
 }
 
+/** The Bangla month names and their three-letter English form, which a phone shows in both languages. */
+const SHORT_MONTHS: Record<string, string> = {
+  জানুয়ারি: "Jan",
+  ফেব্রুয়ারি: "Feb",
+  মার্চ: "Mar",
+  এপ্রিল: "Apr",
+  মে: "May",
+  জুন: "Jun",
+  জুলাই: "Jul",
+  আগস্ট: "Aug",
+  সেপ্টেম্বর: "Sep",
+  অক্টোবর: "Oct",
+  নভেম্বর: "Nov",
+  ডিসেম্বর: "Dec",
+};
+
+/** The month in full from md up, and as "Nov" on a phone, in English and Bangla alike, where the full name does not fit its block. */
+function MonthText({ month }: { month: string }) {
+  const { locale } = useLocale();
+  const short = locale === "bn" ? (SHORT_MONTHS[month] ?? month) : month.slice(0, 3);
+  return (
+    <>
+      <span className="md:hidden">{short}</span>
+      <span className="hidden md:inline">{month}</span>
+    </>
+  );
+}
+
 /** The price the order charges, or "Free"; a sentence when the exam has no price of its own. */
 function ExamPrice({ exam }: { exam: UpcomingExam }) {
   const { t, locale } = useLocale();
@@ -39,8 +67,9 @@ function ExamPrice({ exam }: { exam: UpcomingExam }) {
 }
 
 /**
- * The soonest exam as a navy card: a large date block, the relative day, the time, the type, the title, the package, the price and
- * a button to the exam. The button is gold, because the site's button colour is the band colour itself.
+ * The soonest exam as a navy card: a date block, the relative day, the time, the type, the title, the package, the price and a
+ * button to the exam. On a phone it is compact, with the date block beside the text; from md the date block is large and the card
+ * roomier. The button is gold, because the site's button colour is the band colour itself.
  */
 function Spotlight({ exam, liveAt, now }: { exam: UpcomingExam; liveAt: string; now: number }) {
   const { t, locale } = useLocale();
@@ -57,13 +86,15 @@ function Spotlight({ exam, liveAt, now }: { exam: UpcomingExam; liveAt: string; 
   }
 
   return (
-    <div className="flex flex-col gap-6 rounded-card bg-band p-6 text-on-band md:flex-row md:items-center md:p-8">
-      <div className="grid w-28 shrink-0 place-items-center rounded-card bg-accent py-4 text-center text-band">
-        <span className="text-4xl font-extrabold leading-none tabular-nums">{date.day}</span>
-        <span className="mt-2 text-label font-bold">{date.month}</span>
-        <span className="text-meta tabular-nums">{date.year}</span>
+    <div className="flex gap-4 rounded-card bg-band p-4 text-on-band md:items-center md:gap-6 md:p-8">
+      <div className="grid h-fit w-16 shrink-0 place-items-center rounded-control bg-accent py-2 text-center text-band md:w-28 md:rounded-card md:py-4">
+        <span className="text-2xl font-extrabold leading-none tabular-nums md:text-4xl">{date.day}</span>
+        <span className="mt-1 text-pill font-bold md:mt-2 md:text-label">
+          <MonthText month={date.month} />
+        </span>
+        <span className="hidden text-meta tabular-nums md:block">{date.year}</span>
       </div>
-      <div className="grid min-w-0 flex-1 gap-3">
+      <div className="grid min-w-0 flex-1 gap-1.5 md:gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* The pill keeps its own colours, so it sits on a card-coloured chip that reads in both themes. */}
           <span className="inline-flex rounded-full bg-card">
@@ -71,15 +102,15 @@ function Spotlight({ exam, liveAt, now }: { exam: UpcomingExam; liveAt: string; 
           </span>
           {relative ? <span className="text-label font-bold text-accent">{relative}</span> : null}
         </div>
-        <h3 className="text-title font-bold leading-snug">{pickTitle(exam, locale)}</h3>
-        {packageName ? <p className="text-body text-on-band/80">{packageName}</p> : null}
-        <p className="text-body tabular-nums text-on-band/80">{formatTime(liveAt, locale)}</p>
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <h3 className="text-card-title font-bold leading-snug md:text-title">{pickTitle(exam, locale)}</h3>
+        {packageName ? <p className="line-clamp-1 text-meta text-on-band/80 md:text-body">{packageName}</p> : null}
+        <p className="text-meta tabular-nums text-on-band/80 md:text-body">{formatTime(liveAt, locale)}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 md:gap-3 md:pt-2">
           <ExamPrice exam={exam} />
           <Link
             href={examPath(exam.id)}
             prefetch
-            className="inline-flex min-h-11 items-center rounded-control bg-accent px-5 text-label font-bold text-band transition-opacity hover:opacity-90"
+            className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 text-label font-bold text-band md:px-5 transition-opacity hover:opacity-90"
           >
             {t("landing.upcomingView")}
           </Link>
@@ -94,9 +125,11 @@ function DateChip({ iso }: { iso: string }) {
   const { locale } = useLocale();
   const { day, month } = dateParts(iso, locale);
   return (
-    <span className="grid w-16 shrink-0 place-items-center rounded-control bg-accent/15 py-1.5 text-accent-text">
+    <span className="grid w-14 shrink-0 place-items-center rounded-control bg-accent/15 py-1.5 text-accent-text md:w-16">
       <span className="text-card-title font-extrabold leading-none tabular-nums">{day}</span>
-      <span className="mt-1 block max-w-full truncate text-pill font-bold">{month}</span>
+      <span className="mt-1 block max-w-full truncate text-pill font-bold">
+        <MonthText month={month} />
+      </span>
     </span>
   );
 }
@@ -108,7 +141,7 @@ function NextRow({ exam }: { exam: UpcomingExam }) {
     <Link
       href={examPath(exam.id)}
       prefetch
-      className="group flex min-h-11 items-center gap-4 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent"
+      className="group flex min-h-11 items-center gap-3 rounded-card border border-border bg-card p-3 transition-colors hover:border-accent md:gap-4 md:p-4"
     >
       {exam.liveAt ? <DateChip iso={exam.liveAt} /> : null}
       <span className="min-w-0 flex-1">
@@ -124,7 +157,8 @@ function NextRow({ exam }: { exam: UpcomingExam }) {
 }
 
 /**
- * The next live exams across both types: the soonest as a spotlight, and the next four beside it as a list (stacked on phones).
+ * The next live exams across both types, three in all: the soonest as a spotlight, and the next two beside it as a list (stacked on
+ * phones).
  * Hidden when there are none.
  */
 export function Upcoming() {
@@ -142,7 +176,7 @@ export function Upcoming() {
       </Section>
     );
   }
-  const [spotlight, ...rest] = nextExams([mcq.data ?? [], written.data ?? []], 5);
+  const [spotlight, ...rest] = nextExams([mcq.data ?? [], written.data ?? []], 3);
   if (!spotlight || !spotlight.liveAt) return null;
 
   return (

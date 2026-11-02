@@ -36,9 +36,20 @@ export function ExamPriceFields({ exam, form, set, errors, disabled, context }: 
         label={t("staffCatalog.examMeta.free")}
         description={t("staffCatalog.examMeta.freeHint")}
         checked={form.free}
-        onCheckedChange={(value) => set("free", value)}
+        onCheckedChange={(value) => {
+          set("free", value);
+          // A free exam has no price, discount or access period, so the values the hidden fields held are cleared.
+          if (value) {
+            set("price", "");
+            set("discountPercent", "");
+            set("discountEndsAt", "");
+            set("accessDays", "");
+          }
+        }}
         disabled={disabled}
       />
+      {form.free ? null : (
+        <>
       <Field label={t("staffCatalog.examMeta.price")} hint={t("staffCatalog.examMeta.priceHint")} error={errors.price}>
         <NumberInput
           inputMode="decimal"
@@ -75,6 +86,8 @@ export function ExamPriceFields({ exam, form, set, errors, disabled, context }: 
       <Field label={t("staffCatalog.examMeta.accessDays")} hint={t("staffCatalog.examMeta.accessDaysHint")} error={errors.accessDays}>
         <NumberInput inputMode="numeric" min={1} step={1} value={form.accessDays} disabled={disabled} onChange={(e) => set("accessDays", e.target.value)} className="max-w-32" />
       </Field>
+        </>
+      )}
     </>
   );
 }

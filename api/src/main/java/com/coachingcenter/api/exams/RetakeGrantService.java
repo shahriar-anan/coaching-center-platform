@@ -73,6 +73,10 @@ public class RetakeGrantService {
 			.filter(attempt -> !LiveExamParticipant.IN_PROGRESS.equals(attempt.getStatus()))
 			.findFirst()
 			.orElseThrow(() -> retakeNotAllowed("The student has no finished attempt to retake."));
+		// A retake comes after the result is out: an attempt still being marked cannot be retaken yet.
+		if (!resultOut(latest)) {
+			throw retakeNotAllowed("The result is not published yet.");
+		}
 		LiveExamRetakeGrant active = grants.findActive(examId, studentId).orElse(null);
 		if ((active != null && active.getUsedParticipantId() != null) || attempts.size() > 1) {
 			throw retakeNotAllowed("A written exam has one retake, and it was already used.");
@@ -90,6 +94,14 @@ public class RetakeGrantService {
 		notices.retakeAvailable(examId, studentId);
 		audit.record(AuditRecorder.LIVE_EXAM_RETAKE_GRANT, AuditRecorder.LIVE_EXAM_PARTICIPANT_ENTITY, latest.getId());
 		return view(grant);
+	}
+
+	/**
+	 * Whether an attempt's result is out: its result was published, or it was never submitted, which has nothing to mark and is
+	 * final once the time ends.
+	 */
+	static boolean resultOut(LiveExamParticipant attempt) {
+		return LiveExamParticipant.FAILED_TO_SUBMIT.equals(attempt.getStatus()) || attempt.getPublishedAt() != null;
 	}
 
 	/** Revokes a grant that has not been used. A used one stays: the retake it allowed is on the student's record. */

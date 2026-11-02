@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiBlob, apiRequest } from "@/lib/api/client";
+import { apiFile, apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { Me, PageResponse } from "@/lib/api/exam/types";
 
@@ -126,11 +126,11 @@ export function receiptPdfPath(orderId: string): string {
 
 /** Saves the receipt PDF of a paid order as a file (P4). Throws when the download fails; the caller shows the message. */
 export async function downloadReceiptPdf(orderId: string, fileName: string): Promise<void> {
-  const blob = await apiBlob(receiptPdfPath(orderId));
+  const { blob, fileName: serverName } = await apiFile(receiptPdfPath(orderId));
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${fileName}.pdf`;
+  link.download = serverName ?? `${fileName}.pdf`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -195,4 +195,37 @@ export function isNotDeployed(error: unknown): boolean {
   if (error.code === "RESOURCE_NOT_FOUND") return true;
   // A 405, or a 404 with no API error body: the client keeps the HTTP status, so no text matching.
   return error.status === 405 || (error.status === 404 && error.code === "INTERNAL_ERROR");
+}
+
+/** One exam the student was enrolled in by hand, for the Offline purchases tab. */
+export type OfflineExam = {
+  examId: string;
+  titleEn: string;
+  titleBn: string;
+  examType: "MCQ" | "WRITTEN";
+  grantedAt: string;
+  /** Null for lifetime access. */
+  endsAt: string | null;
+  expired: boolean;
+};
+
+/** One package a staff member enrolled the student in by hand. */
+export type OfflinePackage = {
+  moduleId: string;
+  titleEn: string;
+  titleBn: string;
+  grantedAt: string;
+  endsAt: string | null;
+  expired: boolean;
+};
+
+export type OfflineOrders = { exams: OfflineExam[]; packages: OfflinePackage[] };
+
+/** The exams and packages a staff member enrolled the student in by hand. Refreshes on focus, so a new enrolment shows without a reload. */
+export function useOfflinePurchases() {
+  return useQuery({
+    queryKey: ["account", "offlinePurchases"] as const,
+    queryFn: () => apiRequest<OfflineOrders>("/api/v1/me/offline-purchases"),
+    refetchOnWindowFocus: true,
+  });
 }

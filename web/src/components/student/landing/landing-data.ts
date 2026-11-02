@@ -87,14 +87,14 @@ export interface ModuleCard {
 }
 
 /**
- * The modules to feature. Chosen ids stand alone, in the order given. With none chosen, the popular packages come first, then the
- * rest in tree order. Each module appears once, and the list stops at the limit.
+ * The modules to feature. Chosen ids stand alone, in the order given. With none chosen, the newest packages come first (those
+ * without a date after them, in tree order). Each module appears once, and the list stops at the limit.
  */
 export function featuredModules(nodes: CategoryNode[], ids: readonly string[], limit: number): ModuleCard[] {
   const all = flattenModules(nodes);
   const ranked = ids.length
     ? ids.flatMap((id) => all.filter((module) => module.id === id))
-    : [...all.filter((module) => module.popular), ...all.filter((module) => !module.popular)];
+    : [...all].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   const picked = ranked.filter((module, index) => ranked.findIndex((other) => other.id === module.id) === index);
   return picked.slice(0, limit).map((module) => {
     const mcq = moduleTypeCount(module, "MCQ");

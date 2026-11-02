@@ -133,9 +133,16 @@ public class RetakeRequestService {
 		List<LiveExamParticipant> attempts = participants
 			.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(exam.getId(), studentId);
 		attempts.forEach(attempt -> sittings.settleParticipant(attempt.getId()));
-		boolean finished = attempts.stream().anyMatch(attempt -> !LiveExamParticipant.IN_PROGRESS.equals(attempt.getStatus()));
-		if (!finished) {
+		LiveExamParticipant latest = attempts.stream()
+			.filter(attempt -> !LiveExamParticipant.IN_PROGRESS.equals(attempt.getStatus()))
+			.findFirst()
+			.orElse(null);
+		if (latest == null) {
 			return "NO_FINISHED_ATTEMPT";
+		}
+		// A retake is asked for once the result is out, not while the script is still being marked.
+		if (!RetakeGrantService.resultOut(latest)) {
+			return "RESULT_NOT_PUBLISHED";
 		}
 		if (attempts.size() > 1) {
 			return "RETAKE_USED";

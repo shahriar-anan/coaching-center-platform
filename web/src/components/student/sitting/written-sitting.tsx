@@ -1,17 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { Countdown } from "@/components/ui/countdown";
 import { FileDrop, type FileDropValue } from "@/components/ui/file-drop";
 import { useLocale } from "@/i18n/locale-context";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import { questionPdfPath, useUploadAnswer, type StudentExam } from "@/lib/api/exam/sitting";
+import { answerPdfPath, questionPdfPath, useUploadAnswer, type StudentExam } from "@/lib/api/exam/sitting";
 import { formatNumber } from "@/lib/format";
+import { useServerNow } from "@/lib/time/clock";
+
+/** A chosen script goes in this long before the deadline, so the upload lands before time runs out. */
+const AUTO_SEND_MS = 10_000;
 
 export const MAX_ANSWER_BYTES = 80 * 1024 * 1024;
 
@@ -46,7 +51,10 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
   const [error, setError] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const submitted = Boolean(stored || exam.answerStored);
+  const now = useServerNow(1000);
+  const deadlineMs = Date.parse(deadlineAt);
 
   const choose = async (file: File) => {
     setError(null);
@@ -89,6 +97,13 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
       );
     }
   };
+
+  // A chosen script that was not sent yet goes in by itself as time runs out. The server refuses a late upload, so it goes early.
+  useEffect(() => {
+    if (pending && !closed && !upload.isPending && now >= deadlineMs - AUTO_SEND_MS) {
+      void submit();
+    }
+  });
 
   const fileShown: FileDropValue | undefined =
     pending !== null ? { name: pending.name, size: pending.size } : (stored ?? undefined);
@@ -142,8 +157,17 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
         {!pending && (stored || exam.answerStored) ? (
           <p className="mt-2 text-body text-ok">{stored ? t("sitting.written.stored") : t("sitting.written.storedEarlier")}</p>
         ) : null}
+        {/* The chosen file, or the stored script, can be opened to check it is the right one before and after it is sent. */}
+        {pending || stored || exam.answerStored ? (
+          <Button variant="secondary" className="mt-3" onClick={() => setViewing(true)}>
+            {t("sitting.written.viewUploaded")}
+          </Button>
+        ) : null}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-body text-muted">{t("sitting.written.replaceNote")}</p>
+          <div className="grid gap-1">
+            <p className="text-body text-muted">{t("sitting.written.replaceNote")}</p>
+            <p className="text-body text-muted">{t("sitting.written.autoSendNote")}</p>
+          </div>
           <Button
             variant="primary"
             loading={upload.isPending}
@@ -154,6 +178,16 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
           </Button>
         </div>
       </Card>
+
+      <Dialog open={viewing} onOpenChange={setViewing} title={t("sitting.written.viewUploaded")} className="sm:max-w-3xl">
+        {viewing ? (
+          <PdfViewer
+            load={() => (pending ? Promise.resolve(pending) : apiBlob(answerPdfPath(exam.id)))}
+            allowDownload={false}
+            label={t("sitting.written.viewUploaded")}
+          />
+        ) : null}
+      </Dialog>
 
       <ConfirmDialog
         open={confirming}

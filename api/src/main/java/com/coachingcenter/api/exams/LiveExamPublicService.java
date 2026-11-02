@@ -405,7 +405,8 @@ public class LiveExamPublicService {
 				LiveExamStaffModuleService.pathOf(module.getCategoryId(), categoriesById), module.getTitleEn(),
 				module.getTitleBn(), module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
 				counts.mcq(), counts.written(), viewer == null ? null : viewer.module(module), ModuleCoverService.coverPath(module),
-				module.isPopular(), ExamPricing.view(module, clock.instant()), null, rating.average(), rating.count());
+				module.isPopular(), ExamPricing.view(module, clock.instant()), null, rating.average(), rating.count(),
+				module.getCreatedAt());
 	}
 
 	private PublicExam examRow(LiveExam exam, List<LiveExamModule> packages, StudentOwnAccessService.Viewer viewer,
@@ -542,11 +543,11 @@ public class LiveExamPublicService {
 			String titleEn, String titleBn, String descriptionEn, String descriptionBn, int position, BigDecimal price,
 			int mcqCount, int writtenCount, StudentOwnAccessService.Access access, String coverUrl, boolean popular,
 			PriceView pricing, Boolean favourite, @JsonInclude(JsonInclude.Include.ALWAYS) Double ratingAverage,
-			int ratingCount) {
+			int ratingCount, Instant createdAt) {
 
 		public PublicModule withFavourite(boolean marked) {
 			return new PublicModule(id, categoryId, categoryPath, titleEn, titleBn, descriptionEn, descriptionBn, position,
-					price, mcqCount, writtenCount, access, coverUrl, popular, pricing, marked, ratingAverage, ratingCount);
+					price, mcqCount, writtenCount, access, coverUrl, popular, pricing, marked, ratingAverage, ratingCount, createdAt);
 		}
 
 	}

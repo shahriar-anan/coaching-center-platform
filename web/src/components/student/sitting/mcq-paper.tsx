@@ -250,6 +250,10 @@ export function McqPaper({ exam, studentId, studentLine, startedAt, deadlineAt, 
         return;
       }
       const multi = multiAnswer.has(questionId);
+      // Where answers cannot change, a choice on a multi-answer question can be added to but not taken back.
+      if (!changeable && multi && (selectionRef.current[questionId] ?? []).includes(optionId)) {
+        return;
+      }
       const next = toggleOption(selectionRef.current, questionId, optionId, multi);
       // An answer that cannot change locks when it is first saved: a single answer at once, a multi-answer one when confirmed.
       if (!changeable && !multi && next[questionId]) {

@@ -266,6 +266,7 @@ const catalog = {
   },
   routine: {
     title: "পরীক্ষার রুটিন",
+    columns: { date: "তারিখ", time: "সময়", exam: "পরীক্ষা", package: "প্যাকেজ", type: "ধরন", status: "অবস্থা", calendar: "ক্যালেন্ডার" },
     today: "আজ",
     tomorrow: "আগামীকাল",
     live: "এখন চলছে",

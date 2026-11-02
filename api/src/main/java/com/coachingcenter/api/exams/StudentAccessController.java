@@ -33,6 +33,12 @@ public class StudentAccessController {
 		return access.mine(student());
 	}
 
+	/** The exams the student was enrolled in by hand, for the Offline purchases tab of My orders. */
+	@GetMapping("/api/v1/me/offline-purchases")
+	public StudentOwnAccessService.MyOffline offline() {
+		return access.offline(student());
+	}
+
 	private UUID student() {
 		if (!permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");

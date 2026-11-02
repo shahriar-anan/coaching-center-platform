@@ -148,6 +148,10 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 		UUID exam = createExam(staff, module, "BN", "2099-01-01T10:00:00+06:00", "Visible stem", true);
 		UUID draftExam = createExam(staff, module, "BN", "2099-06-01T10:00:00+06:00", "Draft stem", false);
 
+		// A public package says when it was created: the landing page shows the newest four.
+		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + module))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.createdAt").exists());
 		mockMvc.perform(get("/api/v1/public/live-exam-modules/" + draftModule)).andExpect(status().isNotFound());
 		mockMvc.perform(get("/api/v1/live-exam-modules/" + draftModule).header("Authorization", "Bearer " + staff))
 			.andExpect(status().isOk())

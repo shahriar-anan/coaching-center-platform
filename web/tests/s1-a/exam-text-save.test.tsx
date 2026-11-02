@@ -69,7 +69,7 @@ function renderText(source: StaffExam) {
 }
 
 describe("description and rules section", () => {
-  it("saves from the box's own Save and stays open while a text is still missing", async () => {
+  it("names the empty text and sends nothing while another text is still missing", async () => {
     const api = renderText(exam);
 
     const box = await screen.findByRole("textbox", { name: "Description (English)" });
@@ -80,12 +80,9 @@ describe("description and rules section", () => {
     // The box's Save comes before the section footer's Save in the page.
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
 
-    await waitFor(() => expect(patches(api.calls)).toHaveLength(1));
-    expect((patches(api.calls)[0].body as { descriptionEn?: string }).descriptionEn).toContain("Read all rules");
-    // Three texts are still missing, so the editors stay.
-    await waitFor(() => expect(screen.queryByText("English: unsaved changes")).not.toBeInTheDocument());
-    expect(screen.getByRole("textbox", { name: "Description (English)" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    // The rules are still empty, so the save stops before the server and says which text is missing.
+    expect(await screen.findByText("The English rules are empty. Write them before saving.")).toBeInTheDocument();
+    expect(patches(api.calls)).toHaveLength(0);
   });
 
   it("opens as a preview of all four texts when they are all saved, and Edit reopens the editors", async () => {

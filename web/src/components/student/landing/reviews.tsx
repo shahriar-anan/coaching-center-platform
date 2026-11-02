@@ -7,7 +7,7 @@ import { formatNumber, pickTitle } from "@/lib/format";
 
 /**
  * The staff-picked student reviews, as the old site's review cards in this app's theme. Three in a row from large width, two from
- * medium, and a sideways row with snap on phones. Nothing moves by itself. The whole section is left out when nothing is featured
+ * medium, and a stack down the page on phones. Nothing moves by itself. The whole section is left out when nothing is featured
  * or the read fails.
  */
 export function Reviews() {
@@ -18,9 +18,9 @@ export function Reviews() {
 
   return (
     <Section id="landing-reviews" title={t("reviews.landing.title")} center tone="surface">
-      <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-2 md:gap-5 md:overflow-visible md:px-0 lg:grid-cols-3">
+      <ul className="grid gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-3">
         {items.map((review) => (
-          <li key={review.id} className="w-[80%] min-w-0 shrink-0 snap-start md:w-auto">
+          <li key={review.id} className="min-w-0">
             <ReviewQuote review={review} />
           </li>
         ))}

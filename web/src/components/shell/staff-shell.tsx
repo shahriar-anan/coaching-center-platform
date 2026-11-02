@@ -17,6 +17,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/components/ui/cn";
 import { usePendingChanges } from "@/lib/api/exam/staff-exams";
 import { usePendingReviewCount } from "@/lib/api/exam/staff-reviews";
+import { useStaffAttention } from "@/lib/api/exam/staff-attention";
 import { canModerateReviews } from "@/components/staff/reviews/review-access";
 import { useRole } from "@/lib/auth/guards";
 
@@ -44,6 +45,8 @@ export function StaffShell({ children }: { children: ReactNode }) {
   // The reviews badge is for the same two roles; a teacher cannot read the count, so it is never asked for.
   const reviewsPending = usePendingReviewCount(canModerateReviews(role));
   const reviewsCount = reviewsPending.data?.count ?? 0;
+  // Papers to mark, results to publish, retake requests and payments: each role is asked only for what it acts on.
+  const attention = useStaffAttention(role);
 
   function toggleCollapsed() {
     setNavCollapsed(!collapsed);
@@ -57,13 +60,13 @@ export function StaffShell({ children }: { children: ReactNode }) {
         collapsed ? "md:grid-cols-[80px_1fr]" : "md:grid-cols-[240px_1fr]",
       )}
     >
-      <StaffSidebar items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} />
+      <StaffSidebar items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={attention} />
 
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen} title={t("common.nav.menu")}>
         <div className="grid gap-4 rounded-card bg-sidebar p-3 text-sidebar-text">
           {role ? <RoleChip role={role} /> : null}
           <nav aria-label={t("common.nav.main")}>
-            <StaffNavList items={items} pendingCount={pendingCount} reviewsCount={reviewsCount} onNavigate={() => setDrawerOpen(false)} />
+            <StaffNavList items={items} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={attention} onNavigate={() => setDrawerOpen(false)} />
           </nav>
         </div>
         <div className="mt-5 grid gap-3 border-t border-border pt-4 min-[480px]:hidden">

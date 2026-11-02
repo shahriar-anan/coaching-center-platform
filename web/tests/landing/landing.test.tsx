@@ -137,6 +137,7 @@ describe("landing data", () => {
       "m-written",
       "m-mcq",
     ]);
+    // None of these modules has a date, so they stay in tree order.
     expect(featuredModules(tree, [], 2).map((card) => card.module.id)).toEqual(["m-mcq", "m-free"]);
   });
 
@@ -151,10 +152,12 @@ describe("landing data", () => {
     expect(nextExams([[exam("a", "2026-12-01T04:00:00Z"), exam("b", "2026-12-02T04:00:00Z")]], 1)).toHaveLength(1);
   });
 
-  it("features popular packages first, then the rest in tree order, up to six", () => {
-    const modules = Array.from({ length: 8 }, (_, i) => module({ id: `p${i}`, popular: i === 4 || i === 6 }));
+  it("features the newest packages first, undated ones after them in tree order, and stops at the limit", () => {
+    const dates = ["2026-10-01", "2026-10-05", "2026-10-03", undefined, "2026-10-09", undefined];
+    const modules = dates.map((day, i) => module({ id: `p${i}`, createdAt: day ? `${day}T04:00:00Z` : undefined }));
     const nodes = [category({ id: "c", modules })];
-    expect(featuredModules(nodes, [], 6).map((card) => card.module.id)).toEqual(["p4", "p6", "p0", "p1", "p2", "p3"]);
+    expect(featuredModules(nodes, [], 4).map((card) => card.module.id)).toEqual(["p4", "p1", "p2", "p0"]);
+    expect(featuredModules(nodes, [], 6).map((card) => card.module.id)).toEqual(["p4", "p1", "p2", "p0", "p3", "p5"]);
   });
 
   it("features only the chosen ids when there are any, each once, and ignores popularity", () => {

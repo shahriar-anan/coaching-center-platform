@@ -121,19 +121,19 @@ export function StagedPublishDialog({
                   <table className="w-full text-start text-meta">
                     <thead>
                       <tr className="text-muted">
-                        <th scope="col" className="py-1 pe-3 font-medium">{t("staffCatalog.changes.field")}</th>
-                        <th scope="col" className="py-1 pe-3 font-medium">{t("staffCatalog.changes.before")}</th>
-                        <th scope="col" className="py-1 font-medium">{t("staffCatalog.changes.after")}</th>
+                        <th scope="col" className="py-1 pe-3 text-start font-medium">{t("staffCatalog.changes.field")}</th>
+                        <th scope="col" className="py-1 pe-3 text-start font-medium">{t("staffCatalog.changes.before")}</th>
+                        <th scope="col" className="py-1 text-start font-medium">{t("staffCatalog.changes.after")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((row) => (
                         <tr key={row.field} className="border-t border-border align-top">
-                          <th scope="row" className="py-2 pe-3 font-medium">
+                          <th scope="row" className="py-2 pe-3 text-start font-medium">
                             {t(`staffCatalog.changes.fields.${row.field}`)}
                           </th>
-                          <td className="py-2 pe-3 text-muted">{row.before}</td>
-                          <td className="py-2">{row.after}</td>
+                          <td className="py-2 pe-3 text-start text-muted">{row.before}</td>
+                          <td className="py-2 text-start">{row.after}</td>
                         </tr>
                       ))}
                     </tbody>

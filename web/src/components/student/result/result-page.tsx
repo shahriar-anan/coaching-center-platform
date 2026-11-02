@@ -264,7 +264,8 @@ export function ResultPage({ examId }: { examId: string }) {
         </p>
       ) : null}
 
-      {!written && exam.data?.retakeAvailable === true ? (
+      {/* A written exam reports a retake only once it was granted, so the card shows for both types. */}
+      {exam.data?.retakeAvailable === true ? (
         <Card className="flex flex-wrap items-center justify-between gap-4 border-accent/40">
           <div className="flex min-w-0 items-center gap-3">
             <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/15 text-accent-text">
@@ -289,8 +290,6 @@ export function ResultPage({ examId }: { examId: string }) {
           <p className="whitespace-pre-line text-text">{data.comment}</p>
         </Card>
       ) : null}
-
-      {written ? <RetakeRequestPanel examId={examId} enabled /> : null}
 
       {written && (data.answerPdf || data.evaluatedPdf) ? (
         <section className="grid gap-4">
@@ -331,6 +330,9 @@ export function ResultPage({ examId }: { examId: string }) {
           )}
         </section>
       ) : null}
+
+      {/* The retake request comes after the evaluated and submitted answer sheets, not before them. */}
+      {written ? <RetakeRequestPanel examId={examId} enabled /> : null}
 
       {!written && data.questions ? (
         <section aria-labelledby="review-title" className="flex flex-col gap-3" style={textSize.style}>

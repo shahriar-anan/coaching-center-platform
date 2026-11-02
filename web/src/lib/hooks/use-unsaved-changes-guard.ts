@@ -18,6 +18,8 @@ export function useUnsavedChangesGuard(dirty: boolean, message?: string): void {
 
   useEffect(() => {
     if (!dirty) return;
+    // The address this form is on. A jump to a part of it (a #hash link) comes as a pop, but it does not leave the page.
+    const here = `${window.location.pathname}${window.location.search}`;
 
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -44,6 +46,7 @@ export function useUnsavedChangesGuard(dirty: boolean, message?: string): void {
     };
 
     const onPop = () => {
+      if (`${window.location.pathname}${window.location.search}` === here) return;
       if (leavingRef.current) {
         leavingRef.current = false;
         return;

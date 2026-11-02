@@ -55,6 +55,13 @@ const staffAdmin = {
     more: "Show more",
     source: { ORDER: "Bought", MANUAL: "Added by hand", BUNDLE: "Bundle", ROSTER: "On the roster" },
     addedOn: "Enrolled {date}",
+    revoke: "Revoke access",
+    revokeTitle: "Revoke this access?",
+    revokeBody: "{name} loses access to this package or exam. The record stays in the audit trail.",
+    revokeReason: "Reason",
+    revokeReasonHint: "Kept with the revocation for the audit record.",
+    revokeConfirm: "Revoke access",
+    revoked: "Access revoked.",
   },
   enrol: {
     title: "Direct enrolment",

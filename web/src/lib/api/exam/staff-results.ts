@@ -130,6 +130,8 @@ export function useReleaseResults(examId: string) {
       queryClient.invalidateQueries({ queryKey: ["staffResults"] });
       queryClient.invalidateQueries({ queryKey: ["staffPeople"] });
       queryClient.invalidateQueries({ queryKey: ["staffMarking"] });
+      // The sidebar's counts of papers to mark and results to publish.
+      queryClient.invalidateQueries({ queryKey: ["staffHome"] });
     },
   });
 }

@@ -116,10 +116,13 @@ export function StaffNavList({
   collapsed = false,
   pendingCount = 0,
   reviewsCount = 0,
+  counts = {},
   onNavigate = () => undefined,
 }: {
   items: StaffNavItem[];
   collapsed?: boolean;
+  /** What waits for the signed-in person, per item. The Exams and Reviews counts above are used when this has none for them. */
+  counts?: Partial<Record<StaffNavKey, number>>;
   /** Changes waiting to be published, shown as a count on the Exams item. */
   pendingCount?: number;
   /** Reviews waiting for approval, shown as a count on the Reviews item. */
@@ -152,12 +155,19 @@ export function StaffNavList({
           {collapsed ? <hr aria-hidden="true" className="mx-2 border-sidebar-line" /> : null}
           <ul className="grid gap-1">
             {groupItems.map((item) => {
-              // The Exams item counts changes waiting to be published; the Reviews item counts reviews waiting for approval.
-              const count = item.key === "exams" ? pendingCount : item.key === "reviews" ? reviewsCount : 0;
+              // A count says how many things in that section wait for this person. Exams counts changes waiting to be published and
+              // Reviews counts reviews waiting for approval; the other sections say what they wait for under `staffNav.waiting`.
+              const count = counts[item.key] ?? (item.key === "exams" ? pendingCount : item.key === "reviews" ? reviewsCount : 0);
               const countLabel =
-                item.key === "reviews"
-                  ? t("common.staffNav.pendingReviews", { count: formatNumber(count) })
-                  : t("common.staffNav.pendingChanges", { count: formatNumber(count) });
+                count === 0
+                  ? ""
+                  : item.key === "reviews"
+                    ? t("common.staffNav.pendingReviews", { count: formatNumber(count) })
+                    : item.key === "exams"
+                      ? t("common.staffNav.pendingChanges", { count: formatNumber(count) })
+                      : t(`common.staffNav.waiting.${item.key}`, { count: formatNumber(count) });
+              // A long count is cut to 99+, so the pill stays one size.
+              const shown = count > 99 ? `${formatNumber(99)}+` : formatNumber(count);
               const badge =
                 count > 0 ? (
                   collapsed ? (
@@ -166,8 +176,8 @@ export function StaffNavList({
                       <span className="sr-only">{countLabel}</span>
                     </>
                   ) : (
-                    <span className="rounded-full bg-warn-fill px-2 text-pill font-semibold tabular-nums text-on-warn">
-                      {formatNumber(count)}
+                    <span className="min-w-6 rounded-full bg-warn-fill px-2 text-center text-pill font-bold tabular-nums text-on-warn">
+                      <span aria-hidden="true">{shown}</span>
                       <span className="sr-only">{countLabel}</span>
                     </span>
                   )
@@ -200,11 +210,13 @@ export function StaffSidebar({
   collapsed,
   pendingCount,
   reviewsCount,
+  counts,
 }: {
   items: StaffNavItem[];
   collapsed: boolean;
   pendingCount: number;
   reviewsCount: number;
+  counts?: Partial<Record<StaffNavKey, number>>;
 }) {
   const { t } = useLocale();
   return (
@@ -222,7 +234,7 @@ export function StaffSidebar({
           collapsed ? "px-2" : "px-3",
         )}
       >
-        <StaffNavList items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} />
+        <StaffNavList items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={counts} />
       </nav>
     </aside>
   );

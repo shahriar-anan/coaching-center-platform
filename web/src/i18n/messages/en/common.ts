@@ -98,6 +98,13 @@ const common = {
     examsCreate: "Create exam",
     pendingChanges: "{count} waiting to be published",
     pendingReviews: "{count} reviews waiting for approval",
+    waiting: {
+      submissions: "{count} papers waiting to be marked",
+      participation: "{count} results ready to publish",
+      retakeRequests: "{count} retake requests waiting for a decision",
+      orders: "{count} payments waiting for a decision",
+      payments: "{count} payments waiting for a decision",
+    },
     collapse: "Collapse the menu",
     expand: "Expand the menu",
     awaitingMarking: "{count} scripts awaiting marking",

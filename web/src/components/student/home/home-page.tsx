@@ -8,7 +8,7 @@ import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { Button } from "@/components/ui/button";
-import { DoorIcon } from "@/components/student/door-icon";
+import { ListChecks, Package, PenLine, ShoppingBag, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Countdown } from "@/components/ui/countdown";
 import { ErrorState } from "@/components/ui/error-state";
@@ -73,15 +73,26 @@ function writeDismissed(list: string[]) {
   }
 }
 
-/** One door: the mockup's large card, kept as it was. An icon, a title and one line, and nothing else. */
-function DoorLink({ href, icon, title, sub }: { href: string; icon: "mcq" | "written" | "orders" | "packages"; title: string; sub: string }) {
+/** Each door's line icon and its own soft tint, so the four read apart at a glance in both themes. */
+const DOORS: Record<"mcq" | "written" | "orders" | "packages", { Icon: LucideIcon; tone: string }> = {
+  mcq: { Icon: ListChecks, tone: "bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300" },
+  written: { Icon: PenLine, tone: "bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300" },
+  orders: { Icon: ShoppingBag, tone: "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300" },
+  packages: { Icon: Package, tone: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300" },
+};
+
+/** One door: the mockup's large card. An icon tile, a title and one line, and nothing else. */
+function DoorLink({ href, icon, title, sub }: { href: string; icon: keyof typeof DOORS; title: string; sub: string }) {
+  const { Icon, tone } = DOORS[icon];
   return (
     <Link
       href={href}
-      className="block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent"
+      className="group block rounded-card border border-border bg-card p-7 text-center transition hover:-translate-y-0.5 hover:border-accent hover:shadow-[var(--card-shadow)]"
     >
-      <DoorIcon kind={icon} className="size-12" />
-      <span className="mt-1 block text-title font-bold">{title}</span>
+      <span aria-hidden="true" className={`mx-auto mb-3 flex size-16 items-center justify-center rounded-2xl transition-transform group-hover:scale-105 ${tone}`}>
+        <Icon className="size-8" strokeWidth={1.75} />
+      </span>
+      <span className="block text-title font-bold">{title}</span>
       <span className="block text-meta text-muted">{sub}</span>
     </Link>
   );

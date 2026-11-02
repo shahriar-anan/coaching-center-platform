@@ -1,6 +1,7 @@
 import type { ChecklistItem } from "@/components/staff/catalog/exam-checklist";
 import type { ExamInput, StaffExam } from "@/lib/api/exam/staff-catalog";
 import type { PaperLanguage } from "@/lib/api/exam/types";
+import { isRichTextEmpty } from "@/components/staff/catalog/localized-rich-text";
 
 /** The sections of the exam page that save on their own button (plan 7.2). Questions and the header are not here. */
 export type ExamSection = "details" | "text" | "schedule" | "price";
@@ -62,9 +63,10 @@ export function examFormState(exam: StaffExam): ExamFormState {
     maximum: String(exam.maximum),
     negativeOn: negative > 0,
     negativeMarks: negative > 0 ? String(negative) : SUGGESTED_NEGATIVE_MARKS,
-    answersChangeable: exam.answersChangeable ?? true,
+    answersChangeable: exam.answersChangeable ?? false,
     price: exam.price == null ? "" : String(exam.price),
-    free: exam.free ?? false,
+    // The free flag comes in the price block; the top-level field is kept as a fallback.
+    free: exam.pricing?.free ?? exam.free ?? false,
     // The exam view carries the discount in its price block; the top-level fields are kept as a fallback.
     discountPercent: (exam.pricing?.discountPercent ?? exam.discountPercent) == null ? "" : String(exam.pricing?.discountPercent ?? exam.discountPercent),
     discountEndsAt: exam.pricing?.discountEndsAt ?? exam.discountEndsAt ?? null,
@@ -142,6 +144,21 @@ export function examFormErrors(
     }
     if (!form.categoryId) {
       errors.categoryId = "staffCatalog.examMeta.categoryRequired";
+    }
+  }
+  if (section === "text") {
+    // Publish needs all four, and the save names the one that is still empty.
+    if (isRichTextEmpty(form.descriptionEn)) {
+      errors.descriptionEn = "staffCatalog.examMeta.descriptionEnEmpty";
+    }
+    if (isRichTextEmpty(form.descriptionBn)) {
+      errors.descriptionBn = "staffCatalog.examMeta.descriptionBnEmpty";
+    }
+    if (isRichTextEmpty(form.rulesEn)) {
+      errors.rulesEn = "staffCatalog.examMeta.rulesEnEmpty";
+    }
+    if (isRichTextEmpty(form.rulesBn)) {
+      errors.rulesBn = "staffCatalog.examMeta.rulesBnEmpty";
     }
   }
   if (section === "schedule") {
@@ -242,13 +259,13 @@ export function examBodyFor(form: ExamFormState, section: ExamSection, context: 
     }
     return body;
   }
-  const discount = form.discountPercent.trim() === "" ? null : Number(form.discountPercent);
+  const discount = form.free || form.discountPercent.trim() === "" ? null : Number(form.discountPercent);
   return {
     free: form.free,
     price: form.free || form.price.trim() === "" ? null : Number(form.price),
     discountPercent: discount,
     discountEndsAt: discount === null ? null : form.discountEndsAt,
-    accessDays: form.accessDays.trim() === "" ? null : Number(form.accessDays),
+    accessDays: form.free || form.accessDays.trim() === "" ? null : Number(form.accessDays),
   };
 }
 

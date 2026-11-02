@@ -116,6 +116,12 @@ class ArchivedAndRetakeMarkingIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
 		upload(token2, exam);
 
+		// A retake is granted only once the first result is out: S1's first sheet is marked and published before the grant.
+		clock.set(Instant.parse("2026-10-20T06:52:00Z"));
+		UUID firstSheet = participant(exam, s1, 1);
+		mark(marker.token(), firstSheet, 6);
+		mockMvc.perform(post("/api/v1/live-exam-participants/" + firstSheet + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
 		clock.set(Instant.parse("2026-10-20T06:55:00Z"));
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/retake-grants").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
@@ -136,11 +142,8 @@ class ArchivedAndRetakeMarkingIT extends PostgresIntegrationTest {
 		UUID live = participant(exam, s1, 1);
 		UUID archived = participant(exam, s2, 1);
 		UUID retake = participant(exam, s1, 2);
-		mark(marker.token(), live, 6);
 		mark(marker.token(), archived, 7);
 		mark(marker.token(), retake, 9);
-		mockMvc.perform(post("/api/v1/live-exam-participants/" + live + "/ready").header("Authorization", "Bearer " + marker.token()))
-			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exam-participants/" + archived + "/ready").header("Authorization", "Bearer " + marker.token()))
 			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exam-participants/" + retake + "/ready").header("Authorization", "Bearer " + marker.token()))

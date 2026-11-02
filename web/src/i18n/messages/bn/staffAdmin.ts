@@ -55,6 +55,13 @@ const staffAdmin = {
     more: "আরও দেখুন",
     source: { ORDER: "কেনা", MANUAL: "হাতে যোগ", BUNDLE: "বান্ডল", ROSTER: "রোস্টারে" },
     addedOn: "ভর্তি {date}",
+    revoke: "অ্যাক্সেস বাতিল করুন",
+    revokeTitle: "এই অ্যাক্সেস বাতিল করবেন?",
+    revokeBody: "{name} এই প্যাকেজ বা পরীক্ষায় আর অ্যাক্সেস পাবেন না। রেকর্ড অডিট ট্রেইলে থাকবে।",
+    revokeReason: "কারণ",
+    revokeReasonHint: "বাতিলের সঙ্গে অডিট রেকর্ডের জন্য রাখা হবে।",
+    revokeConfirm: "অ্যাক্সেস বাতিল করুন",
+    revoked: "অ্যাক্সেস বাতিল হয়েছে।",
   },
   enrol: {
     title: "সরাসরি ভর্তি",

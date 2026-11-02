@@ -1,4 +1,4 @@
-import type { Notice, NoticeGroup, UnreadCounts } from "@/lib/api/exam/notices";
+import type { Notice, NoticeGroup } from "@/lib/api/exam/notices";
 
 /** A tab: All (every notice, newest first) or one group. */
 export type NoticeTab = NoticeGroup | "ALL";
@@ -21,16 +21,9 @@ export function rowGroup(notice: Pick<Notice, "group">, tab: NoticeTab): NoticeG
   return tab === "ALL" ? (notice.group ?? "EXAMS") : tab;
 }
 
-/**
- * The tab a visit opens on when the URL names none: Results if it has unread notices, else Exams if it has unread, else
- * Announcements if it has unread, else Exams.
- */
-export function defaultNoticeTab(byGroup: UnreadCounts["byGroup"] | undefined): NoticeGroup {
-  const unread = (tab: NoticeGroup) => (byGroup?.[tab] ?? 0) > 0;
-  if (unread("RESULTS")) return "RESULTS";
-  if (unread("EXAMS")) return "EXAMS";
-  if (unread("ANNOUNCEMENTS")) return "ANNOUNCEMENTS";
-  return "EXAMS";
+/** The tab a visit opens on when the URL names none: always All, whatever is unread. */
+export function defaultNoticeTab(): NoticeTab {
+  return "ALL";
 }
 
 /** The coloured edge of a card: results in the success colour, exams in the accent, announcements muted. */

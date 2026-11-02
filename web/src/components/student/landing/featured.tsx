@@ -29,19 +29,19 @@ export function Featured() {
       </Section>
     );
   }
-  const cards = featuredModules(data ?? [], featuredModuleIds, 6);
+  const cards = featuredModules(data ?? [], featuredModuleIds, 4);
   if (cards.length === 0) return null;
 
-  // On phones the cards scroll sideways with a snap, and the next card peeks at the edge. From md the cards form a grid.
+  // On phones the cards stack down the page, one under another, so nothing scrolls sideways. From md the cards form a grid.
   return (
     <Section id="landing-packages" title={title} subtitle={subtitle} action={action} center>
-      <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-[repeat(auto-fit,minmax(15rem,21rem))] md:justify-center md:gap-5 md:overflow-visible md:px-0">
+      <ul className="grid gap-4 md:grid-cols-[repeat(auto-fit,minmax(15rem,21rem))] md:justify-center md:gap-5">
         {cards.map((card) => {
           const type = card.mcq && card.mcq > 0 ? "MCQ" : "WRITTEN";
           const examCount = (card.mcq ?? 0) + (card.written ?? 0);
           const summary = firstLine(pickText({ ...card.module }, "description", locale));
           return (
-            <li key={card.module.id} className="w-[80%] min-w-0 shrink-0 snap-start md:w-auto">
+            <li key={card.module.id} className="min-w-0">
               <PackageCard
                 href={card.href}
                 cover={coverSrc(card.module.coverUrl)}

@@ -56,6 +56,24 @@ public class StudentOwnAccessService {
 			ORDER BY g.exam_id, via
 			""";
 
+	/** The exams a student holds by hand (a direct enrolment) that are not taken back: the offline purchases. */
+	private static final String MANUAL_EXAMS = """
+			SELECT g.exam_id, e.title_en, e.title_bn, e.exam_type, g.created_at AS granted_at
+			FROM live_exam_grants g
+			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
+			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
+			ORDER BY g.created_at DESC
+			""";
+
+	/** The packages a student holds by hand that are not taken back. */
+	private static final String MANUAL_MODULES = """
+			SELECT g.module_id, m.title_en, m.title_bn, g.created_at AS granted_at
+			FROM live_exam_grants g
+			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
+			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
+			ORDER BY g.created_at DESC
+			""";
+
 	private final NamedParameterJdbcTemplate jdbc;
 
 	private final ObjectProvider<LiveExamPaymentGateway> gateways;
@@ -139,6 +157,43 @@ public class StudentOwnAccessService {
 	}
 
 	public record MyAccess(List<MyModule> modules, List<MyExam> exams) {
+	}
+
+	/** One exam a student was enrolled in by hand. {@code endsAt} is null for lifetime access. */
+	public record MyOfflineExam(UUID examId, String titleEn, String titleBn, String examType, Instant grantedAt, Instant endsAt,
+			boolean expired) {
+	}
+
+	/** One package the student was enrolled in by hand. {@code endsAt} is null for lifetime access. */
+	public record MyOfflinePackage(UUID moduleId, String titleEn, String titleBn, Instant grantedAt, Instant endsAt,
+			boolean expired) {
+	}
+
+	/** The Offline purchases tab: the exams and the packages a staff member enrolled the student in by hand. */
+	public record MyOffline(List<MyOfflineExam> exams, List<MyOfflinePackage> packages) {
+	}
+
+	/** The exams and packages the student was enrolled in by hand, newest first. */
+	public MyOffline offline(UUID studentId) {
+		Instant now = clock.instant();
+		MapSqlParameterSource params = new MapSqlParameterSource("studentId", studentId);
+		List<MyOfflineExam> exams = jdbc.query(MANUAL_EXAMS, params, (rs, number) -> {
+			UUID examId = rs.getObject("exam_id", UUID.class);
+			Instant grantedAt = instant(rs.getTimestamp("granted_at"));
+			Instant endsAt = liveExams.findByIdAndDeletedAtIsNull(examId)
+				.map(exam -> AccessWindow.end(exam, grantedAt))
+				.orElse(null);
+			return new MyOfflineExam(examId, rs.getString("title_en"), rs.getString("title_bn"), rs.getString("exam_type"),
+					grantedAt, endsAt, LiveExamAccess.expired(endsAt, now));
+		});
+		List<MyOfflinePackage> packages = jdbc.query(MANUAL_MODULES, params, (rs, number) -> {
+			UUID moduleId = rs.getObject("module_id", UUID.class);
+			Instant grantedAt = instant(rs.getTimestamp("granted_at"));
+			Instant endsAt = access.moduleEnd(moduleId, grantedAt);
+			return new MyOfflinePackage(moduleId, rs.getString("title_en"), rs.getString("title_bn"), grantedAt, endsAt,
+					LiveExamAccess.expired(endsAt, now));
+		});
+		return new MyOffline(exams, packages);
 	}
 
 	/**

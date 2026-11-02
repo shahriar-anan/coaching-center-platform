@@ -73,16 +73,16 @@ describe("the doors on the student home", () => {
     expect(screen.queryByRole("heading", { name: "Popular" })).not.toBeInTheDocument();
   });
 
-  it("use the matching icons, drawn like the MCQ and Written ones", async () => {
+  it("each show their own line icon: a checklist, a pen, a shopping bag and a package", async () => {
     mockApi({ "GET /api/v1/me/exam-routine": page([]) });
     renderWithProviders(<HomePage />, { user: fixtures.student, locale: "en" });
 
     await screen.findByRole("link", { name: /My orders/ });
-    const icon = (name: RegExp) =>
-      (screen.getByRole("link", { name }).querySelector("span[aria-hidden='true']") as HTMLElement).style.maskImage;
-    expect(icon(/My orders/)).toContain("/icons/orders.svg");
-    expect(icon(/Exam packages/)).toContain("/icons/packages.svg");
-    expect(icon(/MCQ/)).toContain("/icons/exam.svg");
+    const icon = (name: RegExp) => screen.getByRole("link", { name }).querySelector("svg")?.getAttribute("class") ?? "";
+    expect(icon(/MCQ/)).toContain("list-checks");
+    expect(icon(/Written/)).toContain("pen-line");
+    expect(icon(/My orders/)).toContain("shopping-bag");
+    expect(icon(/Exam packages/)).toContain("package");
   });
 });
 

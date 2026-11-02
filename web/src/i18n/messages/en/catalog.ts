@@ -268,6 +268,7 @@ const catalog: typeof bn = {
   },
   routine: {
     title: "Exam routine",
+    columns: { date: "Date", time: "Time", exam: "Exam", package: "Package", type: "Type", status: "Status", calendar: "Calendar" },
     today: "Today",
     tomorrow: "Tomorrow",
     live: "Live now",

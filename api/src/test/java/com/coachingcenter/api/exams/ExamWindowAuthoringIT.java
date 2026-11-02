@@ -337,10 +337,10 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 		assertThat(pricing.get("free").asBoolean()).isFalse();
 		assertThat(fx.jdbc().queryForObject("select popular from live_exams where id = ?", Boolean.class, exam)).isFalse();
 
-		// A new exam defaults to "answers can be changed" on and no negative marking (P-c).
+		// A new exam defaults to "answers can be changed" off and no negative marking (P-c).
 		UUID plain = fx.createExam(staff, module, "MCQ", "Plain", NOON, 40, null);
 		JsonNode defaults = fx.exam(staff, plain);
-		assertThat(defaults.get("answersChangeable").asBoolean()).isTrue();
+		assertThat(defaults.get("answersChangeable").asBoolean()).isFalse();
 		assertThat(defaults.has("negativeMarks")).isFalse();
 		assertThat(defaults.get("previewEnabled").asBoolean()).isFalse();
 		assertThat(defaults.get("mode").asText()).isEqualTo("LIVE");

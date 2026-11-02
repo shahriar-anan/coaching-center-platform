@@ -52,7 +52,7 @@ export function PaperViews({
         fileName={`${studentName}-${examTitle}.pdf`}
       />
     ) : view === "question" ? (
-      <QuestionPaperPanel examId={examId} examTitle={examTitle} />
+      <QuestionPaperPanel examId={examId} participantId={answerId} examTitle={examTitle} />
     ) : (
       <PdfViewer
         key={markedAt ?? "marked"}

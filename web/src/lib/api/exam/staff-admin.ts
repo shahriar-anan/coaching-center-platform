@@ -135,7 +135,12 @@ function useOrderDecision(action: "confirm" | "reject") {
         body: { reason: reason.trim() },
       }),
     // Also on failure: ORDER_NOT_PENDING means the list is stale, and the copy says it reloads.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
+        // The sidebar's count of payments waiting for a decision.
+        queryClient.invalidateQueries({ queryKey: ["staffHome"] }),
+      ]),
   });
 }
 

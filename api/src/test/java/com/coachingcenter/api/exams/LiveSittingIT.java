@@ -1981,6 +1981,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.content("""
 						{
 						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "answersChangeable":true,
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"%s","durationMinutes":40,"passPercent":50
 						}
@@ -2028,6 +2029,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.content("""
 						{
 						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "answersChangeable":true,
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"%s","durationMinutes":40,"passPercent":50
 						}
@@ -2052,6 +2054,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				.content("""
 						{
 						  "examType":"MCQ","paperLanguage":"BN","titleEn":"Noon quiz","titleBn":"কুইজ",
+						  "answersChangeable":true,
 						  "descriptionEn":"d","descriptionBn":"বি","rulesEn":"English rules","rulesBn":"নিয়ম",
 						  "liveAt":"2026-10-20T12:00:00+06:00","durationMinutes":40,"passPercent":50
 						}

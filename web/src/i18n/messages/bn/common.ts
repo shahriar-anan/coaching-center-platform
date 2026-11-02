@@ -98,6 +98,13 @@ const common = {
     examsCreate: "নতুন পরীক্ষা",
     pendingChanges: "{count}টি প্রকাশের অপেক্ষায়",
     pendingReviews: "{count}টি রিভিউ অনুমোদনের অপেক্ষায়",
+    waiting: {
+      submissions: "{count}টি খাতা নম্বর দেওয়ার অপেক্ষায়",
+      participation: "{count}টি ফল প্রকাশের জন্য প্রস্তুত",
+      retakeRequests: "{count}টি পুনঃপরীক্ষার অনুরোধ সিদ্ধান্তের অপেক্ষায়",
+      orders: "{count}টি পেমেন্ট সিদ্ধান্তের অপেক্ষায়",
+      payments: "{count}টি পেমেন্ট সিদ্ধান্তের অপেক্ষায়",
+    },
     collapse: "মেনু ছোট করুন",
     expand: "মেনু বড় করুন",
     awaitingMarking: "{count}টি খাতা মূল্যায়ন বাকি",

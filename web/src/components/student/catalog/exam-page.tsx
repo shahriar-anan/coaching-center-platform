@@ -291,6 +291,12 @@ export function ExamPage({ examId }: { examId: string }) {
             ) : null}
             {ownsExam && bought ? <PurchasedLine grant={bought} /> : null}
             {primary}
+            {/* A written retake the centre granted: the one retake of a written exam starts here. */}
+            {ownsExam && examType === "WRITTEN" && owned?.retakeAvailable === true ? (
+              <Button fullWidth variant="secondary" onClick={() => setStarting("retake")}>
+                {t("result.page.retake")}
+              </Button>
+            ) : null}
             {previewLink}
             {isStudent && !ownsExam ? <OpenOrderLine filter={{ examId }} enabled /> : null}
             <Button variant="secondary" fullWidth href={`${examPath(examId)}/reviews`}>

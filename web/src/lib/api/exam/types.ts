@@ -90,6 +90,8 @@ export interface PublicModule extends Titled {
   ratingAverage?: number | null;
   /** Ratings counted for the average: every review that is not hidden. */
   ratingCount?: number;
+  /** When the package was created (ISO 8601). The landing page shows the newest. */
+  createdAt?: string;
 }
 
 /** The price block on an exam or package: the list price, the discount, and the price the order charges (NR-01). */

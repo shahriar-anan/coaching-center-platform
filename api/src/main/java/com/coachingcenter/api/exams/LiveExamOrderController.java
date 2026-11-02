@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -112,8 +115,32 @@ public class LiveExamOrderController {
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
 			.contentType(MediaType.APPLICATION_PDF)
-			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + receipt.order().receiptNo() + ".pdf\"")
+			.header(HttpHeaders.CONTENT_DISPOSITION,
+				ContentDisposition.attachment().filename(receiptFileName(receipt.order()), StandardCharsets.UTF_8).build().toString())
 			.body(receiptPdf.render(receipt));
+	}
+
+	/** The download name of a receipt: "Receipt - <what was bought> - <paid date>.pdf", the date in Dhaka time. */
+	static String receiptFileName(LiveExamOrderHistoryService.OwnOrderRow order) {
+		String what = firstText(order.examTitleEn(), order.moduleTitleEn(), order.examTitleBn(), order.moduleTitleBn());
+		Instant paid = order.paidAt() != null ? order.paidAt() : order.createdAt();
+		String day = paid.atZone(ZoneId.of("Asia/Dhaka")).toLocalDate().toString();
+		return "Receipt - " + safeFileText(what) + " - " + day + ".pdf";
+	}
+
+	private static String firstText(String... values) {
+		for (String value : values) {
+			if (value != null && !value.isBlank()) {
+				return value;
+			}
+		}
+		return "Order";
+	}
+
+	/** The text with the characters a file name cannot hold replaced by spaces, and kept short. */
+	private static String safeFileText(String text) {
+		String cleaned = text.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
+		return cleaned.length() > 80 ? cleaned.substring(0, 80).trim() : cleaned;
 	}
 
 	@GetMapping("/api/v1/live-exam-orders/status")

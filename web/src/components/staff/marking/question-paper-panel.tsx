@@ -15,11 +15,20 @@ const NOT_ALLOWED = ["RESOURCE_NOT_FOUND", "ACCESS_DENIED"];
  * The question paper, in its own tab while marking. It is requested only when the tab
  * is shown. An instructor not assigned to the module gets a plain line, not an error.
  */
-export function QuestionPaperPanel({ examId, examTitle }: { examId: string; examTitle: string }) {
+export function QuestionPaperPanel({
+  examId,
+  participantId,
+  examTitle,
+}: {
+  examId: string;
+  /** The sitting whose paper to show: the version the student was given. */
+  participantId: string;
+  examTitle: string;
+}) {
   const { t } = useLocale();
   const paper = useQuery({
-    queryKey: ["staffMarking", "questionPaper", examId],
-    queryFn: () => questionPaperBlob(examId),
+    queryKey: ["staffMarking", "questionPaper", examId, participantId],
+    queryFn: () => questionPaperBlob(examId, participantId),
     retry: false,
     staleTime: Infinity,
   });

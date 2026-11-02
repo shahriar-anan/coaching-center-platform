@@ -279,7 +279,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
     { id: "exam-schedule", label: `${numberFor(2)} ${t("staffCatalog.sections.schedule")}`, state: sectionState.schedule },
     { id: contentId, label: `${numberFor(3)} ${contentTitle}`, state: sectionState.content },
     { id: "exam-price", label: `${numberFor(4)} ${t("staffCatalog.sections.price")}`, state: sectionState.price },
-    { id: "exam-publish", label: `${numberFor(5)} ${t("staffCatalog.sections.publish")}`, state: sectionState.publish },
+    { id: "exam-publish", target: "exam-actions", label: `${numberFor(5)} ${t("staffCatalog.sections.publish")}`, state: sectionState.publish },
   ];
   const banner = exam.pendingChanges ? <PendingChangesBanner masterAdmin={masterAdmin} /> : null;
   // A badge only on the sections whose fields changed; the full notice stays once, at the top.
@@ -337,7 +337,7 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
             : [{ label: t("staffCatalog.nav.exams"), href: "/staff/exams" }, { label: title }]
         }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div id="exam-actions" className="flex flex-wrap items-center gap-2 scroll-mt-24">
             <StatusPill status={exam.status} />
             <Button variant="secondary" onClick={() => setPreviewing(true)}>
               {t("staffCatalog.preview.open")}

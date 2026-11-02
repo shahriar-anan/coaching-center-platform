@@ -275,8 +275,8 @@ export function PdfViewerImpl({ load, studentLine, allowDownload = false, fileNa
         onPointerCancel={onPointerEnd}
         className={
           full
-            ? "min-h-0 flex-1 touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
-            : "h-[70vh] max-h-[880px] min-h-[360px] touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
+            ? "min-h-0 flex-1 scroll-clean touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
+            : "h-[70vh] max-h-[880px] min-h-[360px] scroll-clean touch-pan-x touch-pan-y overflow-auto bg-bg p-2 focus-visible:outline-2 focus-visible:outline-accent"
         }
       >
         {/* Starts at the left edge and is as wide as the widest page, so a zoomed page scrolls to both sides. Each page centres itself (mx-auto) when it is narrower. */}

@@ -120,6 +120,8 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
   const [pasting, setPasting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [preview, setPreview] = useState(readPreviewPreference);
+  // The question just saved with Save & next, shown above the blank question that follows it.
+  const [previous, setPrevious] = useState<StaffQuestion | null>(null);
 
   const structureLocked = exam.started === true || refused;
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
@@ -145,6 +147,7 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
 
   /** Shows one question in the editor and moves the URL to it. */
   function show(question: StaffQuestion | null) {
+    setPrevious(null);
     const next = question ? draftFromQuestion(question) : blankDraft();
     setCurrent(question);
     setDraft(next);
@@ -197,7 +200,13 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
       const saved = current ? await update.mutateAsync({ questionId: current.id, body }) : await add.mutateAsync(body);
       toast({ title: t("staffCatalog.question.saved"), tone: "ok" });
       const following = goNext ? questions.find((question) => question.id !== saved.id && question.position > saved.position) : undefined;
-      show(following ?? saved);
+      if (goNext && !following) {
+        // The last question: Save & next opens a blank question, with the one just saved shown above it.
+        show(null);
+        setPrevious(saved);
+      } else {
+        show(following ?? saved);
+      }
     } catch (caught) {
       if (isApiError(caught, "QUESTION_STRUCTURE_LOCKED")) {
         setRefused(true);
@@ -284,9 +293,6 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
             <StatusPill status={exam.status} />
             <Button variant="secondary" href={`/staff/exams/${exam.id}`}>
               {t("staffCatalog.questionPage.back")}
-            </Button>
-            <Button variant="secondary" href={`/staff/exams/${exam.id}#exam-publish`}>
-              {t("staffCatalog.questionPage.review")}
             </Button>
           </div>
         }
@@ -378,6 +384,18 @@ function QuestionWorkspace({ exam }: { exam: StaffExam }) {
               ) : null}
             </div>
           </div>
+
+          {previous ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-field p-3 text-meta">
+              <p className="min-w-0 truncate">
+                <span className="text-muted">{t("staffCatalog.questionPage.previousSaved")} </span>
+                {previous.stem}
+              </p>
+              <Button variant="secondary" onClick={() => open(previous)}>
+                {t("staffCatalog.questionPage.openPrevious")}
+              </Button>
+            </div>
+          ) : null}
 
           <fieldset disabled={readOnly} className="min-w-0">
             <QuestionForm

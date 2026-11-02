@@ -272,7 +272,7 @@ function NoticesView() {
   const [params, setParams] = useListParams({ page: 0, tab: "" });
   const counts = useUnreadCount();
   const byGroup = counts.data?.byGroup;
-  const tab: NoticeTab = parseNoticeTab(params.tab) ?? defaultNoticeTab(byGroup);
+  const tab: NoticeTab = parseNoticeTab(params.tab) ?? defaultNoticeTab();
   const query = useNotices(params.page, groupFilter(tab));
   const markOne = useMarkNoticeRead();
   const markAll = useMarkAllNoticesRead();

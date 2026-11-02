@@ -170,9 +170,13 @@ export function evaluatedPaperBlob(participantId: string): Promise<Blob> {
   return apiBlob(`/api/v1/live-exam-participants/${participantId}/evaluated-pdf`);
 }
 
-/** The question paper. The server answers 404 to an instructor who is not assigned to the module. */
-export function questionPaperBlob(examId: string): Promise<Blob> {
-  return apiBlob(`/api/v1/live-exams/${examId}/question-pdf`);
+/**
+ * The question paper. With a participant, it is the version that student was given (E29), so the marker reads what the student
+ * saw. The server answers 404 to an instructor who is not assigned to the module.
+ */
+export function questionPaperBlob(examId: string, participantId?: string): Promise<Blob> {
+  const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
+  return apiBlob(`/api/v1/live-exams/${examId}/question-pdf${query}`);
 }
 
 /**

@@ -34,7 +34,7 @@ public class WebCorsConfig implements WebMvcConfigurer {
 			.allowedOrigins(origins.toArray(String[]::new))
 			.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 			.allowedHeaders("*")
-			.exposedHeaders(RequestIds.HEADER)
+			.exposedHeaders(RequestIds.HEADER, "Content-Disposition")
 			.allowCredentials(true);
 	}
 

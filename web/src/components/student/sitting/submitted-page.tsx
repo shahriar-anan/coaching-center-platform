@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { PdfViewer } from "@/components/pdf/pdf-viewer";
+import { apiBlob } from "@/lib/api/client";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewCard } from "@/components/student/reviews/review-card";
 import { useLocale } from "@/i18n/locale-context";
-import { useStudentExam } from "@/lib/api/exam/sitting";
+import { answerPdfPath, useStudentExam } from "@/lib/api/exam/sitting";
 import { useFormat } from "@/lib/format/use-format";
 import { studentHome } from "@/lib/config";
 
@@ -25,6 +28,7 @@ export function SubmittedPage({ examId }: { examId: string }) {
   const exam = useStudentExam(examId);
   const data = exam.data;
   const stored = Boolean(data?.answerStored);
+  const [viewing, setViewing] = useState(false);
 
   useEffect(() => {
     if (data && !stored) {
@@ -51,11 +55,25 @@ export function SubmittedPage({ examId }: { examId: string }) {
           <p className="text-body text-muted">{t("sitting.submitted.final")}</p>
           <p className="text-body text-muted">{t("sitting.submitted.next")}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-2">
+            <Button variant="secondary" onClick={() => setViewing(true)}>
+              {t("sitting.submitted.viewPdf")}
+            </Button>
             <Button href={studentHome}>{t("sitting.submitted.home")}</Button>
           </div>
         </div>
       </Card>
       <ReviewCard kind="exam" id={examId} />
+
+      <Dialog open={viewing} onOpenChange={setViewing} title={t("sitting.submitted.pdfTitle")} className="sm:max-w-3xl">
+        {viewing ? (
+          <PdfViewer
+            load={() => apiBlob(answerPdfPath(examId))}
+            allowDownload
+            fileName={`${title}-submitted.pdf`}
+            label={t("sitting.submitted.pdfTitle")}
+          />
+        ) : null}
+      </Dialog>
     </div>
   );
 }

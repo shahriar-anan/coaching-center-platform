@@ -6,6 +6,8 @@ import { cn } from "@/components/ui/cn";
 
 export type SectionNavItem = {
   id: string;
+  /** The element the link jumps to, when it is not the section itself. */
+  target?: string;
   label: string;
   state: "done" | "todo" | "error";
 };
@@ -36,7 +38,7 @@ export function SectionNav({ sections }: { sections: SectionNavItem[] }) {
           return (
             <li key={section.id} data-state={section.state} className="shrink-0 md:shrink">
               <a
-                href={`#${section.id}`}
+                href={`#${section.target ?? section.id}`}
                 className="flex min-h-11 items-center gap-2 rounded-control border border-border px-3 text-label text-text outline-none hover:bg-bg focus-visible:outline-accent md:min-h-10 md:border-0"
               >
                 <Icon aria-hidden="true" className={cn("size-4 shrink-0", TONE[section.state])} />

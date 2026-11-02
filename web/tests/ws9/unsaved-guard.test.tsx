@@ -74,9 +74,18 @@ describe("useUnsavedChangesGuard: browser back", () => {
   it("puts the page back forward and asks when dirty", async () => {
     const go = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
     renderWithProviders(<Form dirty />);
+    // A real Back leaves the address, so the page moves to another address before the pop.
+    window.history.pushState({}, "", "/elsewhere");
     window.dispatchEvent(new PopStateEvent("popstate"));
     expect(go).toHaveBeenCalledWith(1);
     expect(await screen.findByText(TITLE)).toBeInTheDocument();
+  });
+
+  it("ignores a jump to another part of the same page", () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    renderWithProviders(<Form dirty />);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(go).not.toHaveBeenCalled();
   });
 });
 

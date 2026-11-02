@@ -12,6 +12,8 @@ import { catalogErrorKey } from "@/components/staff/catalog/errors";
 
 /** The rich text fields. They show as plain text in the change list (plan 7.2). */
 const RICH_FIELDS = new Set(["descriptionEn", "descriptionBn", "rulesEn", "rulesBn"]);
+/** The fields that hold a moment in time: shown as a date and clock in Dhaka time, not as the raw timestamp. */
+const DATE_FIELDS = new Set(["liveAt", "endAt", "discountEndsAt"]);
 
 /** One line of the change list: the field, and its published and staged values as plain text. */
 export type ChangeRow = { field: string; before: string; after: string };
@@ -41,11 +43,17 @@ export function changeRows(
   fields: PendingFieldChange[],
   words: { empty: string; yes: string; no: string },
   categoryName?: (id: string) => string | undefined,
+  formatDate?: (iso: string) => string,
 ): ChangeRow[] {
-  const text = (field: string, value: unknown) =>
-    field === "categoryId" && typeof value === "string" && categoryName
-      ? (categoryName(value) ?? value)
-      : changeValueText(field, value, words);
+  const text = (field: string, value: unknown) => {
+    if (field === "categoryId" && typeof value === "string" && categoryName) {
+      return categoryName(value) ?? value;
+    }
+    if (DATE_FIELDS.has(field) && typeof value === "string" && value && formatDate) {
+      return formatDate(value);
+    }
+    return changeValueText(field, value, words);
+  };
   return fields.map((change) => ({
     field: change.field,
     before: text(change.field, change.before),
@@ -95,7 +103,7 @@ export function ChangeListDialog({
   onFailed: (message: string) => void;
 }) {
   const { t, locale } = useLocale();
-  const { formatNumber } = useFormat();
+  const { formatNumber, formatDateTime } = useFormat();
   const [pending, setPending] = useState(false);
   const words = { empty: t("staffCatalog.changes.empty"), yes: t("staffCatalog.changes.yes"), no: t("staffCatalog.changes.no") };
 
@@ -122,7 +130,7 @@ export function ChangeListDialog({
     return found ? (locale === "bn" ? found.titleBn : found.titleEn) : undefined;
   };
   const rows = changes
-    ? changeRows(teacherWords(changes.fields, t("staffCatalog.staged.teacherAssigned"), t("staffCatalog.staged.teacherNone")), words, categoryName)
+    ? changeRows(teacherWords(changes.fields, t("staffCatalog.staged.teacherAssigned"), t("staffCatalog.staged.teacherNone")), words, categoryName, (iso) => formatDateTime(iso))
     : [];
   const impact = changes ? impactCounts(changes) : null;
 
@@ -154,19 +162,19 @@ export function ChangeListDialog({
             <table className="w-full text-start text-meta">
               <thead>
                 <tr className="text-muted">
-                  <th scope="col" className="py-1 pe-3 font-medium">{t("staffCatalog.changes.field")}</th>
-                  <th scope="col" className="py-1 pe-3 font-medium">{t("staffCatalog.changes.before")}</th>
-                  <th scope="col" className="py-1 font-medium">{t("staffCatalog.changes.after")}</th>
+                  <th scope="col" className="py-1 pe-3 text-start font-medium">{t("staffCatalog.changes.field")}</th>
+                  <th scope="col" className="py-1 pe-3 text-start font-medium">{t("staffCatalog.changes.before")}</th>
+                  <th scope="col" className="py-1 text-start font-medium">{t("staffCatalog.changes.after")}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.field} className="border-t border-border align-top">
-                    <th scope="row" className="py-2 pe-3 font-medium">
+                    <th scope="row" className="py-2 pe-3 text-start font-medium">
                       {t(`staffCatalog.changes.fields.${row.field}`)}
                     </th>
-                    <td className="py-2 pe-3 text-muted">{row.before}</td>
-                    <td className="py-2">{row.after}</td>
+                    <td className="py-2 pe-3 text-start text-muted">{row.before}</td>
+                    <td className="py-2 text-start">{row.after}</td>
                   </tr>
                 ))}
               </tbody>
@@ -186,7 +194,7 @@ export function ChangeListDialog({
               ) : null}
               {impact.papers > 0 ? <li>{t("staffCatalog.changes.papers", { count: formatNumber(impact.papers) })}</li> : null}
               <li>
-                {impact.notify
+                {impact.notify && impact.students > 0
                   ? t("staffCatalog.changes.students", { count: formatNumber(impact.students) })
                   : t("staffCatalog.changes.noStudents")}
               </li>

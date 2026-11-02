@@ -144,7 +144,7 @@ public class LiveExamService {
 			exam.setModuleId(module.getId());
 		}
 		exam.setMode(LiveExam.MODE_LIVE);
-		exam.setAnswersChangeable(true);
+		exam.setAnswersChangeable(false);
 		exam.setExamType(examType);
 		exam.setStatus(LiveExam.DRAFT);
 		exam.setFinallySaved(false);

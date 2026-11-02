@@ -163,6 +163,29 @@ export async function apiRequest<T>(
 
 /** Fetches an authorized file, such as a question or answer PDF, as a `Blob`. */
 export async function apiBlob(path: string, options: { signal?: AbortSignal } = {}): Promise<Blob> {
+  return (await apiFile(path, options)).blob;
+}
+
+/** The file name a download arrives with in Content-Disposition (the UTF-8 form first), or null when there is none. */
+function fileNameOf(response: Response): string | null {
+  const header = response.headers.get("Content-Disposition") ?? "";
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      return null;
+    }
+  }
+  const plain = /filename="([^"]+)"/i.exec(header);
+  return plain ? plain[1] : null;
+}
+
+/** A file from the API, with the name the server gave it, or null when the server gave none. */
+export async function apiFile(
+  path: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<{ blob: Blob; fileName: string | null }> {
   const sentToken = getAccessToken();
   let response = await rawFetch(path, { signal: options.signal });
   if (response.status === 401 && (await recoverFrom401(sentToken))) {
@@ -175,7 +198,7 @@ export async function apiBlob(path: string, options: { signal?: AbortSignal } = 
   if (!response.ok) {
     throw await parseError(response);
   }
-  return response.blob();
+  return { blob: await response.blob(), fileName: fileNameOf(response) };
 }
 
 type UploadOptions = {

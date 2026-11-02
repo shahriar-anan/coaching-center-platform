@@ -29,12 +29,8 @@ describe("the notice tab rules (Phase 4, A8)", () => {
     expect(parseNoticeTab(null)).toBeNull();
   });
 
-  it("opens Results if it has unread, else Exams, else Announcements, else Exams", () => {
-    expect(defaultNoticeTab({ RESULTS: 1, EXAMS: 4, ANNOUNCEMENTS: 2 })).toBe("RESULTS");
-    expect(defaultNoticeTab({ RESULTS: 0, EXAMS: 4, ANNOUNCEMENTS: 2 })).toBe("EXAMS");
-    expect(defaultNoticeTab({ RESULTS: 0, EXAMS: 0, ANNOUNCEMENTS: 2 })).toBe("ANNOUNCEMENTS");
-    expect(defaultNoticeTab({ RESULTS: 0, EXAMS: 0, ANNOUNCEMENTS: 0 })).toBe("EXAMS");
-    expect(defaultNoticeTab(undefined)).toBe("EXAMS");
+  it("always opens on All when the address names no tab", () => {
+    expect(defaultNoticeTab()).toBe("ALL");
   });
 
   it("gives each tab its own edge colour", () => {

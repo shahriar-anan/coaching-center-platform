@@ -79,11 +79,13 @@ export function useStaffRetakeRequests(status: RetakeRequestStatus) {
 }
 
 function invalidateStaff(client: ReturnType<typeof useQueryClient>) {
-  return Promise.all(
-    (["PENDING", "APPROVED", "DECLINED"] as const).map((status) =>
+  return Promise.all([
+    ...(["PENDING", "APPROVED", "DECLINED"] as const).map((status) =>
       client.invalidateQueries({ queryKey: retakeRequestKeys.staff(status) }),
     ),
-  );
+    // The sidebar's count of waiting requests.
+    client.invalidateQueries({ queryKey: ["staffHome"] }),
+  ]);
 }
 
 export function useApproveRetakeRequest() {

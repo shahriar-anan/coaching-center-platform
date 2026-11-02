@@ -49,6 +49,29 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
     }
   }, [submittedMcq, examId, router]);
 
+  // The other redirects of this page. They run after render, never during it (a navigation during render is refused by React).
+  const written = exam.data?.examType === "WRITTEN";
+  const answerStored = Boolean(exam.data?.answerStored);
+  const hasOpenSitting = Boolean(exam.data?.questions) && (taken ?? exam.data?.sitting ?? null) !== null;
+  useEffect(() => {
+    if (!exam.data || !user) {
+      return;
+    }
+    if (written) {
+      if (!sitting && !start) {
+        router.replace(`/exam/${examId}`);
+      } else if (sitting && answerStored) {
+        // A script is submitted once and cannot be changed, so there is nothing left to do on this page.
+        router.replace(`/exam/${examId}/submitted`);
+      }
+      return;
+    }
+    // Without an open sitting, the exam page owns the decision (offer, closed, or result). A submitted MCQ is sent on above.
+    if (!hasOpenSitting && !start && !submittedMcq) {
+      router.replace(`/exam/${examId}`);
+    }
+  }, [exam.data, user, sitting, start, submittedMcq, examId, router, written, answerStored, hasOpenSitting]);
+
   // `?start=live|retake`: take the exam, then replace the URL so a reload does not take it again.
   useEffect(() => {
     if (!start || started.current) {
@@ -123,15 +146,8 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
   }
 
   if (data.examType === "WRITTEN") {
-    if (!sitting) {
-      if (!start) {
-        router.replace(`/exam/${examId}`);
-      }
-      return null;
-    }
-    if (data.answerStored) {
-      // A script is submitted once and cannot be changed, so there is nothing left to do on this page.
-      router.replace(`/exam/${examId}/submitted`);
+    // Nothing renders here; the effect above sends the student on.
+    if (!sitting || data.answerStored) {
       return null;
     }
     const studentLine = user.studentCode ? `${user.fullName} · ${user.studentCode}` : user.fullName;
@@ -156,10 +172,7 @@ export function SittingEntry({ examId, start }: { examId: string; start: Start }
 
   const open = Boolean(data.questions) && sitting !== null;
   if (!open || !sitting || !data.questions) {
-    // Without an open sitting, the exam page owns the decision (offer, closed, or result).
-    if (!start && !open) {
-      router.replace(`/exam/${examId}`);
-    }
+    // Without an open sitting, the exam page owns the decision; the effect above sends the student there.
     return null;
   }
 

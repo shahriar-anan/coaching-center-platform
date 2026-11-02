@@ -97,6 +97,8 @@ const sitting = {
     storedEarlier: "Your earlier answer script is saved.",
     replace: "Replace",
     replaceNote: "After you confirm, you cannot change your script.",
+    viewUploaded: "View uploaded PDF",
+    autoSendNote: "A script you have chosen is sent by itself when time runs out.",
     failed: "The script could not be uploaded. Please try again.",
     deadlinePassed: "Time is up, so the script can no longer be submitted.",
     confirmTitle: "Submit your answer script?",
@@ -109,6 +111,8 @@ const sitting = {
     final: "Your script is final and cannot be changed.",
     next: "Your teacher will mark it. You will see your result once it is released, and you will get a notice.",
     home: "Back to my exams",
+    viewPdf: "View submitted PDF",
+    pdfTitle: "Your submitted answer script",
   },
   pdf: {
     region: "Question paper",
