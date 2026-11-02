@@ -1725,7 +1725,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		LiveExamOrder paid = orderTx.insert(buyer.id(), LiveExamOrder.EXAM, module, exam, new BigDecimal("10.00"));
 		LiveExamPaymentGateway.Verification valid = new LiveExamPaymentGateway.Verification(
 				LiveExamPaymentGateway.Verification.Outcome.VALID, paid.getTranId(), new BigDecimal("10.00"), "BDT",
-				"VAL-PAID", "BKASH-BKash");
+				"VAL-PAID", "BKASH-BKash", null);
 		orderTx.verify(paid.getTranId(), valid);
 		orderTx.verify(paid.getTranId(), valid);
 		assertThat(noticeCount("PURCHASE_GRANTED", buyer.id())).isEqualTo(1);
@@ -1733,7 +1733,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		LiveExamOrder bad = orderTx.insert(refused.id(), LiveExamOrder.EXAM, module, exam, new BigDecimal("10.00"));
 		orderTx.verify(bad.getTranId(), new LiveExamPaymentGateway.Verification(
 				LiveExamPaymentGateway.Verification.Outcome.VALID, bad.getTranId(), new BigDecimal("9.00"), "BDT",
-				"VAL-BAD", "BKASH-BKash"));
+				"VAL-BAD", "BKASH-BKash", null));
 		assertThat(noticeCount("PURCHASE_GRANTED", refused.id())).isZero();
 	}
 
@@ -1759,7 +1759,7 @@ class LiveEvaluationIT extends PostgresIntegrationTest {
 		LiveExamOrder paid = orderTx.insert(buyer.id(), LiveExamOrder.MODULE, module, null, new BigDecimal("500.00"));
 		LiveExamPaymentGateway.Verification valid = new LiveExamPaymentGateway.Verification(
 				LiveExamPaymentGateway.Verification.Outcome.VALID, paid.getTranId(), new BigDecimal("500.00"), "BDT",
-				"VAL-MODULE", "BKASH-BKash");
+				"VAL-MODULE", "BKASH-BKash", null);
 		orderTx.verify(paid.getTranId(), valid);
 		orderTx.verify(paid.getTranId(), valid);
 		assertThat(noticeCount("PURCHASE_GRANTED", buyer.id())).isEqualTo(1);
