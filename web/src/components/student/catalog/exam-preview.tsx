@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { openPreviewPdf, usePreviewPaper, type PreviewQuestion } from "@/lib/api/exam/preview";
+
+import { previewPdfPath, usePreviewPaper, type PreviewQuestion } from "@/lib/api/exam/preview";
+import { apiBlob } from "@/lib/api/client";
+import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { ApiError } from "@/lib/api/errors";
 import { useLocale } from "@/i18n/locale-context";
 import { formatDuration, formatNumber, pickTitle } from "@/lib/format";
@@ -36,7 +38,6 @@ function Fact({ label, value }: { label: string; value: string }) {
 export function ExamPreview({ examId }: { examId: string }) {
   const { t, locale } = useLocale();
   const preview = usePreviewPaper(examId);
-  const [pdfFailed, setPdfFailed] = useState(false);
   const data = preview.data;
 
   if (preview.isPending) {
@@ -101,22 +102,16 @@ export function ExamPreview({ examId }: { examId: string }) {
         <section className="grid min-w-0 grid-cols-1 gap-4">
           <h2 className="text-section font-bold">{t("catalog.preview.questionPaper")}</h2>
           {data.examType === "WRITTEN" ? (
-            <div className="grid grid-cols-1 justify-items-start gap-3 rounded-card border border-border bg-card p-5">
-              {data.hasPaper ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setPdfFailed(false);
-                    openPreviewPdf(examId).catch(() => setPdfFailed(true));
-                  }}
-                >
-                  {t("catalog.preview.openPdf")}
-                </Button>
-              ) : (
+            data.hasPaper ? (
+              // The paper is shown inline, as the sitting page shows it, with no download control.
+              <div className="min-w-0 rounded-card border border-border bg-card p-3">
+                <PdfViewer load={() => apiBlob(previewPdfPath(examId))} label={t("catalog.preview.questionPaper")} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 justify-items-start gap-3 rounded-card border border-border bg-card p-5">
                 <p className="text-muted">{t("catalog.preview.noPaper")}</p>
-              )}
-              {pdfFailed ? <p role="alert" className="text-body text-danger">{t("catalog.preview.pdfFailed")}</p> : null}
-            </div>
+              </div>
+            )
           ) : questions.length === 0 ? (
             <p className="rounded-card border border-dashed border-border bg-card p-5 text-muted">{t("catalog.preview.noQuestions")}</p>
           ) : (

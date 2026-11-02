@@ -155,12 +155,6 @@ function RegisterForm() {
         breadcrumbs={[{ label: t("common.nav.home"), href: "/" }, { label: t("auth.register.breadcrumb") }]}
       />
       <Card padding="lg" className="grid gap-5">
-        {googleEnabled ? (
-          <div className="grid gap-3">
-            <GoogleSignInButton label={t("auth.register.googleButton")} next={next} />
-            <p className="text-center text-body text-muted">{t("auth.login.divider")}</p>
-          </div>
-        ) : null}
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
           <Field label={t("auth.register.fullName")} error={errors.fullName} required>
             <TextInput
@@ -232,6 +226,16 @@ function RegisterForm() {
             {t("auth.register.submit")}
           </Button>
         </form>
+        {googleEnabled ? (
+          <div className="grid gap-4">
+            <div className="flex items-center gap-3 text-meta text-muted">
+              <span className="h-px flex-1 bg-border" aria-hidden="true" />
+              <span>{t("auth.login.divider")}</span>
+              <span className="h-px flex-1 bg-border" aria-hidden="true" />
+            </div>
+            <GoogleSignInButton label={t("auth.register.googleButton")} next={next} />
+          </div>
+        ) : null}
         <p className="text-center text-body text-muted">
           {t("auth.register.haveAccount")}{" "}
           <Link href={`/login${nextQuery}`} className="font-semibold text-text-accent underline underline-offset-4">

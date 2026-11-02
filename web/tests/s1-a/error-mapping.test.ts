@@ -14,7 +14,6 @@ describe("catalog error mapping", () => {
     "EXAM_WINDOW_INVALID",
     "EXAM_ARCHIVED",
     "EXAM_SITTING_OPEN",
-    "WRITTEN_MAXIMUM_BELOW_MARK",
     "ANSWER_LOCKED",
     "PENDING_CHANGES_STALE",
     "NO_PENDING_CHANGES",

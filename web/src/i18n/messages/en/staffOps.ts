@@ -103,6 +103,8 @@ const staffOps = {
       LIVE_EXAM_CATEGORY_ARCHIVE: "Category archived",
       LIVE_EXAM_MODULE_DELETE: "Package deleted",
       LIVE_EXAM_MODULE_ARCHIVE: "Package archived",
+      LIVE_EXAM_ARCHIVE: "Exam withdrawn",
+      LIVE_EXAM_RESTORE: "Exam restored",
       LIVE_EXAM_DELETE: "Exam deleted",
       LIVE_EXAM_QUESTION_DELETE: "Question deleted",
       LIVE_EXAM_INSTRUCTOR_UNASSIGN: "Teacher removed from a package",

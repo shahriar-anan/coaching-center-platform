@@ -103,6 +103,8 @@ const staffOps = {
       LIVE_EXAM_CATEGORY_ARCHIVE: "ক্যাটাগরি আর্কাইভ করা হয়েছে",
       LIVE_EXAM_MODULE_DELETE: "প্যাকেজ মুছে ফেলা হয়েছে",
       LIVE_EXAM_MODULE_ARCHIVE: "প্যাকেজ আর্কাইভ করা হয়েছে",
+      LIVE_EXAM_ARCHIVE: "পরীক্ষা প্রত্যাহার করা হয়েছে",
+      LIVE_EXAM_RESTORE: "পরীক্ষা ফিরিয়ে আনা হয়েছে",
       LIVE_EXAM_DELETE: "পরীক্ষা মুছে ফেলা হয়েছে",
       LIVE_EXAM_QUESTION_DELETE: "প্রশ্ন মুছে ফেলা হয়েছে",
       LIVE_EXAM_INSTRUCTOR_UNASSIGN: "শিক্ষককে সরানো হয়েছে",

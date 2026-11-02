@@ -27,13 +27,18 @@ export type RichTextTopic = {
  */
 function TopicPreview({ topic }: { topic: RichTextTopic }) {
   const { t } = useLocale();
+  // The texts are optional (D18): what students would not see is left out here too.
+  const parts = [
+    { label: t("staffCatalog.richText.english"), value: topic.valueEn },
+    { label: t("staffCatalog.richText.bangla"), value: topic.valueBn },
+  ].filter((part) => !isRichTextEmpty(part.value));
+  if (parts.length === 0) {
+    return null;
+  }
   return (
     <section className="grid gap-4 rounded-card border border-border bg-card p-5 shadow-sm">
       <h3 className="text-label font-semibold text-text">{topic.title}</h3>
-      {[
-        { label: t("staffCatalog.richText.english"), value: topic.valueEn },
-        { label: t("staffCatalog.richText.bangla"), value: topic.valueBn },
-      ].map((part) => (
+      {parts.map((part) => (
         <div key={part.label} className="grid justify-items-start gap-3 rounded-control border border-border bg-bg p-4">
           <Pill tone="accent">{part.label}</Pill>
           <RichTextView value={part.value} />

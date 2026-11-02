@@ -13,7 +13,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Pill } from "@/components/ui/pill";
 import { TextInput } from "@/components/ui/text-input";
 import { destinationFor, useSession, WrongAudienceError } from "@/lib/auth/session-context";
-import { apiUrl, googleEnabled, staffLogin, studentLogin } from "@/lib/config";
+import { googleEnabled, staffLogin, studentLogin } from "@/lib/config";
+import { GoogleSignInButton } from "@/app/(auth)/_components/google-sign-in-button";
 import { useSurface } from "@/lib/url/surface-context";
 import { ApiError } from "@/lib/api/errors";
 import { FormError, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
@@ -163,12 +164,7 @@ function LoginForm() {
         <div className="grid gap-3">
           <p className="min-w-0 text-center text-body text-muted">{t("auth.login.divider")}</p>
           {googleEnabled ? (
-            <a
-              href={apiUrl("/api/v1/auth/google")}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-control border border-border bg-card px-5 text-label font-semibold text-text hover:bg-bg"
-            >
-              {t("auth.login.googleButton")}
-            </a>
+            <GoogleSignInButton label={t("auth.login.googleButton")} next={next} />
           ) : (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Button variant="secondary" fullWidth disabled aria-describedby="google-soon">

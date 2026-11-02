@@ -17,8 +17,9 @@ import type { SectionFieldsProps } from "@/components/staff/catalog/exam-form-st
 export function ExamScheduleFields({ exam, form, set, errors, disabled, context }: SectionFieldsProps) {
   const { t } = useLocale();
   const { formatDateTime } = useFormat();
-  // The mode is set once, on a draft that nobody has started (the API refuses a later change).
-  const modeLocked = exam.status !== "DRAFT";
+  // The mode is set once, on a draft that nobody has started (the API refuses a later change). A withdrawn exam that was
+  // never published counts as a draft.
+  const modeLocked = !(exam.status === "DRAFT" || (exam.status === "ARCHIVED" && !exam.publishedAt));
   const windowOn = form.mode === "LIVE";
   const endsAt = useMemo(() => {
     if (!windowOn || !form.dated || !form.liveAt) {

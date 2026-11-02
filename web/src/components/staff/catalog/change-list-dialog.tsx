@@ -15,6 +15,9 @@ const RICH_FIELDS = new Set(["descriptionEn", "descriptionBn", "rulesEn", "rules
 /** The fields that hold a moment in time: shown as a date and clock in Dhaka time, not as the raw timestamp. */
 const DATE_FIELDS = new Set(["liveAt", "endAt", "discountEndsAt"]);
 
+/** A change to one of these does not reach a student who already started: their attempt keeps what it started with. */
+const STARTED_KEEP_FIELDS = ["passPercent", "maximum", "negativeMarks"];
+
 /** One line of the change list: the field, and its published and staged values as plain text. */
 export type ChangeRow = { field: string; before: string; after: string };
 
@@ -94,15 +97,12 @@ export function ChangeListDialog({
   open,
   onOpenChange,
   changes,
-  written = false,
   onPublish,
   onFailed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   changes: PendingChangeList | null;
-  /** A written exam: a pass-percent change does not re-judge posted results (D17). */
-  written?: boolean;
   onPublish: (revisionId: string) => Promise<unknown>;
   onFailed: (message: string) => void;
 }) {
@@ -198,8 +198,7 @@ export function ChangeListDialog({
                 </li>
               ) : null}
               {impact.questions > 0 ? <li>{t("staffCatalog.changes.mcqKeepScores")}</li> : null}
-              {written && changedFields.has("passPercent") ? <li>{t("staffCatalog.changes.passNotRejudged")}</li> : null}
-              {written && changedFields.has("maximum") ? <li>{t("staffCatalog.changes.maximumRefused")}</li> : null}
+              {STARTED_KEEP_FIELDS.some((field) => changedFields.has(field)) ? <li>{t("staffCatalog.changes.startedKeepRules")}</li> : null}
               <li>
                 {impact.notify && impact.students > 0
                   ? t("staffCatalog.changes.students", { count: formatNumber(impact.students) })

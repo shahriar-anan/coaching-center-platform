@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiBlob, apiRequest } from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
 import type { ExamType, PaperLanguage } from "@/lib/api/exam/types";
 
 /** One option of a preview question. The API never says which option is correct. */
@@ -54,21 +54,3 @@ export function usePreviewPaper(examId: string) {
   });
 }
 
-/**
- * Opens the question paper in a new tab. The PDF needs the bearer token, which a plain link cannot send, so the tab opens first
- * (a click keeps it from being blocked) and then shows the file fetched with the token. Throws when the tab or the file fails.
- */
-export async function openPreviewPdf(examId: string): Promise<void> {
-  const popup = window.open("about:blank", "_blank");
-  if (!popup) {
-    throw new Error("The new tab was blocked.");
-  }
-  try {
-    const blob = await apiBlob(previewPdfPath(examId));
-    popup.location.href = URL.createObjectURL(blob);
-    popup.opener = null;
-  } catch (error) {
-    popup.close();
-    throw error;
-  }
-}

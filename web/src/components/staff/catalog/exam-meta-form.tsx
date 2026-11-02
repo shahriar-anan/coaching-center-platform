@@ -109,9 +109,6 @@ export function ExamMetaForm({
       if (isApiError(error, "EXAM_WINDOW_INVALID")) {
         messages.window = t(catalogErrorKey(error));
       }
-      if (isApiError(error, "WRITTEN_MAXIMUM_BELOW_MARK")) {
-        messages.maximum = t(catalogErrorKey(error));
-      }
       setErrors(messages);
     }
   }

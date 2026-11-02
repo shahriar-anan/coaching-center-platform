@@ -1,7 +1,12 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ExamPreview } from "@/components/student/catalog/exam-preview";
 import { apiError, fixtures, mockApi, renderWithProviders } from "../helpers";
+
+// The viewer loads pdf.js on demand; this test checks the page around it, so the viewer is a stub that names its label.
+vi.mock("@/components/pdf/pdf-viewer", () => ({
+  PdfViewer: ({ label }: { label: string }) => <div data-testid="pdf-viewer">{label}</div>,
+}));
 
 /**
  * The preview body carries the same fields a sitting paper does, plus the key on purpose: the correct flag and the explanation
@@ -78,9 +83,10 @@ describe("the paper preview page", () => {
     expect(container.textContent).not.toContain("SECRET-EXPLANATION");
   });
 
-  it("offers the question paper as a PDF button for a written exam that has one", async () => {
+  it("shows the question paper inline, in the viewer, for a written exam that has one", async () => {
     mount({ ...mcqPaper, examType: "WRITTEN", questions: null, maximum: 50, hasPaper: true });
-    expect(await screen.findByRole("button", { name: "Open question paper (PDF)" })).toBeInTheDocument();
+    expect(await screen.findByTestId("pdf-viewer")).toHaveTextContent("Question paper");
+    expect(screen.queryByRole("button", { name: "Open question paper (PDF)" })).not.toBeInTheDocument();
     expect(screen.queryByText("Which section defines murder?")).not.toBeInTheDocument();
   });
 

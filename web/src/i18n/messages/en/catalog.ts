@@ -178,8 +178,6 @@ const catalog: typeof bn = {
     questionPaper: "Question paper",
     noQuestions: "This paper has no questions yet.",
     noPaper: "The question paper has not been added yet.",
-    openPdf: "Open question paper (PDF)",
-    pdfFailed: "The question paper could not be opened. Try again.",
     backToExam: "Back to the exam",
   },
   start: {

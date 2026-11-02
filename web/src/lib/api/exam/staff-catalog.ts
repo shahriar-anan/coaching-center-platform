@@ -135,6 +135,8 @@ export type StaffExam = {
   discountEndsAt?: string | null;
   pricing?: PriceView | null;
   instructor?: ExamInstructor | null;
+  /** When the exam was first published, or null if it never was. Staff reads only. */
+  publishedAt?: string | null;
   /** True when a staged change waits for the Master Admin (staff reads only). */
   pendingChanges?: boolean | null;
   /** True once the results are released to students. Sent by the API for the staff read; optional until it is. */

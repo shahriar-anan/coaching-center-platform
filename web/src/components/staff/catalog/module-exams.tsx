@@ -131,6 +131,7 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<StaffExam | null>(null);
   const [archiving, setArchiving] = useState<StaffExam | null>(null);
+  const [restoring, setRestoring] = useState<StaffExam | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   // Remove the flag once it has opened the dialog, so a reload does not open it again.
@@ -155,6 +156,17 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
       await queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) });
       toast({ title: t("staffCatalog.editor.archived"), tone: "ok" });
       setArchiving(null);
+    } catch (e) {
+      toast({ title: t(catalogErrorKey(e)), tone: "danger" });
+    }
+  }
+
+  async function restoreExam(exam: StaffExam) {
+    try {
+      await apiRequest<StaffExam>(`/api/v1/live-exams/${exam.id}/restore`, { method: "POST", body: {} });
+      await queryClient.invalidateQueries({ queryKey: staffCatalogKeys.moduleExams(moduleId) });
+      toast({ title: t("staffCatalog.editor.restored"), tone: "ok" });
+      setRestoring(null);
     } catch (e) {
       toast({ title: t(catalogErrorKey(e)), tone: "danger" });
     }
@@ -208,6 +220,9 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
     }
     if (role.canDelete && exam.status !== "ARCHIVED") {
       items.push({ label: t("staffCatalog.moduleExams.menu.archive"), onClick: () => setArchiving(exam) });
+    }
+    if (role.canDelete && exam.status === "ARCHIVED") {
+      items.push({ label: t("staffCatalog.editor.restore"), onClick: () => setRestoring(exam) });
     }
     // SLOT: results link to /staff/exams/[examId]/results (OPS route). Add the menu item once that route is merged.
     return (
@@ -422,6 +437,18 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
           confirmLabel={t("staffCatalog.editor.archiveConfirm")}
           tone="danger"
           onConfirm={() => archiveExam(archiving)}
+        />
+      ) : null}
+      {role.canDelete && restoring ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setRestoring(null);
+          }}
+          title={t("staffCatalog.editor.restoreTitle", { name: locale === "bn" ? restoring.titleBn : restoring.titleEn })}
+          body={t("staffCatalog.editor.restoreBody")}
+          confirmLabel={t("staffCatalog.editor.restoreConfirm")}
+          onConfirm={() => restoreExam(restoring)}
         />
       ) : null}
     </div>

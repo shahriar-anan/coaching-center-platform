@@ -519,7 +519,6 @@ function ExamEditorBody({ exam }: { exam: StaffExam }) {
           open={reviewing}
           onOpenChange={setReviewing}
           changes={changes.data}
-          written={exam.examType === "WRITTEN"}
           onPublish={async (revisionId) => {
             await publishChanges.mutateAsync(revisionId);
             toast({ title: t("staffCatalog.staged.published"), tone: "ok" });

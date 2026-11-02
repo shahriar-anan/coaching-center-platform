@@ -40,7 +40,7 @@ rm -rf .next
 NEXT_PUBLIC_API_BASE_URL= \
 NEXT_PUBLIC_SITE_URL="$site" \
 NEXT_PUBLIC_STAFF_URL="$staff" \
-NEXT_PUBLIC_GOOGLE_ENABLED=false \
+NEXT_PUBLIC_GOOGLE_ENABLED=true \
   npm run build
 
 # Lay the release out as it runs on the box, then check that layout.

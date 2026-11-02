@@ -86,7 +86,7 @@ function FirstRun() {
   const steps = [
     { key: "category", label: t("staffCatalog.home.onboarding.category"), href: "/staff/categories/new" },
     { key: "module", label: t("staffCatalog.home.onboarding.module"), href: "/staff/modules/new" },
-    { key: "exam", label: t("staffCatalog.home.onboarding.exam"), href: "/staff/modules" },
+    { key: "exam", label: t("staffCatalog.home.onboarding.exam"), href: "/staff/exams?new=1" },
   ];
   return (
     <section aria-labelledby="first-run-heading" className="grid gap-3 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">
@@ -228,7 +228,7 @@ function ExamsTab({ isMasterAdmin }: { isMasterAdmin: boolean }) {
               </Link>
             </li>
             <li>
-              <Link href="/staff/modules" className={shortcutClass}>
+              <Link href="/staff/exams?new=1" className={shortcutClass}>
                 {t("staffCatalog.home.quick.newExam")}
               </Link>
             </li>
