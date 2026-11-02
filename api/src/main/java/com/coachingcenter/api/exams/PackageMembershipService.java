@@ -55,7 +55,7 @@ public class PackageMembershipService {
 		LiveExamModule module = requireOpen(moduleId);
 		LiveExam exam = exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
 		if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
-			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT, "An archived exam cannot join a package.");
+			throw new ApiException(ErrorCode.EXAM_ARCHIVED, HttpStatus.CONFLICT, "A withdrawn exam cannot join a package.");
 		}
 		if (LiveExamModule.PUBLISHED.equals(module.getStatus())) {
 			PackageRevisionService.Draft draft = revisions.workingCopy(module);

@@ -117,4 +117,22 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 			""")
 	Page<UUID> findSatExamIds(@Param("studentId") UUID studentId, @Param("examType") String examType, Pageable pageable);
 
+	/** Is a student sitting an exam under any of these categories now (D7, for an archived category). */
+	@Query("""
+			select count(p) > 0 from LiveExamParticipant p, LiveExam e
+			where p.examId = e.id and e.categoryId in :categoryIds and p.status = :status and p.submittedAt is null
+			  and p.deadlineAt > :now and p.deletedAt is null
+			""")
+	boolean hasOpenSittingInCategories(@Param("categoryIds") Collection<UUID> categoryIds, @Param("status") String status,
+			@Param("now") Instant now);
+
+	/** Is a student sitting an exam in this package now (D7, for an archived package). Removed memberships do not count. */
+	@Query("""
+			select count(p) > 0 from LiveExamParticipant p, LiveExamPackageExam m
+			where p.examId = m.examId and m.moduleId = :moduleId and m.removedAt is null and p.status = :status
+			  and p.submittedAt is null and p.deadlineAt > :now and p.deletedAt is null
+			""")
+	boolean hasOpenSittingInPackage(@Param("moduleId") UUID moduleId, @Param("status") String status,
+			@Param("now") Instant now);
+
 }

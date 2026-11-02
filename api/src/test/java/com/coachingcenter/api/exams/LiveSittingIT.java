@@ -1596,6 +1596,12 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 
+		// The written sitting runs until 07:30, so the archive is held back while it is open (CATALOG_SITTING_OPEN, D7).
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + science + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CATALOG_SITTING_OPEN"));
+		// After the written sitting has ended, the archive goes through. A late upload is then refused as for a hidden exam.
+		clock.set(Instant.parse("2026-10-20T07:31:00Z"));
 		mockMvc.perform(post("/api/v1/live-exam-categories/" + science + "/archive").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
 

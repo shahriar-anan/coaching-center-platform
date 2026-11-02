@@ -1,11 +1,16 @@
 package com.coachingcenter.api.exams;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -33,9 +38,15 @@ public class LiveExamCategoryService {
 
 	private final LiveExamPackageExamRepository memberships;
 
+	private final LiveExamParticipantRepository participants;
+
+	private final Clock clock;
+
 	public LiveExamCategoryService(LiveExamCategoryRepository categories, LiveExamModuleRepository modules,
 			LiveExamCatalogVisibility visibility, AuditRecorder audit, LiveExamRepository exams,
-			LiveExamPackageExamRepository memberships) {
+			LiveExamPackageExamRepository memberships, LiveExamParticipantRepository participants, Clock clock) {
+		this.participants = participants;
+		this.clock = clock;
 		this.categories = categories;
 		this.modules = modules;
 		this.visibility = visibility;
@@ -156,9 +167,31 @@ public class LiveExamCategoryService {
 		if (category.getArchivedAt() != null) {
 			return;
 		}
-		category.setArchivedAt(Instant.now());
+		// A category hides its sub-categories too, so a sitting under any of them holds the archive back (D7).
+		if (participants.hasOpenSittingInCategories(descendantsOf(category.getId()), LiveExamParticipant.IN_PROGRESS,
+				clock.instant())) {
+			throw new ApiException(ErrorCode.CATALOG_SITTING_OPEN, HttpStatus.CONFLICT,
+					"Students are sitting an exam under this category now. Try again after the sitting ends.");
+		}
+		category.setArchivedAt(clock.instant());
 		audit.record(AuditRecorder.LIVE_EXAM_CATEGORY_ARCHIVE, AuditRecorder.LIVE_EXAM_CATEGORY_ENTITY,
 				category.getId());
+	}
+
+	/** The category and every sub-category under it, at any depth. */
+	private Set<UUID> descendantsOf(UUID id) {
+		Set<UUID> found = new HashSet<>();
+		Deque<UUID> pending = new ArrayDeque<>();
+		pending.add(id);
+		while (!pending.isEmpty()) {
+			UUID current = pending.poll();
+			if (found.add(current)) {
+				for (LiveExamCategory child : categories.findByParentIdAndDeletedAtIsNull(current)) {
+					pending.add(child.getId());
+				}
+			}
+		}
+		return found;
 	}
 
 	/** Un-archives a category. Its exams and packages stay as they are; they only reappear once they are published again. */

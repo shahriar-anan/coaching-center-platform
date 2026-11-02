@@ -263,7 +263,51 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.rows.content[0].score").value(6))
 			.andExpect(jsonPath("$.rows.content[0].maximum").value(8))
 			.andExpect(jsonPath("$.rows.content[1].score").value(4))
-			.andExpect(jsonPath("$.rows.content[1].maximum").value(4));
+			.andExpect(jsonPath("$.rows.content[1].maximum").value(4))
+			// The summary stays in raw marks, as students see them: 4 and 6, so the average is 5 and the range 4 to 6.
+			.andExpect(jsonPath("$.summary.averageScore").value(5.0))
+			.andExpect(jsonPath("$.summary.highestScore").value(6))
+			.andExpect(jsonPath("$.summary.lowestScore").value(4));
+	}
+
+	@Test
+	void aRunningAttemptIsMarkedUnderTheNegativeMarksItStartedWith() throws Exception {
+		Paper paper = paper("Negative marks");
+		Student early = enrol(paper);
+		clock.set(SITTING);
+		take(paper, early);
+		// Staff turn on one mark off per wrong answer after the first student has started (a published change).
+		clock.set(Instant.parse("2026-10-20T06:12:00Z"));
+		mockMvc.perform(patch("/api/v1/live-exams/" + paper.exam()).header("Authorization", "Bearer " + paper.staff())
+			.contentType(MediaType.APPLICATION_JSON).content("{\"negativeMarks\":1}"))
+			.andExpect(status().isOk());
+		publishRevision(paper);
+		Student late = enrol(paper);
+		clock.set(Instant.parse("2026-10-20T06:14:00Z"));
+		take(paper, late);
+		// Both answer Q1 wrongly. The first started under no negative marks, so 0; the second under one mark off, so -1 (D9).
+		clock.set(Instant.parse("2026-10-20T06:15:00Z"));
+		save(paper, early, "[{\"questionId\":\"%s\",\"optionId\":\"%s\"}]".formatted(paper.q1(), paper.b()));
+		save(paper, late, "[{\"questionId\":\"%s\",\"optionId\":\"%s\"}]".formatted(paper.q1(), paper.b()));
+		clock.set(Instant.parse("2026-10-20T06:16:00Z"));
+		submit(paper, early).andExpect(jsonPath("$.score").value(0));
+		submit(paper, late).andExpect(jsonPath("$.score").value(-1));
+	}
+
+	@Test
+	void aStudentPaperShowsTheFullMarksOfTheAttemptNotTheCurrentPaper() throws Exception {
+		Paper paper = paper("Paper marks");
+		Student first = enrol(paper);
+		clock.set(SITTING);
+		take(paper, first);
+		clock.set(Instant.parse("2026-10-20T06:22:00Z"));
+		edit(paper, paper.q2(), "{\"stem\":\"Second question\",\"marks\":6,\"explanation\":\"Because\",\"options\":"
+				+ "[{\"text\":\"X\",\"correct\":true},{\"text\":\"Y\",\"correct\":false}]}");
+		publishRevision(paper);
+		// The first student's paper was 4 marks when they started, so it still says 4, not the current 8 (D9).
+		mockMvc.perform(get("/api/v1/live-exams/" + paper.exam()).header("Authorization", "Bearer " + first.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.maximum").value(4));
 	}
 
 	private record Paper(UUID exam, UUID module, UUID q1, UUID q2, UUID a, UUID b, UUID x, UUID y, String staff, String master) {

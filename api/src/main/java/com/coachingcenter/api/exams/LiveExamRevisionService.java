@@ -163,6 +163,20 @@ public class LiveExamRevisionService {
 		audit.record(AuditRecorder.LIVE_EXAM_REVISION_DISCARD, AuditRecorder.LIVE_EXAM_ENTITY, examId);
 	}
 
+	/**
+	 * A withdrawn exam is restored to draft. Its staged edits become the draft's rows now, so no work waits unseen beside the
+	 * draft. Nothing is published: students still see nothing until the Master Admin publishes the restored draft.
+	 */
+	void applyStagedToDraft(LiveExam exam) {
+		Optional<LiveExamRevision> revision = revisions.findByExamId(exam.getId());
+		if (revision.isEmpty()) {
+			return;
+		}
+		apply(exam, readRevision(exam, revision.get().getPayload()));
+		exams.flush();
+		revisions.delete(revision.get());
+	}
+
 	private ChangeList changes(LiveExam exam, LiveExamRevision revision) {
 		ExamState before = published(exam, true);
 		ExamState after = readRevision(exam, revision.getPayload());
@@ -200,7 +214,8 @@ public class LiveExamRevisionService {
 		changeLog.save(entry);
 		audit.record(AuditRecorder.LIVE_EXAM_REVISION_PUBLISH, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());
 		revisions.delete(revision);
-		if (changes.impact().notifiesStudents()) {
+		// A withdrawn exam is hidden from students, so a time change on it is not announced to them.
+		if (changes.impact().notifiesStudents() && !LiveExam.ARCHIVED.equals(exam.getStatus())) {
 			UUID examId = exam.getId();
 			afterCommit.run(() -> notices.examTimeChanged(examId, recipients));
 		}

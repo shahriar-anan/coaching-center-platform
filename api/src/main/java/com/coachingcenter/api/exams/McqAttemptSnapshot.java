@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,9 +37,27 @@ public class McqAttemptSnapshot {
 		this.json = json;
 	}
 
-	/** The JSON to store on a new attempt: the exam's live question set as it is now. */
-	public String capture(UUID examId) {
-		return json.writeValueAsString(live(examId));
+	/**
+	 * The JSON to store on a new attempt: the exam's live question set as it is now, and the marking rules it has now (negative
+	 * marks and pass percent, D9). A later edit to either does not reach the attempt.
+	 */
+	public String capture(LiveExam exam) {
+		Snapshot snapshot = live(exam.getId());
+		snapshot.negativeMarks = exam.getNegativeMarks();
+		snapshot.passPercent = exam.getPassPercent();
+		return json.writeValueAsString(snapshot);
+	}
+
+	/**
+	 * The marking rules an attempt is scored with: its copy's, or the exam's own when the attempt has no copy (an attempt started
+	 * before snapshots existed).
+	 */
+	public Settings settings(LiveExamParticipant attempt, LiveExam exam) {
+		if (attempt.getQuestionSnapshot() == null) {
+			return new Settings(exam.getNegativeMarks(), exam.getPassPercent());
+		}
+		Snapshot snapshot = read(attempt);
+		return new Settings(snapshot.negativeMarks, snapshot.passPercent);
 	}
 
 	/** The question set an attempt answers: its stored copy, or the live rows when it has none. */
@@ -91,6 +110,11 @@ public class McqAttemptSnapshot {
 
 		public List<SnapshotQuestion> questions = new ArrayList<>();
 
+		/** The marking rules the attempt was started under (D9). Null on a copy taken before they were stored. */
+		public BigDecimal negativeMarks;
+
+		public Integer passPercent;
+
 		/** The answer key for scoring, one entry per question in position order. */
 		public List<McqScoring.QuestionKey> key() {
 			List<McqScoring.QuestionKey> key = new ArrayList<>();
@@ -106,6 +130,10 @@ public class McqAttemptSnapshot {
 			return key;
 		}
 
+	}
+
+	/** The marking rules of an attempt. */
+	public record Settings(BigDecimal negativeMarks, Integer passPercent) {
 	}
 
 	public static class SnapshotQuestion {

@@ -143,9 +143,11 @@ public class LiveExamSittingService {
 			questionPdf = participant.getAnswerStoredFileName() == null;
 		}
 		AccessState state = standing.access();
+		// The full marks on the paper are the attempt's own, so a student on an earlier version is not shown a later total (D9).
+		int shownMaximum = participant != null && mcq ? maximum(exam, participant) : shell.maximum();
 		return new StudentExam(shell.id(), shell.moduleId(), shell.examType(), shell.paperLanguage(), shell.titleEn(),
 				shell.titleBn(), shell.descriptionEn(), shell.descriptionBn(), shell.rulesEn(), shell.rulesBn(),
-				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shell.passPercent(), shell.maximum(),
+				shell.liveAt(), shell.endAt(), shell.durationMinutes(), shell.passPercent(), shownMaximum,
 				shell.status(), shell.finallySaved(), shell.price(), questionPdf, questionViews,
 				standing.status().status(), standing.status().retakeAvailable(), sittingView(participant),
 				participant != null && participant.getAnswerStoredFileName() != null, standing.status().detail(),
@@ -159,8 +161,7 @@ public class LiveExamSittingService {
 	public TakeView take(UUID examId, UUID studentId, JsonNode ignored) {
 		phones.require(studentId);
 		exams.get(examId, false, studentId);
-		lockExam(examId);
-		return firstAttempt(requireExam(examId), studentId);
+		return firstAttempt(lockedExam(examId), studentId);
 	}
 
 	/**
@@ -172,8 +173,7 @@ public class LiveExamSittingService {
 	public TakeView retake(UUID examId, UUID studentId) {
 		phones.require(studentId);
 		exams.get(examId, false, studentId);
-		lockExam(examId);
-		LiveExam exam = requireExam(examId);
+		LiveExam exam = lockedExam(examId);
 		boolean written = LiveExam.WRITTEN.equals(exam.getExamType());
 		List<LiveExamParticipant> attempts = participants
 			.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(examId, studentId);
@@ -579,9 +579,11 @@ public class LiveExamSittingService {
 			chosen.computeIfAbsent(answer.getQuestionId(), ignored -> new HashSet<>()).add(answer.getOptionId());
 		}
 		List<McqScoring.QuestionKey> key = snapshots.of(participant).key();
-		BigDecimal score = McqScoring.total(key, chosen, exam.getNegativeMarks()).setScale(2, RoundingMode.HALF_UP);
+		// The attempt is marked under the negative marks and pass percent it started with (D9, D10).
+		McqAttemptSnapshot.Settings rules = snapshots.settings(participant, exam);
+		BigDecimal score = McqScoring.total(key, chosen, rules.negativeMarks()).setScale(2, RoundingMode.HALF_UP);
 		participant.setScore(score);
-		participant.setPassed(!chosen.isEmpty() && McqScoring.passed(score, McqScoring.maximum(key), exam.getPassPercent()));
+		participant.setPassed(!chosen.isEmpty() && McqScoring.passed(score, McqScoring.maximum(key), rules.passPercent()));
 		participant.setStatus(LiveExamParticipant.SUBMITTED);
 		if (writeNotice) {
 			notices.mcqScore(participant.getStudentId(), exam.getId(), participant.getId());
@@ -797,7 +799,7 @@ public class LiveExamSittingService {
 		participant.setQuestionPaperId(exam.getQuestionPaperId());
 		// An MCQ attempt keeps the questions it starts with, so a later edit does not change its paper or its score (D9).
 		if (LiveExam.MCQ.equals(exam.getExamType())) {
-			participant.setQuestionSnapshot(snapshots.capture(exam.getId()));
+			participant.setQuestionSnapshot(snapshots.capture(exam));
 		}
 		return participants.save(participant);
 	}
@@ -824,6 +826,19 @@ public class LiveExamSittingService {
 
 	private void lockExam(UUID examId) {
 		examRepository.lockById(examId).orElseThrow(this::notFound);
+	}
+
+	/**
+	 * The exam, locked, for a student's new attempt. The status is read again under the lock: a withdraw that committed after the
+	 * student's first read must not start a sitting on a withdrawn exam.
+	 */
+	private LiveExam lockedExam(UUID examId) {
+		lockExam(examId);
+		LiveExam exam = requireExam(examId);
+		if (!LiveExam.PUBLISHED.equals(exam.getStatus())) {
+			throw notFound();
+		}
+		return exam;
 	}
 
 	private static UUID readId(JsonNode answer, String field) {

@@ -38,7 +38,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Staged edits to a published exam (NR-01 A3, A4): the working copy, the change list, discard, the publish with a revision,
- * the re-score, the update notice, the copy, and the paper versions that each sitting keeps.
+ * the copy, and the paper versions that each sitting keeps. A publish does not re-score a submitted paper (D10).
  */
 @SpringBootTest
 @AutoConfigureMockMvc

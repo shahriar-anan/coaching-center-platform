@@ -297,7 +297,10 @@ public class LiveExamService {
 		if (mode.equals(exam.getMode())) {
 			return;
 		}
-		if (!create && (!LiveExam.DRAFT.equals(exam.getStatus()) || participants.existsByExamId(exam.getId()))) {
+		// A withdrawn exam that was never published counts as a draft here (it has nothing students could have started).
+		boolean draftLike = LiveExam.DRAFT.equals(exam.getStatus())
+				|| (LiveExam.ARCHIVED.equals(exam.getStatus()) && exam.getPublishedAt() == null);
+		if (!create && (!draftLike || participants.existsByExamId(exam.getId()))) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
 					List.of(new FieldErrorDetail("mode", "The mode can change only on a draft that nobody has started.")));
 		}
@@ -580,6 +583,7 @@ public class LiveExamService {
 			throw new ApiException(ErrorCode.CATEGORY_ARCHIVED, HttpStatus.CONFLICT,
 					"Restore the exam's category first. An exam under an archived category cannot be restored.");
 		}
+		staging.applyStagedToDraft(exam);
 		exam.setStatus(LiveExam.DRAFT);
 		exam.setFinallySaved(false);
 		audit.record(AuditRecorder.LIVE_EXAM_RESTORE, AuditRecorder.LIVE_EXAM_ENTITY, exam.getId());

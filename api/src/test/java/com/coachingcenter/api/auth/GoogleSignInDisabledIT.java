@@ -9,10 +9,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.coachingcenter.api.PostgresIntegrationTest;
 
+/**
+ * Google is off here whatever the environment holds. The three settings are blanked for this context, so a machine with real
+ * Google keys in its environment still runs this test as "not configured".
+ */
+@TestPropertySource(properties = { "app.google.client-id=", "app.google.client-secret=", "app.google.redirect-uri=" })
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(CapturingEmailConfig.class)

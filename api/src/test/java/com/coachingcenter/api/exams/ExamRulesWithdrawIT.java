@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,7 +36,7 @@ import com.coachingcenter.api.auth.CapturingEmailConfig;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Agent B's rules, written and not yet run: a withdrawn exam takes edits (staged when it was published), withdraw is refused
+ * The rules for withdrawing and editing: a withdrawn exam takes edits (staged when it was published), withdraw is refused
  * during an open sitting, questions change after a start, rows are soft-deleted, texts are optional, a written maximum
  * cannot fall below a mark, and publishing does not re-score.
  */
@@ -274,6 +275,102 @@ class ExamRulesWithdrawIT extends PostgresIntegrationTest {
 		assertThat(score).isEqualByComparingTo("1");
 		assertThat(fx.jdbc().queryForObject("select rescored from live_exam_change_log where exam_id = ?", Integer.class,
 				exam)).isZero();
+	}
+
+	@Test
+	void restoringAWithdrawnExamAppliesItsStagedEditsToTheDraft() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Restore staged");
+		UUID exam = fx.createExam(staff, module, "MCQ", "Before restore", AuthoringFixture.LIVE_AT, 40, null);
+		fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		withdraw(master, exam);
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"titleEn\":\"Staged title\"}"))
+			.andExpect(status().isOk());
+		assertThat(titleInRow(exam)).isEqualTo("Before restore");
+
+		// The staged edit is not lost on restore: it becomes the draft's rows, and nothing is published (D8, D5).
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/restore").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("DRAFT"))
+			.andExpect(jsonPath("$.pendingChanges").value(false));
+		assertThat(titleInRow(exam)).isEqualTo("Staged title");
+		assertThat(fx.jdbc().queryForObject("select count(*) from live_exam_revisions where exam_id = ?", Integer.class, exam))
+			.isZero();
+	}
+
+	@Test
+	void aCategoryAndAPackageCannotBeArchivedWhileAStudentIsSitting() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Archive while sitting");
+		UUID exam = fx.createExam(staff, module, "MCQ", "Sitting under archive", AuthoringFixture.LIVE_AT, 40, null);
+		fx.question(staff, exam, "Stem", 1);
+		fx.publishNew(master, exam);
+		takeExam(module, exam);
+		UUID category = fx.jdbc().queryForObject("select category_id from live_exam_modules where id = ?", UUID.class, module);
+
+		mockMvc.perform(post("/api/v1/live-exam-categories/" + category + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CATALOG_SITTING_OPEN"));
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CATALOG_SITTING_OPEN"));
+
+		// Once the sitting has ended the package can be archived.
+		clock.set(AFTER_DEADLINE);
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/archive").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNoContent());
+	}
+
+	@Test
+	void aWithdrawnExamThatWasNeverPublishedChangesModeLikeADraft() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID category = fx.category(staff, "Mode withdrawn");
+		UUID exam = fx.createStandalone(staff, category, "MCQ", "Mode change", AuthoringFixture.LIVE_AT, 40, null);
+		withdraw(master, exam);
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"mode\":\"PRACTICE\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mode").value("PRACTICE"));
+	}
+
+	@Test
+	void aTimeChangeOnAWithdrawnExamIsNotAnnouncedButOnAPublishedOneIs() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID module = fx.module(staff, "Time notices");
+		UUID withdrawn = fx.createExam(staff, module, "MCQ", "Withdrawn time", AuthoringFixture.LIVE_AT, 40, null);
+		fx.question(staff, withdrawn, "Stem", 1);
+		fx.publishNew(master, withdrawn);
+		UUID live = fx.createExam(staff, module, "MCQ", "Live time", AuthoringFixture.LIVE_AT, 40, null);
+		fx.question(staff, live, "Stem", 1);
+		fx.publishNew(master, live);
+		fx.grantModule(module, fx.seed("STUDENT"));
+		withdraw(master, withdrawn);
+
+		for (UUID exam : List.of(withdrawn, live)) {
+			mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"durationMinutes\":50}"))
+				.andExpect(status().isOk());
+			mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + master))
+				.andExpect(status().isOk());
+		}
+
+		// The control: a published exam's time change is announced; the withdrawn one's is not (students cannot see it).
+		assertThat(timeNotices(live)).isPositive();
+		assertThat(timeNotices(withdrawn)).isZero();
+	}
+
+	private int timeNotices(UUID exam) {
+		return fx.jdbc().queryForObject(
+				"select count(*) from student_notices where kind = 'EXAM_TIME_CHANGED' and exam_id = ?", Integer.class, exam);
 	}
 
 	private void withdraw(String master, UUID exam) throws Exception {

@@ -48,10 +48,13 @@ public class LiveExamModuleService {
 
 	private final RichTextSanitizer sanitizer;
 
+	private final LiveExamParticipantRepository participants;
+
 	public LiveExamModuleService(LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility,
 			LiveExamAccess access, AuditRecorder audit, ExamMailService examMail, AfterCommit afterCommit,
 			PackageRevisionService revisions, LiveExamPackageExamRepository memberships, Clock clock,
-			RichTextSanitizer sanitizer) {
+			RichTextSanitizer sanitizer, LiveExamParticipantRepository participants) {
+		this.participants = participants;
 		this.modules = modules;
 		this.visibility = visibility;
 		this.access = access;
@@ -195,6 +198,10 @@ public class LiveExamModuleService {
 		LiveExamModule module = require(id);
 		if (LiveExamModule.ARCHIVED.equals(module.getStatus())) {
 			return;
+		}
+		if (participants.hasOpenSittingInPackage(module.getId(), LiveExamParticipant.IN_PROGRESS, clock.instant())) {
+			throw new ApiException(ErrorCode.CATALOG_SITTING_OPEN, HttpStatus.CONFLICT,
+					"Students are sitting an exam in this package now. Try again after the sitting ends.");
 		}
 		module.setStatus(LiveExamModule.ARCHIVED);
 		audit.record(AuditRecorder.LIVE_EXAM_MODULE_ARCHIVE, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, module.getId());

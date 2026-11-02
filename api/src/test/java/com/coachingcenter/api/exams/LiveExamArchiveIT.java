@@ -31,7 +31,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * Archive hides a published exam from students and keeps it readable for staff (2026-10-27).
- * Only the Master Admin archives. An archived exam cannot be changed or published.
+ * Only the Master Admin withdraws. A withdrawn exam takes edits, but it cannot be published until it is restored.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
