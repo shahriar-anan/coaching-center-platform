@@ -26,7 +26,7 @@ const home: typeof bn = {
   verifyEmail: "Verify email",
   nudgePhone: "You need a phone number to buy and take exams.",
   addPhone: "Add phone number",
-  welcomeTitle: "Welcome to Symam Law, {name}!",
+  welcomeTitle: "Welcome to SYMAM LAW, {name}!",
   welcomeBody: "Pick MCQ or Written to browse the exams.",
   dismiss: "Dismiss",
   nextExam: "Next exam",

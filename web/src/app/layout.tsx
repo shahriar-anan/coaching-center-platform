@@ -4,8 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Symam Law",
-    template: "%s · Symam Law",
+    default: "SYMAM LAW",
+    template: "%s · SYMAM LAW",
   },
   description: "এমসিকিউ ও রিটেন পরীক্ষা, রেজাল্ট ও মেধাতালিকা।",
 };

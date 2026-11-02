@@ -16,7 +16,7 @@ const MAX_REASON = 500;
 
 /**
  * The student's retake request on a written exam: ask for one, see that it is waiting, or read the centre's note when it was
- * declined. Each state carries Symam Law's contact details. The panel is hidden when no request can be made.
+ * declined. Each state carries SYMAM LAW's contact details. The panel is hidden when no request can be made.
  */
 export function RetakeRequestPanel({ examId, enabled }: { examId: string; enabled: boolean }) {
   const { t, locale } = useLocale();
@@ -109,7 +109,7 @@ export function RetakeRequestPanel({ examId, enabled }: { examId: string; enable
   );
 }
 
-/** Symam Law's contact details, from the same copy as the site footer. */
+/** SYMAM LAW's contact details, from the same copy as the site footer. */
 function ContactBlock() {
   const { t } = useLocale();
   const rows = [

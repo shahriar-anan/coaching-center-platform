@@ -19,7 +19,7 @@ const landing = {
   examsTitle: "এক্সাম",
   signUpShort: "অ্যাকাউন্ট খুলুন",
 
-  heroLabel: "Symam Law",
+  heroLabel: "SYMAM LAW",
   heroTitle: "বিজেএস ও বার কাউন্সিল পরীক্ষার জন্য নিয়মিত ও সুপরিকল্পিত প্রস্তুতি",
   heroLead: "নির্ধারিত সময়সূচি অনুযায়ী লাইভ এমসিকিউ ও লিখিত পরীক্ষায় অংশগ্রহণ করুন।",
   chipOnline: "অনলাইন ব্যাচ",

@@ -2,8 +2,8 @@ import type { MessageTree } from "../types";
 
 const common = {
   brand: {
-    name: "Symam Law",
-    home: "Symam Law, home",
+    name: "SYMAM LAW",
+    home: "SYMAM LAW, home",
   },
   nav: {
     home: "Home",
@@ -51,7 +51,7 @@ const common = {
     whatsapp: "WhatsApp",
     linkedin: "LinkedIn",
     youtube: "YouTube",
-    copyright: "Copyright © 2026 Symam Law, All Right Reserved",
+    copyright: "Copyright © 2026 SYMAM LAW, All Right Reserved",
     developedBy: "Developed by",
     developerName: "Shahriar Anan",
     comingSoon: "Coming soon",

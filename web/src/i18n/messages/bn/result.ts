@@ -128,7 +128,7 @@ const result = {
     send: "অনুরোধ পাঠান",
     sent: "অনুরোধ পাঠানো হয়েছে",
     failed: "অনুরোধ পাঠানো যায়নি। আবার চেষ্টা করুন।",
-    contactHeading: "Symam Law-এর যোগাযোগ",
+    contactHeading: "SYMAM LAW-এর যোগাযোগ",
   },
 };
 

@@ -24,7 +24,7 @@ const home = {
   verifyEmail: "ইমেইল যাচাই করুন",
   nudgePhone: "পরীক্ষা কিনতে ও দিতে একটি ফোন নম্বর লাগবে।",
   addPhone: "ফোন নম্বর যোগ করুন",
-  welcomeTitle: "Symam Law-এ স্বাগতম, {name}!",
+  welcomeTitle: "SYMAM LAW-এ স্বাগতম, {name}!",
   welcomeBody: "MCQ বা Written বেছে নিয়ে পরীক্ষাগুলো দেখুন।",
   dismiss: "বন্ধ করুন",
   nextExam: "পরবর্তী পরীক্ষা",

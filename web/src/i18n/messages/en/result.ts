@@ -128,7 +128,7 @@ const result = {
     send: "Send request",
     sent: "Request sent",
     failed: "The request could not be sent. Try again.",
-    contactHeading: "Contact Symam Law",
+    contactHeading: "Contact SYMAM LAW",
   },
 };
 

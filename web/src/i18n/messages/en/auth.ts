@@ -26,7 +26,7 @@ const auth = {
     submit: "Log in",
     notStudent: "Students cannot sign in here.",
     masterNote: "The Master Admin password cannot be reset here. Contact the person who manages the server.",
-    footer: "Symam Law · Admin panel",
+    footer: "SYMAM LAW · Admin panel",
     studentSite: "Go to the student site",
   },
   code: {

@@ -2,8 +2,8 @@ import type { MessageTree } from "../types";
 
 const common = {
   brand: {
-    name: "Symam Law",
-    home: "Symam Law, হোম",
+    name: "SYMAM LAW",
+    home: "SYMAM LAW, হোম",
   },
   nav: {
     home: "হোম",

@@ -40,18 +40,18 @@ it("shows the welcome card once after registration, then clears the flag", async
 
   const first = renderWithQuery(<HomePage />);
 
-  expect(await screen.findByText("Welcome to Symam Law, Student!")).toBeInTheDocument();
+  expect(await screen.findByText("Welcome to SYMAM LAW, Student!")).toBeInTheDocument();
   expect(window.localStorage.getItem("exam-portal.welcome")).toBeNull();
   first.unmount();
 
   renderWithQuery(<HomePage />);
-  expect(screen.queryByText("Welcome to Symam Law, Student!")).not.toBeInTheDocument();
+  expect(screen.queryByText("Welcome to SYMAM LAW, Student!")).not.toBeInTheDocument();
 });
 
 it("hides the welcome card when no registration flag is set", async () => {
   renderWithQuery(<HomePage />);
   expect(await screen.findByRole("link", { name: /My orders/ })).toBeInTheDocument();
-  expect(screen.queryByText(/Welcome to Symam Law/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Welcome to SYMAM LAW/)).not.toBeInTheDocument();
 });
 
 it("shows the section labels, and an upcoming exam as a row in Coming up with its status pill", async () => {

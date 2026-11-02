@@ -7,12 +7,12 @@ const description = "বিজেএস ও বার কাউন্সিল �
 export const metadata: Metadata = {
   // The Open Graph image is an absolute URL when the site address is configured.
   metadataBase: siteUrl ? new URL(siteUrl) : undefined,
-  title: { absolute: "Symam Law" },
+  title: { absolute: "SYMAM LAW" },
   description,
   openGraph: {
-    title: "Symam Law",
+    title: "SYMAM LAW",
     description,
-    images: [{ url: "/brand/og.jpg", width: 1131, height: 636, alt: "Symam Law" }],
+    images: [{ url: "/brand/og.jpg", width: 1131, height: 636, alt: "SYMAM LAW" }],
   },
 };
 

@@ -21,7 +21,7 @@ const landing: typeof bn = {
   examsTitle: "Exams",
   signUpShort: "Create account",
 
-  heroLabel: "Symam Law",
+  heroLabel: "SYMAM LAW",
   heroTitle: "Structured preparation for the BJS and Bar Council examinations",
   heroLead: "Take part in live MCQ and written examinations held at scheduled times.",
   chipOnline: "Online batches",
@@ -39,7 +39,7 @@ const landing: typeof bn = {
   batchOpen: "Browse exams",
   batchCallOnly: "Call to enrol",
 
-  statsLabel: "Symam Law in numbers",
+  statsLabel: "SYMAM LAW in numbers",
   statsStudents: "Students",
   statsMentors: "Experienced mentors",
   statsDownloads: "App downloads",

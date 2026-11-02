@@ -42,8 +42,8 @@ public final class EmailTemplates {
 		String copy = copyLink(ctx, code, "activate");
 		StringBuilder html = new StringBuilder();
 		html.append(hero(first == null ? "স্বাগতম!" : "স্বাগতম, " + esc(first) + "!", "Welcome on board"));
-		html.append(para("Symam Law-এ আপনাকে " + roleBn + " হিসেবে যুক্ত করা হয়েছে। অ্যাকাউন্টটি চালু করতে নিচের কোডটি ব্যবহার করুন এবং নিজের পছন্দের পাসওয়ার্ড দিন।",
-				"You have been added to Symam Law as " + roleEn + ". Use the code below to activate your account and choose your own password."));
+		html.append(para("SYMAM LAW-এ আপনাকে " + roleBn + " হিসেবে যুক্ত করা হয়েছে। অ্যাকাউন্টটি চালু করতে নিচের কোডটি ব্যবহার করুন এবং নিজের পছন্দের পাসওয়ার্ড দিন।",
+				"You have been added to SYMAM LAW as " + roleEn + ". Use the code below to activate your account and choose your own password."));
 		html.append(codeBox(ctx, code, copy, "আপনার অ্যাকাউন্ট চালু করার কোড", "Your activation code"));
 		html.append(steps(List.of(
 				new String[] { "নিচের বোতামে ক্লিক করে অ্যাকাউন্ট চালু করার পাতা খুলুন।", "Open the activation page with the button below." },
@@ -53,7 +53,7 @@ public final class EmailTemplates {
 		html.append(note("কোডটি " + bn(ctx.activationDays()) + " দিন পর্যন্ত কার্যকর থাকবে এবং একবারই ব্যবহার করা যাবে। সাইমাম ল'-এর কেউ কখনো এই কোড চাইবেন না।",
 				"This code works for " + ctx.activationDays() + " days and can be used once. Nobody from SYMAM LAW will ever ask you for it."));
 		String text = text(first == null ? "স্বাগতম! / Welcome on board" : "স্বাগতম, " + first + "! / Welcome on board",
-				"Symam Law-এ আপনাকে " + roleBn + " হিসেবে যুক্ত করা হয়েছে। / You have been added to Symam Law as " + roleEn + ".",
+				"SYMAM LAW-এ আপনাকে " + roleBn + " হিসেবে যুক্ত করা হয়েছে। / You have been added to SYMAM LAW as " + roleEn + ".",
 				"কোড / Code: " + code, "অ্যাকাউন্ট চালু করুন / Activate your account: " + link,
 				"কোডটি " + bn(ctx.activationDays()) + " দিন কার্যকর। / The code works for " + ctx.activationDays() + " days.");
 		return new RenderedEmail("স্বাগতম! আপনার অ্যাকাউন্ট চালু করুন · Welcome on board",
@@ -66,8 +66,8 @@ public final class EmailTemplates {
 		String copy = copyLink(ctx, code, "verify");
 		StringBuilder html = new StringBuilder();
 		html.append(hero(first == null ? "স্বাগতম!" : "স্বাগতম, " + esc(first) + "!", "Welcome on board"));
-		html.append(para("Symam Law-এ আপনার অ্যাকাউন্ট তৈরি হয়েছে। ইমেইলটি যাচাই করতে অ্যাকাউন্ট পাতায় নিচের কোডটি দিন।",
-				"Your Symam Law account is ready. To verify your email, enter the code below on your account page."));
+		html.append(para("SYMAM LAW-এ আপনার অ্যাকাউন্ট তৈরি হয়েছে। ইমেইলটি যাচাই করতে অ্যাকাউন্ট পাতায় নিচের কোডটি দিন।",
+				"Your SYMAM LAW account is ready. To verify your email, enter the code below on your account page."));
 		html.append(codeBox(ctx, code, copy, "ইমেইল যাচাইয়ের কোড", "Your verification code"));
 		html.append(button("অ্যাকাউন্ট পাতা খুলুন", "Open my account", link));
 		html.append(note("কোডটি " + bn(ctx.emailMinutes()) + " মিনিট পর্যন্ত কার্যকর। আপনি অ্যাকাউন্ট না খুলে থাকলে এই ইমেইলটি উপেক্ষা করুন।",

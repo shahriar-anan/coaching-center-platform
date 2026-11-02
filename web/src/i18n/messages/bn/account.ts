@@ -58,7 +58,7 @@ const account = {
   receipt: {
     open: "রসিদ দেখুন",
     title: "পেমেন্ট রসিদ",
-    site: "Symam Law",
+    site: "SYMAM LAW",
     student: "শিক্ষার্থী",
     item: "কেনা হয়েছে",
     amount: "মূল্য",

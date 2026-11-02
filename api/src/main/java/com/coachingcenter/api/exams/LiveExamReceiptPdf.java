@@ -35,7 +35,7 @@ import org.springframework.stereotype.Component;
 class LiveExamReceiptPdf {
 
 	// The company block. It matches the footer in web/src/i18n/messages/en/common.ts; change it here only.
-	private static final String COMPANY_NAME = "Symam Law";
+	private static final String COMPANY_NAME = "SYMAM LAW";
 
 	private static final String COMPANY_TAGLINE = "Online law exams";
 
