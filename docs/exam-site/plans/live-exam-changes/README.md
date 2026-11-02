@@ -24,15 +24,15 @@ Briefs (one per agent, plus verification):
 | D6 | The Master Admin can publish a staged revision of a withdrawn exam. It stays withdrawn. | Keeps content fixes possible without a restore. |
 | D7 | Withdrawing is blocked while a student has an open sitting (in progress, not submitted, deadline not yet passed). The error is `EXAM_SITTING_OPEN`. | Gap 5 from the earlier list; Shahriar accepted the recommendation. |
 | D8 | Restore returns the exam to draft, as today. The publish path after restore is unchanged. | Existing behaviour. |
-| D9 | **MCQ attempt pinning.** At the start of each MCQ attempt, the question set (text, options, correct keys, marks, explanations) is copied onto that attempt. All reads, answer checks and scoring for that attempt use the copy. | Shahriar accepted the MCQ recommendation. Matches the written paper rule (E29). |
+| D9 | **MCQ attempt pinning.** At the start of each MCQ attempt, the question set (text, options, correct keys, marks, explanations), negative mark and pass percent are copied onto that attempt. All reads, answer checks and scoring for that attempt use the copy. | Shahriar accepted the MCQ recommendation. Matches the written paper rule (E29). |
 | D10 | Attempts already submitted keep their score. Publishing a key, marks or option change does not re-score anything. This replaces rule E28 for MCQ. | Shahriar: the student who sat v1 keeps the v1 result. |
 | D11 | Questions and options can be added, removed or changed at any time, including after students have started. The structure lock (rule R16) is removed. | Shahriar: the question maker handles conflicts. Pinning makes this safe. |
 | D12 | Live question and option rows are never hard-deleted. They are soft-deleted, so pinned answers still point at real rows. | Needed for D9 and D11. |
 | D13 | A running MCQ sitting shows the questions it started with. Reloads do not change them. No polling. | Written rule, and avoids changing options under a student's answers. |
 | D14 | Rules and description stay live. A reload shows the current text. They are not pinned. | They do not affect scoring. Shahriar accepted. |
-| D15 | Leaderboard ranks each attempt by percentage of its own maximum, and shows the raw score next to it. Ties keep today's tie-break. | Maximums differ between versions, so raw marks are not comparable. |
-| D16 | Written: a maximum cannot be set below the highest mark already given (saved or pending). Blocked on edit and on publish, with `WRITTEN_MAXIMUM_BELOW_MARK`. | Shahriar accepted. |
-| D17 | Written: changing the pass percent does not re-judge posted results. The change list says so. | Shahriar accepted. |
+| D15 | Leaderboard and results summary use raw marks. Each row still shows its own maximum and percent. Ties: earlier submit, then name. | Changed 2 November 2026: Shahriar expects the maximum and pass mark not to change in practice, and students should see their marks. |
+| D16 | Written: each attempt keeps the maximum it was sat on (V67). The exam maximum can be raised or lowered at any time. | Changed 2 November 2026: replaces the block on lowering it, which per-attempt maximums made unnecessary. |
+| D17 | Written: each attempt keeps the pass percent it was sat on (V67), so papers from one sitting are judged alike. | Changed 2 November 2026: Shahriar accepted. |
 | D18 | Rules and description are optional for exams and packages. Titles stay required. Publish no longer checks the four texts. | Client request 1 and 2. |
 | D19 | No notice to students when questions change. | Shahriar dropped this recommendation. |
 
@@ -66,8 +66,8 @@ Rules for everyone:
 
 | Code | Status | Use | Owner |
 |---|---|---|---|
+| `CATALOG_SITTING_OPEN` (new) | 409 | Category or package archive, or package delete, refused while a student is sitting an exam under it. | API; web maps it |
 | `EXAM_SITTING_OPEN` (new) | 409 | Withdraw refused: a student has an open sitting. Message: "Students are sitting this exam now. Withdraw it after the sitting ends." | B adds; C maps |
-| `WRITTEN_MAXIMUM_BELOW_MARK` (new) | 409 | Maximum below the highest mark given. Field error on `writtenMaximum`. | B adds; C maps |
 | `EXAM_TEXT_REQUIRED` (remove) | | No longer thrown. | B removes; C removes |
 | `QUESTION_STRUCTURE_LOCKED` (remove) | | No longer thrown after D11. Check that no other place still uses it before removing. | B removes; C removes |
 | `EXAM_ARCHIVED` (keep code) | 409 | Message text changes to "withdrawn" wording (D1). | B |
@@ -132,6 +132,6 @@ The plan is complete when all of these hold (details in [verification.md](verifi
 - Every decision D1 to D18 has a matching test or a manual check.
 - No user-visible exam text says Archive or Archived, except where D3 and D4 allow it.
 - A student who started an MCQ attempt before an edit still sees and is scored on the questions they started with.
-- The leaderboard ranks by percent.
+- The leaderboard ranks by raw marks.
 - Withdraw is refused while a sitting is open.
 - Descriptions and rules can be left blank for exams and packages.
