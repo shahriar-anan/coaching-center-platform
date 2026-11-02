@@ -52,10 +52,6 @@ public class LiveExamSittingService {
 
 	private final LiveExamRepository examRepository;
 
-	private final LiveExamQuestionRepository questions;
-
-	private final LiveExamOptionRepository options;
-
 	private final LiveExamParticipantRepository participants;
 
 	private final LiveExamAnswerRepository answers;
@@ -86,18 +82,17 @@ public class LiveExamSittingService {
 
 	private final LiveExamModuleRepository modules;
 
+	private final McqAttemptSnapshot snapshots;
+
 	public LiveExamSittingService(LiveExamService exams, LiveExamRepository examRepository,
-			LiveExamQuestionRepository questions, LiveExamOptionRepository options,
 			LiveExamParticipantRepository participants, LiveExamAnswerRepository answers,
 			LiveExamAnswerConfirmationRepository confirmations, LiveExamQuestionPaperRepository papers,
 			LiveExamRetakeGrantRepository retakeGrants, LiveExamAccess access, LiveExamLeaderboardService leaderboards,
 			LiveExamStudentStanding standings, LocalFileStorage files, PdfCompressor pdfs, Clock clock,
 			StudentPhoneGuard phones, StudentNoticeWriter notices, LiveExamMemberships memberships,
-			LiveExamModuleRepository modules) {
+			LiveExamModuleRepository modules, McqAttemptSnapshot snapshots) {
 		this.exams = exams;
 		this.examRepository = examRepository;
-		this.questions = questions;
-		this.options = options;
 		this.participants = participants;
 		this.answers = answers;
 		this.confirmations = confirmations;
@@ -113,6 +108,7 @@ public class LiveExamSittingService {
 		this.notices = notices;
 		this.memberships = memberships;
 		this.modules = modules;
+		this.snapshots = snapshots;
 	}
 
 	@Transactional
@@ -135,11 +131,11 @@ public class LiveExamSittingService {
 		if (participant != null && mcq) {
 			if (posted) {
 				if (ReviewRule.open(exam, participant, now)) {
-					questionViews = questionViews(examId, participant.getId(), true);
+					questionViews = questionViews(participant, true);
 				}
 			}
 			else if (open) {
-				questionViews = questionViews(examId, participant.getId(), false);
+				questionViews = questionViews(participant, false);
 			}
 		}
 		// A written sitting offers its paper only until an answer script is stored: the upload is the submission.
@@ -308,7 +304,7 @@ public class LiveExamSittingService {
 		Instant now = clock.instant();
 		boolean submittedMcq = LiveExam.MCQ.equals(exam.getExamType()) && participant.getSubmittedAt() != null;
 		boolean reviewOpen = submittedMcq && ReviewRule.open(exam, participant, now);
-		List<StudentQuestion> questionViews = reviewOpen ? questionViews(examId, participant.getId(), true) : null;
+		List<StudentQuestion> questionViews = reviewOpen ? questionViews(participant, true) : null;
 		BigDecimal score = McqScoring.plain(participant.getScore());
 		Boolean passed = participant.getPassed();
 		String comment = participant.getComment();
@@ -327,7 +323,7 @@ public class LiveExamSittingService {
 					.orElse(null)
 				: null;
 		boolean answerPdf = LiveExam.WRITTEN.equals(exam.getExamType()) && participant.getAnswerStoredFileName() != null;
-		return new ReviewedResult(score, maximum(exam), passed, participant.getStatus(), questionViews, comment,
+		return new ReviewedResult(score, maximum(exam, participant), passed, participant.getStatus(), questionViews, comment,
 				evaluatedPdf, LiveExamParticipant.legacyKind(participant.getKind()), participant.getKind(),
 				participant.getAttemptNo(), leaderboards.positionOf(exam, participant), grant, exam.getTitleEn(),
 				exam.getTitleBn(), exam.getExamType(), exam.getPassPercent(), answerPdf, null);
@@ -401,7 +397,7 @@ public class LiveExamSittingService {
 					module == null ? null : module.getTitleBn(), exam.getLiveAt() == null ? null : format(exam.getLiveAt()),
 					exam.getPassPercent(), status.status(), status.detail(), LiveExamParticipant.legacyKind(latest.getKind()),
 					own.size(), latest.getSubmittedAt() == null ? null : format(latest.getSubmittedAt()), visible,
-					visible ? McqScoring.plain(latest.getScore()) : null, maximum(exam), visible ? latest.getPassed() : null));
+					visible ? McqScoring.plain(latest.getScore()) : null, maximum(exam, latest), visible ? latest.getPassed() : null));
 		}
 		return PageResponse.from(new PageImpl<>(rows, window, examIds.getTotalElements()));
 	}
@@ -555,12 +551,9 @@ public class LiveExamSittingService {
 		if (clock.instant().isBefore(participant.getDeadlineAt())) {
 			return;
 		}
+		// A submitted attempt is never scored again (D10): a key edit after submit does not reach its score.
 		if (participant.getSubmittedAt() == null) {
 			post(participant, exam);
-			return;
-		}
-		if (LiveExam.MCQ.equals(exam.getExamType())) {
-			scoreMcq(participant, exam, false);
 		}
 	}
 
@@ -585,7 +578,7 @@ public class LiveExamSittingService {
 		for (LiveExamAnswer answer : answers.findByParticipantId(participant.getId())) {
 			chosen.computeIfAbsent(answer.getQuestionId(), ignored -> new HashSet<>()).add(answer.getOptionId());
 		}
-		List<McqScoring.QuestionKey> key = key(exam.getId());
+		List<McqScoring.QuestionKey> key = snapshots.of(participant).key();
 		BigDecimal score = McqScoring.total(key, chosen, exam.getNegativeMarks()).setScale(2, RoundingMode.HALF_UP);
 		participant.setScore(score);
 		participant.setPassed(!chosen.isEmpty() && McqScoring.passed(score, McqScoring.maximum(key), exam.getPassPercent()));
@@ -604,23 +597,8 @@ public class LiveExamSittingService {
 			score = null;
 			passed = null;
 		}
-		return new PostedResult(participant.getId(), score, maximum(exam), passed, participant.getStatus(),
+		return new PostedResult(participant.getId(), score, maximum(exam, participant), passed, participant.getStatus(),
 				participant.getAttemptNo(), leaderboards.positionOf(exam, participant));
-	}
-
-	/** The paper's answer key, one entry per question in position order. */
-	private List<McqScoring.QuestionKey> key(UUID examId) {
-		List<McqScoring.QuestionKey> key = new ArrayList<>();
-		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId)) {
-			Set<UUID> correct = new HashSet<>();
-			for (LiveExamOption option : options.findByQuestionIdAndDeletedAtIsNullOrderByPositionAscIdAsc(question.getId())) {
-				if (option.isCorrect()) {
-					correct.add(option.getId());
-				}
-			}
-			key.add(new McqScoring.QuestionKey(question.getId(), question.getMarks(), correct));
-		}
-		return key;
 	}
 
 	/** The student's latest attempt on the exam, or empty. */
@@ -629,44 +607,33 @@ public class LiveExamSittingService {
 			.findFirst();
 	}
 
-	private int maximum(LiveExam exam) {
+	/** The highest mark an attempt can give: a written exam's maximum, or the sum of the marks of the attempt's own questions. */
+	private int maximum(LiveExam exam, LiveExamParticipant attempt) {
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
 			return exam.getWrittenMaximum() == null ? 0 : exam.getWrittenMaximum();
 		}
-		int sum = 0;
-		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId())) {
-			sum += question.getMarks();
-		}
-		return sum;
+		return McqScoring.maximum(snapshots.of(attempt).key());
 	}
 
 	/**
 	 * {@code reveal} adds the correct options and explanations. Callers pass true only when the review is open ({@link ReviewRule}),
-	 * never for a running attempt. A student mid-sitting reads the published rows, so a reload shows new wording (R17).
+	 * never for a running attempt. The questions are the attempt's own copy (D9, D13), so a reload shows the wording it started with.
 	 */
-	private List<StudentQuestion> questionViews(UUID examId, UUID participantId, boolean reveal) {
+	private List<StudentQuestion> questionViews(LiveExamParticipant participant, boolean reveal) {
 		Map<UUID, Set<UUID>> selected = new HashMap<>();
-		for (LiveExamAnswer answer : answers.findByParticipantId(participantId)) {
+		for (LiveExamAnswer answer : answers.findByParticipantId(participant.getId())) {
 			selected.computeIfAbsent(answer.getQuestionId(), ignored -> new HashSet<>()).add(answer.getOptionId());
 		}
-		List<LiveExamQuestion> rows = questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(examId);
-		Map<UUID, List<LiveExamOption>> optionsByQuestion = new HashMap<>();
-		if (!rows.isEmpty()) {
-			for (LiveExamOption option : options.findByQuestionIdInAndDeletedAtIsNullOrderByPositionAscIdAsc(
-					rows.stream().map(LiveExamQuestion::getId).toList())) {
-				optionsByQuestion.computeIfAbsent(option.getQuestionId(), ignored -> new ArrayList<>()).add(option);
-			}
-		}
 		List<StudentQuestion> views = new ArrayList<>();
-		for (LiveExamQuestion question : rows) {
-			Set<UUID> chosen = selected.getOrDefault(question.getId(), Set.of());
+		for (McqAttemptSnapshot.SnapshotQuestion question : snapshots.of(participant).questions) {
+			Set<UUID> chosen = selected.getOrDefault(question.id, Set.of());
 			List<StudentOption> optionViews = new ArrayList<>();
-			for (LiveExamOption option : optionsByQuestion.getOrDefault(question.getId(), List.of())) {
-				optionViews.add(new StudentOption(option.getId(), option.getOptionText(), reveal ? option.isCorrect() : null,
-						chosen.contains(option.getId())));
+			for (McqAttemptSnapshot.SnapshotOption option : question.options) {
+				optionViews.add(new StudentOption(option.id, option.text, reveal ? option.correct : null,
+						chosen.contains(option.id)));
 			}
-			views.add(new StudentQuestion(question.getId(), question.getStem(), question.getMarks(),
-					reveal ? question.getExplanation() : null, optionViews, question.isMultipleAnswer()));
+			views.add(new StudentQuestion(question.id, question.stem, question.marks,
+					reveal ? question.explanation : null, optionViews, question.multipleAnswer));
 		}
 		return views;
 	}
@@ -677,20 +644,21 @@ public class LiveExamSittingService {
 	 */
 	private void apply(LiveExam exam, LiveExamParticipant participant, Map<UUID, Set<UUID>> requested, Set<UUID> confirm,
 			boolean replaceMissing) {
-		Map<UUID, LiveExamQuestion> byId = new HashMap<>();
-		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId())) {
-			byId.put(question.getId(), question);
-		}
+		// The answer is checked against the question set the attempt started with, so a row added or removed since is not a choice.
+		Map<UUID, McqAttemptSnapshot.SnapshotQuestion> byId = new HashMap<>();
 		Map<UUID, Set<UUID>> optionIdsByQuestion = new HashMap<>();
-		if (!byId.isEmpty()) {
-			for (LiveExamOption option : options.findByQuestionIdInAndDeletedAtIsNullOrderByPositionAscIdAsc(List.copyOf(byId.keySet()))) {
-				optionIdsByQuestion.computeIfAbsent(option.getQuestionId(), ignored -> new HashSet<>()).add(option.getId());
+		for (McqAttemptSnapshot.SnapshotQuestion question : snapshots.of(participant).questions) {
+			byId.put(question.id, question);
+			Set<UUID> optionIds = new HashSet<>();
+			for (McqAttemptSnapshot.SnapshotOption option : question.options) {
+				optionIds.add(option.id);
 			}
+			optionIdsByQuestion.put(question.id, optionIds);
 		}
 		for (Map.Entry<UUID, Set<UUID>> entry : requested.entrySet()) {
-			LiveExamQuestion question = byId.get(entry.getKey());
+			McqAttemptSnapshot.SnapshotQuestion question = byId.get(entry.getKey());
 			if (question == null || !optionIdsByQuestion.getOrDefault(entry.getKey(), Set.of()).containsAll(entry.getValue())
-					|| (!question.isMultipleAnswer() && entry.getValue().size() > 1)) {
+					|| (!question.multipleAnswer && entry.getValue().size() > 1)) {
 				throw validationFailed();
 			}
 		}
@@ -703,11 +671,11 @@ public class LiveExamSittingService {
 		boolean changeable = exam.isAnswersChangeable();
 		Set<UUID> locked = new HashSet<>();
 		if (!changeable) {
-			for (LiveExamQuestion question : byId.values()) {
-				boolean answered = !current.getOrDefault(question.getId(), Set.of()).isEmpty();
+			for (McqAttemptSnapshot.SnapshotQuestion question : byId.values()) {
+				boolean answered = !current.getOrDefault(question.id, Set.of()).isEmpty();
 				// A single-answer question is final at its first choice; a multi-answer one when the student confirms it.
-				if (confirmed.contains(question.getId()) || (!question.isMultipleAnswer() && answered)) {
-					locked.add(question.getId());
+				if (confirmed.contains(question.id) || (!question.multipleAnswer && answered)) {
+					locked.add(question.id);
 				}
 			}
 			for (Map.Entry<UUID, Set<UUID>> entry : requested.entrySet()) {
@@ -748,8 +716,8 @@ public class LiveExamSittingService {
 		answers.saveAll(rows);
 		if (!changeable) {
 			for (Map.Entry<UUID, Set<UUID>> entry : requested.entrySet()) {
-				LiveExamQuestion question = byId.get(entry.getKey());
-				boolean final_ = !entry.getValue().isEmpty() && (!question.isMultipleAnswer() || confirm.contains(entry.getKey()));
+				McqAttemptSnapshot.SnapshotQuestion question = byId.get(entry.getKey());
+				boolean final_ = !entry.getValue().isEmpty() && (!question.multipleAnswer || confirm.contains(entry.getKey()));
 				if (final_ && !confirmed.contains(entry.getKey())) {
 					LiveExamAnswerConfirmation row = new LiveExamAnswerConfirmation();
 					row.setParticipantId(participant.getId());
@@ -827,6 +795,10 @@ public class LiveExamSittingService {
 		participant.setStatus(LiveExamParticipant.IN_PROGRESS);
 		// A written sitting keeps the paper version it was given, so a later PDF change does not reach it (E29).
 		participant.setQuestionPaperId(exam.getQuestionPaperId());
+		// An MCQ attempt keeps the questions it starts with, so a later edit does not change its paper or its score (D9).
+		if (LiveExam.MCQ.equals(exam.getExamType())) {
+			participant.setQuestionSnapshot(snapshots.capture(exam.getId()));
+		}
 		return participants.save(participant);
 	}
 

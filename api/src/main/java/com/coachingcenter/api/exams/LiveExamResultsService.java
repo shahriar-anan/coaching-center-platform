@@ -46,24 +46,24 @@ public class LiveExamResultsService {
 
 	private final LiveExamParticipantRepository participants;
 
-	private final LiveExamQuestionRepository questions;
-
 	private final LiveExamRetakeGrantRepository retakeGrants;
 
 	private final StudentProfileRepository students;
 
 	private final LiveExamMemberships memberships;
 
+	private final McqAttemptSnapshot snapshots;
+
 	public LiveExamResultsService(LiveExamRepository exams, LiveExamModuleRepository modules,
-			LiveExamParticipantRepository participants, LiveExamQuestionRepository questions,
-			LiveExamRetakeGrantRepository retakeGrants, StudentProfileRepository students, LiveExamMemberships memberships) {
+			LiveExamParticipantRepository participants, LiveExamRetakeGrantRepository retakeGrants,
+			StudentProfileRepository students, LiveExamMemberships memberships, McqAttemptSnapshot snapshots) {
 		this.exams = exams;
 		this.modules = modules;
 		this.participants = participants;
-		this.questions = questions;
 		this.retakeGrants = retakeGrants;
 		this.memberships = memberships;
 		this.students = students;
+		this.snapshots = snapshots;
 	}
 
 	/**
@@ -90,7 +90,6 @@ public class LiveExamResultsService {
 		else if (actor.role() != Role.MASTER_ADMIN && actor.role() != Role.SYSTEM_ADMIN) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
-		int maximum = maximum(exam);
 		List<LiveExamParticipant> all = participants.findByExamIdAndDeletedAtIsNull(examId);
 		Map<UUID, StudentProfile> profiles = profiles(all);
 		Map<UUID, LiveExamRetakeGrant> grants = new HashMap<>();
@@ -100,7 +99,7 @@ public class LiveExamResultsService {
 			.filter(p -> kindFilter == null || kindMatches(kindFilter, p.getKind()))
 			.filter(p -> attemptFilter == null || attemptFilter.equals(p.getKind()))
 			.filter(p -> statusFilter == null || statusFilter.equals(p.getStatus()))
-			.map(p -> row(p, maximum, profiles.get(p.getStudentId()), grants))
+			.map(p -> row(p, maximum(exam, p), profiles.get(p.getStudentId()), grants))
 			.filter(row -> needle.isEmpty() || row.studentName().toLowerCase().contains(needle)
 					|| row.studentCode().toLowerCase().contains(needle))
 			.sorted(comparator(order))
@@ -130,8 +129,6 @@ public class LiveExamResultsService {
 				.flatMap(modules::findByIdAndDeletedAtIsNull)
 				.ifPresent(module -> moduleByExam.put(exam.getId(), module));
 		}
-		Map<UUID, Integer> maximumByExam = new HashMap<>();
-		examById.values().forEach(exam -> maximumByExam.put(exam.getId(), maximum(exam)));
 		return PageResponse.from(page.map(participant -> {
 			LiveExam exam = examById.get(participant.getExamId());
 			LiveExamModule module = exam == null ? null : moduleByExam.get(exam.getId());
@@ -140,7 +137,7 @@ public class LiveExamResultsService {
 					module == null ? null : module.getId(), module == null ? null : module.getTitleEn(),
 					module == null ? null : module.getTitleBn(), LiveExamParticipant.legacyKind(participant.getKind()),
 					participant.getKind(), participant.getStatus(),
-					McqScoring.plain(participant.getScore()), maximumByExam.getOrDefault(participant.getExamId(), 0), participant.getPassed(),
+					McqScoring.plain(participant.getScore()), exam == null ? 0 : maximum(exam, participant), participant.getPassed(),
 					participant.getSubmittedAt(), published(participant, exam), participant.getAttemptNo());
 		}));
 	}
@@ -170,15 +167,15 @@ public class LiveExamResultsService {
 				grant == null ? null : new LiveExamEvaluationService.RetakeGrantView(grant.getId(), grant.getUsedParticipantId() != null));
 	}
 
-	private int maximum(LiveExam exam) {
+	/**
+	 * The maximum an attempt is marked out of. An MCQ attempt has its own question set (D9), so its maximum comes from that
+	 * copy; a written exam has one maximum.
+	 */
+	private int maximum(LiveExam exam, LiveExamParticipant attempt) {
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
 			return exam.getWrittenMaximum() == null ? 0 : exam.getWrittenMaximum();
 		}
-		int sum = 0;
-		for (LiveExamQuestion question : questions.findByExamIdAndDeletedAtIsNullOrderByPositionAscIdAsc(exam.getId())) {
-			sum += question.getMarks();
-		}
-		return sum;
+		return McqScoring.maximum(snapshots.of(attempt).key());
 	}
 
 	/**

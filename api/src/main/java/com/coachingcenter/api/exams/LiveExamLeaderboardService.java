@@ -1,6 +1,7 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,6 +9,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -49,14 +51,18 @@ public class LiveExamLeaderboardService {
 
 	private final Clock clock;
 
+	private final McqAttemptSnapshot snapshots;
+
 	public LiveExamLeaderboardService(LiveExamRepository exams, LiveExamParticipantRepository participants,
-			LiveExamQuestionRepository questions, StudentProfileRepository students, LiveExamService examViews, Clock clock) {
+			LiveExamQuestionRepository questions, StudentProfileRepository students, LiveExamService examViews, Clock clock,
+			McqAttemptSnapshot snapshots) {
 		this.exams = exams;
 		this.participants = participants;
 		this.questions = questions;
 		this.students = students;
 		this.examViews = examViews;
 		this.clock = clock;
+		this.snapshots = snapshots;
 	}
 
 	/**
@@ -88,10 +94,16 @@ public class LiveExamLeaderboardService {
 		boolean showRows = !student || ExamWindow.ENDED.equals(phase) || ExamWindow.PRACTICE.equals(phase);
 		List<LeaderboardRow> rows = new ArrayList<>();
 		if (showRows) {
-			int maximum = maximum(exam);
+			int liveMaximum = maximum(exam);
 			Map<UUID, String> names = names(board);
+			Map<UUID, Standing> standings = new HashMap<>();
+			for (LiveExamParticipant row : board) {
+				standings.put(row.getId(), standing(exam, row, liveMaximum));
+			}
+			// Ranked by percent of each attempt's own maximum (D15). Ties keep the old order: earlier submit, then name.
 			List<LiveExamParticipant> ordered = board.stream()
-				.sorted(Comparator.comparing(LiveExamParticipant::getScore, Comparator.reverseOrder())
+				.sorted(Comparator.comparing((LiveExamParticipant p) -> standings.get(p.getId()).percent(),
+						Comparator.nullsLast(Comparator.<BigDecimal>reverseOrder()))
 					.thenComparing(LiveExamParticipant::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder()))
 					.thenComparing(p -> names.getOrDefault(p.getStudentId(), "")))
 				.toList();
@@ -99,12 +111,13 @@ public class LiveExamLeaderboardService {
 			BigDecimal previous = null;
 			for (int index = 0; index < ordered.size(); index++) {
 				LiveExamParticipant row = ordered.get(index);
-				if (previous != null && row.getScore().compareTo(previous) != 0) {
+				Standing standing = standings.get(row.getId());
+				if (index > 0 && !Objects.equals(standing.percent(), previous)) {
 					rank = index + 1;
 				}
-				previous = row.getScore();
+				previous = standing.percent();
 				rows.add(new LeaderboardRow(names.getOrDefault(row.getStudentId(), ""), rank, McqScoring.plain(row.getScore()),
-						maximum, true, student && actor.userId().equals(row.getStudentId())));
+						standing.maximum(), true, student && actor.userId().equals(row.getStudentId()), standing.percent()));
 			}
 		}
 		Integer belowPass = student ? null
@@ -142,8 +155,31 @@ public class LiveExamLeaderboardService {
 		if (!Boolean.TRUE.equals(attempt.getPassed())) {
 			return new Position(type, null, board.size(), true);
 		}
-		int ahead = (int) board.stream().filter(p -> p.getScore().compareTo(attempt.getScore()) > 0).count();
+		int liveMaximum = maximum(exam);
+		BigDecimal percent = standing(exam, attempt, liveMaximum).percent();
+		int ahead = 0;
+		for (LiveExamParticipant row : board) {
+			if (above(standing(exam, row, liveMaximum).percent(), percent)) {
+				ahead++;
+			}
+		}
 		return new Position(type, ahead + 1, board.size(), false);
+	}
+
+	/** An attempt's own maximum and its percent of it (D15). The percent is null when that maximum is 0. */
+	private Standing standing(LiveExam exam, LiveExamParticipant attempt, int liveMaximum) {
+		int maximum = liveMaximum;
+		if (LiveExam.MCQ.equals(exam.getExamType()) && attempt.getQuestionSnapshot() != null) {
+			maximum = McqScoring.maximum(snapshots.read(attempt).key());
+		}
+		BigDecimal percent = maximum == 0 ? null
+				: attempt.getScore().multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(maximum), 2, RoundingMode.HALF_UP);
+		return new Standing(maximum, percent);
+	}
+
+	/** Whether a percent ranks above another. A null percent (a zero maximum) ranks last. */
+	private static boolean above(BigDecimal percent, BigDecimal other) {
+		return percent != null && (other == null || percent.compareTo(other) > 0);
 	}
 
 	/** Has a result a student may see ranked: posted for an MCQ, released (or a no-submit zero) for a written paper. */
@@ -203,7 +239,13 @@ public class LiveExamLeaderboardService {
 	public record Leaderboard(List<LeaderboardRow> rows, Position me, Integer belowPass) {
 	}
 
-	public record LeaderboardRow(String name, int rank, BigDecimal score, int maximum, boolean passed, boolean mine) {
+	/** {@code percent} is the score over {@code maximum}, 2 decimal places; null when the maximum is 0. */
+	public record LeaderboardRow(String name, int rank, BigDecimal score, int maximum, boolean passed, boolean mine,
+			BigDecimal percent) {
+	}
+
+	/** An attempt's own maximum and its percent of it. */
+	private record Standing(int maximum, BigDecimal percent) {
 	}
 
 	/** {@code rank} is null when {@code belowPass}; {@code of} is the number of rows on the board. */

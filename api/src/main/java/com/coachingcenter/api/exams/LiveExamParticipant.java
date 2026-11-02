@@ -62,6 +62,10 @@ public class LiveExamParticipant extends BaseEntity {
 	@Column(name = "question_paper_id")
 	private UUID questionPaperId;
 
+	/** The MCQ question set this attempt started with, as JSON (D9). Null for an attempt started before snapshots. */
+	@Column(name = "question_snapshot", columnDefinition = "TEXT")
+	private String questionSnapshot;
+
 	@Column(nullable = false, length = 32)
 	private String status;
 
@@ -214,6 +218,14 @@ public class LiveExamParticipant extends BaseEntity {
 
 	public void setQuestionPaperId(UUID questionPaperId) {
 		this.questionPaperId = questionPaperId;
+	}
+
+	public String getQuestionSnapshot() {
+		return questionSnapshot;
+	}
+
+	public void setQuestionSnapshot(String questionSnapshot) {
+		this.questionSnapshot = questionSnapshot;
 	}
 
 	public Boolean getPassed() {
