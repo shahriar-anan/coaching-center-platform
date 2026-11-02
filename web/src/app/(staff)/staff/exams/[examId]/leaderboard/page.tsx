@@ -49,16 +49,17 @@ function Leaderboard({ examId }: { examId: string }) {
       cell: (row) => format.formatNumber(row.rank),
     },
     {
+      // Each attempt's own maximum: a version that was edited has a different full mark (D15).
       key: "score",
       header: t("staffOps.leaderboard.columns.score"),
       align: "end",
-      cell: (row) => format.formatNumber(row.score),
+      cell: (row) => `${format.formatNumber(row.score)} / ${format.formatNumber(row.maximum)}`,
     },
     {
-      key: "maximum",
-      header: t("staffOps.leaderboard.columns.maximum"),
+      key: "percent",
+      header: t("staffOps.leaderboard.columns.percent"),
       align: "end",
-      cell: (row) => format.formatNumber(row.maximum),
+      cell: (row) => (row.percent == null ? "—" : `${format.formatNumber(row.percent, { decimals: 2 })}%`),
     },
     {
       key: "pass",

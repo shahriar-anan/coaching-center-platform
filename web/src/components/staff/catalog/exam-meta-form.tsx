@@ -36,8 +36,8 @@ function mergeSection(base: ExamFormState, from: ExamFormState, section: ExamSec
 
 /**
  * One section of the exam page. It has its own form and its own Save button, and it sends only its own fields. The
- * client never locks a section by date: the API takes the edit and stages it when the exam is published. An archived
- * exam, or a role that cannot author, gets the section read-only.
+ * client never locks a section by date: the API takes the edit and stages it when the exam is published. A withdrawn
+ * exam takes edits too (D5). A role that cannot author gets the section read-only.
  */
 export function ExamMetaForm({
   exam,
@@ -108,6 +108,9 @@ export function ExamMetaForm({
       }
       if (isApiError(error, "EXAM_WINDOW_INVALID")) {
         messages.window = t(catalogErrorKey(error));
+      }
+      if (isApiError(error, "WRITTEN_MAXIMUM_BELOW_MARK")) {
+        messages.maximum = t(catalogErrorKey(error));
       }
       setErrors(messages);
     }

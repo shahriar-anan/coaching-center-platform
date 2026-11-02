@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
-import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
+import { catalogErrorKey } from "@/components/staff/catalog/errors";
 import {
   MAX_OPTIONS,
   MIN_OPTIONS,
@@ -32,8 +32,7 @@ import {
 
 /**
  * Stem, marks, optional explanation and two to six options. A single-answer question has one correct option (radio
- * buttons); "Select all that apply" makes it multiple-answer (check boxes). Once a student has started the exam the
- * options cannot be added or removed (structureLocked); the wording, marks and explanation stay editable.
+ * buttons); "Select all that apply" makes it multiple-answer (check boxes).
  */
 export function QuestionEditor({
   examId,
@@ -41,16 +40,12 @@ export function QuestionEditor({
   nextPosition,
   open,
   onOpenChange,
-  structureLocked,
-  onStructureLocked,
 }: {
   examId: string;
   question?: StaffQuestion;
   nextPosition: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  structureLocked: boolean;
-  onStructureLocked: () => void;
 }) {
   const { t } = useLocale();
   const { formatNumber } = useFormat();
@@ -111,9 +106,6 @@ export function QuestionEditor({
       toast({ title: t("staffCatalog.question.saved"), tone: "ok" });
       onOpenChange(false);
     } catch (e) {
-      if (isApiError(e, "QUESTION_STRUCTURE_LOCKED")) {
-        onStructureLocked();
-      }
       setFormError(t(catalogErrorKey(e)));
     }
   }
@@ -180,7 +172,6 @@ export function QuestionEditor({
               {errors.correct}
             </p>
           ) : null}
-          {structureLocked ? <p className="text-meta text-muted">{t("staffCatalog.question.lockedOptions")}</p> : null}
           {draft.options.map((option, index) => (
             <div key={index} className="flex items-center gap-2">
               <label className="flex min-h-11 shrink-0 items-center gap-2 text-meta">
@@ -208,12 +199,12 @@ export function QuestionEditor({
                 value={option.text}
                 onChange={(e) => setOption(index, e.target.value)}
               />
-              {draft.options.length > MIN_OPTIONS && !structureLocked ? (
+              {draft.options.length > MIN_OPTIONS ? (
                 <IconButton label={t("staffCatalog.question.removeOption", { n: formatNumber(index + 1) })} icon={<Trash2 className="size-4" />} onClick={() => removeOption(index)} />
               ) : null}
             </div>
           ))}
-          {draft.options.length < MAX_OPTIONS && !structureLocked ? (
+          {draft.options.length < MAX_OPTIONS ? (
             <div>
               <Button variant="ghost" onClick={() => setDraft((c) => ({ ...c, options: [...c.options, { text: "" }] }))}>
                 <Plus aria-hidden="true" className="size-4" />

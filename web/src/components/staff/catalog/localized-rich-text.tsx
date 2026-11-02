@@ -14,7 +14,7 @@ export const isRichTextEmpty = (text: string) => plainExcerpt(text, 1).trim() ==
 /**
  * One rich text box for a topic written in both languages: a bold title, an English / বাংলা switch, and the
  * editor of the chosen language. Both values are kept; the switch only changes which one the box edits.
- * A language with nothing written shows a dot on its switch, and an error in the other language moves the box there.
+ * An error in the other language moves the box there.
  *
  * With `onSave`, the box also tracks what is saved: it says whether the open language is saved and offers a Save button.
  */
@@ -66,7 +66,6 @@ export function LocalizedRichText({
   const anyDirty = dirtyEn || dirtyBn;
   const activeDirty = language === "en" ? dirtyEn : dirtyBn;
   const otherDirty = language === "en" ? dirtyBn : dirtyEn;
-  const dot = (text: string) => (isRichTextEmpty(text) ? " •" : "");
 
   return (
     <div className="grid gap-2">
@@ -77,8 +76,8 @@ export function LocalizedRichText({
           value={language}
           onChange={(next) => setLanguage(next as Language)}
           options={[
-            { value: "en", label: `${t("staffCatalog.richText.english")}${dot(valueEn)}` },
-            { value: "bn", label: `${t("staffCatalog.richText.bangla")}${dot(valueBn)}` },
+            { value: "en", label: t("staffCatalog.richText.english") },
+            { value: "bn", label: t("staffCatalog.richText.bangla") },
           ]}
         />
       </div>

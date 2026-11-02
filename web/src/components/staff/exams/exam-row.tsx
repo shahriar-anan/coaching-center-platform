@@ -5,7 +5,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useRole } from "@/lib/auth/guards";
-import { StatusPill } from "@/components/staff/catalog/status-pill";
+import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
 import { canOpenReviews } from "@/components/staff/reviews/review-access";
 import { ExamPrice } from "@/components/staff/exams/exam-price";
 import { useFormat } from "@/lib/format/use-format";
@@ -96,7 +96,7 @@ export function ExamRow({
         <ExamPrice pricing={exam.pricing} />
       </p>
       <div className="flex items-center gap-2">
-        <StatusPill status={exam.status} />
+        <ExamStatusPill status={exam.status} />
         <Button
           href={openHref}
           variant="secondary"

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { CategoryTree } from "@/components/staff/catalog/category-tree";
@@ -103,6 +103,24 @@ describe("module details", () => {
     renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.masterAdmin });
     const publish = await screen.findByRole("button", { name: "প্রকাশ করুন" });
     expect(publish).toBeDisabled();
+  });
+
+  it("sends a blank package description as empty text, so clearing it clears it on the server (D18)", async () => {
+    const api = mockApi({
+      "GET /api/v1/live-exam-categories": [category],
+      [`PATCH /api/v1/live-exam-modules/${moduleFixture.id}`]: (req: { body: unknown }) => ({
+        ...moduleFixture,
+        ...(req.body as Partial<StaffModule>),
+      }),
+    });
+    renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.masterAdmin });
+    // The required title's label carries a star and a hidden "required" word, so match its start.
+    await userEvent.type(await screen.findByLabelText(/^ইংরেজি নাম/), " 2");
+    fireEvent.submit(document.getElementById("module-details-form") as HTMLFormElement);
+
+    await waitFor(() => expect(api.calls.some((call) => call.method === "PATCH")).toBe(true));
+    const patch = api.calls.find((call) => call.method === "PATCH");
+    expect(patch?.body).toMatchObject({ descriptionEn: "", descriptionBn: "" });
   });
 
   it("shows the price input to Master Admin only", async () => {

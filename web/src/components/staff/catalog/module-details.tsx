@@ -234,9 +234,9 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     const body: ModuleInput = {
       titleEn: form.titleEn.trim(),
       titleBn: form.titleBn.trim(),
-      // Rich text: the editor's HTML is sent as it is; the server sanitizes it (R3).
-      descriptionEn: form.descriptionEn.trim() || null,
-      descriptionBn: form.descriptionBn.trim() || null,
+      // Rich text: the editor's HTML is sent as it is; the server sanitizes it (R3). An empty description is sent as "" so that clearing it clears it on the server.
+      descriptionEn: form.descriptionEn.trim(),
+      descriptionBn: form.descriptionBn.trim(),
       categoryId: form.categoryId,
     };
     if (canSetPrice) {

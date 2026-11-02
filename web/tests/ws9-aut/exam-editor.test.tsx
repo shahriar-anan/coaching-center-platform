@@ -142,12 +142,12 @@ describe("publish summary and next step (UF7, F3)", () => {
     expect(screen.queryByRole("button", { name: "প্রকাশ করুন" })).not.toBeInTheDocument();
   });
 
-  it("Master Admin cannot publish until the descriptions and rules are filled in", async () => {
+  it("Master Admin can publish without the descriptions and rules, which are optional (D18)", async () => {
     mockApi(routes({ ...mcqExam, rulesBn: null }));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.masterAdmin });
 
-    expect(await screen.findByRole("button", { name: "প্রকাশ করুন" })).toBeDisabled();
-    expect(screen.getByText(/বিবরণ এবং নির্দেশনা যোগ করুন/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "প্রকাশ করুন" })).toBeEnabled();
+    expect(screen.queryByText(/বিবরণ এবং নির্দেশনা যোগ করুন/)).not.toBeInTheDocument();
   });
 
   it("the summary can be cancelled without publishing", async () => {

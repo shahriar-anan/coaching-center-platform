@@ -772,18 +772,21 @@ export type PrimaryExamAction = "save" | "finalSave" | "publish" | "publishChang
  * Chooses the primary button from the exam's state. Unsaved edits come first. A published exam with staged changes
  * offers "Publish changes" to the Master Admin only; a System Admin sees the waiting banner instead. A draft needs a
  * final save before it can be published.
+ *
+ * A withdrawn exam (ARCHIVED) takes edits too (D5, D6), so `withdrawnExam` lets its edits and staged changes through.
+ * Without it an archived package stays read-only.
  */
 export function primaryExamAction(
   exam: Pick<StaffExam, "status" | "finallySaved" | "pendingChanges">,
-  state: { dirty: boolean; masterAdmin: boolean; publishable?: boolean },
+  state: { dirty: boolean; masterAdmin: boolean; publishable?: boolean; withdrawnExam?: boolean },
 ): PrimaryExamAction {
-  if (exam.status === "ARCHIVED") {
+  if (exam.status === "ARCHIVED" && !state.withdrawnExam) {
     return "none";
   }
   if (state.dirty) {
     return "save";
   }
-  if (exam.status === "PUBLISHED") {
+  if (exam.status === "PUBLISHED" || exam.status === "ARCHIVED") {
     return exam.pendingChanges === true && state.masterAdmin ? "publishChanges" : "none";
   }
   if (!state.masterAdmin) {

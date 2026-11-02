@@ -26,6 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NewExamDialog } from "@/components/staff/catalog/new-exam-dialog";
 import { ExamGroupSection } from "@/components/staff/exams/exam-group";
 import { ExamRow, type ExamAction } from "@/components/staff/exams/exam-row";
+import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { examStatusKey } from "@/components/staff/catalog/status-pill";
 import {
   categoryNames,
   defaultGroupOpen,
@@ -150,8 +152,9 @@ export function ExamsPage() {
     const mutation = action === "withdraw" ? withdraw : remove;
     try {
       await mutation.mutateAsync(exam.id);
-    } catch {
-      setActionError(t("staffExams.actionFailed"));
+    } catch (e) {
+      // The server says why a withdraw or delete is refused (for example a sitting in progress).
+      setActionError(t(catalogErrorKey(e)));
     }
   }
 
@@ -217,7 +220,7 @@ export function ExamsPage() {
           <option value="">{t("staffExams.filter.allStatuses")}</option>
           {STATUSES.map((status) => (
             <option key={status} value={status}>
-              {t(`staffCatalog.status.${status}`)}
+              {t(examStatusKey(status))}
             </option>
           ))}
         </Select>

@@ -1,7 +1,6 @@
 import type { ChecklistItem } from "@/components/staff/catalog/exam-checklist";
 import type { ExamInput, StaffExam } from "@/lib/api/exam/staff-catalog";
 import type { PaperLanguage } from "@/lib/api/exam/types";
-import { isRichTextEmpty } from "@/components/staff/catalog/localized-rich-text";
 
 /** The sections of the exam page that save on their own button (plan 7.2). Questions and the header are not here. */
 export type ExamSection = "details" | "text" | "schedule" | "price";
@@ -146,21 +145,6 @@ export function examFormErrors(
       errors.categoryId = "staffCatalog.examMeta.categoryRequired";
     }
   }
-  if (section === "text") {
-    // Publish needs all four, and the save names the one that is still empty.
-    if (isRichTextEmpty(form.descriptionEn)) {
-      errors.descriptionEn = "staffCatalog.examMeta.descriptionEnEmpty";
-    }
-    if (isRichTextEmpty(form.descriptionBn)) {
-      errors.descriptionBn = "staffCatalog.examMeta.descriptionBnEmpty";
-    }
-    if (isRichTextEmpty(form.rulesEn)) {
-      errors.rulesEn = "staffCatalog.examMeta.rulesEnEmpty";
-    }
-    if (isRichTextEmpty(form.rulesBn)) {
-      errors.rulesBn = "staffCatalog.examMeta.rulesBnEmpty";
-    }
-  }
   if (section === "schedule") {
     const duration = Number(form.durationMinutes);
     if (!Number.isInteger(duration) || duration < 2) {
@@ -274,11 +258,6 @@ export function sectionDirty(current: ExamFormState, saved: ExamFormState, secti
   return SECTION_KEYS[section].some((key) => JSON.stringify(current[key]) !== JSON.stringify(saved[key]));
 }
 
-/** The descriptions and rules, in both languages. Publish needs all four (the server checks the same). */
-export function hasExamText(exam: StaffExam): boolean {
-  return [exam.descriptionEn, exam.descriptionBn, exam.rulesEn, exam.rulesBn].every((value) => Boolean(value?.trim()));
-}
-
 /** Whether the saved window fits the duration. An undated or practice exam has no window to check. */
 export function windowFits(exam: StaffExam): boolean {
   if (exam.mode === "PRACTICE" || exam.liveAt === null || exam.endAt === null) {
@@ -292,7 +271,6 @@ export function examChecklist(exam: StaffExam, t: (key: string) => string): Chec
   const items: ChecklistItem[] = [
     { key: "passPercent", label: t("staffCatalog.checklist.passPercent"), done: exam.passPercent !== null, anchor: "exam-schedule" },
     { key: "window", label: t("staffCatalog.checklist.window"), done: windowFits(exam), anchor: "exam-schedule" },
-    { key: "examText", label: t("staffCatalog.checklist.examText"), done: hasExamText(exam), anchor: "exam-text" },
   ];
   if (exam.examType === "MCQ") {
     items.push({

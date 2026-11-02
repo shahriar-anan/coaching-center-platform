@@ -49,9 +49,21 @@ describe("primaryExamAction (plan 7.2 header table)", () => {
     expect(primaryExamAction(published, { dirty: true, masterAdmin: true })).toBe("save");
   });
 
-  it("offers nothing on an archived exam", () => {
+  it("offers nothing on an archived package", () => {
     const archived: Exam = { status: "ARCHIVED", finallySaved: true, pendingChanges: true };
     expect(primaryExamAction(archived, { dirty: true, masterAdmin: true })).toBe("none");
     expect(primaryExamAction(archived, { dirty: false, masterAdmin: true })).toBe("none");
+  });
+
+  it("lets a withdrawn exam take edits, and offers Publish changes to the Master Admin for a staged revision (D5, D6)", () => {
+    const withdrawn: Exam = { status: "ARCHIVED", finallySaved: true, pendingChanges: true };
+    expect(primaryExamAction(withdrawn, { dirty: true, masterAdmin: true, withdrawnExam: true })).toBe("save");
+    expect(primaryExamAction(withdrawn, { dirty: false, masterAdmin: true, withdrawnExam: true })).toBe("publishChanges");
+    expect(primaryExamAction(withdrawn, { dirty: false, masterAdmin: false, withdrawnExam: true })).toBe("none");
+  });
+
+  it("offers no publish on a withdrawn exam with nothing staged", () => {
+    const withdrawn: Exam = { status: "ARCHIVED", finallySaved: false, pendingChanges: false };
+    expect(primaryExamAction(withdrawn, { dirty: false, masterAdmin: true, publishable: true, withdrawnExam: true })).toBe("none");
   });
 });
