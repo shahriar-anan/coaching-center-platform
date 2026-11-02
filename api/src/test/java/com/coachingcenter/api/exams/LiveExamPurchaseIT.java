@@ -504,6 +504,31 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void buyingAgainAfterAPriceChangeOpensANewOrderAtTheNewPrice() throws Exception {
+		String master = token(seed("MASTER_ADMIN"));
+		UUID studentId = seed("STUDENT");
+		String student = token(studentId);
+		UUID module = publishPricedModule(master, "Reprice", "50.00");
+		UUID exam = publishMcq(master, module, "Reprice paper", "500.00", "2026-10-20T12:00:00+06:00");
+		JsonNode open = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"price\":700}"))
+			.andExpect(status().isOk());
+		finalSaveExam(master, exam);
+		publishExam(master, exam);
+
+		JsonNode next = initiate(student, "{\"examId\":\"" + exam + "\"}", 201);
+		assertThat(money(next.get("amount"))).isEqualByComparingTo("700.00");
+		assertThat(next.get("tranId").asText()).isNotEqualTo(open.get("tranId").asText());
+		assertThat(order(student, open).get("status").asText()).isEqualTo("CANCELLED");
+
+		JsonNode again = initiate(student, "{\"examId\":\"" + exam + "\"}", 200);
+		assertThat(again.get("tranId").asText()).isEqualTo(next.get("tranId").asText());
+		assertThat(grantsFor(studentId)).isZero();
+	}
+
+	@Test
 	void paymentStatusReturnsTheExamNameOnlyToTheOwner() throws Exception {
 		String master = token(seed("MASTER_ADMIN"));
 		UUID ownerId = seed("STUDENT");

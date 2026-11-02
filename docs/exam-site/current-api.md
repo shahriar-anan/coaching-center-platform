@@ -505,3 +505,9 @@ This supersedes the review rule of the section above ("a submitted exam is final
 - `reviewOpensAt` is now always absent. `StudentExam.reviewOpensAt` and `ReviewedResult.reviewOpensAt` stay in the Java records and in the OpenAPI spec (the web contract check needs the property), but they are always null, so the JSON omits them. The web already shows the answers when the field is absent.
 - `GET /api/v1/live-exams/{id}` (student) and `GET /api/v1/live-exams/{id}/result` return `questions` with the key and the explanations for a submitted MCQ.
 - Catalog path (`McqAttemptService`, `ExamResultService`): a submitted attempt's key is returned wherever its result is returned. The result's own gate is unchanged (immediate results or results published), so while that gate is closed the result read is still refused, as before.
+
+## Added 2026-11-02 (a repeat buy uses the current price; API)
+
+`POST /api/v1/live-exam-orders` used to return the student's open order for the same target unchanged, so a "Continue payment" after a price or discount change sent the old amount to SSLCommerz. Now, when the open order's `amount` differs from the price the student would pay now, that order is set to `CANCELLED` and a new order is made at the current price (`201`, new `tranId`). An open order at the same amount is reused as before (`200`, same `tranId`). If the gateway marked the old order paid in the meantime, the buy stops with `409 ALREADY_PURCHASED`.
+
+A payment that still completes on the old SSLCommerz page is granted at the old order's amount, as for any cancelled order the gateway later validates. Test: `LiveExamPurchaseIT.buyingAgainAfterAPriceChangeOpensANewOrderAtTheNewPrice` (written, not yet run).

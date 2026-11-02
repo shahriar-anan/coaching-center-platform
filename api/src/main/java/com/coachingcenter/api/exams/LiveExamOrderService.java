@@ -97,6 +97,12 @@ public class LiveExamOrderService {
 			throw unavailable();
 		}
 		Optional<LiveExamOrder> open = findOpen(studentId, target);
+		if (open.isPresent() && open.get().getAmount().compareTo(target.amount()) != 0) {
+			// The price or discount changed since the order was opened. Its tran id would charge the old amount, so it is
+			// closed and a new order is made at what the student sees now.
+			retireRepriced(open.get());
+			open = Optional.empty();
+		}
 		if (open.isPresent()) {
 			// An open order takes the address typed now: the student may have changed it or skipped it since.
 			LiveExamOrder order = tx.setReceiptEmail(open.get().getId(), receiptEmail);
@@ -121,6 +127,15 @@ public class LiveExamOrderService {
 			return checkout(order, false, studentId, target.productName());
 		}
 		return checkout(order, true, studentId, target.productName());
+	}
+
+	/** Cancels an open order whose amount is out of date. One the gateway paid in the meantime is kept, and the buy stops. */
+	private void retireRepriced(LiveExamOrder order) {
+		LiveExamOrder marked = tx.mark(order.getTranId(), LiveExamOrder.CANCELLED);
+		if (LiveExamOrder.SUCCEEDED.equals(marked.getStatus())) {
+			throw alreadyPurchased();
+		}
+		log.info("live exam order repriced tranId={}", order.getTranId());
 	}
 
 	private InitiateResult checkout(LiveExamOrder order, boolean created, UUID studentId, String productName) {

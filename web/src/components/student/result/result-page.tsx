@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Info, RotateCcw } from "lucide-react";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
@@ -254,6 +253,8 @@ export function ResultPage({ examId }: { examId: string }) {
           rank={mine ? n(mine.rank) : t("result.stat.none")}
           maximumLabel={t("result.board.maximum")}
           maximum={n(data.maximum)}
+          meritHref={exam.data ? `/exam/${examId}/leaderboard` : null}
+          meritLabel={t("result.page.leaderboard")}
         />
       )}
 
@@ -397,13 +398,6 @@ export function ResultPage({ examId }: { examId: string }) {
         ) : (
           <p className="text-body text-muted">{t("result.review.afterDeadline")}</p>
         )
-      ) : null}
-
-      {/* The merit list reads the exam too, so the link is left out when the exam read is refused. */}
-      {exam.data ? (
-        <Link href={`/exam/${examId}/leaderboard`} className="text-accent underline underline-offset-4">
-          {t("result.page.leaderboard")}
-        </Link>
       ) : null}
 
       {/* The rate form sits at the end of the page, after the answers and the merit list. */}

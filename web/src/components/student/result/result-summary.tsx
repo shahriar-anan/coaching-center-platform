@@ -1,6 +1,7 @@
 import { CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { Card } from "@/components/ui/card";
+import Link from "next/link";
 import { Pill, type PillTone } from "@/components/ui/pill";
 
 type Verdict = Extract<PillTone, "ok" | "danger" | "muted">;
@@ -27,6 +28,8 @@ export function ResultSummary({
   rank,
   maximumLabel,
   maximum,
+  meritHref,
+  meritLabel,
 }: {
   scoreLabel: string;
   score: string;
@@ -40,6 +43,9 @@ export function ResultSummary({
   rank: string;
   maximumLabel: string;
   maximum: string;
+  /** The merit list, as a pill beside the rank. Left out when the exam read is refused. */
+  meritHref?: string | null;
+  meritLabel?: string;
 }) {
   return (
     <Card padding="lg" className="grid gap-5">
@@ -48,11 +54,13 @@ export function ResultSummary({
           <p className="text-meta text-muted">{scoreLabel}</p>
           <p className="text-4xl font-bold leading-none tabular-nums text-text">{score}</p>
         </div>
-        <Pill tone={verdict}>
-          {verdict === "ok" ? <CheckCircle2 aria-hidden="true" className="size-3.5" /> : null}
-          {verdict === "danger" ? <XCircle aria-hidden="true" className="size-3.5" /> : null}
-          {outcome}
-        </Pill>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Pill tone={verdict}>
+            {verdict === "ok" ? <CheckCircle2 aria-hidden="true" className="size-3.5" /> : null}
+            {verdict === "danger" ? <XCircle aria-hidden="true" className="size-3.5" /> : null}
+            {outcome}
+          </Pill>
+        </div>
       </div>
 
       {percent !== null ? (
@@ -77,7 +85,17 @@ export function ResultSummary({
       <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4">
         <div className="grid gap-0.5">
           <dt className="text-meta text-muted">{rankLabel}</dt>
-          <dd className="text-section font-bold tabular-nums text-text">{rank}</dd>
+          <dd className="flex flex-wrap items-center gap-2 text-section font-bold tabular-nums text-text">
+            {rank}
+            {meritHref ? (
+              <Link
+                href={meritHref}
+                className="inline-flex min-h-9 items-center rounded-full bg-accent px-4 text-pill font-bold text-band transition-opacity hover:opacity-90"
+              >
+                {meritLabel}
+              </Link>
+            ) : null}
+          </dd>
         </div>
         <div className="grid gap-0.5">
           <dt className="text-meta text-muted">{maximumLabel}</dt>
