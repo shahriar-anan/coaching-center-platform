@@ -174,3 +174,18 @@ Commit `58668e0`. Web only; API unchanged. Build `ZrRKZ2d9tiT6_I-cIKWyW`, packag
 Fix: after a staff logout the admin goes to the admin login instead of `/`, which redirected back to `/staff` and left the page on a loading screen until a reload. Students still go home.
 
 Checks: web typecheck, lint and suite pass (160 files, 1054 tests). Not yet checked in a browser: staff logout from the dashboard.
+
+## Student site moved to symamlaw.com, 4 November 2026 (Dhaka)
+
+Web rebuild of commit `38f258e`, which was already live; only the student host changed. Build `PJKFPQ6G8l7GZSEnMMMtc`, package SHA-256 `651c4f5545d07be8d1cfbe71cd04af983850d5c6b48e2171095e405c46e471d7`, swapped in at 18:45 UTC on 3 November; previous release `/opt/coaching-web.before-20261103-184542`. API jar and database unchanged.
+
+- **DNS (Namecheap, by Shahriar):** `@` and `www` A records to `187.52.115.111`; the `*` wildcard to the expired old VPS (`88.222.215.187`) deleted. `exam`, `admin.exam`, the Brevo DKIM, DMARC and verification records and the mail forwarding kept.
+- **Google (by Shahriar):** the client's only redirect URI is `https://symamlaw.com/api/v1/auth/google/callback`. The localhost URI is gone, so Google sign-in in development needs it added back.
+- **Nginx:** `sites-available/symamlaw.com` from [deploy/nginx/symamlaw.com](../deploy/nginx/symamlaw.com); `www` returns 308 to `symamlaw.com`. Certificate `symamlaw.com` covers both names, expires 1 February 2027. `exam.symamlaw.com` now returns 308 to `symamlaw.com` and keeps its certificate (previous file `exam.symamlaw.com.before-apex-20261103-184141`).
+- **Env:** `WEB_ORIGIN=https://symamlaw.com,https://admin.exam.symamlaw.com`, `SSLCZ_CALLBACK_BASE_URL=https://symamlaw.com`, `GOOGLE_REDIRECT_URI=https://symamlaw.com/api/v1/auth/google/callback`. No other key changed. Unit `SITE_URL=https://symamlaw.com`; `STAFF_URL` unchanged. Backups: `/etc/coaching-api.env.before-apex-20261103-184141`, `coaching-web.service.before-apex-20261103-184141`, `/var/backups/coaching/nginx-letsencrypt-before-apex-20261103-184141.tgz`.
+
+Checks from the box: `https://symamlaw.com/` and `/login` 200; HTTP and `www` redirect to `https://symamlaw.com`; `/staff` on the student host goes to `admin.exam.symamlaw.com`, and `/register` on the admin host comes back; CORS allows `https://symamlaw.com`; the Google start redirect names the new callback. The API restarted cleanly (26 s).
+
+Not checked: a Google sign-in and a password sign-in in a real browser on the new host, and a sandbox payment return. Everyone signs in again once, because cookies belonged to `exam.symamlaw.com`.
+
+Rollback: restore the env and unit backups, `daemon-reload`, put `/opt/coaching-web.before-20261103-184542` back, restore `exam.symamlaw.com.before-apex-20261103-184141`, `nginx -t`, reload, restart both services.

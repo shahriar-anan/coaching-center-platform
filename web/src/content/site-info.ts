@@ -50,9 +50,3 @@ export const batches = {
 
 /** Module ids to feature, in order. Empty means the popular modules first, then the rest in catalog order. */
 export const featuredModuleIds: readonly string[] = [];
-
-/**
- * Registered students, as the old site's home page shows them (765+ on 26 Oct 2026).
- * Update this figure by hand before the cutover.
- */
-export const registeredStudents = 765;

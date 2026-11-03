@@ -17,7 +17,6 @@ const landing: typeof bn = {
   comingSoonTitle: "Coming soon",
   comingSoonBody: "This section is not ready yet. Check back soon for something new here.",
   comingSoonBack: "Back to the home page",
-  registeredStudents: "Registered students",
   examsTitle: "Exams",
   signUpShort: "Create account",
 

@@ -185,9 +185,6 @@ describe("LandingPage", () => {
     renderWithProviders(<LandingPage />, { user: null, locale: "bn" });
 
     expect(screen.getByRole("heading", { level: 1, name: bn.heroTitle })).toBeInTheDocument();
-    // The registered-students figure under the hero's sign-up button.
-    expect(screen.getByText("৭৬৫+")).toBeInTheDocument();
-    expect(screen.getByText(bn.registeredStudents)).toBeInTheDocument();
     // The exam categories follow the hero under the "exams" heading.
     expect(await screen.findByRole("heading", { name: bn.examsTitle })).toBeInTheDocument();
     expect(await screen.findAllByText(bn.categoryExplore)).not.toHaveLength(0);
