@@ -2,7 +2,7 @@
 
 Status: planned, not started. Nothing on the box has changed. Written 3 November 2026 for Shahriar and the agent helping him on the box.
 
-**Goal:** the current code runs on the VPS. Students use `https://exam.symamlaw.com`, staff use `https://admin.exam.symamlaw.com`, both with valid certificates, and students can sign up and sign in with Google.
+**Goal:** the current code runs on the VPS. Students use `https://exam.symamlaw.com`, staff use `https://admin.symamlaw.com`, both with valid certificates, and students can sign up and sign in with Google.
 
 **Not in this plan:** live SSLCommerz payments. The site stays on the `staging` profile and the sandbox store. Live payments are phases 6 to 8 of [live-domain-and-sslcommerz.md](live-domain-and-sslcommerz.md), which is still the guide for them. This plan replaces its phases 0 to 3. See D2 before telling students about the site.
 
@@ -93,13 +93,13 @@ Check: the redirect URI is saved and the status reads In production.
 
 ### Phase 3. Nginx and certificates
 
-1. Install `docs/exam-site/deploy/nginx/exam.symamlaw.com` and `admin.exam.symamlaw.com` into `sites-available`, link them, run `nginx -t`, reload.
+1. Install `docs/exam-site/deploy/nginx/exam.symamlaw.com` and `admin.symamlaw.com` into `sites-available`, link them, run `nginx -t`, reload.
 2. Set the expiry email on the Certbot account, which has none today: `certbot update_account --email shahriaranany6@gmail.com`.
 3. Issue one certificate per host, then test renewal:
 
    ```bash
    certbot --nginx -d exam.symamlaw.com --redirect
-   certbot --nginx -d admin.exam.symamlaw.com --redirect
+   certbot --nginx -d admin.symamlaw.com -d admin.exam.symamlaw.com --redirect
    certbot renew --dry-run
    ```
 
@@ -112,7 +112,7 @@ The new website build comes first, so the wait between steps is as short as poss
 1. Build from the same commit, under Git Bash:
 
    ```bash
-   SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.exam.symamlaw.com \
+   SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.symamlaw.com \
      bash web/scripts/release-build.sh <out.tgz>
    ```
 
@@ -122,7 +122,7 @@ The new website build comes first, so the wait between steps is as short as poss
 
    | Name | Value |
    |---|---|
-   | `WEB_ORIGIN` | `https://exam.symamlaw.com,https://admin.exam.symamlaw.com` |
+   | `WEB_ORIGIN` | `https://exam.symamlaw.com,https://admin.symamlaw.com` |
    | `SSLCZ_CALLBACK_BASE_URL` | `https://exam.symamlaw.com` |
 
    The student host must be first. Google sign-in and the payment return both go to the first origin.

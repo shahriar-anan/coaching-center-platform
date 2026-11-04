@@ -67,7 +67,7 @@ Shahriar agreed these on 2026-10-23. They override the client brief and the Phas
 Accepted by Shahriar on 2 November 2026, from the recommendations in the chat. The plans say how each is carried out.
 
 - **Risky payments (`risk_level`):** granted, as before. The API now stores the flag (migration `V66`, `live_exam_orders.risk_level`, "0" or "1"), and the staff payment detail shows a warning on a payment flagged "1". The Master Admin checks it in the merchant panel within a day, and refunds it there if it is fraud. Holding payments was rejected: it would block honest students.
-- **Callback host:** `exam.symamlaw.com` for students and `admin.exam.symamlaw.com` for staff. The old site keeps `symamlaw.com`, `www`, `admin` and `backoffice`.
+- **Callback host:** `exam.symamlaw.com` for students and `admin.exam.symamlaw.com` for staff. The old site keeps `symamlaw.com`, `www`, `admin` and `backoffice`. **Superseded for staff on 5 November 2026: see "Admin host (decided 2026-11-05)" below.**
 - **Shared live store:** check with SSLCommerz before any panel change. Do not change the old site's IPN or success URLs. Add only the paths SSLCommerz approves for the new host.
 - **Panel IPN field:** left empty, so the per-payment `ipn_url` the API sends is used.
 - **Refunds:** from the merchant panel. An API refund is not planned until real sales have happened.
@@ -75,6 +75,16 @@ Accepted by Shahriar on 2 November 2026, from the recommendations in the chat. T
 - **Repeat Buy after a price change:** a new order at the current price, and the old open order is cancelled.
 - **Stuck orders** (paid at SSLCommerz, not granted): the Master Admin's confirm action, after the recheck job has had a run. Not automatic.
 - **Live test:** a 10 BDT exam, the owner's own account, a planned refund in the panel, before the site is announced.
+
+## Admin host (decided 2026-11-05)
+
+Shahriar decided on 5 November 2026 that the exam admin moves from `admin.exam.symamlaw.com` to `admin.symamlaw.com`. The name was free: a lookup on 5 November found no record for it, so the old VPS's admin host is gone. Consequences:
+
+- `admin.exam.symamlaw.com` stays as a 308 redirect to `admin.symamlaw.com`, the same pattern as `www` to the apex. Staff sign in again on the new host, because cookies do not carry over.
+- `WEB_ORIGIN` keeps the student host first and the admin host second. The API's mail links use the second entry for staff.
+- The website build bakes `NEXT_PUBLIC_STAFF_URL` in, so the admin host needs a rebuild and a redeploy. Setting `STAFF_URL` on the unit alone is not enough.
+
+Repo changes: `web/.env.example`, `web/scripts/release-build.sh`, `docs/exam-site/deploy/live-payment-preflight.sh`, `docs/exam-site/deploy/nginx/admin.symamlaw.com` (replaces the `admin.exam` file), and the plans `live-domain-and-sslcommerz.md` and `domain-cutover-google.md`. Live steps (DNS, Certbot, unit, env, rebuild) are not done yet.
 
 ## Server migration
 

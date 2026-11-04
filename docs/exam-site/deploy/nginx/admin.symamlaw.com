@@ -1,11 +1,18 @@
 # Admin site on the client's domain. Copy of sites-available/coaching-admin with only server_name changed.
 # Same API and website as the student host; the website decides what each host shows.
-# Install as /etc/nginx/sites-available/admin.exam.symamlaw.com, link it into sites-enabled, then run Certbot.
-# Guide: docs/exam-site/plans/live-domain-and-sslcommerz.md, phase 2.
+# Install as /etc/nginx/sites-available/admin.symamlaw.com, link it into sites-enabled, then run
+#   certbot --nginx -d admin.symamlaw.com -d admin.exam.symamlaw.com --redirect
+# which adds the 443 listener, the certificate and the port 80 redirect to both blocks.
+# admin.exam only redirects, so staff sign-in cookies stay on one host.
+server {
+    server_name admin.exam.symamlaw.com;
+    return 308 https://admin.symamlaw.com$request_uri;
+}
+
 server {
     listen 80;
     listen [::]:80;
-    server_name admin.exam.symamlaw.com;
+    server_name admin.symamlaw.com;
 
     client_max_body_size 105m;
 

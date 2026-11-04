@@ -8,7 +8,7 @@
 # both host URLs are baked in. The hosts are required, so a release always names
 # the hosts it was built for; nothing falls back to an old address.
 #
-#   SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.exam.symamlaw.com \
+#   SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.symamlaw.com \
 #     bash web/scripts/release-build.sh <out.tgz>
 #
 # Under Git Bash an empty variable reaches Next; in PowerShell `$env:X=''`
@@ -17,7 +17,7 @@ set -euo pipefail
 
 out=${1:?usage: release-build.sh <out.tgz>}
 site=${SITE_URL:?set SITE_URL to the student host, e.g. https://exam.symamlaw.com}
-staff=${STAFF_URL:?set STAFF_URL to the admin host, e.g. https://admin.exam.symamlaw.com}
+staff=${STAFF_URL:?set STAFF_URL to the admin host, e.g. https://admin.symamlaw.com}
 
 root=$(git rev-parse --show-toplevel)
 web="$root/web"

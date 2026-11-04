@@ -2,7 +2,7 @@
 
 **Status: planned, not deployed.** The steps below have not been run on the live server, except the DNS records (added in Namecheap by the owner on 2 November) and the read-only preflight. Do not start phase 2 or later without the owner's go-ahead.
 
-2 November 2026. **Audience:** Shahriar, and the agent helping him on the box. **What it covers:** putting the exam site on `exam.symamlaw.com` (students) and `admin.exam.symamlaw.com` (staff), then taking real payments through the client's live SSLCommerz store. Who does what, and in what order, is in [live-payment-readiness-plan.md](live-payment-readiness-plan.md).
+2 November 2026. **Audience:** Shahriar, and the agent helping him on the box. **What it covers:** putting the exam site on `exam.symamlaw.com` (students) and `admin.symamlaw.com` (staff), then taking real payments through the client's live SSLCommerz store. Who does what, and in what order, is in [live-payment-readiness-plan.md](live-payment-readiness-plan.md).
 
 No store id, store password, panel login or card number goes in this file, in Git, or in a chat. The live store values stay in the gitignored `docs/exam-site/config-files/payment-credentials.md` and in `/etc/coaching-api.env` on the box.
 
@@ -10,16 +10,17 @@ No store id, store password, panel login or card number goes in this file, in Gi
 
 ```
 Namecheap DNS (symamlaw.com)
-  symamlaw.com, www, admin, backoffice, *  ->  88.222.215.187   old server, old site   (unchanged)
+  symamlaw.com, www, backoffice, *         ->  88.222.215.187   old server, old site   (unchanged)
   exam                                     ->  187.52.115.111   new server, exam site  (new)
-  admin.exam                               ->  187.52.115.111   new server, exam admin (new)
+  admin                                    ->  187.52.115.111   new server, exam admin (new)
+  admin.exam                               ->  187.52.115.111   redirects to admin     (kept from 2 Nov)
 
 Student browser -> https://exam.symamlaw.com -> Nginx -> website :3000, /api/ -> API :8080
 SSLCommerz      -> https://exam.symamlaw.com/api/v1/live-exam-orders/{tranId}/return | /ipn -> API
 API             -> https://securepay.sslcommerz.com (session, validation, transaction query)
 ```
 
-The old site is not touched. `admin.symamlaw.com` belongs to it, which is why the exam admin is `admin.exam.symamlaw.com`. If the client picks other names, replace them everywhere below, in `deploy/nginx/` and in the preflight's `SITE` and `STAFF`.
+The old site is not touched. Its DNS no longer answers for `admin.symamlaw.com` (checked 5 November), so the exam admin takes that name. `admin.exam.symamlaw.com`, the 2 November name, stays as a redirect to it. If the client picks other names, replace them everywhere below, in `deploy/nginx/` and in the preflight's `SITE` and `STAFF`.
 
 ## How the API handles a payment
 
@@ -55,16 +56,18 @@ Use Windows OpenSSH from PowerShell; Git Bash `ssh` is refused by the box.
 | Type | Host | Value | TTL |
 |---|---|---|---|
 | A Record | `exam` | `187.52.115.111` | Automatic |
-| A Record | `admin.exam` | `187.52.115.111` | Automatic |
+| A Record | `admin` | `187.52.115.111` | Automatic |
+
+The `admin.exam` record added on 2 November stays as it is, for the redirect.
 
 3. Check from the PC until both return the new address:
 
 ```powershell
 Resolve-DnsName exam.symamlaw.com -Type A -Server 8.8.8.8
-Resolve-DnsName admin.exam.symamlaw.com -Type A -Server 8.8.8.8
+Resolve-DnsName admin.symamlaw.com -Type A -Server 8.8.8.8
 ```
 
-Both names answered `88.222.215.187` before this, through the wildcard. Once the `exam` record exists, the wildcard no longer covers anything under `exam`, so `admin.exam` answers "name does not exist" until its own record is added. A resolver can keep the old wildcard answer until its cached TTL ends (up to 4 hours), so if a resolver disagrees, ask Namecheap directly: `Resolve-DnsName exam.symamlaw.com -Type A -Server dns1.registrar-servers.com`.
+Both names answered `88.222.215.187` before this, through the wildcard. Once the `exam` record exists, the wildcard no longer covers anything under `exam`. `admin` has no record of its own until the row above is added, so it answers "name does not exist" until then. A resolver can keep the old wildcard answer until its cached TTL ends (up to 4 hours), so if a resolver disagrees, ask Namecheap directly: `Resolve-DnsName exam.symamlaw.com -Type A -Server dns1.registrar-servers.com`.
 
 ## Phase 2. Nginx and certificates
 
@@ -74,7 +77,7 @@ The box already has Certbot 2.9 with its renewal timer, and ufw allows ports 80 
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/exam.symamlaw.com /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/admin.exam.symamlaw.com /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/admin.symamlaw.com /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -82,11 +85,11 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ```bash
 sudo certbot --nginx -d exam.symamlaw.com -m <owner email> --agree-tos --redirect
-sudo certbot --nginx -d admin.exam.symamlaw.com -m <owner email> --agree-tos --redirect
+sudo certbot --nginx -d admin.symamlaw.com -d admin.exam.symamlaw.com -m <owner email> --agree-tos --redirect
 sudo certbot renew --dry-run
 ```
 
-3. Check: `https://exam.symamlaw.com` and `https://admin.exam.symamlaw.com` load the site with a valid padlock. The app still thinks it lives on the old hosts until phase 3, so a sign-in there may redirect to the old host. That is expected.
+3. Check: `https://exam.symamlaw.com` and `https://admin.symamlaw.com` load the site with a valid padlock. The app still thinks it lives on the old hosts until phase 3, so a sign-in there may redirect to the old host. That is expected.
 
 If Certbot fails: the name does not resolve to the box yet (phase 1), or port 80 is closed by a firewall in Hostinger's hPanel.
 
@@ -100,7 +103,7 @@ Four places hold a host name. Change them together, in this order, in one sittin
 
 ```
 Environment=SITE_URL=https://exam.symamlaw.com
-Environment=STAFF_URL=https://admin.exam.symamlaw.com
+Environment=STAFF_URL=https://admin.symamlaw.com
 ```
 
 in `/etc/systemd/system/coaching-web.service`, then `sudo systemctl daemon-reload` (no restart yet).
@@ -109,7 +112,7 @@ in `/etc/systemd/system/coaching-web.service`, then `sudo systemctl daemon-reloa
 
 | Name | New value |
 |---|---|
-| `WEB_ORIGIN` | `https://exam.symamlaw.com,https://admin.exam.symamlaw.com` (student first: the payment return and mail links use the first, staff mail links the second) |
+| `WEB_ORIGIN` | `https://exam.symamlaw.com,https://admin.symamlaw.com` (student first: the payment return and mail links use the first, staff mail links the second) |
 | `SSLCZ_CALLBACK_BASE_URL` | `https://exam.symamlaw.com` (no path, no trailing slash) |
 
 Then `sudo systemctl restart coaching-api` and watch `journalctl -u coaching-api -f` until it has started.
@@ -117,14 +120,14 @@ Then `sudo systemctl restart coaching-api` and watch `journalctl -u coaching-api
 3. **Website build** (the host names are baked into the browser bundle). Under Git Bash on the PC, from a clean commit:
 
 ```bash
-SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.exam.symamlaw.com bash web/scripts/release-build.sh /tmp/web-hosts.tgz
+SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.symamlaw.com bash web/scripts/release-build.sh /tmp/web-hosts.tgz
 ```
 
 The script keeps the API base empty, which must stay so (an absolute API base logged the admin out on every refresh on 29 October).
 
 4. **Deploy it** with `web/scripts/deploy-web.ps1`. The box-side check compares the bundle with the unit's `SITE_URL` and `STAFF_URL` from step 1 and refuses a mismatch.
 
-Check: preflight with the defaults passes (`MODE=sandbox`). Sign in as a student on `exam.symamlaw.com` and as staff on `admin.exam.symamlaw.com`; reload; both stay signed in.
+Check: preflight with the defaults passes (`MODE=sandbox`). Sign in as a student on `exam.symamlaw.com` and as staff on `admin.symamlaw.com`; reload; both stay signed in.
 
 ## Phase 4. One sandbox payment on the new hosts
 
@@ -218,7 +221,7 @@ If the IPN line is missing but the order became paid through the browser return,
 | Live (phase 7) | Sandbox | Copy `coaching-api.env.sandbox` back, restart the API |
 | New hosts (phase 3) | Old hosts | Copy `coaching-api.env.before-hosts` back, restore the web unit backup, `daemon-reload`, put the previous website release back (`/opt/coaching-web.before-…`), restart both services |
 | Nginx sites (phase 2) | Without them | Remove the two links from `sites-enabled`, `nginx -t`, reload. Certificates can stay |
-| DNS (phase 1) | Wildcard answer | Delete the two A records in Namecheap |
+| DNS (phase 1) | Wildcard answer | Delete the `exam` and `admin` A records in Namecheap (`admin.exam` stays) |
 | Data (phase 5) | Review data | Restore the phase 5 dump (`pg_restore --clean`), only with Shahriar's OK |
 | Release (phase 0) | 30 October release | The kept jar, website release and dump, as in the deploy record |
 
