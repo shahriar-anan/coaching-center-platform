@@ -1,6 +1,8 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -45,6 +47,7 @@ public class LiveExamOrderAdminService {
 			  where p.exam_id = o.exam_id and p.removed_at is null
 			  order by p.added_at, p.id limit 1) pk on true
 			left join live_exam_modules m on m.id = coalesce(o.module_id, pk.module_id)
+			left join users ru on ru.id = o.refunded_by
 			where (:status = '' or o.status = :status)
 			  and (:tranId = '' or o.tran_id = :tranId)
 			  and (:q = '' or u.phone ilike concat('%', :q, '%') or u.email ilike concat('%', :q, '%')
@@ -77,7 +80,10 @@ public class LiveExamOrderAdminService {
 				  m.title_en as module_title_en, m.title_bn as module_title_bn,
 				  e.title_en as exam_title_en, e.title_bn as exam_title_bn, u.id as student_id, u.phone, u.email,
 				  sp.full_name, sp.student_code,
-				  exists (select 1 from live_exam_grants g where g.order_id = o.id and g.revoked_at is null) as access_granted
+				  exists (select 1 from live_exam_grants g where g.order_id = o.id and g.revoked_at is null) as access_granted,
+				  o.refunded_at, o.refund_amount, o.refund_reason, o.refund_reference, ru.email as refunded_by_email,
+				  exists (select 1 from live_exam_grants g where g.order_id = o.id and g.revoke_reason = 'Refunded')
+				    as refund_access_revoked
 				%s
 				order by o.created_at desc, o.id
 				limit :limit offset :offset
@@ -92,7 +98,7 @@ public class LiveExamOrderAdminService {
 						rs.getString("email"), rs.getString("student_code"), instant(rs.getTimestamp("created_at")),
 						instant(rs.getTimestamp("updated_at")), rs.getBigDecimal("list_price"),
 						rs.getObject("discount_percent", Integer.class), instant(rs.getTimestamp("paid_at")),
-						rs.getString("receipt_no"), rs.getString("risk_level")));
+						rs.getString("receipt_no"), rs.getString("risk_level"), staffRefund(rs)));
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
 	}
 
@@ -100,11 +106,30 @@ public class LiveExamOrderAdminService {
 		return value == null ? null : value.toInstant();
 	}
 
+	/** The refund of the row, or null when none was recorded. */
+	private static StaffRefund staffRefund(ResultSet rs) throws SQLException {
+		Instant at = instant(rs.getTimestamp("refunded_at"));
+		if (at == null) {
+			return null;
+		}
+		return new StaffRefund(rs.getBigDecimal("refund_amount"), at, rs.getString("refunded_by_email"),
+				rs.getString("refund_reason"), rs.getString("refund_reference"), rs.getBoolean("refund_access_revoked"));
+	}
+
 	public record OrderRow(UUID orderId, String tranId, String status, BigDecimal amount, String currency, String scope,
 			UUID moduleId, String moduleTitleEn, String moduleTitleBn, UUID examId, String examTitleEn, String examTitleBn,
 			String paymentChannel, String valId, boolean accessGranted, UUID studentId, String studentName,
 			String studentPhone, String studentEmail, String studentCode, Instant createdAt, Instant updatedAt,
-			BigDecimal listPrice, Integer discountPercent, Instant paidAt, String receiptNo, String riskLevel) {
+			BigDecimal listPrice, Integer discountPercent, Instant paidAt, String receiptNo, String riskLevel,
+			StaffRefund refund) {
+	}
+
+	/**
+	 * A manual refund as staff see it (plan 5.2). {@code by} is the Master Admin's email; {@code accessRevoked} says whether the
+	 * refund took access away.
+	 */
+	public record StaffRefund(BigDecimal amount, Instant at, String by, String reason, String reference,
+			boolean accessRevoked) {
 	}
 
 }

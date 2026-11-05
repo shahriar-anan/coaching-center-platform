@@ -54,7 +54,7 @@ function PaymentDetailView({ tranId }: { tranId: string }) {
       ) : payment.isPending ? (
         <Skeleton variant="card" />
       ) : payment.data ? (
-        <PaymentDetail row={payment.data} canOpenRoster={isMasterAdmin} />
+        <PaymentDetail row={payment.data} canOpenRoster={isMasterAdmin} canRefund={isMasterAdmin} />
       ) : (
         <EmptyState title={t("staffOps.paymentDetail.notFound")} />
       )}

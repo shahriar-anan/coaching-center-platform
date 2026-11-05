@@ -172,7 +172,7 @@ public class PackageRevisionService {
 		Instant now = clock.instant();
 		ChangeList list = changes(module, row);
 		Draft draft = read(row);
-		ExamPricing.validate(draft.price(), false, draft.discountPercent(), draft.discountEndsAt());
+		ExamPricing.validate(draft.price(), false, draft.discountPercent(), draft.discountEndsAt(), now);
 		visibility.requireOpen(draft.categoryId());
 		applyFields(module, draft);
 

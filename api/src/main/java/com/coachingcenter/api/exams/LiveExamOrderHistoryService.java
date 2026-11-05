@@ -1,6 +1,8 @@
 package com.coachingcenter.api.exams;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -8,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.exams.LiveExamOrderService.RefundView;
 
 /**
  * A student's own exam orders, newest first. Status uses the public words of {@code /live-exam-orders/status}, and the
@@ -37,8 +41,20 @@ import com.coachingcenter.api.common.error.ErrorCode;
 public class LiveExamOrderHistoryService {
 
 	/** The public status word a filter may name, and the stored status it matches (P1). */
-	private static final Map<String, String> STORED_STATUS = Map.of("PENDING", LiveExamOrder.INITIATED, "PAID",
-			LiveExamOrder.SUCCEEDED, "FAILED", LiveExamOrder.FAILED, "CANCELLED", LiveExamOrder.CANCELLED);
+	/**
+	 * The status word a filter may name, and the SQL that matches it. A refunded order is still SUCCEEDED in the table: PAID
+	 * matches only the ones not refunded, and REFUNDED or PARTLY_REFUNDED match the refunded ones (plan 5.2).
+	 */
+	private static final Map<String, String> STATUS_CONDITION = Map.of(
+			"PENDING", "o.status = 'INITIATED'",
+			"PAID", "(o.status = 'SUCCEEDED' and o.refunded_at is null)",
+			"REFUNDED", "(o.refunded_at is not null and o.refund_amount >= o.amount)",
+			"PARTLY_REFUNDED", "(o.refunded_at is not null and o.refund_amount < o.amount)",
+			"FAILED", "o.status = 'FAILED'",
+			"CANCELLED", "o.status = 'CANCELLED'");
+
+	/** The public statuses of a paid order: its receipt is kept after a refund, and says so (plan 5.4). */
+	private static final Set<String> PAID_STATUSES = Set.of("PAID", "REFUNDED", "PARTLY_REFUNDED");
 
 	private static final List<String> SCOPES = List.of(LiveExamOrder.MODULE, LiveExamOrder.EXAM, LiveExamOrder.BUNDLE);
 
@@ -57,7 +73,9 @@ public class LiveExamOrderHistoryService {
 			select o.id, o.tran_id, o.status, o.amount, o.currency, o.scope, coalesce(o.module_id, pk.module_id) as module_id,
 			  o.exam_id, o.payment_channel, o.list_price, o.discount_percent,
 			  o.created_at, o.paid_at, o.receipt_no, o.receipt_email, m.title_en as module_title_en, m.title_bn as module_title_bn,
-			  e.title_en as exam_title_en, e.title_bn as exam_title_bn
+			  e.title_en as exam_title_en, e.title_bn as exam_title_bn, o.refunded_at, o.refund_amount,
+			  exists (select 1 from live_exam_grants g where g.order_id = o.id and g.revoke_reason = 'Refunded')
+			    as refund_access_revoked
 			""";
 
 	private final NamedParameterJdbcTemplate jdbc;
@@ -75,15 +93,28 @@ public class LiveExamOrderHistoryService {
 		Long total = jdbc.queryForObject("select count(*) " + FROM + where, params, Long.class);
 		params.addValue("limit", size).addValue("offset", (long) page.getPageNumber() * size);
 		List<OwnOrderRow> rows = jdbc.query(SELECT + FROM + where + " order by o.created_at desc, o.id limit :limit offset :offset",
-				params, (rs, number) -> new OwnOrderRow(rs.getObject("id", UUID.class), rs.getString("tran_id"),
-						LiveExamOrderService.publicStatus(rs.getString("status")), rs.getBigDecimal("amount"),
-						rs.getString("currency"), rs.getString("scope"), rs.getObject("module_id", UUID.class),
-						rs.getString("module_title_en"), rs.getString("module_title_bn"), rs.getObject("exam_id", UUID.class),
-						rs.getString("exam_title_en"), rs.getString("exam_title_bn"), rs.getString("payment_channel"),
-						instant(rs.getTimestamp("created_at")), rs.getBigDecimal("list_price"),
-						rs.getObject("discount_percent", Integer.class), instant(rs.getTimestamp("paid_at")),
-						rs.getString("receipt_no"), rs.getString("receipt_email")));
+				params, (rs, number) -> ownRow(rs));
 		return new PageImpl<>(rows, page, total == null ? 0 : total);
+	}
+
+	/** One row of the student's list. A refunded order reads REFUNDED, or PARTLY_REFUNDED for a partial refund (plan 5.2). */
+	private static OwnOrderRow ownRow(ResultSet rs) throws SQLException {
+		BigDecimal amount = rs.getBigDecimal("amount");
+		Instant refundedAt = instant(rs.getTimestamp("refunded_at"));
+		BigDecimal refundAmount = rs.getBigDecimal("refund_amount");
+		RefundView refund = refundedAt == null ? null
+				: new RefundView(refundAmount, refundedAt, rs.getBoolean("refund_access_revoked"));
+		String status = LiveExamOrderService.publicStatus(rs.getString("status"));
+		if (refund != null) {
+			status = refundAmount.compareTo(amount) >= 0 ? "REFUNDED" : "PARTLY_REFUNDED";
+		}
+		return new OwnOrderRow(rs.getObject("id", UUID.class), rs.getString("tran_id"), status, amount,
+				rs.getString("currency"), rs.getString("scope"), rs.getObject("module_id", UUID.class),
+				rs.getString("module_title_en"), rs.getString("module_title_bn"), rs.getObject("exam_id", UUID.class),
+				rs.getString("exam_title_en"), rs.getString("exam_title_bn"), rs.getString("payment_channel"),
+				instant(rs.getTimestamp("created_at")), rs.getBigDecimal("list_price"),
+				rs.getObject("discount_percent", Integer.class), instant(rs.getTimestamp("paid_at")),
+				rs.getString("receipt_no"), rs.getString("receipt_email"), refund);
 	}
 
 	/** Totals for the summary strip (P1): what the student has paid, and how many orders are paid or awaiting payment. */
@@ -104,7 +135,7 @@ public class LiveExamOrderHistoryService {
 	public Receipt receipt(UUID studentId, UUID orderId) {
 		List<OwnOrderRow> rows = list(studentId, new OrderFilter(null, null, null, null, null, null, orderId),
 				PageRequest.of(0, 1)).getContent();
-		if (rows.isEmpty() || !"PAID".equals(rows.get(0).status()) || rows.get(0).receiptNo() == null) {
+		if (rows.isEmpty() || !PAID_STATUSES.contains(rows.get(0).status()) || rows.get(0).receiptNo() == null) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 		}
 		List<String[]> names = jdbc.query("""
@@ -130,12 +161,11 @@ public class LiveExamOrderHistoryService {
 		}
 		StringBuilder sql = new StringBuilder();
 		if (filter.statuses() != null && !filter.statuses().isEmpty()) {
-			List<String> stored = new ArrayList<>();
+			List<String> predicates = new ArrayList<>();
 			for (String word : filter.statuses()) {
-				stored.add(storedStatus(word));
+				predicates.add(statusCondition(word));
 			}
-			sql.append(" and o.status in (:statuses)");
-			params.addValue("statuses", stored);
+			sql.append(" and (").append(String.join(" or ", predicates)).append(")");
 		}
 		if (filter.scope() != null) {
 			sql.append(" and o.scope = :scope");
@@ -200,12 +230,12 @@ public class LiveExamOrderHistoryService {
 		return order.listPrice() == null ? order.amount() : order.listPrice();
 	}
 
-	private static String storedStatus(String word) {
-		String stored = word == null ? null : STORED_STATUS.get(word.trim().toUpperCase(Locale.ROOT));
-		if (stored == null) {
+	private static String statusCondition(String word) {
+		String condition = word == null ? null : STATUS_CONDITION.get(word.trim().toUpperCase(Locale.ROOT));
+		if (condition == null) {
 			throw validationFailed();
 		}
-		return stored;
+		return condition;
 	}
 
 	private static String scope(String value) {
@@ -231,7 +261,7 @@ public class LiveExamOrderHistoryService {
 
 	/**
 	 * The list filters (P1, P3). Every field is optional. {@code statuses} takes the public words PENDING, PAID, FAILED and
-	 * CANCELLED; {@code scope} takes MODULE, EXAM or BUNDLE.
+	 * CANCELLED, plus REFUNDED and PARTLY_REFUNDED (plan 5.2); {@code scope} takes MODULE, EXAM or BUNDLE.
 	 */
 	public record OrderFilter(List<String> statuses, String scope, UUID moduleId, UUID examId, LocalDate from, LocalDate to,
 			UUID orderId) {
@@ -243,7 +273,7 @@ public class LiveExamOrderHistoryService {
 	public record OwnOrderRow(UUID orderId, String tranId, String status, BigDecimal amount, String currency, String scope,
 			UUID moduleId, String moduleTitleEn, String moduleTitleBn, UUID examId, String examTitleEn, String examTitleBn,
 			String paymentChannel, Instant createdAt, BigDecimal listPrice, Integer discountPercent, Instant paidAt,
-			String receiptNo, String receiptEmail) {
+			String receiptNo, String receiptEmail, RefundView refund) {
 	}
 
 	/**

@@ -41,7 +41,8 @@ const landing: typeof bn = {
   statsLabel: "SYMAM LAW in numbers",
   statsStudents: "Students",
   statsMentors: "Experienced mentors",
-  statsDownloads: "App downloads",
+  statsApp: "Mobile app",
+  statsComingSoon: "Coming soon",
   statsMaterials: "Learning materials",
 
   categoriesTitle: "Exam categories",

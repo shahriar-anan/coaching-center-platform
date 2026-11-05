@@ -81,6 +81,7 @@ export function ExamPriceFields({ exam, form, set, errors, disabled, context }: 
           disabled={disabled || !discounted || form.free}
           dateOnly
           futureOnly
+          clearable
         />
       </Field>
       <Field label={t("staffCatalog.examMeta.accessDays")} hint={t("staffCatalog.examMeta.accessDaysHint")} error={errors.accessDays}>

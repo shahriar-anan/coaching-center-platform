@@ -13,6 +13,7 @@ import {
   accessCopyKey,
   paymentStatusKey,
   paymentStatusTone,
+  refundChipKey,
   scopeKey,
 } from "./ops-copy";
 
@@ -107,9 +108,11 @@ export function PaymentsTable({
       nowrap: true,
       cell: (row) => {
         const key = paymentStatusKey(row.status);
+        const refundKey = refundChipKey(row);
         return (
           <span className="grid justify-items-start gap-1.5">
             <Pill tone={paymentStatusTone(key)}>{t(`staffOps.payments.status.${key}`)}</Pill>
+            {refundKey ? <Pill tone="muted">{t(`staffOps.payments.refundChip.${refundKey}`)}</Pill> : null}
             {row.riskLevel === "1" ? <Pill tone="danger">{t("staffOps.payments.riskFlag")}</Pill> : null}
           </span>
         );

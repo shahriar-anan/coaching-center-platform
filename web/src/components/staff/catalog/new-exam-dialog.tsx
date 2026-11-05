@@ -26,7 +26,10 @@ export type NewExamForm = {
 /** Where the exam goes: a package (its category comes with it) or a category only (R2). `id` is blank until chosen. */
 export type NewExamPlace = { mode: "package" | "category"; id: string };
 
-export type NewExamField = "titleEn" | "titleBn" | "durationMinutes" | "place";
+export type NewExamField = "titleEn" | "titleBn" | "durationMinutes" | "sheetRate" | "place";
+
+/** The pay fields of a written exam, as the form holds them. The rate is text until it is checked. */
+export type NewExamPay = { sheetRate: string; instructorId: string };
 
 export type NewExamRequest = { path: string; body: Record<string, unknown> };
 
@@ -35,11 +38,12 @@ export type NewExamBuild = { ok: true; request: NewExamRequest } | { ok: false; 
 const blankForm: NewExamForm = { titleEn: "", titleBn: "", paperLanguage: "", durationMinutes: "" };
 
 /**
- * The create request, or the fields still missing. Only the two titles, the duration and the place are needed here.
- * An unset paper language is left out of the body, so nothing is stored or shown for it (D5, C2). A package goes to
- * its own exam list; a category-only exam goes to the standalone create with its `categoryId` (R2).
+ * The create request, or the fields still missing. The two titles, the duration and the place are needed; for a written
+ * exam, `pay` (when given) adds the pay per sheet, which must be above 0, and the marker, which is optional. An unset paper
+ * language is left out of the body, so nothing is stored or shown for it (D5, C2). A package goes to its own exam list; a
+ * category-only exam goes to the standalone create with its `categoryId` (R2).
  */
-export function buildNewExamRequest(form: NewExamForm, examType: ExamType, place: NewExamPlace): NewExamBuild {
+export function buildNewExamRequest(form: NewExamForm, examType: ExamType, place: NewExamPlace, pay?: NewExamPay): NewExamBuild {
   const missing: NewExamField[] = [];
   if (!form.titleEn.trim()) {
     missing.push("titleEn");
@@ -50,6 +54,11 @@ export function buildNewExamRequest(form: NewExamForm, examType: ExamType, place
   const duration = Number(form.durationMinutes);
   if (!Number.isInteger(duration) || duration < 2) {
     missing.push("durationMinutes");
+  }
+  const payTerms = examType === "WRITTEN" ? pay : undefined;
+  const rate = Number(payTerms?.sheetRate ?? "");
+  if (payTerms && !(Number.isFinite(rate) && rate > 0)) {
+    missing.push("sheetRate");
   }
   if (!place.id) {
     missing.push("place");
@@ -65,6 +74,12 @@ export function buildNewExamRequest(form: NewExamForm, examType: ExamType, place
   };
   if (form.paperLanguage) {
     body.paperLanguage = form.paperLanguage;
+  }
+  if (payTerms) {
+    body.sheetRate = rate;
+    if (payTerms.instructorId) {
+      body.instructorId = payTerms.instructorId;
+    }
   }
   if (place.mode === "package") {
     return { ok: true, request: { path: `/api/v1/live-exam-modules/${place.id}/exams`, body } };
@@ -145,6 +160,7 @@ function PlacePicker({
   );
 }
 
+
 /**
  * The New exam dialog, shared by the package page and the Exams page. With `moduleId` the exam goes into that package;
  * without it, the dialog asks where it goes. Success opens the exam page with `?created=1`.
@@ -181,6 +197,8 @@ export function NewExamDialog({
         return t("staffCatalog.examMeta.titleBnRequired");
       case "durationMinutes":
         return t("staffCatalog.examMeta.durationInvalid");
+      case "sheetRate":
+        return t("staffCatalog.moduleExams.payRateInvalid");
       case "place":
         return t("staffCatalog.moduleExams.placeRequired");
       default:
@@ -191,6 +209,7 @@ export function NewExamDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
+    // The rate and the marker are set on the exam's instructor section after creation, not here (plan P18).
     const built = buildNewExamRequest(form, examType, place);
     if (!built.ok) {
       const next: Partial<Record<NewExamField, string>> = {};
@@ -207,7 +226,7 @@ export function NewExamDialog({
       router.push(`/staff/exams/${exam.id}?created=1`);
     } catch (e) {
       const fromServer: Partial<Record<NewExamField | "paperLanguage", string>> = {};
-      for (const field of ["titleEn", "titleBn", "durationMinutes", "paperLanguage"] as const) {
+      for (const field of ["titleEn", "titleBn", "durationMinutes", "paperLanguage", "sheetRate"] as const) {
         const message = fieldErrorFor(e, field);
         if (message) {
           fromServer[field] = message;

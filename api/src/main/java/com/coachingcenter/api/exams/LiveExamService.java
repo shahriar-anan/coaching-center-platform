@@ -221,7 +221,7 @@ public class LiveExamService {
 			}
 			exam.setAccessDays(days);
 		}
-		ExamPricing.validate(exam.getPrice(), exam.isFree(), exam.getDiscountPercent(), exam.getDiscountEndsAt());
+		ExamPricing.validate(exam.getPrice(), exam.isFree(), exam.getDiscountPercent(), exam.getDiscountEndsAt(), clock.instant());
 		if (body.has("negativeMarks")) {
 			exam.setNegativeMarks(readNegativeMarks(body.get("negativeMarks")));
 		}

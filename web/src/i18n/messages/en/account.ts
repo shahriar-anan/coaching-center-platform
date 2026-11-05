@@ -93,6 +93,8 @@ const account = {
     statusPaid: "Paid",
     statusFailed: "Failed",
     statusCancelled: "Cancelled",
+    statusRefunded: "Refunded",
+    statusPartlyRefunded: "Partly refunded",
     amount: "Amount",
     method: "Method",
     date: "Date",
@@ -115,6 +117,14 @@ const account = {
       clear: "Clear filters",
       showing: "Showing: {what}",
       none: "No payments match these filters.",
+    },
+    refund: {
+      full: "Refunded: {amount} on {date}.",
+      partly: "Partly refunded: {amount} of {paid} on {date}.",
+      backToChannel: "The money goes back to the account you paid with ({channel}).",
+      backToAccount: "The money goes back to the account you paid with.",
+      arrival: "It can take a few working days to arrive.",
+      accessEnded: "Access to this exam or package has ended.",
     },
     discountOff: "{percent}% off",
     help: {

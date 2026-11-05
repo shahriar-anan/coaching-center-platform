@@ -155,7 +155,8 @@ describe("payments summary strip", () => {
 
     const strip = (await screen.findByText("Successful today")).closest("dl") as HTMLElement;
     expect(await within(strip).findByText("2")).toBeInTheDocument();
-    expect(await within(strip).findByText(/৳800/)).toBeInTheDocument();
+    // Today's total and the net (no refunds today) both read ৳800, so the strip has two tiles with it.
+    expect(await within(strip).findAllByText(/৳800/)).toHaveLength(2);
     expect(await within(strip).findByText("3")).toBeInTheDocument();
     // The walk stops at the first order from before today, so the 2020 row is read but not counted.
     expect(api.calls.filter((call) => call.search.includes("status=SUCCEEDED")).length).toBe(1);

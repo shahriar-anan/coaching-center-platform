@@ -67,6 +67,7 @@ const orderRow = (overrides: Partial<StaffOrderRow> = {}): StaffOrderRow => ({
   createdAt: "2026-10-28T04:00:00Z",
   paidAt: "2026-10-28T04:05:00Z",
   receiptNo: "RCPT-2026-000123",
+  refund: null,
   updatedAt: "2026-10-28T04:05:00Z",
   ...overrides,
 });

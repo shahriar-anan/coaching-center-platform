@@ -351,6 +351,7 @@ export function useSystemStatus() {
 const ERROR_KEYS: Record<string, string> = {
   GRANT_ALREADY_ACTIVE: "errors.grantAlreadyActive",
   ORDER_NOT_PENDING: "errors.orderNotPending",
+  ORDER_NOT_REFUNDABLE: "errors.orderNotRefundable",
   ACCOUNT_HAS_PAID_ORDERS: "errors.accountHasPaidOrders",
   ACCOUNT_HAS_MARKED_WORK: "errors.accountHasMarkedWork",
   MASTER_ADMIN_PROTECTED: "errors.masterAdminProtected",

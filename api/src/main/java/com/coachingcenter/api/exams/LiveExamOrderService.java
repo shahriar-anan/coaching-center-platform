@@ -65,12 +65,16 @@ public class LiveExamOrderService {
 
 	private final LiveExamAccess access;
 
+	private final LiveExamGrantRepository grants;
+
 	private final Clock clock;
 
 	public LiveExamOrderService(LiveExamOrderRepository orders, LiveExamOrderTx tx, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamCatalogVisibility visibility, UserRepository users,
 			StudentProfileRepository profiles, ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones,
-			LiveExamOrderBundle bundles, LiveExamMemberships memberships, LiveExamAccess access, Clock clock) {
+			LiveExamOrderBundle bundles, LiveExamMemberships memberships, LiveExamAccess access,
+			LiveExamGrantRepository grants, Clock clock) {
+		this.grants = grants;
 		this.memberships = memberships;
 		this.orders = orders;
 		this.tx = tx;
@@ -224,6 +228,12 @@ public class LiveExamOrderService {
 	/** Master Admin rejects a pending order (R-8). The reason is required by the caller. */
 	public OrderView reject(UUID orderId, String reason) {
 		return view(tx.reject(orderId, reason));
+	}
+
+	/** Master Admin records a refund made in the SSLCommerz merchant panel (plan section 5). The caller checks the input. */
+	public OrderView refund(UUID orderId, UUID actorId, BigDecimal amount, String reason, String reference,
+			boolean revokeAccess) {
+		return view(tx.refund(orderId, actorId, amount, reason, reference, revokeAccess));
 	}
 
 	@Transactional(readOnly = true)
@@ -486,7 +496,17 @@ public class LiveExamOrderService {
 	private OrderView view(LiveExamOrder order, String redirectUrl) {
 		return new OrderView(order.getId(), order.getTranId(), order.getStatus(), order.getAmount(), redirectUrl,
 				order.getScope(), order.getModuleId(), order.getExamId(), examIds(order), order.getListPrice(),
-				order.getDiscountPercent(), order.getPaidAt(), order.getReceiptNo(), order.getReceiptEmail());
+				order.getDiscountPercent(), order.getPaidAt(), order.getReceiptNo(), order.getReceiptEmail(),
+				refundView(order));
+	}
+
+	/** The refund the student may see: the amount, the time and whether access was taken away. No reason, no staff name. */
+	private RefundView refundView(LiveExamOrder order) {
+		if (order.getRefundedAt() == null) {
+			return null;
+		}
+		boolean accessRevoked = grants.existsByOrderIdAndRevokeReason(order.getId(), LiveExamOrderTx.REFUND_REVOKE_REASON);
+		return new RefundView(order.getRefundAmount(), order.getRefundedAt(), accessRevoked);
 	}
 
 	/** The exams the order covers: the bundle's list, the one exam, or null for a module (it covers future exams too). */
@@ -518,7 +538,14 @@ public class LiveExamOrderService {
 	/** {@code listPrice} and {@code discountPercent} are what the student saw at checkout (R19). */
 	public record OrderView(UUID orderId, String tranId, String status, BigDecimal amount, String redirectUrl,
 			String scope, UUID moduleId, UUID examId, List<UUID> examIds, BigDecimal listPrice, Integer discountPercent,
-			Instant paidAt, String receiptNo, String receiptEmail) {
+			Instant paidAt, String receiptNo, String receiptEmail, RefundView refund) {
+	}
+
+	/**
+	 * A manual refund as the student sees it (plan 5.2). {@code accessRevoked} says whether the refund took the exam or
+	 * package away. The reason and the staff name are never sent to the student.
+	 */
+	public record RefundView(BigDecimal amount, Instant at, boolean accessRevoked) {
 	}
 
 	/**

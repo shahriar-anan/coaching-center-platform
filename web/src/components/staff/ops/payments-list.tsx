@@ -53,6 +53,14 @@ export function PaymentsList({ embedded = false }: { embedded?: boolean }) {
               value: format.formatMoney(strip.data?.todayTotal ?? 0) ?? t("staffResults.result.none"),
             },
             {
+              label: t("staffOps.payments.strip.refunded"),
+              value: format.formatMoney(strip.data?.todayRefunded ?? 0) ?? t("staffResults.result.none"),
+            },
+            {
+              label: t("staffOps.payments.strip.net"),
+              value: format.formatMoney(strip.data?.todayNet ?? 0) ?? t("staffResults.result.none"),
+            },
+            {
               label: t("staffOps.payments.strip.pending"),
               value: format.formatNumber(strip.data?.pendingCount ?? 0),
               tone: "warn",

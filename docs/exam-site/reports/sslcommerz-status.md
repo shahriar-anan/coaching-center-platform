@@ -33,6 +33,21 @@ On 24 October 2026 the commented pair was sent once to `https://sandbox.sslcomme
 
 `LiveExamPurchaseIT` replaces the gateway with `FakeLiveExamPaymentGateway`. The fake redirect is `https://gateway.test/{tranId}`. The tests that passed cover price permissions, initiate, a repeated initiate, a verified grant, a repeat notice, an invalid verification, a cancel, an unreachable verification, roster access beside a purchase, an exam published after a module purchase, and the staff order list. `SslCommerzGatewayTest` covers `SslCommerzGateway` itself against a local HTTP stub, including the payment channel.
 
+## Live merchant panel, checked 5 November 2026
+
+Shahriar checked the live store in the merchant panel. Nothing was changed there.
+
+| Check | Found |
+|---|---|
+| Store | Active. Base URL `symamlaw.com`, the student host since 4 November, so no domain registration is needed |
+| IPN at HTTP listener | Off, URL empty. The per-payment `ipn_url` the API sends is the only IPN. Leave it so |
+| IPN by email and SMS | Notifications to a person only; they do not affect the API |
+| Channels (Gateway Charge page) | bKash and Nagad listed at 2.5% TDR, among other wallets and banks. No Visa, Mastercard or Amex row, so whether cards are on is open until the live test shows the payment page |
+| Transactions | Ten real payments from the old site, 21 to 26 October (nine at 49 BDT, one at 399 BDT). None since. Not ours; never refund them |
+| Refund | Not located yet; there is no transaction of ours to open. Find it on the live test payment |
+
+Shahriar has the live store id and password. They belong in the gitignored `config-files/payment-credentials.md`, and are not on the server yet.
+
 ## Not done
 
 - Live credentials on the new server, and any live payment. At launch: one wrong-OTP payment and one good payment on the live store, then a refund of the good one from the merchant panel (`todays-goals.md` section 5). That check also shows whether the live panel overrides the per-payment `ipn_url`.

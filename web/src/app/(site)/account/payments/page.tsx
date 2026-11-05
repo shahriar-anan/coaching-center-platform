@@ -37,6 +37,7 @@ import {
   actionsFor,
   hasDiscount,
   hasFilters,
+  isPaid,
   itemHref,
   parseScopeFilter,
   parseStatusFilter,
@@ -45,15 +46,18 @@ import {
   toOrderFilter,
   type PaymentFilters,
 } from "./_components/payment-model";
+import { RefundNotice } from "./_components/refund-notice";
 
 const STATUS_TONE: Record<PaymentStatus, PillTone> = {
   PENDING: "warn",
   PAID: "ok",
+  REFUNDED: "muted",
+  PARTLY_REFUNDED: "muted",
   FAILED: "danger",
   CANCELLED: "muted",
 };
 
-const STATUS_WORDS: PaymentStatus[] = ["PENDING", "PAID", "FAILED", "CANCELLED"];
+const STATUS_WORDS: PaymentStatus[] = ["PENDING", "PAID", "REFUNDED", "PARTLY_REFUNDED", "FAILED", "CANCELLED"];
 
 /** The title of the module or exam the order is for. */
 function productTitle(row: MyOrder, locale: "bn" | "en"): string {
@@ -130,7 +134,7 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
   const cancel = useCancelOrder();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [busy, setBusy] = useState(false);
-  const actions = actionsFor(order.status);
+  const actions = actionsFor(order);
   const href = itemHref(order);
 
   async function downloadPdf() {
@@ -181,10 +185,11 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
               : t("account.payments.kindModule")}
         </span>
       </p>
+      <RefundNotice order={order} />
       <dl className="grid gap-2 text-body sm:grid-cols-2">
         <div><dt className="text-meta text-muted">{order.paidAt ? t("account.payments.detail.paidOn") : t("account.payments.detail.createdOn")}</dt><dd>{formatDateTime(rowDate(order), locale)}</dd></div>
         <div><dt className="text-meta text-muted">{t("account.payments.detail.receiptNo")}</dt><dd>{order.receiptNo ? <code className="font-latin">{order.receiptNo}</code> : "—"}</dd></div>
-        {order.status === "PAID" ? (
+        {isPaid(order.status) ? (
           // The receipt line (Phase 4B): where the receipt went. A paid order with no address and no verified email got none.
           <div>
             <dt className="sr-only">{t("account.payments.detail.receiptTo")}</dt>
@@ -209,8 +214,11 @@ function PaymentDetail({ order, onClose }: { order: MyOrder; onClose: () => void
             {formatMoney(order.amount, locale)}
           </dd>
         </div>
-        {order.status === "PAID" ? (
-          <div><dt className="text-meta text-muted">{t("account.payments.detail.access")}</dt><dd><AccessLine orderId={order.orderId} /></dd></div>
+        {isPaid(order.status) ? (
+          <div>
+            <dt className="text-meta text-muted">{t("account.payments.detail.access")}</dt>
+            <dd>{order.refund?.accessRevoked ? t("account.payments.refund.accessEnded") : <AccessLine orderId={order.orderId} />}</dd>
+          </div>
         ) : null}
       </dl>
 

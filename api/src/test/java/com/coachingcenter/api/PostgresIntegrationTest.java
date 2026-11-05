@@ -40,6 +40,7 @@ public abstract class PostgresIntegrationTest {
 		registry.add("FILE_STORAGE_DIR", () -> FILE_STORAGE_DIR);
 		// Tests call the deadline and reminder jobs directly; a background tick would read another context's clock.
 		registry.add("app.exam-jobs.scheduled", () -> "false");
+		registry.add("app.staff-pay.jobs-enabled", () -> "false");
 		registry.add("MATERIAL_MAX_BYTES", () -> "1024");
 		registry.add("PAYMENT_BKASH_NUMBER", () -> "01700000001");
 		registry.add("PAYMENT_NAGAD_NUMBER", () -> "01800000001");
@@ -48,6 +49,11 @@ public abstract class PostgresIntegrationTest {
 		registry.add("SSLCZ_BASE_URL", () -> "");
 		registry.add("SSLCZ_CALLBACK_BASE_URL", () -> "");
 		registry.add("app.seed.enabled", () -> "false");
+		// Pin the seed switches off so a developer's local .env (which may set SEED_DEV=true) cannot seed the test database.
+		registry.add("SEED_DEV", () -> "false");
+		registry.add("SEED_DEMO", () -> "false");
+		registry.add("SEED_SAMPLE", () -> "false");
+		registry.add("SEED_ENABLED", () -> "false");
 		registry.add("spring.datasource.hikari.maximum-pool-size", () -> "2");
 		registry.add("spring.datasource.hikari.minimum-idle", () -> "0");
 	}

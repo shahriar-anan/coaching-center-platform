@@ -138,6 +138,6 @@ describe("notices", () => {
   it("shows the unread count on the bell", async () => {
     mockApi({ "GET /api/v1/me/notices/unread-count": { count: 3 } });
     renderWithProviders(<NoticeBell />, { user: fixtures.student, route: "/" });
-    expect(await screen.findByRole("link", { name: "নোটিশ, ৩টি নতুন নোটিশ" })).toHaveAttribute("href", "/notices");
+    expect(await screen.findByRole("link", { name: "নোটিফিকেশন, ৩টি নতুন নোটিশ" })).toHaveAttribute("href", "/notices");
   });
 });

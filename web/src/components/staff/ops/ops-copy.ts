@@ -36,6 +36,17 @@ export function paymentStatusTone(key: PaymentStatusKey): PillTone {
   }
 }
 
+/**
+ * The refund chip on a row (plan 5.3): "Refunded" when the whole amount came back, "Partly refunded" for less. Null when no
+ * refund was recorded. The status stays paid; the chip is the only sign on the list.
+ */
+export function refundChipKey(row: Pick<StaffOrderRow, "refund" | "amount">): "refunded" | "partlyRefunded" | null {
+  if (!row.refund) {
+    return null;
+  }
+  return row.refund.amount >= row.amount ? "refunded" : "partlyRefunded";
+}
+
 /** The access line on a payment row. Only a paid order grants access. */
 export type AccessCopyKey = "awaitingGateway" | "wholeModule" | "thisExam" | "noAccess";
 

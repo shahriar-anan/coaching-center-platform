@@ -296,4 +296,60 @@ public class LiveExamOrder {
 		this.rejectedReason = rejectedReason;
 	}
 
+	/** A manual refund recorded by the Master Admin (V69). All four required refund fields are set together, or none is. */
+	@Column(name = "refunded_at")
+	private Instant refundedAt;
+
+	@Column(name = "refunded_by")
+	private UUID refundedBy;
+
+	@Column(name = "refund_amount", precision = 12, scale = 2)
+	private BigDecimal refundAmount;
+
+	@Column(name = "refund_reason", length = 500)
+	private String refundReason;
+
+	@Column(name = "refund_reference", length = 128)
+	private String refundReference;
+
+	public Instant getRefundedAt() {
+		return refundedAt;
+	}
+
+	public void setRefundedAt(Instant refundedAt) {
+		this.refundedAt = refundedAt;
+	}
+
+	public UUID getRefundedBy() {
+		return refundedBy;
+	}
+
+	public void setRefundedBy(UUID refundedBy) {
+		this.refundedBy = refundedBy;
+	}
+
+	public BigDecimal getRefundAmount() {
+		return refundAmount;
+	}
+
+	public void setRefundAmount(BigDecimal refundAmount) {
+		this.refundAmount = refundAmount;
+	}
+
+	public String getRefundReason() {
+		return refundReason;
+	}
+
+	public void setRefundReason(String refundReason) {
+		this.refundReason = refundReason;
+	}
+
+	public String getRefundReference() {
+		return refundReference;
+	}
+
+	public void setRefundReference(String refundReference) {
+		this.refundReference = refundReference;
+	}
+
 }

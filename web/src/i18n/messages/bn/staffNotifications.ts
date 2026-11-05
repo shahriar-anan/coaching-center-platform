@@ -1,0 +1,54 @@
+import type { MessageTree } from "../types";
+
+/** বাংলা: স্টাফ নোটিফিকেশন। ওপরের ঘণ্টা, নোটিফিকেশনের পাতা, এর ট্যাব এবং প্রতিটি ধরনের নোটিফিকেশনের লেখা। */
+const staffNotifications = {
+  title: "নোটিফিকেশন",
+  bell: "নোটিফিকেশন",
+  bellCount: "নোটিফিকেশন, {count}টি নতুন",
+  tabs: {
+    label: "নোটিফিকেশনের তালিকা",
+    UNREAD: "নতুন",
+    ALL: "সব",
+  },
+  markAll: "সবগুলো পড়া হয়েছে",
+  markedAll: "সব নোটিফিকেশন পড়া হয়েছে হিসেবে চিহ্নিত হয়েছে।",
+  markAllFailed: "নোটিফিকেশনগুলো পড়া হিসেবে চিহ্নিত করা যায়নি। আবার চেষ্টা করুন।",
+  unreadDot: "নতুন",
+  empty: "এখনো কোনো নোটিফিকেশন নেই।",
+  emptyBody: "পেমেন্ট ও ফলাফলের খবর এখানে দেখা যাবে।",
+  emptyUnread: "কোনো নতুন নোটিফিকেশন নেই।",
+  emptyUnreadBody: "সব দেখা হয়ে গেছে।",
+  sheetsOne: "১টি খাতা",
+  sheetsMany: "{count}টি খাতা",
+  change: {
+    ADDED: "যোগ করেছেন",
+    UPDATED: "বদলেছেন",
+    REMOVED: "মুছে দিয়েছেন",
+    PREFERRED: "প্রধান হিসেবে বেছেছেন",
+    other: "বদলেছেন",
+  },
+  method: {
+    BANK: "ব্যাংক",
+    BKASH: "বিকাশ",
+    NAGAD: "নগদ",
+    ROCKET: "রকেট",
+  },
+  kind: {
+    PAYOUT_ACCOUNT_CHANGED: "{person} টাকা পাওয়ার অ্যাকাউন্ট {change}।",
+    MARKING_PUBLISHED_OWED: "{exam}-এর ফল প্রকাশ হয়েছে। {person}-কে {sheets}-এর জন্য {amount} দিতে হবে। এখন মোট বাকি {balance}।",
+    MARKING_PUBLISHED_EARNED: "{exam}-এর {sheets} প্রকাশ হয়েছে। আপনি {amount} আয় করেছেন।",
+    PAYMENT_RECORDED: "{method} দিয়ে আপনাকে {amount} পরিশোধ করা হয়েছে।",
+    PAYMENT_VOIDED: "{method} দিয়ে {amount} পরিশোধের হিসাব বাতিল করা হয়েছে।",
+    SALARY_DUE_SOON: "{person}-এর {month} মাসের বেতন {amount}। পরিশোধের তারিখ {date}।",
+    SALARY_OVERDUE: "{person}-এর {month} মাসের বেতন {amount} এখনো পরিশোধ হয়নি। পরিশোধের তারিখ ছিল {date}।",
+    MARKING_UNPAID_REMINDER: "{person}-এর {amount} পাওনা {days} দিন ধরে পরিশোধ হয়নি।",
+    EXAM_ASSIGNED: "এখন থেকে {exam}-এর খাতা আপনি দেখবেন।",
+    EXAM_UNASSIGNED: "{exam}-এর খাতা দেখার দায়িত্ব থেকে আপনাকে সরানো হয়েছে। আগে দেখা খাতার পারিশ্রমিক আপনি পাবেন।",
+    EXAM_RATE_CHANGED: "{exam}-এর প্রতি খাতার পারিশ্রমিক {from} থেকে {to} করা হয়েছে। এখন থেকে প্রকাশিত খাতায় এটি প্রযোজ্য।",
+    EXAM_PAY_TERMS_CHANGED: "{person} {exam}-এ পরিবর্তন করেছেন: খাতা দেখবেন শিক্ষক {fromMarker} → {toMarker}, প্রতি খাতার পারিশ্রমিক {from} → {to}।",
+    NO_MARKER: "কেউ নেই",
+    UNKNOWN: "আপনার একটি নতুন নোটিফিকেশন আছে।",
+  },
+} satisfies MessageTree;
+
+export default staffNotifications;

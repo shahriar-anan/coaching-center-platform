@@ -46,7 +46,7 @@ describe("student top bar (S1.1)", () => {
     const names = items.map((item) => item.textContent);
     expect(names.indexOf("Payment history")).toBe(names.indexOf("My account") + 1);
     expect(names.indexOf("Wish List")).toBe(names.indexOf("Payment history") + 1);
-    expect(names.indexOf("Notices")).toBe(names.indexOf("Wish List") + 1);
+    expect(names.indexOf("Notifications")).toBe(names.indexOf("Wish List") + 1);
     expect(names).toContain("Routine");
     expect(items[names.indexOf("Wish List")]).toHaveAttribute("href", "/wishlist");
   });

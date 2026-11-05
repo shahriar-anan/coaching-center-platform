@@ -73,17 +73,27 @@ class ExamPricingTest {
 
 	@Test
 	void validateRefusesAPriceNoOrderCanCarry() {
-		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), true, null, null), "price");
-		assertInvalidFields(() -> ExamPricing.validate(BigDecimal.ZERO, false, null, null), "price");
-		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), false, 0, null), "discountPercent");
-		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), false, 100, null), "discountPercent");
-		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), false, null, DISCOUNT_END), "discountEndsAt");
+		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), true, null, null, NOW), "price");
+		assertInvalidFields(() -> ExamPricing.validate(BigDecimal.ZERO, false, null, null, NOW), "price");
+		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), false, 0, null, NOW), "discountPercent");
+		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), false, 100, null, NOW), "discountPercent");
+		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("100"), false, null, DISCOUNT_END, NOW), "discountEndsAt");
 	}
 
 	@Test
 	void validateAcceptsAFreeExamAndAPricedOneWithAValidDiscount() {
-		assertThatCode(() -> ExamPricing.validate(null, true, null, null)).doesNotThrowAnyException();
-		assertThatCode(() -> ExamPricing.validate(new BigDecimal("199"), false, 33, DISCOUNT_END))
+		assertThatCode(() -> ExamPricing.validate(null, true, null, null, NOW)).doesNotThrowAnyException();
+		assertThatCode(() -> ExamPricing.validate(new BigDecimal("199"), false, 33, DISCOUNT_END, NOW))
+			.doesNotThrowAnyException();
+	}
+
+	@Test
+	void validateRefusesAPriceThatCannotBePaidUnderTenTaka() {
+		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("10"), false, 20, null, NOW), "discountPercent");
+		assertInvalidFields(() -> ExamPricing.validate(new BigDecimal("9.99"), false, null, null, NOW), "price");
+		assertThatCode(() -> ExamPricing.validate(new BigDecimal("13"), false, 20, null, NOW)).doesNotThrowAnyException();
+		// Once the discount has ended the student pays the price, so 10 is fine.
+		assertThatCode(() -> ExamPricing.validate(new BigDecimal("10"), false, 20, DISCOUNT_END, DISCOUNT_END))
 			.doesNotThrowAnyException();
 	}
 

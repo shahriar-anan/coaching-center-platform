@@ -239,7 +239,7 @@ public class LiveExamRevisionService {
 		}
 		ExamWindow.validate(state.mode, ExamState.instant(state.liveAt), ExamState.instant(state.endsAt),
 				state.durationMinutes);
-		ExamPricing.validate(state.price, state.free, state.discountPercent, ExamState.instant(state.discountEndsAt));
+		ExamPricing.validate(state.price, state.free, state.discountPercent, ExamState.instant(state.discountEndsAt), clock.instant());
 		// An ended window is fine: archived participants can still sit the exam (D20). Windows may overlap (D17).
 		visibility.requireOpen(exam.getCategoryId());
 	}

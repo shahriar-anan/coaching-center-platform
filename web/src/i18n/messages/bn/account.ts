@@ -93,6 +93,8 @@ const account = {
     statusPaid: "পরিশোধিত",
     statusFailed: "ব্যর্থ",
     statusCancelled: "বাতিল",
+    statusRefunded: "ফেরত দেওয়া হয়েছে",
+    statusPartlyRefunded: "আংশিক ফেরত দেওয়া হয়েছে",
     amount: "মূল্য",
     method: "মাধ্যম",
     date: "তারিখ",
@@ -115,6 +117,14 @@ const account = {
       clear: "ফিল্টার মুছুন",
       showing: "দেখানো হচ্ছে: {what}",
       none: "এই ফিল্টারে কোনো পেমেন্ট নেই।",
+    },
+    refund: {
+      full: "{date} তারিখে {amount} ফেরত দেওয়া হয়েছে।",
+      partly: "{date} তারিখে মোট {paid}-এর মধ্যে {amount} ফেরত দেওয়া হয়েছে।",
+      backToChannel: "টাকা যে অ্যাকাউন্ট থেকে দেওয়া হয়েছিল ({channel}) সেখানে ফিরে যাবে।",
+      backToAccount: "টাকা যে অ্যাকাউন্ট থেকে দেওয়া হয়েছিল সেখানে ফিরে যাবে।",
+      arrival: "টাকা পৌঁছাতে কয়েক কার্যদিবস লাগতে পারে।",
+      accessEnded: "এই পরীক্ষা বা প্যাকেজের প্রবেশাধিকার শেষ হয়েছে।",
     },
     discountOff: "{percent}% ছাড়",
     help: {

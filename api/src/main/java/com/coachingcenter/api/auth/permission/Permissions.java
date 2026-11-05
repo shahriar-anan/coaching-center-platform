@@ -91,6 +91,9 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_ORDER_CONFIRM = "LIVE_EXAM_ORDER_CONFIRM";
 
+	/** Records a refund already made in the SSLCommerz merchant panel (plan section 5). The site never refunds money itself. */
+	public static final String LIVE_EXAM_ORDER_REFUND = "LIVE_EXAM_ORDER_REFUND";
+
 	public static final String LIVE_EXAM_RELEASE = "LIVE_EXAM_RELEASE";
 
 	public static final String INSTRUCTOR_STATUS = "INSTRUCTOR_STATUS";
@@ -115,6 +118,21 @@ public final class Permissions {
 
 	/** Read the reviews of the instructor's own exams. Read only. */
 	public static final String LIVE_EXAM_REVIEW_READ = "LIVE_EXAM_REVIEW_READ";
+
+	/** Create, read and edit drafts of the public notice board, and delete drafts. System Admins and the Master Admin. */
+	public static final String SITE_NOTICE_EDIT = "SITE_NOTICE_EDIT";
+
+	/** Publish, unpublish, edit or delete a published notice. The Master Admin only. */
+	public static final String SITE_NOTICE_PUBLISH = "SITE_NOTICE_PUBLISH";
+
+	/** Read one's own staff notifications and mark them read. Every staff role; students are not granted it. */
+	public static final String STAFF_NOTICE_READ = "STAFF_NOTICE_READ";
+
+	/** Everyone's pay: settings, payments, adjustments, voids and the defaults. The Master Admin only. */
+	public static final String STAFF_PAY_MANAGE = "STAFF_PAY_MANAGE";
+
+	/** Read and change one's own pay pages and payout accounts. System Admins and instructors; the Master Admin is not paid through it. */
+	public static final String STAFF_PAY_SELF = "STAFF_PAY_SELF";
 
 	private Permissions() {
 	}

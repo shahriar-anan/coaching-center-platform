@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.common.error.FieldErrorDetail;
 
 @Service
 class LiveExamOrderTx {
@@ -24,6 +25,12 @@ class LiveExamOrderTx {
 
 	/** The payment channel of an order that Master Admin confirmed after checking the payment (R-8). */
 	static final String MANUAL_CHANNEL = "MANUAL-CONFIRMED";
+
+	/** The smallest refund the Master Admin may record: one paisa (plan R2). */
+	static final BigDecimal MIN_REFUND = new BigDecimal("0.01");
+
+	/** The revoke reason a refund gives the grants it takes back. The grant rows stay (plan 5.2). */
+	static final String REFUND_REVOKE_REASON = "Refunded";
 
 	private final LiveExamOrderRepository orders;
 
@@ -212,6 +219,49 @@ class LiveExamOrderTx {
 		order.setUpdatedAt(clock.instant());
 		audit.record(AuditRecorder.ORDER_REJECTED, AuditRecorder.LIVE_EXAM_ORDER_ENTITY, order.getId());
 		return order;
+	}
+
+	/**
+	 * Master Admin records a refund that was already made by hand in the SSLCommerz merchant panel (plan section 5). No money
+	 * moves here, and the order stays SUCCEEDED. With {@code revokeAccess}, the grants the order wrote are revoked, and they
+	 * stay as rows. One transaction: the order is locked, so a second call finds it refunded and is refused.
+	 */
+	@Transactional
+	public LiveExamOrder refund(UUID orderId, UUID actorId, BigDecimal amount, String reason, String reference,
+			boolean revokeAccess) {
+		LiveExamOrder order = orders.lockById(orderId).orElseThrow(LiveExamOrderTx::notFound);
+		if (!LiveExamOrder.SUCCEEDED.equals(order.getStatus()) || order.getRefundedAt() != null) {
+			throw new ApiException(ErrorCode.ORDER_NOT_REFUNDABLE, HttpStatus.CONFLICT,
+					"Only a paid order that has not been refunded can be refunded.");
+		}
+		BigDecimal refunded = refundAmount(amount, order.getAmount());
+		Instant now = clock.instant();
+		order.setRefundedAt(now);
+		order.setRefundedBy(actorId);
+		order.setRefundAmount(refunded);
+		order.setRefundReason(reason);
+		order.setRefundReference(reference);
+		order.setUpdatedAt(now);
+		if (revokeAccess) {
+			for (LiveExamGrant grant : grants.findByOrderIdAndRevokedAtIsNull(order.getId())) {
+				grant.setRevokedAt(now);
+				grant.setRevokedBy(actorId);
+				grant.setRevokeReason(REFUND_REVOKE_REASON);
+			}
+		}
+		audit.record(AuditRecorder.LIVE_EXAM_ORDER_REFUND, AuditRecorder.LIVE_EXAM_ORDER_ENTITY, order.getId());
+		log.info("live exam order refund recorded orderId={} accessRevoked={}", order.getId(), revokeAccess);
+		return order;
+	}
+
+	/** From 0.01 up to the amount paid, to two places (plan R2). Anything finer than a paisa is refused. */
+	static BigDecimal refundAmount(BigDecimal requested, BigDecimal paid) {
+		if (requested == null || requested.stripTrailingZeros().scale() > 2 || requested.compareTo(MIN_REFUND) < 0
+				|| requested.compareTo(paid) > 0) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+					List.of(new FieldErrorDetail("amount", "The refund must be from 0.01 BDT up to the amount paid.")));
+		}
+		return requested.setScale(2);
 	}
 
 	private LiveExamOrder requirePending(UUID orderId) {

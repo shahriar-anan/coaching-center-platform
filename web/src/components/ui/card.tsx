@@ -9,6 +9,8 @@ type CardProps = {
   /** "sm" is the compact list row (px-4 py-3); "md" is the default; "lg" is the roomy panel. */
   padding?: "sm" | "md" | "lg";
   className?: string;
+  /** Sets the root element's id, so a link can jump to this card. */
+  id?: string;
   children: ReactNode;
 };
 
@@ -16,12 +18,13 @@ type CardProps = {
 const surface = "block rounded-card border border-border bg-card text-text shadow-[var(--card-shadow)]";
 
 /** A white card with a 16 px radius. With `href` it becomes a link card with a chevron. */
-export function Card({ href, as: Tag = "div", padding = "md", className, children }: CardProps) {
+export function Card({ href, as: Tag = "div", padding = "md", className, id, children }: CardProps) {
   const pad = padding === "lg" ? "p-6" : padding === "sm" ? "px-4 py-3" : "p-4";
   if (href) {
     return (
       <Link
         href={href}
+        id={id}
         prefetch
         className={cn(
           surface,
@@ -35,5 +38,9 @@ export function Card({ href, as: Tag = "div", padding = "md", className, childre
       </Link>
     );
   }
-  return <Tag className={cn(surface, pad, className)}>{children}</Tag>;
+  return (
+    <Tag id={id} className={cn(surface, pad, className)}>
+      {children}
+    </Tag>
+  );
 }

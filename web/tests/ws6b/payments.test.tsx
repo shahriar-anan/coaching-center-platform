@@ -17,6 +17,7 @@ function resolved<T>(value: T): Promise<T> {
 }
 
 const pendingModule: StaffOrderRow = {
+  refund: null,
   orderId: "aaaaaaaa-0000-4000-8000-000000000001",
   tranId: "TRAN-PENDING-1",
   status: "INITIATED",
@@ -123,29 +124,29 @@ describe("staff payments list", () => {
 
 describe("payment detail", () => {
   it("opens the direct-enrolment link for Master Admin only", () => {
-    const { unmount } = renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster />);
+    const { unmount } = renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster canRefund={false} />);
     expect(screen.getByRole("link", { name: "পেমেন্ট ছাড়া দিতে সরাসরি ভর্তি খুলুন" })).toHaveAttribute(
       "href",
       "/staff/modules/bbbbbbbb-0000-4000-8000-000000000001?tab=roster",
     );
     unmount();
 
-    renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster={false} />);
+    renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster={false} canRefund={false} />);
     expect(screen.queryByRole("link", { name: "পেমেন্ট ছাড়া দিতে সরাসরি ভর্তি খুলুন" })).toBeNull();
   });
 
   it("warns on a payment flagged risky, and on no other", () => {
     const warning = /ঝুঁকিপূর্ণ হিসেবে চিহ্নিত/;
-    const { unmount } = renderWithProviders(<PaymentDetail row={{ ...paidExam, riskLevel: "1" }} canOpenRoster={false} />);
+    const { unmount } = renderWithProviders(<PaymentDetail row={{ ...paidExam, riskLevel: "1" }} canOpenRoster={false} canRefund={false} />);
     expect(screen.getByText(warning)).toBeInTheDocument();
     unmount();
 
-    renderWithProviders(<PaymentDetail row={{ ...paidExam, riskLevel: "0" }} canOpenRoster={false} />);
+    renderWithProviders(<PaymentDetail row={{ ...paidExam, riskLevel: "0" }} canOpenRoster={false} canRefund={false} />);
     expect(screen.queryByText(warning)).toBeNull();
   });
 
   it("names the grant on a paid exam and says so when there is none", () => {
-    renderWithProviders(<PaymentDetail row={paidExam} canOpenRoster={false} />);
+    renderWithProviders(<PaymentDetail row={paidExam} canOpenRoster={false} canRefund={false} />);
     expect(screen.getByText(/চালু আছে: সিআরপিসি/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "শিক্ষার্থীর পাতা খুলুন" })).toHaveAttribute(
       "href",

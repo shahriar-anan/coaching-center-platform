@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import type { ExamType, OrderKind, OrderStatus, PageResponse } from "@/lib/api/exam/types";
 import { serverNow } from "@/lib/time/clock";
@@ -41,6 +41,18 @@ export type StaffOrderRow = {
   /** The receipt number of a paid order (P4). */
   receiptNo: string | null;
   updatedAt: string;
+  /** The refund the Master Admin recorded (plan 5.2), or null. The status stays SUCCEEDED after a refund. */
+  refund: StaffRefund | null;
+};
+
+/** A refund recorded by hand in the SSLCommerz merchant panel. `by` is the recording Master Admin's email. */
+export type StaffRefund = {
+  amount: number;
+  at: string;
+  by: string | null;
+  reason: string;
+  reference: string | null;
+  accessRevoked: boolean;
 };
 
 export type StaffPaymentFilters = {
@@ -101,10 +113,15 @@ export function useStaffPaymentDetail(tranId: string) {
   });
 }
 
-/** The three numbers on the payments strip. `todayCount` counts orders created today (Dhaka day). */
+/**
+ * The numbers on the payments strip. `todayCount` counts orders created today (Dhaka day). `todayTotal` is the gross
+ * amount of those paid orders; `todayRefunded` is what was refunded on them, and `todayNet` is the difference (plan 5.3).
+ */
 export type PaymentsStrip = {
   todayCount: number;
   todayTotal: number;
+  todayRefunded: number;
+  todayNet: number;
   pendingCount: number;
 };
 
@@ -119,10 +136,11 @@ function dhakaDayStart(now: number): number {
  * order from before today. The list is ordered by creation time, so no earlier page can
  * hold a row from today after it.
  */
-async function todaysPaid(signal: AbortSignal): Promise<{ count: number; total: number }> {
+async function todaysPaid(signal: AbortSignal): Promise<{ count: number; total: number; refunded: number }> {
   const start = dhakaDayStart(serverNow());
   let count = 0;
   let total = 0;
+  let refunded = 0;
   for (let page = 0; ; page += 1) {
     const body = await apiRequest<PageResponse<StaffOrderRow>>(
       `/api/v1/live-exam-orders${queryString({ status: "SUCCEEDED", page, size: 100 })}`,
@@ -130,13 +148,14 @@ async function todaysPaid(signal: AbortSignal): Promise<{ count: number; total: 
     );
     for (const row of body.content) {
       if (new Date(row.createdAt).getTime() < start) {
-        return { count, total };
+        return { count, total, refunded };
       }
       count += 1;
       total += row.amount;
+      refunded += row.refund?.amount ?? 0;
     }
     if (body.content.length === 0 || page + 1 >= body.totalPages) {
-      return { count, total };
+      return { count, total, refunded };
     }
   }
 }
@@ -156,11 +175,48 @@ export function usePaymentsStrip() {
       const strip: PaymentsStrip = {
         todayCount: today.count,
         todayTotal: today.total,
+        todayRefunded: today.refunded,
+        todayNet: today.total - today.refunded,
         pendingCount: pending.totalElements,
       };
       return strip;
     },
     staleTime: 60_000,
+  });
+}
+
+/** What the Master Admin records for a refund already made in the SSLCommerz merchant panel (plan 5.3). */
+export type RecordRefundInput = {
+  orderId: string;
+  amount: number;
+  reason: string;
+  reference: string;
+  revokeAccess: boolean;
+};
+
+/**
+ * Records a refund (Master Admin only). The site never calls SSLCommerz's refund API: the money is refunded by hand in the
+ * merchant panel, and this only writes the record. Every payments query is refreshed after it.
+ */
+export function useRecordRefund() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RecordRefundInput) =>
+      apiRequest<unknown>(`/api/v1/live-exam-orders/${input.orderId}/refund`, {
+        method: "POST",
+        body: {
+          amount: input.amount,
+          reason: input.reason.trim(),
+          reference: input.reference.trim() || null,
+          revokeAccess: input.revokeAccess,
+        },
+      }),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["staffOps"] }),
+        queryClient.invalidateQueries({ queryKey: ["staffAdmin", "orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["staffHome"] }),
+      ]),
   });
 }
 

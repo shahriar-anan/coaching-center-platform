@@ -10,7 +10,7 @@ const ENTRIES = [
   { label: "MCQ", href: "/mcq" },
   { label: "Written", href: "/written" },
   { label: "Packages", href: "/packages" },
-  { label: "Notices", href: "/notices" },
+  { label: "Notices", href: "/notice-board" },
   { label: "Publications", href: "/publications" },
   { label: "Blog", href: "/blog" },
   { label: "Media", href: "/media" },

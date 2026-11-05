@@ -39,7 +39,8 @@ const landing = {
   statsLabel: "সংখ্যায় সাইমাম ল",
   statsStudents: "শিক্ষার্থী",
   statsMentors: "অভিজ্ঞ মেন্টর",
-  statsDownloads: "অ্যাপ ডাউনলোড",
+  statsApp: "মোবাইল অ্যাপ",
+  statsComingSoon: "শীঘ্রই আসছে",
   statsMaterials: "লার্নিং ম্যাটেরিয়াল",
 
   categoriesTitle: "এক্সাম ক্যাটাগরি",

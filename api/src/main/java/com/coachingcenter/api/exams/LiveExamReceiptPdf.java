@@ -236,7 +236,8 @@ class LiveExamReceiptPdf {
 		boolean discounted = amount != null && listPrice != null && order.listPrice() != null
 				&& order.discountPercent() != null && order.discountPercent() > 0 && listPrice.compareTo(amount) > 0;
 		BigDecimal discount = discounted ? listPrice.subtract(amount) : null;
-		float blockHeight = discounted ? 112 : 94;
+		LiveExamOrderService.RefundView refund = order.refund();
+		float blockHeight = (discounted ? 112 : 94) + (refund == null ? 0 : 18);
 		if (!sheet.fits(blockHeight)) {
 			sheet.newPage();
 		}
@@ -258,15 +259,35 @@ class LiveExamReceiptPdf {
 		sheet.showRight(LABEL_RIGHT, top + 12, BOLD, 11, GREEN, "Paid");
 		sheet.showRight(AMOUNT_RIGHT, top + 12, BOLD, 11, GREEN, money(amount));
 		top += 18;
-		sheet.paidStamp(LEFT + 95, blockTop + 40);
+		if (refund != null) {
+			sheet.showRight(AMOUNT_RIGHT, top + 12, BOLD, 10, RED, refundLine(order.status(), refund));
+			top += 18;
+		}
+		boolean fullRefund = refund != null && "REFUNDED".equals(order.status());
+		sheet.paidStamp(LEFT + 95, blockTop + 40, fullRefund ? "REFUNDED" : "PAID", fullRefund ? RED : GREEN);
 		sheet.y = top + 16;
+	}
+
+	/** The refund line under the totals, for example "Refunded: BDT 15.00 on 05 Nov, 2026" (plan 5.4). */
+	private static String refundLine(String status, LiveExamOrderService.RefundView refund) {
+		String label = "REFUNDED".equals(status) ? "Refunded" : "Partly refunded";
+		return label + ": " + money(refund.amount()) + " on " + DATE.format(refund.at());
+	}
+
+	/** The status word of the payment details: Paid, or Refunded and Partly refunded after a refund (plan 5.4). */
+	private static String statusText(String status) {
+		return switch (status) {
+			case "REFUNDED" -> "Refunded";
+			case "PARTLY_REFUNDED" -> "Partly refunded";
+			default -> "Paid";
+		};
 	}
 
 	/** The payment details: a two-column list of the label and the value. */
 	private static void paymentDetails(Sheet sheet, LiveExamOrderHistoryService.Receipt receipt) throws IOException {
 		LiveExamOrderHistoryService.OwnOrderRow order = receipt.order();
 		List<String[]> rows = new ArrayList<>();
-		rows.add(new String[] { "Status", "Paid" });
+		rows.add(new String[] { "Status", statusText(order.status()) });
 		rows.add(new String[] { "Paid on",
 				order.paidAt() == null ? "-" : DATE_TIME.format(order.paidAt()) + " (Bangladesh time)" });
 		String channel = ascii(order.paymentChannel());
@@ -448,8 +469,8 @@ class LiveExamReceiptPdf {
 			content.drawImage(image, x, PAGE_HEIGHT - top - h, w, h);
 		}
 
-		/** A green outline rounded rectangle with PAID inside, turned about its centre by -12 degrees. */
-		void paidStamp(float centreX, float centreTop) throws IOException {
+		/** An outline rounded rectangle with the word inside (PAID, or REFUNDED), turned about its centre by -12 degrees. */
+		void paidStamp(float centreX, float centreTop, String word, Color color) throws IOException {
 			float cx = centreX;
 			float cy = PAGE_HEIGHT - centreTop;
 			float w = 170f;
@@ -461,15 +482,15 @@ class LiveExamReceiptPdf {
 			content.transform(Matrix.getRotateInstance(Math.toRadians(-12), 0, 0));
 			content.transform(Matrix.getTranslateInstance(-cx, -cy));
 			roundedRect(cx - w / 2, cy - h / 2, w, h, r);
-			content.setStrokingColor(GREEN);
+			content.setStrokingColor(color);
 			content.setLineWidth(2.5f);
 			content.stroke();
-			float size = 34f;
+			float size = word.length() > 4 ? 26f : 34f;
 			content.beginText();
 			content.setFont(BOLD, size);
-			content.setNonStrokingColor(GREEN);
-			content.newLineAtOffset(cx - width(BOLD, size, "PAID") / 2, cy - size * 0.36f);
-			content.showText("PAID");
+			content.setNonStrokingColor(color);
+			content.newLineAtOffset(cx - width(BOLD, size, word) / 2, cy - size * 0.36f);
+			content.showText(word);
 			content.endText();
 			content.restoreGraphicsState();
 		}

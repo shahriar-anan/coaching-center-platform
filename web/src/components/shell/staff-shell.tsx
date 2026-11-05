@@ -20,6 +20,7 @@ import { usePendingReviewCount } from "@/lib/api/exam/staff-reviews";
 import { useStaffAttention } from "@/lib/api/exam/staff-attention";
 import { canModerateReviews } from "@/components/staff/reviews/review-access";
 import { useRole } from "@/lib/auth/guards";
+import { StaffNotificationBell } from "@/components/staff/notifications/staff-notification-bell";
 
 /**
  * The admin surface: a sidebar (240 px, or an 80 px icon rail the person can collapse; the choice is
@@ -115,6 +116,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
                 <LocalePill />
                 <ThemePill />
               </div>
+              <StaffNotificationBell enabled={role !== null && role !== "STUDENT"} />
               <StaffProfileMenu />
             </div>
           </div>

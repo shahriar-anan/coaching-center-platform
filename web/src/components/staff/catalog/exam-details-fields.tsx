@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { useRole } from "@/lib/auth/guards";
+import { staffPayTermsKeys } from "@/lib/api/exam/staff-pay-terms";
 import {
   useAssignExamInstructor,
   useCategoryTree,
@@ -22,6 +24,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/components/ui/cn";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
 import { SettingRow } from "@/components/staff/catalog/setting-row";
+import { ExamPayTerms } from "@/components/staff/catalog/exam-pay-terms";
 import type { SectionFieldsProps } from "@/components/staff/catalog/exam-form-state";
 
 /** The Master Admin's own controls: the popular flag and the exam's instructor. They act at once, not on Save. */
@@ -63,11 +66,18 @@ function MasterControls({ exam }: { exam: StaffExam }) {
 
 /**
  * The exam's teacher, as its own section (`#exam-instructor`). It is set right away, so it is not a staged change and
- * the section says so. An MCQ exam has no teacher and one line says so.
+ * the section says so. An MCQ exam has no teacher and one line says so. A written exam also shows its pay per sheet and
+ * the change history (P18), inside this same section.
  */
 export function ExamInstructorSection({ exam, badge }: { exam: StaffExam; badge?: ReactNode }) {
   const { t } = useLocale();
   const role = useRole();
+  const queryClient = useQueryClient();
+  const written = exam.examType === "WRITTEN";
+  // Assigning or removing the marker adds a line to the change history, so the pay terms are read again.
+  const onMarkerChanged = () => {
+    void queryClient.invalidateQueries({ queryKey: staffPayTermsKeys.exam(exam.id) });
+  };
   return (
     <section id="exam-instructor" className="scroll-mt-24 grid gap-4 rounded-card border border-border bg-card p-5">
       <div className="grid gap-1">
@@ -75,16 +85,25 @@ export function ExamInstructorSection({ exam, badge }: { exam: StaffExam; badge?
         <p className="text-meta text-muted">{t("staffCatalog.examMeta.instructorHint")}</p>
         {badge}
       </div>
+      {written && !exam.instructor ? (
+        <div role="status" className="grid gap-0.5 rounded-control border border-warn/40 bg-warn/10 px-4 py-3">
+          <p className="text-body font-semibold text-warn">{t("staffCatalog.examMeta.noInstructorWarning")}</p>
+          <p className="text-meta text-warn">
+            {t(role.canAssignInstructor ? "staffCatalog.examMeta.noInstructorWarningHint" : "staffCatalog.examMeta.noInstructorWarningInfo")}
+          </p>
+        </div>
+      ) : null}
       {exam.examType === "MCQ" ? (
         <p className="text-meta text-muted">{t("staffCatalog.examMeta.mcqNoInstructor")}</p>
       ) : role.canAssignInstructor ? (
-        <InstructorPicker exam={exam} />
+        <InstructorPicker exam={exam} onChanged={onMarkerChanged} />
       ) : (
         <div className="grid gap-1.5">
-          <p className="text-body">{exam.instructor?.name ?? t("staffCatalog.examMeta.noInstructor")}</p>
+          {exam.instructor ? <p className="text-body">{exam.instructor.name}</p> : null}
           <p className="text-meta text-muted">{t("staffCatalog.examMeta.masterOnlyReason")}</p>
         </div>
       )}
+      {written ? <ExamPayTerms examId={exam.id} /> : null}
     </section>
   );
 }
@@ -92,7 +111,7 @@ export function ExamInstructorSection({ exam, badge }: { exam: StaffExam; badge?
 /**
  * Chooses or clears the exam's instructor. Search by name, email or phone; pick one in the list, then Assign.
  */
-function InstructorPicker({ exam }: { exam: StaffExam }) {
+function InstructorPicker({ exam, onChanged }: { exam: StaffExam; onChanged: () => void }) {
   const { t } = useLocale();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
@@ -108,6 +127,7 @@ function InstructorPicker({ exam }: { exam: StaffExam }) {
     setFailure(null);
     try {
       await action();
+      onChanged();
       toast({ title: t(done), tone: "ok" });
     } catch (e) {
       setFailure(t(catalogErrorKey(e)));

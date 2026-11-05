@@ -339,6 +339,21 @@ html:lang(bn) {
   }
 }
 
+/*
+ * Native form controls (the date and month pickers' calendar icon and their pop-up, select menus) draw from the colour
+ * scheme, not from the theme variables. Without this they stay light in dark mode and the calendar icon is black on a
+ * dark field. Applied to controls only, so nothing else changes.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(input, select, textarea) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] :is(input, select, textarea) {
+  color-scheme: dark;
+}
+
 :root[data-theme="dark"] {
   --bg: #0e1424;
   --card: #172038;

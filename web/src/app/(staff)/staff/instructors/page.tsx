@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -86,6 +87,12 @@ function InstructorList() {
           />
         ) : (
           <div className="flex flex-wrap justify-end gap-2">
+            <Link
+              href={`/staff/pay/${row.id}`}
+              className="inline-flex min-h-11 items-center rounded-control px-3 text-label text-accent underline-offset-4 hover:underline"
+            >
+              {t("staffPay.people.payLink")}
+            </Link>
             <AccountStatusToggle kind="instructors" id={row.id} status={row.status} />
             <DeleteAccountButton kind="instructors" id={row.id} name={row.fullName} />
           </div>

@@ -23,6 +23,7 @@ const order = {
   paidAt: null,
   receiptNo: null,
   receiptEmail: null,
+  refund: null,
 };
 
 describe("payment receipt", () => {

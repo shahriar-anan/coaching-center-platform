@@ -24,6 +24,7 @@ import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.web.PageResponse;
+import com.coachingcenter.api.staffledger.ExamPayTermsService;
 
 import tools.jackson.databind.JsonNode;
 
@@ -40,20 +41,23 @@ public class LiveExamController {
 
 	private final ExamCoverService covers;
 
+	private final ExamPayTermsService payTerms;
+
 	public LiveExamController(LiveExamService exams, LiveExamSittingService sittings, LiveExamRemoval removal,
-			PermissionChecker permissions, ExamCoverService covers) {
+			PermissionChecker permissions, ExamCoverService covers, ExamPayTermsService payTerms) {
 		this.removal = removal;
 		this.exams = exams;
 		this.sittings = sittings;
 		this.permissions = permissions;
 		this.covers = covers;
+		this.payTerms = payTerms;
 	}
 
 	@PostMapping("/api/v1/live-exam-modules/{moduleId}/exams")
 	public ResponseEntity<LiveExamService.ExamView> create(@PathVariable UUID moduleId, @RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
 		requirePricePermission(body);
-		return ResponseEntity.status(HttpStatus.CREATED).body(exams.create(moduleId, body));
+		return ResponseEntity.status(HttpStatus.CREATED).body(payTerms.create(moduleId, body));
 	}
 
 	/** A standalone exam: it sits in a category and in no package until it is added to one (R2). */
@@ -61,7 +65,7 @@ public class LiveExamController {
 	public ResponseEntity<LiveExamService.ExamView> createStandalone(@RequestBody JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
 		requirePricePermission(body);
-		return ResponseEntity.status(HttpStatus.CREATED).body(exams.create(null, body));
+		return ResponseEntity.status(HttpStatus.CREATED).body(payTerms.create(null, body));
 	}
 
 	@GetMapping("/api/v1/live-exam-modules/{moduleId}/exams")

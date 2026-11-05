@@ -30,6 +30,12 @@ public interface LiveExamGrantRepository extends JpaRepository<LiveExamGrant, UU
 
 	boolean existsByOrderId(UUID orderId);
 
+	/** The grants an order wrote that still give access; a refund with access removed takes these back (plan 5.2). */
+	List<LiveExamGrant> findByOrderIdAndRevokedAtIsNull(UUID orderId);
+
+	/** Whether a refund took access away from the order (the grants carry the refund's revoke reason). */
+	boolean existsByOrderIdAndRevokeReason(UUID orderId, String revokeReason);
+
 	boolean existsByScopeAndExamId(String scope, UUID examId);
 
 }

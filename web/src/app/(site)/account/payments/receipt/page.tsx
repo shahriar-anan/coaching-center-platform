@@ -11,6 +11,7 @@ import { RequireStudent } from "@/lib/auth/guards";
 import { useMyOrders } from "@/lib/api/exam/account";
 import { useListParams } from "@/lib/url/list-params";
 import { ReceiptView } from "../_components/receipt-view";
+import { isPaid } from "../_components/payment-model";
 
 export default function ReceiptPage() {
   return (
@@ -45,7 +46,7 @@ function ReceiptRoute() {
       </>
     );
   }
-  const order = query.data?.content.find((row) => row.orderId === params.order && row.status === "PAID");
+  const order = query.data?.content.find((row) => row.orderId === params.order && isPaid(row.status));
   if (!order) {
     return (
       <>

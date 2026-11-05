@@ -13,7 +13,7 @@ export interface PaymentFilters {
 
 export const NO_FILTERS: PaymentFilters = { status: "", scope: "", from: "", to: "", examId: "", moduleId: "" };
 
-const STATUSES: readonly PaymentStatus[] = ["PENDING", "PAID", "FAILED", "CANCELLED"];
+const STATUSES: readonly PaymentStatus[] = ["PENDING", "PAID", "REFUNDED", "PARTLY_REFUNDED", "FAILED", "CANCELLED"];
 const SCOPES: readonly PaymentFilters["scope"][] = ["", "MODULE", "EXAM", "BUNDLE"];
 
 /** A value from the URL, kept only when it is one the filter knows. */
@@ -42,15 +42,24 @@ export function hasFilters(filters: PaymentFilters): boolean {
   return Object.values(filters).some((value) => value !== "");
 }
 
+/** A paid order, refunded or not: it still has its receipt (plan 5.4). */
+export function isPaid(status: PaymentStatus): boolean {
+  return status === "PAID" || status === "REFUNDED" || status === "PARTLY_REFUNDED";
+}
+
 /**
  * What a row's actions are, by its status (plan S4.6): a paid order gets its receipt and the item; a pending order can be
- * paid or cancelled; a failed or cancelled one can be bought again.
+ * paid or cancelled; a failed or cancelled one can be bought again. A refunded order keeps its receipt. Its item stays
+ * open only when the refund left access in place (plan 5.4).
  */
 export type PaymentAction = "downloadPdf" | "printReceipt" | "open" | "continue" | "cancel" | "buyAgain";
 
-export function actionsFor(status: PaymentStatus): PaymentAction[] {
-  if (status === "PAID") return ["downloadPdf", "open"];
-  if (status === "PENDING") return ["continue", "cancel"];
+export function actionsFor(order: Pick<MyOrder, "status" | "refund">): PaymentAction[] {
+  if (order.status === "REFUNDED" || order.status === "PARTLY_REFUNDED") {
+    return order.refund?.accessRevoked ? ["downloadPdf"] : ["downloadPdf", "open"];
+  }
+  if (order.status === "PAID") return ["downloadPdf", "open"];
+  if (order.status === "PENDING") return ["continue", "cancel"];
   return ["buyAgain"];
 }
 
@@ -62,6 +71,8 @@ export function itemHref(order: Pick<MyOrder, "scope" | "moduleId" | "examId">):
 
 /** The public status word, as the page shows it (the translation key). */
 export function statusKey(status: PaymentStatus): string {
+  if (status === "REFUNDED") return "account.payments.statusRefunded";
+  if (status === "PARTLY_REFUNDED") return "account.payments.statusPartlyRefunded";
   return `account.payments.status${status.charAt(0)}${status.slice(1).toLowerCase()}`;
 }
 

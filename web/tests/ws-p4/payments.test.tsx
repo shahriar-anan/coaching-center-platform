@@ -54,10 +54,10 @@ describe("payment filters and actions (Phase 4, S4.6)", () => {
   });
 
   it("gives each status its own actions", () => {
-    expect(actionsFor("PAID")).toEqual(["downloadPdf", "open"]);
-    expect(actionsFor("PENDING")).toEqual(["continue", "cancel"]);
-    expect(actionsFor("FAILED")).toEqual(["buyAgain"]);
-    expect(actionsFor("CANCELLED")).toEqual(["buyAgain"]);
+    expect(actionsFor({ status: "PAID", refund: null })).toEqual(["downloadPdf", "open"]);
+    expect(actionsFor({ status: "PENDING", refund: null })).toEqual(["continue", "cancel"]);
+    expect(actionsFor({ status: "FAILED", refund: null })).toEqual(["buyAgain"]);
+    expect(actionsFor({ status: "CANCELLED", refund: null })).toEqual(["buyAgain"]);
   });
 
   it("links an exam order to the exam and a package or bundle order to the package", () => {

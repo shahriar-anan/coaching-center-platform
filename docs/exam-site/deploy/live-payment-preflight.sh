@@ -8,13 +8,13 @@
 #     ssh exam-kvm "tr -d '\r' | sed '1s/^\xEF\xBB\xBF//' | MODE=live bash -s"
 #
 # MODE    sandbox (staging profile, sandbox store) or live (prod profile, live store). Default sandbox.
-# SITE    student host. Default exam.symamlaw.com.
+# SITE    student host. Default symamlaw.com.
 # STAFF   admin host. Default admin.symamlaw.com.
 # BOX_IP  the address both hosts must resolve to. Default 187.52.115.111.
 set -u
 
 MODE=${MODE:-sandbox}
-SITE=${SITE:-exam.symamlaw.com}
+SITE=${SITE:-symamlaw.com}
 STAFF=${STAFF:-admin.symamlaw.com}
 BOX_IP=${BOX_IP:-187.52.115.111}
 ENV_FILE=/etc/coaching-api.env

@@ -8,7 +8,16 @@ import type { Me, PageResponse } from "@/lib/api/exam/types";
 /** Account and auth mutations for the signed-in student. Keys live in this file. */
 
 /** The public order statuses the API sends (`LiveExamOrderService.publicStatus`). */
-export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
+export type PaymentStatus = "PENDING" | "PAID" | "REFUNDED" | "PARTLY_REFUNDED" | "FAILED" | "CANCELLED";
+
+/** A manual refund recorded by the Master Admin (plan 5.2). No reason and no staff name reach the student. */
+export interface MyRefund {
+  amount: number;
+  /** ISO UTC. */
+  at: string;
+  /** True when the refund took the exam or package away. */
+  accessRevoked: boolean;
+}
 
 /** One row of the student's own payment history: `GET /api/v1/me/live-exam-orders`. */
 export interface MyOrder {
@@ -38,6 +47,8 @@ export interface MyOrder {
   paidAt: string | null;
   /** RCPT-<year>-<6 digits>, set once the order is paid (P4). Null before. */
   receiptNo: string | null;
+  /** Set when the Master Admin recorded a refund. Status reads REFUNDED or PARTLY_REFUNDED then. */
+  refund: MyRefund | null;
 }
 
 /** The list filters (P1). Every field is optional; an empty one is left out of the query. */

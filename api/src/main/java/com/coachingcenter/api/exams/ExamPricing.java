@@ -17,6 +17,9 @@ final class ExamPricing {
 
 	private static final int MAX_DISCOUNT = 99;
 
+	/** The least a payment can be: SSLCommerz refuses less, so a price the student could not pay is not saved. */
+	private static final BigDecimal MINIMUM_PAYABLE = new BigDecimal("10.00");
+
 	private ExamPricing() {
 	}
 
@@ -57,9 +60,10 @@ final class ExamPricing {
 
 	/**
 	 * Rejects a price that no order could carry: a free item with a price or a discount, a price that is not positive, a
-	 * discount outside 1 to 99, or a discount end with no discount.
+	 * discount outside 1 to 99, or a discount end with no discount. A price the student would pay under 10 BDT (after an
+	 * active discount, or the price itself) is refused too; an ended discount does not count.
 	 */
-	static void validate(BigDecimal price, boolean free, Integer discountPercent, Instant discountEndsAt) {
+	static void validate(BigDecimal price, boolean free, Integer discountPercent, Instant discountEndsAt, Instant now) {
 		List<FieldErrorDetail> errors = new ArrayList<>();
 		if (free && (price != null || discountPercent != null)) {
 			errors.add(new FieldErrorDetail("price", "A free exam has no price or discount."));
@@ -72,6 +76,15 @@ final class ExamPricing {
 		}
 		if (discountEndsAt != null && discountPercent == null) {
 			errors.add(new FieldErrorDetail("discountEndsAt", "A discount end needs a discount."));
+		}
+		// Only a price and discount that are valid on their own are checked against the minimum.
+		boolean discountInRange = discountPercent == null || (discountPercent >= 1 && discountPercent <= MAX_DISCOUNT);
+		if (!free && price != null && price.signum() > 0 && discountInRange
+				&& effective(price, discountPercent, discountEndsAt, now).compareTo(MINIMUM_PAYABLE) < 0) {
+			boolean discounted = discountActive(discountPercent, discountEndsAt, now);
+			errors.add(discounted
+					? new FieldErrorDetail("discountPercent", "The price after the discount must be at least 10 BDT.")
+					: new FieldErrorDetail("price", "The price must be at least 10 BDT."));
 		}
 		if (!errors.isEmpty()) {
 			// ApiException carries one details object; the list of field errors is that object (see f-done).

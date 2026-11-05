@@ -27,6 +27,10 @@ import bnStaffResults from "./bn/staffResults";
 import bnStaffAdmin from "./bn/staffAdmin";
 import bnStaffExams from "./bn/staffExams";
 import bnStaffReviews from "./bn/staffReviews";
+import bnStaffNotifications from "./bn/staffNotifications";
+import bnStaffPay from "./bn/staffPay";
+import bnPayoutAccounts from "./bn/payoutAccounts";
+import bnStaffPayOverview from "./bn/staffPayOverview";
 
 import enLegacy from "./en/legacy";
 import enCommon from "./en/common";
@@ -50,6 +54,10 @@ import enStaffResults from "./en/staffResults";
 import enStaffAdmin from "./en/staffAdmin";
 import enStaffExams from "./en/staffExams";
 import enStaffReviews from "./en/staffReviews";
+import enStaffNotifications from "./en/staffNotifications";
+import enStaffPay from "./en/staffPay";
+import enPayoutAccounts from "./en/payoutAccounts";
+import enStaffPayOverview from "./en/staffPayOverview";
 
 export type { MessageTree };
 
@@ -87,6 +95,10 @@ export const bn: MessageTree = merge(bnLegacy as MessageTree, {
   staffAdmin: bnStaffAdmin,
   staffExams: bnStaffExams,
   staffReviews: bnStaffReviews,
+  staffNotifications: bnStaffNotifications,
+  staffPay: bnStaffPay,
+  payoutAccounts: bnPayoutAccounts,
+  staffPayOverview: bnStaffPayOverview,
 });
 
 export const en: MessageTree = merge(enLegacy as MessageTree, {
@@ -111,6 +123,10 @@ export const en: MessageTree = merge(enLegacy as MessageTree, {
   staffAdmin: enStaffAdmin,
   staffExams: enStaffExams,
   staffReviews: enStaffReviews,
+  staffNotifications: enStaffNotifications,
+  staffPay: enStaffPay,
+  payoutAccounts: enPayoutAccounts,
+  staffPayOverview: enStaffPayOverview,
 });
 
 export const catalogs = { bn, en };

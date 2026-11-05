@@ -3,9 +3,11 @@ import {
   ClipboardCheck,
   ClipboardList,
   CreditCard,
+  HandCoins,
   LayoutDashboard,
   Megaphone,
   MessageSquareQuote,
+  Newspaper,
   Package,
   Receipt,
   ScrollText,
@@ -17,6 +19,7 @@ import {
   UserCog,
   UserPlus,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/api/exam/types";
@@ -37,9 +40,12 @@ export type StaffNavKey =
   | "account"
   | "orders"
   | "announcements"
+  | "noticeBoard"
   | "reviews"
   | "retakeRequests"
-  | "systemStatus";
+  | "systemStatus"
+  | "staffPay"
+  | "myPay";
 
 /** The sidebar groups, in the order they show. Group names are in `common.staffNavGroup`. */
 export type StaffNavGroup = "overview" | "catalog" | "exams" | "people" | "money" | "admin";
@@ -136,6 +142,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     icon: Megaphone,
   },
   {
+    key: "noticeBoard",
+    group: "exams",
+    href: "/staff/notice-board",
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    icon: Newspaper,
+  },
+  {
     key: "reviews",
     group: "exams",
     href: "/staff/reviews",
@@ -173,6 +186,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "read" },
     icon: Receipt,
   },
+  {
+    key: "staffPay",
+    group: "money",
+    href: "/staff/pay",
+    access: { MASTER_ADMIN: "full" },
+    icon: HandCoins,
+  },
   { key: "audit", group: "admin", href: "/staff/audit", access: { MASTER_ADMIN: "full" }, icon: ScrollText },
   {
     key: "systemStatus",
@@ -180,6 +200,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/system-status",
     access: { MASTER_ADMIN: "full" },
     icon: Activity,
+  },
+  {
+    key: "myPay",
+    group: "admin",
+    href: "/staff/my-pay",
+    access: { SYSTEM_ADMIN: "full", INSTRUCTOR: "full" },
+    icon: Wallet,
   },
   {
     key: "account",

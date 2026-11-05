@@ -7,10 +7,13 @@ import { Pill, type PillTone } from "@/components/ui/pill";
 import { useLocale } from "@/i18n/locale-context";
 import type { MyOrder, PaymentStatus } from "@/lib/api/exam/account";
 import { formatDateTime, formatMoney, pickTitle } from "@/lib/format";
+import { RefundNotice } from "./refund-notice";
 
 const STATUS_TONE: Record<PaymentStatus, PillTone> = {
   PENDING: "warn",
   PAID: "ok",
+  REFUNDED: "muted",
+  PARTLY_REFUNDED: "muted",
   FAILED: "danger",
   CANCELLED: "muted",
 };
@@ -25,6 +28,8 @@ export function ReceiptView({ order, studentName }: { order: MyOrder; studentNam
   const statusWord = {
     PENDING: t("account.payments.statusPending"),
     PAID: t("account.payments.statusPaid"),
+    REFUNDED: t("account.payments.statusRefunded"),
+    PARTLY_REFUNDED: t("account.payments.statusPartlyRefunded"),
     FAILED: t("account.payments.statusFailed"),
     CANCELLED: t("account.payments.statusCancelled"),
   }[order.status];
@@ -53,6 +58,7 @@ export function ReceiptView({ order, studentName }: { order: MyOrder; studentNam
             </div>
             <Pill tone={STATUS_TONE[order.status]}>{statusWord}</Pill>
           </div>
+          <RefundNotice order={order} />
           <dl className="grid gap-3">
             {rows.map(([label, value]) => (
               <div key={label} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">

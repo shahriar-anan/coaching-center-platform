@@ -21,6 +21,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
 	boolean existsByRoleAndDeletedAtIsNull(String role);
 
+	/** Live accounts of a role created at or after an instant: the students the landing page adds to its base. */
+	long countByRoleAndDeletedAtIsNullAndCreatedAtGreaterThanEqual(String role, java.time.Instant since);
+
+	/** Live accounts of a role in a status: the activated instructors the landing page adds to its base. */
+	long countByRoleAndStatusAndDeletedAtIsNull(String role, String status);
+
 	Page<User> findByRoleAndDeletedAtIsNull(String role, Pageable pageable);
 
 	@Query(value = """

@@ -189,3 +189,57 @@ Checks from the box: `https://symamlaw.com/` and `/login` 200; HTTP and `www` re
 Not checked: a Google sign-in and a password sign-in in a real browser on the new host, and a sandbox payment return. Everyone signs in again once, because cookies belonged to `exam.symamlaw.com`.
 
 Rollback: restore the env and unit backups, `daemon-reload`, put `/opt/coaching-web.before-20261103-184542` back, restore `exam.symamlaw.com.before-apex-20261103-184141`, `nginx -t`, reload, restart both services.
+
+## Website update, 4 November 2026 (Dhaka): tab icon, hero line removed
+
+Commit `29a1002`. Web only. Build `Hs49y_g8GKzNxnpAxlPim`, package SHA-256 `3bc69f36a17f9715cb2264eab5487abe52e6ac70afb02afd06267822b47138f4`, swapped in at 18:55 UTC on 3 November; previous release `/opt/coaching-web.before-20261103-185504`. The tab icon is the logo's scales-and-book mark; the 765+ registered-students line under the hero's sign-up button is gone. Checked from the box: the page links the new favicon, icon and apple icon, and the home page no longer contains 765. Tests not run.
+
+## Unfinished: old-site links and Google Search (deferred by Shahriar, 4 November 2026)
+
+Google and old links still point at the old site's paths, which 404 on the new site. Fix later with permanent redirects to the existing pages, not new pages.
+
+| Old path | Status now | New page |
+|---|---|---|
+| `/about-us` (confirmed in the Internet Archive) | 404 | `/about` |
+| `/registration`, `/our-packages`, `/notice`, `/contact-us` (guessed, to confirm with the links from Google) | 404 | `/register`, `/packages`, `/notices`, `/contact` |
+
+Also open:
+- `https://symamlaw.com/courses` returns 200. It belongs to the unlinked legacy admin group; check what a visitor sees and close it if exposed.
+- Google Search still shows the old site's pages and icon. After the redirects, add the site to Google Search Console and submit a sitemap.
+- `certbot renew --dry-run` fails because the box cannot reach Let's Encrypt's staging server (production is reachable). Re-run before the first renewal in early January 2027.
+
+## Admin host moved to admin.symamlaw.com, 5 November 2026 (Dhaka)
+
+Decision in `decisions.md`, "Admin host (decided 2026-11-05)". Web rebuild of commit `18ec9ec`; its only code-side difference from the live `29a1002` is the staff host (the commit changes docs and the env template). Build `rD7DwEMb6xHVcx5Cu7aMm`, package SHA-256 `c8379ce0c25beba5f2622504eacc8e077e44c2e659467e7c408058df9e5cbad4`, swapped in at 20:46 UTC on 4 November; previous release `/opt/coaching-web.before-20261104-204648`. API jar and database unchanged; the API was restarted for the env change (26 s, no open sittings).
+
+- **DNS (Namecheap, by Shahriar):** A record `admin` to `187.52.115.111`. `admin.exam` kept. Note: the PC's network served a cached "name does not exist" for this record long after Namecheap had it; check DNS from the box (`dig @1.1.1.1`), not from the PC.
+- **Nginx:** new `sites-available/admin.symamlaw.com` (the API and website proxy, as before) and a Certbot certificate for `admin.symamlaw.com` (separate certificate, `--redirect`). `admin.exam.symamlaw.com` keeps its file and certificate, but both its blocks now `return 308 https://admin.symamlaw.com$request_uri`. The repo's `deploy/nginx/admin.symamlaw.com` puts both names in one file and one certificate, for a fresh install; the box keeps them apart so no certificate was reissued.
+- **Env:** `WEB_ORIGIN=https://symamlaw.com,https://admin.symamlaw.com`. No other key changed. Unit `STAFF_URL=https://admin.symamlaw.com`.
+- **Backups (stamp `20261104-202419`):** `/var/backups/coaching/nginx-letsencrypt-before-admin-host-20261104-202419.tgz`, `/etc/systemd/system/coaching-web.service.before-admin-host-20261104-202419`, `/etc/coaching-api.env.before-admin-host-20261104-202419`, and `/var/backups/coaching/admin.exam.symamlaw.com.before-redirect-*`.
+
+Checks from the box: `https://admin.symamlaw.com/login` 200, `/` goes to `/staff`, `/register` goes to `https://symamlaw.com/register`; `https://symamlaw.com/staff` goes to `https://admin.symamlaw.com/staff`; HTTP and HTTPS on `admin.exam` 308 to the same path on the new host; the CORS preflight from `https://admin.symamlaw.com` is allowed; the client chunks name `admin.symamlaw.com` and not `admin.exam`. Tests not run.
+
+Shahriar signed in on `https://admin.symamlaw.com` in a browser and stayed signed in after a reload (5 November). Not checked: a staff mail link. Staff sign in again once, because cookies belonged to `admin.exam.symamlaw.com`.
+
+Sandbox payments on the new hosts (Shahriar, 02:50 and 02:52 Dhaka, 5 November): two written exams, Muslim Law and Personal Law, 201 BDT each, orders `70413e032d2d4f5aa4e4e9138d39f6` and `1c9d241ced0943ee96affe594db823`. Each: session accepted, validation accepted, payment granted on the IPN (`POST …/ipn` 200 from SSLCommerz), then the browser return found it already granted. Risk level 0. Both grants are on the right exam. An older open order (`f6719f2fcf7c4db88586b8c5fc753d`, 00:40) was never paid; the recheck job finds nothing for it.
+
+Afterwards the two test orders and their two grants were deleted (Shahriar's go), so the live Payments page starts without sandbox income. Dump first: `/var/backups/coaching/coaching-before-sandbox-test-cleanup-20261104-205917.dump`. One transaction, refused unless exactly those two orders of `shahriaranany6@gmail.com` and two grants matched. Left: the one `INITIATED` order of another student.
+
+The 3 November "remove every account except the Master Admin" step is not repeated: the live database has no account older than 3 November besides the Master Admin. On 5 November it held the Master Admin, one System Admin (3 Nov) and six students who signed up from 3 November on, kept as real users.
+
+Rollback (admin host): restore the unit and env backups, `daemon-reload`, restart `coaching-api`, put `/opt/coaching-web.before-20261104-204648` back and restart `coaching-web`, restore the `admin.exam` file from its backup, remove the `admin.symamlaw.com` link, `nginx -t`, reload. The env backup predates the live switch, so restore it only together with a return to sandbox.
+
+## Live SSLCommerz store, 5 November 2026 (Dhaka)
+
+At 21:05 UTC on 4 November (03:05 Dhaka) Shahriar edited `/etc/coaching-api.env`: `SPRING_PROFILES_ACTIVE=prod`, `SSLCZ_BASE_URL=https://securepay.sslcommerz.com`, and the live store id and password. `SSLCZ_CALLBACK_BASE_URL=https://symamlaw.com` unchanged; the old sandbox lines are kept as comments. Copy before the edit: `/etc/coaching-api.env.sandbox`. No secret value was printed or written anywhere else. Merchant panel findings: `reports/sslcommerz-status.md`.
+
+The API restarted on `prod` in 16 s: 68 migrations validated, none applied, no data touched, Swagger off (404), `checkoutEnabled` true. No sitting was open. The preflight with `MODE=live SITE=symamlaw.com STAFF=admin.symamlaw.com` passed all 21 checks (its `SITE` default is now `symamlaw.com`).
+
+From here a purchase on the site takes real money.
+
+Live test (Shahriar, 5 November, Dhaka), on a test written exam "Payment EN" made for it:
+- 03:15, 8.00 BDT order: SSLCommerz refused the session (503 to the browser, "payments aren't available"). The exam's price was 10 BDT with a 20% discount, below SSLCommerz's 10 BDT minimum. The order was cancelled on the next Buy. Follow-up: refuse a price that ends under 10 BDT when the exam is saved, or show a clear message.
+- Order `6775cda08192479782376e5e038135`, 15.00 BDT, bKash. A wrong PIN failed on the bKash page; SSLCommerz held the transaction as `PROCESSING` and nothing was granted. Paid again on the same order with the right PIN at 03:23: validation accepted, payment granted, `POST …/ipn` 200 from SSLCommerz (`103.26.139.81`), browser return found it already granted, receipt PDF opened. Channel `BKASH-BKash`, risk 0.
+- Refund from the merchant panel and unpublishing the test exam: see below.
+
+Rollback to sandbox: copy `/etc/coaching-api.env.sandbox` back over `/etc/coaching-api.env` and restart `coaching-api`.

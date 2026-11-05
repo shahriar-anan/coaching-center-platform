@@ -27,7 +27,7 @@ export function useSiteNav(): SiteNavItem[] {
       ],
     },
     { label: t("landing.navPackages"), href: "/packages" },
-    { label: t("landing.navNotices"), href: "/notices" },
+    { label: t("landing.navNotices"), href: "/notice-board" },
     { label: t("landing.navPublications"), href: "/publications" },
     { label: t("landing.navBlog"), href: "/blog" },
     { label: t("landing.navMedia"), href: "/media" },

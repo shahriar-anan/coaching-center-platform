@@ -106,6 +106,8 @@ public class AuditRecorder {
 	public static final String LIVE_EXAM_INSTRUCTOR_UNASSIGN = "LIVE_EXAM_INSTRUCTOR_UNASSIGN";
 
 	public static final String LIVE_EXAM_INSTRUCTOR_ASSIGN = "LIVE_EXAM_INSTRUCTOR_ASSIGN";
+	/** The exam's own pay per sheet was set, changed or cleared (staff pay plan, phase 8). The row holds the exam id only. */
+	public static final String LIVE_EXAM_PAY_TERMS_SET = "LIVE_EXAM_PAY_TERMS_SET";
 
 	public static final String LIVE_EXAM_REVISION_PUBLISH = "LIVE_EXAM_REVISION_PUBLISH";
 
@@ -143,6 +145,8 @@ public class AuditRecorder {
 
 	public static final String ORDER_REJECTED = "ORDER_REJECTED";
 
+	public static final String LIVE_EXAM_ORDER_REFUND = "LIVE_EXAM_ORDER_REFUND";
+
 	public static final String LIVE_EXAM_ORDER_ENTITY = "LIVE_EXAM_ORDER";
 
 	public static final String ANNOUNCEMENT_SENT = "ANNOUNCEMENT_SENT";
@@ -162,6 +166,46 @@ public class AuditRecorder {
 	public static final String LIVE_EXAM_REVIEW_UNFEATURE = "LIVE_EXAM_REVIEW_UNFEATURE";
 
 	public static final String LIVE_EXAM_REVIEW_ENTITY = "LIVE_EXAM_REVIEW";
+
+	public static final String SITE_NOTICE_CREATE = "SITE_NOTICE_CREATE";
+
+	public static final String SITE_NOTICE_UPDATE = "SITE_NOTICE_UPDATE";
+
+	public static final String SITE_NOTICE_PUBLISH = "SITE_NOTICE_PUBLISH";
+
+	public static final String SITE_NOTICE_UNPUBLISH = "SITE_NOTICE_UNPUBLISH";
+
+	public static final String SITE_NOTICE_DELETE = "SITE_NOTICE_DELETE";
+
+	public static final String SITE_NOTICE_ENTITY = "SITE_NOTICE";
+
+	/** Staff pay ledger (staff pay plan, phase 3). The audit row holds the action and the ledger id only, never an account. */
+	public static final String STAFF_PAYMENT_RECORD = "STAFF_PAYMENT_RECORD";
+
+	public static final String STAFF_ADJUSTMENT_RECORD = "STAFF_ADJUSTMENT_RECORD";
+
+	public static final String STAFF_LEDGER_VOID = "STAFF_LEDGER_VOID";
+
+	public static final String STAFF_PAY_SETTINGS_UPDATE = "STAFF_PAY_SETTINGS_UPDATE";
+
+	public static final String STAFF_PAY_DEFAULTS_UPDATE = "STAFF_PAY_DEFAULTS_UPDATE";
+
+	public static final String STAFF_LEDGER_ENTITY = "STAFF_LEDGER";
+
+	public static final String STAFF_PAY_SETTINGS_ENTITY = "STAFF_PAY_SETTINGS";
+
+	public static final String STAFF_PAY_DEFAULTS_ENTITY = "STAFF_PAY_DEFAULTS";
+
+	public static final String PAYOUT_ACCOUNT_ADDED = "PAYOUT_ACCOUNT_ADDED";
+
+	public static final String PAYOUT_ACCOUNT_UPDATED = "PAYOUT_ACCOUNT_UPDATED";
+
+	public static final String PAYOUT_ACCOUNT_REMOVED = "PAYOUT_ACCOUNT_REMOVED";
+
+	public static final String PAYOUT_ACCOUNT_PREFERRED = "PAYOUT_ACCOUNT_PREFERRED";
+
+	/** The entity of a payout account audit row. The row holds the account's id only, never its numbers. */
+	public static final String PAYOUT_ACCOUNT_ENTITY = "STAFF_PAYOUT_ACCOUNT";
 
 	private final AuditLogRepository auditLogs;
 

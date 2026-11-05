@@ -9,6 +9,7 @@ const staffAdmin = {
     notFound: "Not found. Reload the page.",
     grantAlreadyActive: "This student already has access to this module or exam.",
     orderNotPending: "This payment has already changed. The list is reloading.",
+    orderNotRefundable: "This payment is not paid or already has a refund recorded. The list is reloading.",
     accountHasPaidOrders:
       "This student has a payment or access, so they cannot be deleted. Suspend the account instead.",
     accountHasMarkedWork:

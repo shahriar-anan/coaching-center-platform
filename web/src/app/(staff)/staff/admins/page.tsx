@@ -70,6 +70,7 @@ function AdminList() {
         <RowMenu
           label={t("staffPeople.admins.rowMenu.label", { name: row.fullName })}
           items={[
+            { label: t("staffPay.people.payLink"), href: `/staff/pay/${row.id}` },
             row.status === "PENDING_ACTIVATION"
               ? {
                   label: t("staffPeople.admins.reissue"),

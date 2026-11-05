@@ -49,7 +49,7 @@ describe("staff navigation by role", () => {
   it("an instructor sees only what they may open, and no create action", () => {
     const keys = keysFor("INSTRUCTOR");
     // The Packages item is gone for a teacher: the exams they teach are reached from Exams.
-    expect(keys).toEqual(["dashboard", "exams", "participation", "submissions", "reviews", "account"]);
+    expect(keys).toEqual(["dashboard", "exams", "participation", "submissions", "reviews", "myPay", "account"]);
     expect(childKeysFor("INSTRUCTOR", "exams")).toEqual(["examsAll"]);
   });
 
@@ -65,9 +65,9 @@ describe("staff navigation by role", () => {
     expect(staffNavFor(undefined)).toEqual([]);
   });
 
-  it("the reviews item sits in the exams group right after announcements, and reads as read-only for a teacher", () => {
+  it("the reviews item sits in the exams group after announcements and the notice board, and reads as read-only for a teacher", () => {
     const exams = staffNavFor("MASTER_ADMIN").filter((item) => item.group === "exams").map((item) => item.key);
-    expect(exams).toEqual(["participation", "submissions", "announcements", "reviews", "retakeRequests"]);
+    expect(exams).toEqual(["participation", "submissions", "announcements", "noticeBoard", "reviews", "retakeRequests"]);
     const reviews = STAFF_NAV.find((item) => item.key === "reviews");
     expect(reviews?.access).toEqual({ MASTER_ADMIN: "full", SYSTEM_ADMIN: "full", INSTRUCTOR: "read" });
     expect(keysFor("STUDENT")).not.toContain("reviews");

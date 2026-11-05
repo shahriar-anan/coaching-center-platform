@@ -27,6 +27,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { ModuleStudentPreview } from "@/components/staff/catalog/module-student-preview";
 import { DateTimeInput } from "@/components/ui/date-time-input";
+import { priceTooLow } from "@/components/staff/catalog/exam-form-state";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { RichTextTopics } from "@/components/staff/catalog/rich-text-topics";
@@ -227,6 +228,15 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     if (form.discountEndsAt && form.discountEndsAt !== baseline.discountEndsAt && Date.parse(form.discountEndsAt) < Date.now()) {
       next.discountEndsAt = t("staffCatalog.moduleForm.discountEndPast");
     }
+    // The price a student pays must be at least 10 BDT (SSLCommerz refuses less). Only the Master Admin sets the price.
+    if (canSetPrice && price.ok && price.value !== null && discount.ok && !next.price && !next.discountPercent) {
+      const low = priceTooLow(price.value, discount.value, form.discountEndsAt);
+      if (low === "price") {
+        next.price = t("staffCatalog.moduleForm.priceMinimum");
+      } else if (low === "discountPercent") {
+        next.discountPercent = t("staffCatalog.moduleForm.priceMinimumDiscounted");
+      }
+    }
     setErrors(next);
     if (Object.keys(next).length > 0 || !price.ok || !discount.ok) {
       return null;
@@ -242,7 +252,8 @@ function DetailsBody({ module }: { module?: StaffModule }) {
     if (canSetPrice) {
       body.price = price.value;
       body.discountPercent = discount.value;
-      body.discountEndsAt = discount.value === null ? null : form.discountEndsAt;
+      // A cleared end is "" in the form; it is sent as null, which the API reads as no end.
+      body.discountEndsAt = discount.value === null ? null : form.discountEndsAt || null;
     }
     return body;
   }
@@ -455,6 +466,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
                       disabled={form.discountPercent.trim() === ""}
                       dateOnly
                       futureOnly
+                      clearable
                     />
                   </Field>
                   {saveRow}

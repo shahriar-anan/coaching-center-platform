@@ -10,6 +10,7 @@ import { EmailCard, PasswordForm, PhoneCard } from "@/components/staff/ops/accou
 import { ALL_STAFF, RequireStaff, useRole } from "@/lib/auth/guards";
 import { useSession } from "@/lib/auth/session-context";
 import { useLocale } from "@/i18n/locale-context";
+import { PayoutAccountsSection } from "@/components/staff/payout/payout-accounts-section";
 
 export default function StaffAccountPage() {
   return (
@@ -26,6 +27,8 @@ function Account() {
   const { session, refreshMe, logout } = useSession();
   const [confirmOut, setConfirmOut] = useState(false);
   const { role } = useRole();
+  // Payout accounts are for System Admins and instructors only; the Master Admin is not paid through them.
+  const hasPayoutAccounts = role === "SYSTEM_ADMIN" || role === "INSTRUCTOR";
 
   if (session.status !== "authenticated") {
     return null;
@@ -55,6 +58,7 @@ function Account() {
         <EmailCard email={user.email} verifiedAt={user.emailVerifiedAt} onVerified={refreshMe} />
       ) : null}
       <PhoneCard phone={user.phone} onSaved={refreshMe} />
+      {hasPayoutAccounts ? <PayoutAccountsSection /> : null}
       <PasswordForm />
 
       <Card>

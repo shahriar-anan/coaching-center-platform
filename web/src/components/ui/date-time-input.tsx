@@ -199,6 +199,7 @@ export function DateTimeInput({
   className,
   dateOnly,
   futureOnly,
+  clearable,
 }: {
   value: string | null;
   onChange: (iso: string | null) => void;
@@ -212,6 +213,8 @@ export function DateTimeInput({
   dateOnly?: boolean;
   /** Greys out the days before today in the calendar. The form still checks the value, because a date can be typed. */
   futureOnly?: boolean;
+  /** Shows a Clear button beside the date while it has a value. Clearing sends `null`, the same as the panel's Clear. */
+  clearable?: boolean;
 }) {
   const { t, locale } = useLocale();
   const { formatDateTime } = useFormat();
@@ -349,7 +352,7 @@ export function DateTimeInput({
     <div ref={wrapRef} className={cn("relative grid gap-2", className)}>
       <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
         {/* The calendar is the date field's own picker, so its button sits beside the typed date. */}
-        <div className="flex items-end gap-2 sm:w-56">
+        <div className={cn("flex items-end gap-2", clearable ? "sm:w-80" : "sm:w-56")}>
           <label className="grid min-w-0 flex-1 gap-1 text-meta text-muted">
             <span>{t("common.dateTime.date")}</span>
             <input
@@ -380,6 +383,16 @@ export function DateTimeInput({
           >
             <CalendarDays aria-hidden="true" className="size-5" />
           </button>
+          {clearable && !isEmpty(draft) ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => update(EMPTY)}
+              className="min-h-11 shrink-0 rounded-control border border-border-control bg-field px-4 text-body font-medium text-text transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {t("common.dateTime.clear")}
+            </button>
+          ) : null}
         </div>
         {dateOnly ? null : (
         <>

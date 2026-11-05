@@ -84,7 +84,7 @@ Shahriar decided on 5 November 2026 that the exam admin moves from `admin.exam.s
 - `WEB_ORIGIN` keeps the student host first and the admin host second. The API's mail links use the second entry for staff.
 - The website build bakes `NEXT_PUBLIC_STAFF_URL` in, so the admin host needs a rebuild and a redeploy. Setting `STAFF_URL` on the unit alone is not enough.
 
-Repo changes: `web/.env.example`, `web/scripts/release-build.sh`, `docs/exam-site/deploy/live-payment-preflight.sh`, `docs/exam-site/deploy/nginx/admin.symamlaw.com` (replaces the `admin.exam` file), and the plans `live-domain-and-sslcommerz.md` and `domain-cutover-google.md`. Live steps (DNS, Certbot, unit, env, rebuild) are not done yet.
+Repo changes: `web/.env.example`, `web/scripts/release-build.sh`, `docs/exam-site/deploy/live-payment-preflight.sh`, `docs/exam-site/deploy/nginx/admin.symamlaw.com` (replaces the `admin.exam` file), and the plans `live-domain-and-sslcommerz.md` and `domain-cutover-google.md`. Live on 5 November 2026 (Dhaka); see "Admin host moved to admin.symamlaw.com" in `reports/client-review-deploy.md`.
 
 ## Server migration
 

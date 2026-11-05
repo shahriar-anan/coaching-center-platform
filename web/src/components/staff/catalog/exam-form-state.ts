@@ -91,6 +91,30 @@ export type ExamFormContext = {
 
 const WHOLE = /^\d+$/;
 
+/** The least a student can pay: SSLCommerz refuses a payment under 10 BDT, so the API refuses a price below it. */
+export const MINIMUM_PAYABLE_BDT = 10;
+
+/**
+ * The field a price is too low on, or null. The price after a discount is checked while the discount runs (no end, or an
+ * end still ahead at `now`); otherwise the price itself. Whole paise, rounded half-up as the API does (ExamPricing).
+ * Call it only with a price above zero and a discount from 1 to 99, or none.
+ */
+export function priceTooLow(
+  price: number,
+  discountPercent: number | null,
+  discountEndsAt: string | null,
+  now: number = Date.now(),
+): "price" | "discountPercent" | null {
+  const paise = Math.round(price * 100);
+  const discounted =
+    discountPercent !== null && (!discountEndsAt || now < Date.parse(discountEndsAt));
+  const payable = discounted && discountPercent !== null ? Math.round((paise * (100 - discountPercent)) / 100) : paise;
+  if (payable >= MINIMUM_PAYABLE_BDT * 100) {
+    return null;
+  }
+  return discounted ? "discountPercent" : "price";
+}
+
 function parseNumber(value: string): number | null {
   const trimmed = value.trim();
   if (trimmed === "") {
@@ -197,6 +221,17 @@ export function examFormErrors(
     if (form.discountEndsAt && form.discountEndsAt !== saved?.discountEndsAt && Date.parse(form.discountEndsAt) < Date.now()) {
       errors.discountEndsAt = "staffCatalog.examMeta.discountEndPast";
     }
+    // The price a student pays must be at least 10 BDT. Checked only when the price and discount above are valid.
+    const price = form.free ? null : parseNumber(form.price);
+    if (price !== null && !errors.price && !errors.discountPercent) {
+      const discount = form.discountPercent.trim() === "" ? null : Number(form.discountPercent);
+      const low = priceTooLow(price, discount, form.discountEndsAt);
+      if (low === "price") {
+        errors.price = "staffCatalog.examMeta.priceMinimum";
+      } else if (low === "discountPercent") {
+        errors.discountPercent = "staffCatalog.examMeta.priceMinimumDiscounted";
+      }
+    }
     if (form.accessDays.trim() !== "") {
       const days = Number(form.accessDays);
       if (!WHOLE.test(form.accessDays.trim()) || days < 1) {
@@ -248,7 +283,8 @@ export function examBodyFor(form: ExamFormState, section: ExamSection, context: 
     free: form.free,
     price: form.free || form.price.trim() === "" ? null : Number(form.price),
     discountPercent: discount,
-    discountEndsAt: discount === null ? null : form.discountEndsAt,
+    // A cleared end is "" in the form; it is sent as null, which the API reads as no end.
+    discountEndsAt: discount === null ? null : form.discountEndsAt || null,
     accessDays: form.free || form.accessDays.trim() === "" ? null : Number(form.accessDays),
   };
 }
