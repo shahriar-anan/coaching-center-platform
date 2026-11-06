@@ -20,6 +20,8 @@ import com.coachingcenter.api.common.mail.MailRecipient;
 import com.coachingcenter.api.common.error.MasterAdminProtectedException;
 import com.coachingcenter.api.users.AdminProfile;
 import com.coachingcenter.api.users.AdminProfileRepository;
+import com.coachingcenter.api.users.StudentPhotoRepository;
+import com.coachingcenter.api.users.StudentPhotoService;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
 import com.coachingcenter.api.users.User;
@@ -68,12 +70,14 @@ public class AuthService {
 
 	private final AuditRecorder audit;
 
+	private final StudentPhotoRepository photos;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public AuthService(UserRepository users, StudentProfileRepository profiles, AdminProfileRepository adminProfiles,
 			RefreshTokenRepository refreshTokens, OneTimeCodeRepository codes, PasswordEncoder passwords,
 			SecretHasher hasher, JwtService jwt, EmailSender email, LoginLockout lockout, AppProperties properties,
-			RefreshTokenRevocation revocations, AuditRecorder audit) {
+			RefreshTokenRevocation revocations, AuditRecorder audit, StudentPhotoRepository photos) {
 		this.users = users;
 		this.profiles = profiles;
 		this.adminProfiles = adminProfiles;
@@ -87,6 +91,7 @@ public class AuthService {
 		this.properties = properties;
 		this.revocations = revocations;
 		this.audit = audit;
+		this.photos = photos;
 	}
 
 	@Transactional
@@ -370,10 +375,14 @@ public class AuthService {
 		// Admins, instructors and the Master Admin keep their name in the admin profile, not the student one.
 		String fullName = profile != null ? profile.getFullName()
 				: adminProfiles.findById(userId).map(AdminProfile::getFullName).orElse(null);
+		// Only a student has a picture; for anyone else the URL stays null even if an old row exists.
+		String photoUrl = Role.STUDENT.name().equals(user.getRole())
+				? photos.findById(userId).map(StudentPhotoService::photoPath).orElse(null)
+				: null;
 		return new MeView(user.getId(), user.getPhone(), user.getEmail(), user.getEmailVerifiedAt(), user.getRole(),
 				user.getStatus(), fullName,
 				profile == null ? null : profile.getStudentCode(),
-				user.getPhone() == null || user.getPhone().isBlank());
+				user.getPhone() == null || user.getPhone().isBlank(), photoUrl);
 	}
 
 	private IssuedTokens issueTokens(User user, ClientType clientType, String ip, String userAgent, UUID familyId) {
@@ -516,8 +525,9 @@ public class AuthService {
 	public record IssuedTokens(String accessToken, int expiresInSeconds, String refreshToken, UUID refreshTokenId) {
 	}
 
+	/** photoUrl is the student's own picture path with a version, or null (no picture, or not a student). */
 	public record MeView(UUID id, String phone, String email, Instant emailVerifiedAt, String role, String status,
-			String fullName, String studentCode, boolean phoneRequired) {
+			String fullName, String studentCode, boolean phoneRequired, String photoUrl) {
 	}
 
 }
