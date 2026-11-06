@@ -354,7 +354,10 @@ html:lang(bn) {
   color-scheme: dark;
 }
 
-:root[data-theme="dark"] {
+/* The student shell is its own [data-surface="site"] element and sets the light tokens on itself, so the dark tokens must
+   also target it, or the shell stays light while the root is dark. */
+:root[data-theme="dark"],
+:root[data-theme="dark"] [data-surface="site"] {
   --bg: #0e1424;
   --card: #172038;
   --text: #eef0f6;

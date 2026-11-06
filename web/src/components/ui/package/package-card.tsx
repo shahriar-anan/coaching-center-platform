@@ -3,12 +3,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useLocale } from "@/i18n/locale-context";
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
+import type { PriceView } from "@/lib/api/exam/types";
 import { PackageCover } from "@/components/ui/package/package-cover";
+import { PriceLine } from "@/components/student/catalog/price-line";
+import { priceLabel, pricingOf } from "@/components/student/catalog/price-view";
 
 /**
  * A package in a grid: a 16:9 cover, the title and summary (each at most two lines), and one
- * meta row with the exam count and the price. Long text is clamped, never pushed out of the card.
+ * meta row with the exam count and the price. The price is the same line the detail page shows, so a
+ * discounted package carries its discount chip, struck list price and end date. Long text is clamped,
+ * never pushed out of the card.
  */
 export function PackageCard({
   href,
@@ -18,6 +23,7 @@ export function PackageCard({
   summary,
   examCount,
   price,
+  pricing,
   footer,
 }: {
   href: string;
@@ -27,10 +33,11 @@ export function PackageCard({
   summary?: string | null;
   examCount: number;
   price: number | null;
+  /** The package's `pricing` object, which carries the discount. Falls back to the bare `price` when absent. */
+  pricing?: PriceView | null;
   footer?: ReactNode;
 }) {
   const { t, locale } = useLocale();
-  const priceText = formatMoney(price, locale);
   return (
     <Link
       href={href}
@@ -45,8 +52,8 @@ export function PackageCard({
           <span className="min-w-0 truncate tabular-nums text-muted">
             {t("common.purchase.shared.examCount", { count: formatNumber(examCount, locale) })}
           </span>
-          <span className="shrink-0 text-label font-bold tabular-nums text-text-accent">
-            {priceText ?? t("common.purchase.shared.noPrice")}
+          <span className="shrink-0 text-end">
+            <PriceLine label={priceLabel(pricingOf(pricing, price))} endOnOwnLine />
           </span>
         </div>
         {footer ? <div>{footer}</div> : null}

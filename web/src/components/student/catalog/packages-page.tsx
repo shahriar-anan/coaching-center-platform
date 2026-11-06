@@ -20,7 +20,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { chargedAmount, pricingOf } from "./price-view";
 import { firstLine, modulePath, typeDoor, type Door } from "./catalog-helpers";
 import { TypeFilter } from "./type-filter";
 import { flattenCategories, parsePackageFilter, withPackageFilter } from "./packages-filter";
@@ -49,7 +48,8 @@ function PackageItem({ module, examType }: { module: PublicModule; examType: Exa
       title={pickTitle(module, locale)}
       summary={summary || null}
       examCount={mcq + written}
-      price={chargedAmount(pricingOf(module.pricing, module.price), module.price)}
+      price={module.price}
+      pricing={module.pricing}
     />
   );
 }

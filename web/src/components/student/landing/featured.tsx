@@ -50,6 +50,7 @@ export function Featured() {
                 summary={summary || null}
                 examCount={examCount}
                 price={card.module.price ?? null}
+                pricing={card.module.pricing}
               />
             </li>
           );

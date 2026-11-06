@@ -55,7 +55,7 @@ export function NoticeBoardDetail({ id }: { id: string }) {
       />
       <p className="text-meta text-muted">{t("notices.board.publishedOn", { date: formatDate(data.publishedAt) })}</p>
       <div className="whitespace-pre-line text-body text-text">{noticeBody(data, locale)}</div>
-      {data.photos && data.photos.length > 0 ? <NoticePhotos title={heading} photos={data.photos} /> : null}
+      {data.photos && data.photos.length > 0 ? <NoticePhotos title={heading} photos={data.photos} size="page" /> : null}
       {data.pdf ? (
         <PdfAttachmentCard
           url={data.pdf.url}
