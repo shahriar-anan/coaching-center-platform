@@ -89,6 +89,11 @@ public class AuditRecorder {
 
 	public static final String LIVE_EXAM_MODULE_ENTITY = "LIVE_EXAM_MODULE";
 
+	/** A package's routine PDF was uploaded or replaced (notice media plan, F3). Entity: LIVE_EXAM_MODULE. */
+	public static final String MODULE_ROUTINE_UPLOAD = "MODULE_ROUTINE_UPLOAD";
+
+	public static final String MODULE_ROUTINE_REMOVE = "MODULE_ROUTINE_REMOVE";
+
 	public static final String LIVE_EXAM_DELETE = "LIVE_EXAM_DELETE";
 
 	public static final String LIVE_EXAM_ARCHIVE = "LIVE_EXAM_ARCHIVE";
@@ -178,6 +183,13 @@ public class AuditRecorder {
 	public static final String SITE_NOTICE_DELETE = "SITE_NOTICE_DELETE";
 
 	public static final String SITE_NOTICE_ENTITY = "SITE_NOTICE";
+
+	/** A photo or the PDF was added to a public notice (notice media plan, F1). The row holds the notice id only. */
+	public static final String SITE_NOTICE_FILE_ADD = "SITE_NOTICE_FILE_ADD";
+
+	public static final String SITE_NOTICE_FILE_REMOVE = "SITE_NOTICE_FILE_REMOVE";
+
+	public static final String SITE_NOTICE_FILE_REORDER = "SITE_NOTICE_FILE_REORDER";
 
 	/** Staff pay ledger (staff pay plan, phase 3). The audit row holds the action and the ledger id only, never an account. */
 	public static final String STAFF_PAYMENT_RECORD = "STAFF_PAYMENT_RECORD";
