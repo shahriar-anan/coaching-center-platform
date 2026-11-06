@@ -6,6 +6,7 @@ import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { apiBlob } from "@/lib/api/client";
+import { apiUrl } from "@/lib/config";
 import { useLocale, type Locale } from "@/i18n/locale-context";
 import { formatNumber } from "@/lib/format";
 
@@ -47,7 +48,8 @@ export function PdfAttachmentCard({ url, fileName, byteSize, title }: PdfAttachm
 
   const source = url;
   const displayName = fileName?.trim() ? fileName.trim() : title;
-  const downloadHref = `${source}${source.includes("?") ? "&" : "?"}download=1`;
+  // The plain link needs the API base URL; apiBlob adds it itself, so `source` stays a path for the viewer.
+  const downloadHref = apiUrl(`${source}${source.includes("?") ? "&" : "?"}download=1`);
   const size = byteSize === null ? null : sizeLabel(byteSize, t, locale);
 
   // The viewer fetches the file itself when the dialog opens, so this wrapper reports that fetch to the card.
