@@ -51,8 +51,9 @@ photo, has not been run. Step 3.1 runs the notice tests once before the build.
 
 ### 3.2 The payout key (Shahriar)
 
-1. Generate 32 random bytes, base64 encoded, with a cryptographic generator, for example in PowerShell:
-   `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`.
+1. Generate 32 random bytes, base64 encoded, with a cryptographic generator, in Shahriar's own PowerShell window (never
+   through an agent): `$b = New-Object byte[] 32; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b);
+   [Convert]::ToBase64String($b)`. The output is 44 characters ending in `=`.
 2. Store it in the password manager, and keep a second copy off the server. A lost key means the sealed numbers cannot be
    read again; the plain columns are the only fallback while they exist.
 3. Key version is `1`.
