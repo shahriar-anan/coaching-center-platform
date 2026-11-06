@@ -8,6 +8,15 @@ export const NOTICE_TITLE_MAX = 300;
 
 export const NOTICE_BODY_MAX = 10_000;
 
+/** The photo types the API re-encodes. */
+export const NOTICE_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** The largest photo the browser sends. The server stores it at most 2 MB after re-encoding. */
+export const NOTICE_PHOTO_UPLOAD_MAX = 8 * 1024 * 1024;
+
+/** The largest PDF the browser sends. */
+export const NOTICE_PDF_MAX = 20 * 1024 * 1024;
+
 export type NoticeField = keyof NoticeTexts;
 
 export const NOTICE_FIELDS: NoticeField[] = ["titleEn", "titleBn", "bodyEn", "bodyBn"];
