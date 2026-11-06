@@ -29,6 +29,8 @@ export interface Me {
   studentCode: string | null;
   /** True after a Google sign-up until the student adds a phone. */
   phoneRequired?: boolean;
+  /** The student's own profile picture path with a version (`/api/v1/me/photo?v=…`), or null. Students only. */
+  photoUrl?: string | null;
 }
 
 export type ExamType = "MCQ" | "WRITTEN";

@@ -24,6 +24,7 @@ import { LocalePill, ThemePill } from "@/components/shell/pills";
 import { codeOf, CODE_DEAD, FormError, focusFirst } from "@/app/(auth)/_components/auth-ui";
 import { PasswordChangeForm } from "@/components/password-change-form";
 import { PhoneDialog } from "@/app/(site)/account/_components/phone-dialog";
+import { ProfilePhoto } from "@/app/(site)/account/_components/profile-photo";
 
 export default function AccountPage() {
   return (
@@ -134,6 +135,7 @@ function AccountView() {
       <PageHeader title={t("account.title")} />
 
       <Card padding="lg" className="divide-y divide-border">
+        <ProfilePhoto name={user.fullName} photoPath={user.photoUrl} />
         <Row label={t("account.profile.name")}>
           <span className="font-semibold">{user.fullName}</span>
           {nameOpen ? null : (

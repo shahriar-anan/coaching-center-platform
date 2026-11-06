@@ -19,6 +19,7 @@ import { SiteFooter, type FooterVariant } from "@/components/shell/site-footer";
 import { LocaleMenuItem, LocalePill, ThemeMenuItem, ThemePill } from "@/components/shell/pills";
 import { SiteMenu, SiteNavDropdown, useSiteNav } from "@/components/shell/site-menu";
 import { NoticeBell } from "@/components/student/notice-bell";
+import { ProfileAvatar } from "@/components/student/profile-avatar";
 import { formatNumber } from "@/lib/format";
 import { useUnreadCount } from "@/lib/api/exam/notices";
 import { IconButton } from "@/components/ui/icon-button";
@@ -180,7 +181,11 @@ function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
         aria-label={t("common.nav.userMenu", { name: fullName })}
         className="inline-flex h-11 max-w-36 items-center gap-2 rounded-control px-3 text-label font-semibold text-text hover:bg-bg"
       >
-        <CircleUserRound aria-hidden="true" className="size-5 shrink-0" />
+        {user.role === "STUDENT" ? (
+          <ProfileAvatar name={fullName} photoPath={user.photoUrl} size={32} />
+        ) : (
+          <CircleUserRound aria-hidden="true" className="size-5 shrink-0" />
+        )}
         <span className="min-w-0 truncate">{firstName}</span>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
