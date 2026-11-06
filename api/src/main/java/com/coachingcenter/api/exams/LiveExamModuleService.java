@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import tools.jackson.databind.JsonNode;
 
@@ -50,11 +52,14 @@ public class LiveExamModuleService {
 
 	private final LiveExamParticipantRepository participants;
 
+	private final ModuleRoutinePdfService routinePdfs;
+
 	public LiveExamModuleService(LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility,
 			LiveExamAccess access, AuditRecorder audit, ExamMailService examMail, AfterCommit afterCommit,
 			PackageRevisionService revisions, LiveExamPackageExamRepository memberships, Clock clock,
-			RichTextSanitizer sanitizer, LiveExamParticipantRepository participants) {
+			RichTextSanitizer sanitizer, LiveExamParticipantRepository participants, ModuleRoutinePdfService routinePdfs) {
 		this.participants = participants;
+		this.routinePdfs = routinePdfs;
 		this.modules = modules;
 		this.visibility = visibility;
 		this.access = access;
@@ -168,7 +173,9 @@ public class LiveExamModuleService {
 		else {
 			page = modules.findByCategoryIdAndDeletedAtIsNull(categoryId, ordered);
 		}
-		return page.map(this::view);
+		Map<UUID, ModuleRoutinePdfService.RoutinePdfView> pdfs = routinePdfs.viewsFor(
+				page.getContent().stream().map(LiveExamModule::getId).toList());
+		return page.map(module -> view(module, pdfs.get(module.getId())));
 	}
 
 	@Transactional(readOnly = true)
@@ -408,23 +415,29 @@ public class LiveExamModuleService {
 
 	/** A student's or public read: the published row, with no staged change. */
 	private ModuleView view(LiveExamModule module) {
-		return build(module, PackageRevisionService.Draft.of(module, List.of()), false, null, null, null);
+		return view(module, routinePdfs.viewFor(module.getId()));
+	}
+
+	/** A student's or public read of a row whose routine PDF was loaded with its page. */
+	private ModuleView view(LiveExamModule module, ModuleRoutinePdfService.RoutinePdfView routinePdf) {
+		return build(module, PackageRevisionService.Draft.of(module, List.of()), false, null, null, null, routinePdf);
 	}
 
 	/** A staff read of a package with a staged revision: the working copy, flagged as pending. */
 	ModuleView view(LiveExamModule module, PackageRevisionService.Draft working, boolean pending) {
-		return build(module, working, pending, null, null, null);
+		return build(module, working, pending, null, null, null, routinePdfs.viewFor(module.getId()));
 	}
 
 	/** Staff reads only: the category path and the exam counts. Student and public reads never get these. */
 	ModuleView staffView(LiveExamModule module, PackageRevisionService.Draft working, List<CategoryRef> categoryPath,
-			int mcqCount, int writtenCount) {
+			int mcqCount, int writtenCount, ModuleRoutinePdfService.RoutinePdfView routinePdf) {
 		PackageRevisionService.Draft shown = working == null ? PackageRevisionService.Draft.of(module, List.of()) : working;
-		return build(module, shown, working != null, categoryPath, mcqCount, writtenCount);
+		return build(module, shown, working != null, categoryPath, mcqCount, writtenCount, routinePdf);
 	}
 
 	private ModuleView build(LiveExamModule module, PackageRevisionService.Draft shown, boolean pending,
-			List<CategoryRef> categoryPath, Integer mcqCount, Integer writtenCount) {
+			List<CategoryRef> categoryPath, Integer mcqCount, Integer writtenCount,
+			ModuleRoutinePdfService.RoutinePdfView routinePdf) {
 		LiveExamModule priced = new LiveExamModule();
 		priced.setPrice(shown.price());
 		priced.setDiscountPercent(shown.discountPercent());
@@ -433,7 +446,7 @@ public class LiveExamModuleService {
 				shown.descriptionBn(), module.getAccessMode(), module.getStatus(), module.isFinallySaved(), shown.position(),
 				shown.price(), categoryPath, mcqCount, writtenCount, ModuleCoverService.coverPath(module),
 				shown.discountPercent(), shown.discountEndsAt(), module.isPopular(), ExamPricing.view(priced, clock.instant()),
-				pending);
+				pending, routinePdf);
 	}
 
 	private static ApiException validationFailed() {
@@ -453,7 +466,8 @@ public class LiveExamModuleService {
 			String descriptionBn, String accessMode, String status, boolean finallySaved, int position,
 			BigDecimal price, List<CategoryRef> categoryPath, Integer mcqCount,
 			Integer writtenCount, String coverUrl, Integer discountPercent, Instant discountEndsAt, boolean popular,
-			PriceView pricing, boolean pendingChanges) {
+			PriceView pricing, boolean pendingChanges,
+			@JsonInclude(JsonInclude.Include.ALWAYS) ModuleRoutinePdfService.RoutinePdfView routinePdf) {
 	}
 
 	/** One step of a module's category path, root first. */

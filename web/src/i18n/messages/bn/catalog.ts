@@ -87,6 +87,7 @@ const catalog = {
   unlocked: "চালু আছে",
   priceNotSet: "দাম এখনো নির্ধারণ হয়নি।",
   routineTitle: "পরীক্ষার রুটিন",
+  routinePdf: { title: "রুটিন (PDF)" },
   colExam: "পরীক্ষা",
   colDate: "তারিখ",
   colTime: "সময়",
