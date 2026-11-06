@@ -1,7 +1,21 @@
 # Plan: release of the media features and the payout encryption (Flyway V75 to V78)
 
-Status: planned, not started. Written 7 November 2026 for Shahriar and the agent who runs the release. Nothing in this plan
-has been run on the live server. The site takes real money (live SSLCommerz store since 5 November), so every step on the
+Status (7 November 2026, 04:40 Dhaka): Shahriar gave the go. Builds and rehearsal done; the live release waits for the
+production key on the server.
+
+- Builds from `80c1f0a`: jar SHA-256 `905bfb4e2f759b1ac8333e3adfea9510907e4eca85f568910cffce24aa60aba0`
+  (`F:\cc-releases\api-80c1f0a.jar`); website package SHA-256
+  `91f661e078baf4762bc5ef60dd958769af2f1a7b6b24731a76ffab070e6bdf37` (`F:\cc-releases\web-80c1f0a-20261106-221209.tgz`).
+  Notice tests on the release commit: 3 files, 12 tests, passed.
+- Rehearsal dump `coaching-pre-media-rehearsal-20261106-221509.dump` (424 entries, SHA-256 `b7d307a0…eae6d`), on the box
+  and in `F:\exam-vps-backups\`. Live jar `fdefac8` SHA-256 `53ff62cd…c692` copied for the rollback test.
+- Rehearsal on a local restore, with a throwaway key: Flyway 74 to 78, 4 migrations applied; the backfill sealed 1 account
+  and logged only the count; row counts unchanged in 8 tables; 0 accounts left unsealed; the full number read back through
+  the API matches the stored value. Restarted with the backfill off: clean. The live jar started on the upgraded schema and
+  returned byte-identical staff pay responses (payout accounts, person, ledger): the rollback path works. Smoke on the copy:
+  a draft notice with photo and PDF (hidden from the public, then deleted), a routine PDF upload and removal, a student
+  picture upload and removal, the staff reviews page and the signed-up date all worked. The rehearsal database, its files
+  and the throwaway key were removed afterwards. The site takes real money (live SSLCommerz store since 5 November), so every step on the
 box needs Shahriar's go, and section 2 governs the whole release.
 
 ## 1. What ships
