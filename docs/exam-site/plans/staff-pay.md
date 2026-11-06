@@ -418,6 +418,55 @@ Written with each phase. Run when Shahriar says.
   These need a Docker environment for the test database, which this PC does not have. They run wherever Docker is available; until then, the phases are checked by hand on the PC's sample database.
 - **Web:** the new pages, the bell, the pay forms, the money formatting in both languages, and the role gates.
 
+### Phase 9. Encryption of payout account numbers
+
+**Status (7 November 2026): code written, not compiled or tested, not deployed.** Written: migration `V75__payout_account_encryption.sql` (adds nullable sealed columns and `key_version`, changes no data); `PayoutNumberCipher` (AES-256-GCM, a fresh nonce per value, bound to table, column and account id); the owner's account reads and writes and the ledger's account reads, which seal on write and open on read, falling back to the plain columns for rows that predate the key; `PayoutNumberEncryptionGuard` (refuses to start when sealed rows exist and the key is missing or of another version); `PayoutNumberBackfill` (off by default, verifies each batch and rolls it back on a mismatch); the properties `app.payout.encryption-key`, `app.payout.key-version` and `app.payout.backfill-enabled`; and tests `PayoutNumberCipherTest` and `PayoutEncryptionIT`. Not yet done: the key (see key custody), the pre-change check and dump, the rehearsal, the deploy, the verification, and the later migration that drops the plain columns.
+
+Previously recorded status: planned, not started. Decided by Shahriar on 5 November 2026, after the release of Phases 1 to 8. Until it ships, payout account numbers are stored as plain text in `staff_payout_accounts`. They are shown only to their owner and the Master Admin, and masked in lists, but they are not encrypted at rest.
+
+**Why:** these are personal bank and wallet numbers. A copy of the database, a backup or a support screen should not reveal them.
+
+**Live data state (checked 7 November 2026, read-only):** the live database already holds payment-related data, so the migration must keep it. On the live server:
+- `staff_payout_accounts`: 1 row, live, a BANK account with an account number, preferred, owned by an INSTRUCTOR. No wallet numbers.
+- `staff_ledger`: 1 MARKING line, 2 ADJUSTMENT lines, and 1 PAYMENT of 100.00 BDT on 6 November 2026 (method BANK, empty `account_snapshot`).
+- `live_exam_orders`: 2 SUCCEEDED student payments (exam purchases; not staff pay).
+- `staff_pay_settings`: none. `staff_pay_defaults`: 1 row.
+
+The rule for this phase is therefore: **production data is kept.** The "ship as it is" option only applies when the check below finds no payout account with a number. The check is repeated on the day of the change, because the count can change.
+
+**Data preservation rules**
+1. **Pre-change check:** count live payout accounts with a number. If zero, the migration may add encryption directly. If one or more, the in-place path below applies. Record the count in the deploy report.
+2. **Backup first:** a fresh `pg_dump -Fc coaching` on the server, checked with `pg_restore --list`, copied to the PC outside the repository, before any change.
+3. **Rehearse on a copy:** restore that dump into a rehearsal database, run the migration and the backfill, and compare before and after: row counts for every table touched, the masked value of every account, and every number decrypting back to the original.
+4. **No plain column is dropped on the day it is added.** The plain columns stay until the verification in step 7 has passed, and they are removed only in a later migration.
+5. **Dual write during the window:** while the plain columns exist, new writes fill both the plain and the encrypted columns. A rollback to the previous jar therefore still reads correct data.
+6. **Backfill is idempotent and batched:** it encrypts only rows whose encrypted column is empty, in small transactions, and logs counts only, never values.
+7. **Verification before the plain columns go:** every account has an encrypted value; every value decrypts; the masked display is unchanged for every row; the owner and the Master Admin still see the full number; no plain number appears in logs, notifications or the audit log. Shahriar approves the verification result before the plain columns are dropped.
+
+**What it will do**
+- Add `account_number_enc`, `routing_number_enc` and `wallet_number_enc` (bytea) and a `key_version` column to `staff_payout_accounts`, in a new migration (the next free number at the time). No existing column is dropped in that migration.
+- Encrypt the sensitive fields at the application level with AES-256-GCM, a fresh random nonce per value, and authenticated data naming the table, the column and the account id, so a ciphertext cannot be moved to another row.
+- Read the key from the environment (`PAYOUT_ENCRYPTION_KEY`). It is never written to the repository, the database, the logs or the audit log.
+- Refuse to start when encrypted rows exist and the key is missing or does not match the stored key version, rather than showing garbage or empty numbers.
+- Keep the masked display (`•••• 4821`) by decrypting only the last four digits when a list is built.
+- Add key-version support, so the key can be rotated later without losing data.
+
+**Key custody (before the change)**
+- The production key is generated once, stored in the owner's password manager, and set in `/etc/coaching-api.env` on the server. A second copy is kept off the server. A lost key means the numbers cannot be recovered, so the backup must not be the only copy.
+- The key is set on the server before the new jar starts with encryption enabled.
+
+**Rollback**
+- Before the plain columns are dropped: redeploy the previous jar. It reads the plain columns, which dual write has kept current.
+- After they are dropped: restore the backup taken in step 2, after Shahriar's approval, and accept that writes made after the backup are lost unless they are replayed.
+
+**Before it ships**
+- Decide where the production key lives, and record it outside the repository (see key custody).
+- Rehearse the migration and backfill on a copy of the live database, as in the rules above.
+- Confirm no plain number appears in logs, notifications, error messages or the audit log.
+- Shahriar approves the release in writing, since it changes a live table that holds payment data.
+
+**Check:** the database holds only ciphertext for these fields once the plain columns are dropped; before that, both agree for every row; the owner and the Master Admin still see the full number on the account screen; a wrong or missing key fails loudly; the masked display is unchanged.
+
 ## 7. Not in this plan
 
 - Paying through the site (bank or wallet APIs), payslip PDFs, tax.

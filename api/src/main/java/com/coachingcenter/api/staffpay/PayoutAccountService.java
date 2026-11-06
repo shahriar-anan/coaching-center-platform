@@ -3,6 +3,7 @@ package com.coachingcenter.api.staffpay;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -43,21 +44,27 @@ public class PayoutAccountService {
 
 	private static final String COLUMNS = """
 			select a.id, a.kind, a.account_name, a.account_number, a.bank_name, a.branch, a.routing_number,
-			       a.wallet_number, a.preferred, a.created_at, a.updated_at
+			       a.wallet_number, a.account_number_enc, a.routing_number_enc, a.wallet_number_enc, a.key_version,
+			       a.preferred, a.created_at, a.updated_at
 			from staff_payout_accounts a
 			where a.user_id = :user and a.deleted_at is null
 			""";
 
+	/* The plain columns are written too until the phase 9 verification has passed; the sealed columns are filled when a key is set. */
 	private static final String INSERT = """
 			insert into staff_payout_accounts (id, user_id, kind, account_name, account_number, bank_name, branch,
-			       routing_number, wallet_number, preferred, created_at, updated_at)
-			values (:id, :user, :kind, :name, :number, :bank, :branch, :routing, :wallet, :preferred, :now, :now)
+			       routing_number, wallet_number, account_number_enc, routing_number_enc, wallet_number_enc, key_version,
+			       preferred, created_at, updated_at)
+			values (:id, :user, :kind, :name, :number, :bank, :branch, :routing, :wallet, :numberEnc, :routingEnc, :walletEnc,
+			       :keyVersion, :preferred, :now, :now)
 			""";
 
 	private static final String UPDATE = """
 			update staff_payout_accounts
 			set kind = :kind, account_name = :name, account_number = :number, bank_name = :bank, branch = :branch,
-			    routing_number = :routing, wallet_number = :wallet, updated_at = :now
+			    routing_number = :routing, wallet_number = :wallet, account_number_enc = :numberEnc,
+			    routing_number_enc = :routingEnc, wallet_number_enc = :walletEnc, key_version = :keyVersion,
+			    updated_at = :now
 			where id = :id and user_id = :user and deleted_at is null
 			""";
 
@@ -69,11 +76,15 @@ public class PayoutAccountService {
 
 	private final Clock clock;
 
-	public PayoutAccountService(JdbcTemplate jdbc, StaffNotificationWriter notifications, AuditRecorder audit, Clock clock) {
+	private final PayoutNumberCipher cipher;
+
+	public PayoutAccountService(JdbcTemplate jdbc, StaffNotificationWriter notifications, AuditRecorder audit, Clock clock,
+			PayoutNumberCipher cipher) {
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.notifications = notifications;
 		this.audit = audit;
 		this.clock = clock;
+		this.cipher = cipher;
 	}
 
 	/**
@@ -215,23 +226,30 @@ public class PayoutAccountService {
 		}
 	}
 
-	private static MapSqlParameterSource fields(UUID userId, PayoutAccountRules.Fields fields, UUID id, Timestamp now) {
+	/** The row's values, with the numbers sealed too when a key is set (sealed columns and key version stay empty without one). */
+	private MapSqlParameterSource fields(UUID userId, PayoutAccountRules.Fields fields, UUID id, Timestamp now) {
 		return new MapSqlParameterSource().addValue("id", id).addValue("user", userId)
 			.addValue("kind", fields.kind().name()).addValue("name", fields.accountName())
 			.addValue("number", fields.accountNumber()).addValue("bank", fields.bankName())
 			.addValue("branch", fields.branch()).addValue("routing", fields.routingNumber())
-			.addValue("wallet", fields.walletNumber()).addValue("now", now);
+			.addValue("wallet", fields.walletNumber())
+			.addValue("numberEnc", cipher.seal(PayoutNumberCipher.ACCOUNT, id, fields.accountNumber()), Types.BINARY)
+			.addValue("routingEnc", cipher.seal(PayoutNumberCipher.ROUTING, id, fields.routingNumber()), Types.BINARY)
+			.addValue("walletEnc", cipher.seal(PayoutNumberCipher.WALLET, id, fields.walletNumber()), Types.BINARY)
+			.addValue("keyVersion", cipher.enabled() ? cipher.keyVersion() : null, Types.SMALLINT)
+			.addValue("now", now);
 	}
 
 	private static ApiException notFound() {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
 
-	private static PayoutAccountView view(ResultSet rs) throws SQLException {
-		String account = rs.getString("account_number");
-		String wallet = rs.getString("wallet_number");
+	private PayoutAccountView view(ResultSet rs) throws SQLException {
+		PayoutNumberCipher.PayoutNumbers numbers = cipher.read(rs);
+		String account = numbers.account();
+		String wallet = numbers.wallet();
 		return new PayoutAccountView(rs.getObject("id", UUID.class), rs.getString("kind"), rs.getString("account_name"), account,
-				rs.getString("bank_name"), rs.getString("branch"), rs.getString("routing_number"), wallet,
+				rs.getString("bank_name"), rs.getString("branch"), numbers.routing(), wallet,
 				PayoutAccountRules.mask(wallet != null ? wallet : account), rs.getBoolean("preferred"),
 				format(rs.getTimestamp("created_at").toInstant()), format(rs.getTimestamp("updated_at").toInstant()));
 	}

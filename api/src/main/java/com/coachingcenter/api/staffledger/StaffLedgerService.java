@@ -43,6 +43,7 @@ import com.coachingcenter.api.staffledger.StaffPayCalculator.Line;
 import com.coachingcenter.api.staffledger.StaffPayCalculator.Totals;
 import com.coachingcenter.api.staffnotifications.StaffNotificationKind;
 import com.coachingcenter.api.staffnotifications.StaffNotificationWriter;
+import com.coachingcenter.api.staffpay.PayoutNumberCipher;
 
 /**
  * The staff pay ledger (staff pay plan, phase 3): balances, payments, adjustments, voids, the pay settings and the defaults.
@@ -99,14 +100,17 @@ public class StaffLedgerService {
 
 	private final StaffSalaryService salaries;
 
+	private final PayoutNumberCipher cipher;
+
 	public StaffLedgerService(JdbcTemplate jdbc, PermissionChecker permissions, AuditRecorder audit,
-			StaffNotificationWriter notifications, Clock clock, StaffSalaryService salaries) {
+			StaffNotificationWriter notifications, Clock clock, StaffSalaryService salaries, PayoutNumberCipher cipher) {
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.permissions = permissions;
 		this.audit = audit;
 		this.notifications = notifications;
 		this.clock = clock;
 		this.salaries = salaries;
+		this.cipher = cipher;
 	}
 
 	/* ---------- Master Admin: people, person, ledger ---------- */
@@ -162,7 +166,8 @@ public class StaffLedgerService {
 		requireManage();
 		staffPerson(userId);
 		return jdbc.query("""
-				select id, kind, account_name, account_number, bank_name, branch, routing_number, wallet_number, preferred
+				select id, kind, account_name, account_number, bank_name, branch, routing_number, wallet_number,
+				       account_number_enc, routing_number_enc, wallet_number_enc, key_version, preferred
 				from staff_payout_accounts
 				where user_id = :user and deleted_at is null
 				order by preferred desc, created_at, id
@@ -612,26 +617,36 @@ public class StaffLedgerService {
 
 	private PayoutAccountRow preferredAccount(UUID userId) {
 		return jdbc.query("""
-				select id, kind, account_name, account_number, bank_name, branch, routing_number, wallet_number, preferred
+				select id, kind, account_name, account_number, bank_name, branch, routing_number, wallet_number,
+				       account_number_enc, routing_number_enc, wallet_number_enc, key_version, preferred
 				from staff_payout_accounts
 				where user_id = :user and preferred and deleted_at is null
 				""", new MapSqlParameterSource("user", userId), (rs, number) -> payoutAccountRow(rs)).stream().findFirst()
 			.orElse(null);
 	}
 
-	private static PayoutAccountRow payoutAccountRow(ResultSet rs) throws SQLException {
+	private PayoutAccountRow payoutAccountRow(ResultSet rs) throws SQLException {
+		PayoutNumberCipher.PayoutNumbers numbers = cipher.read(rs);
 		return new PayoutAccountRow(rs.getObject("id", UUID.class), rs.getString("kind"), rs.getString("account_name"),
-				rs.getString("account_number"), rs.getString("bank_name"), rs.getString("branch"),
-				rs.getString("routing_number"), rs.getString("wallet_number"), rs.getBoolean("preferred"));
+				numbers.account(), rs.getString("bank_name"), rs.getString("branch"),
+				numbers.routing(), numbers.wallet(), rs.getBoolean("preferred"));
+	}
+
+	/** The account's text for a payment snapshot: the bank or wallet with its last four digits only, never the full number. */
+	private PayoutAccount payoutAccountSnapshot(ResultSet rs) throws SQLException {
+		PayoutNumberCipher.PayoutNumbers numbers = cipher.read(rs);
+		return new PayoutAccount(rs.getObject("id", UUID.class), rs.getString("kind"), rs.getString("bank_name"),
+				numbers.account(), numbers.wallet());
 	}
 
 	private PayoutAccount payoutAccount(UUID userId, UUID accountId) {
 		return jdbc.query("""
-				select id, kind, bank_name, account_number, wallet_number from staff_payout_accounts
+				select id, kind, bank_name, account_number, routing_number, wallet_number,
+				       account_number_enc, routing_number_enc, wallet_number_enc, key_version
+				from staff_payout_accounts
 				where id = :id and user_id = :user and deleted_at is null
 				""", new MapSqlParameterSource().addValue("id", accountId).addValue("user", userId),
-				(rs, number) -> new PayoutAccount(rs.getObject("id", UUID.class), rs.getString("kind"),
-						rs.getString("bank_name"), rs.getString("account_number"), rs.getString("wallet_number")))
+				(rs, number) -> payoutAccountSnapshot(rs))
 			.stream()
 			.findFirst()
 			.orElse(null);
