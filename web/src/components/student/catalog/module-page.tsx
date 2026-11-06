@@ -34,6 +34,7 @@ import { useServerNow } from "@/lib/time/clock";
 import { cn } from "@/components/ui/cn";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { PdfAttachmentCard } from "@/components/ui/file/pdf-attachment-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { NotFoundState } from "@/components/ui/not-found-state";
@@ -369,9 +370,20 @@ function ModulePageContent({ door, moduleId }: { door: Door; moduleId: string })
               )
             ) : null}
 
+            {activeTab === "routine" && data.routinePdf ? (
+              <div className="mb-4 md:max-w-2xl">
+                <PdfAttachmentCard
+                  url={data.routinePdf.url}
+                  fileName={data.routinePdf.fileName}
+                  byteSize={data.routinePdf.byteSize}
+                  title={t("catalog.routinePdf.title")}
+                />
+              </div>
+            ) : null}
+
             {activeTab === "routine" ? (
               list.length === 0 ? (
-                <p className="text-muted">{t("catalog.examListEmpty")}</p>
+                data.routinePdf ? null : <p className="text-muted">{t("catalog.examListEmpty")}</p>
               ) : (
                 <>
                   <ul className="grid gap-2 md:hidden">

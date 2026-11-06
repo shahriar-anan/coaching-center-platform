@@ -60,9 +60,12 @@ public class LiveExamPublicService {
 
 	private final LiveExamReviewPublicService reviews;
 
+	private final ModuleRoutinePdfService routinePdfs;
+
 	public LiveExamPublicService(LiveExamCategoryRepository categories, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamCatalogVisibility visibility, Clock clock,
-			LiveExamMemberships memberships, LiveExamPackageExamRepository links, LiveExamReviewPublicService reviews) {
+			LiveExamMemberships memberships, LiveExamPackageExamRepository links, LiveExamReviewPublicService reviews,
+			ModuleRoutinePdfService routinePdfs) {
 		this.clock = clock;
 		this.categories = categories;
 		this.modules = modules;
@@ -71,6 +74,7 @@ public class LiveExamPublicService {
 		this.memberships = memberships;
 		this.links = links;
 		this.reviews = reviews;
+		this.routinePdfs = routinePdfs;
 	}
 
 	/**
@@ -94,6 +98,8 @@ public class LiveExamPublicService {
 		Map<UUID, Counts> counts = counts(visible.stream().map(LiveExamModule::getId).toList());
 		Map<UUID, LiveExamReviewPublicService.Tally> ratings = reviews.tallies(LiveExamReviewKind.PACKAGE,
 				visible.stream().map(LiveExamModule::getId).toList());
+		Map<UUID, ModuleRoutinePdfService.RoutinePdfView> pdfs = routinePdfs.viewsFor(
+				visible.stream().map(LiveExamModule::getId).toList());
 		Map<UUID, LiveExamCategory> categoriesById = LiveExamStaffModuleService.categoriesById(categories);
 		Map<UUID, List<LiveExamModule>> packagesByExam = visiblePackages(
 				visibleExams.stream().map(LiveExam::getId).toList(), hidden);
@@ -109,7 +115,8 @@ public class LiveExamPublicService {
 			}
 			modulesByCategory.computeIfAbsent(module.getCategoryId(), ignored -> new ArrayList<>())
 				.add(moduleView(module, count, categoriesById, null,
-						ratings.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE)));
+						ratings.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE),
+						pdfs.get(module.getId())));
 		}
 		for (LiveExam exam : visibleExams) {
 			categoriesWithContent.add(exam.getCategoryId());
@@ -175,8 +182,11 @@ public class LiveExamPublicService {
 		Map<UUID, LiveExamCategory> categoriesById = LiveExamStaffModuleService.categoriesById(categories);
 		Map<UUID, LiveExamReviewPublicService.Tally> ratings = reviews.tallies(LiveExamReviewKind.PACKAGE,
 				page.getContent().stream().map(LiveExamModule::getId).toList());
+		Map<UUID, ModuleRoutinePdfService.RoutinePdfView> pdfs = routinePdfs.viewsFor(
+				page.getContent().stream().map(LiveExamModule::getId).toList());
 		return page.map(module -> moduleView(module, counts.getOrDefault(module.getId(), Counts.NONE), categoriesById,
-				viewer, ratings.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE)));
+				viewer, ratings.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE),
+				pdfs.get(module.getId())));
 	}
 
 	/**
@@ -211,7 +221,8 @@ public class LiveExamPublicService {
 		return moduleView(module, counts(List.of(module.getId())).getOrDefault(module.getId(), Counts.NONE),
 				LiveExamStaffModuleService.categoriesById(categories), viewer,
 				reviews.tallies(LiveExamReviewKind.PACKAGE, List.of(module.getId()))
-					.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE));
+					.getOrDefault(module.getId(), LiveExamReviewPublicService.Tally.NONE),
+				routinePdfs.viewFor(module.getId()));
 	}
 
 	/**
@@ -400,13 +411,14 @@ public class LiveExamPublicService {
 
 	/** {@code viewer} is the signed-in student, or null; only a student's view carries {@code access}. */
 	private PublicModule moduleView(LiveExamModule module, Counts counts, Map<UUID, LiveExamCategory> categoriesById,
-			StudentOwnAccessService.Viewer viewer, LiveExamReviewPublicService.Tally rating) {
+			StudentOwnAccessService.Viewer viewer, LiveExamReviewPublicService.Tally rating,
+			ModuleRoutinePdfService.RoutinePdfView routinePdf) {
 		return new PublicModule(module.getId(), module.getCategoryId(),
 				LiveExamStaffModuleService.pathOf(module.getCategoryId(), categoriesById), module.getTitleEn(),
 				module.getTitleBn(), module.getDescriptionEn(), module.getDescriptionBn(), module.getPosition(), module.getPrice(),
 				counts.mcq(), counts.written(), viewer == null ? null : viewer.module(module), ModuleCoverService.coverPath(module),
 				module.isPopular(), ExamPricing.view(module, clock.instant()), null, rating.average(), rating.count(),
-				module.getCreatedAt());
+				module.getCreatedAt(), routinePdf);
 	}
 
 	private PublicExam examRow(LiveExam exam, List<LiveExamModule> packages, StudentOwnAccessService.Viewer viewer,
@@ -543,11 +555,12 @@ public class LiveExamPublicService {
 			String titleEn, String titleBn, String descriptionEn, String descriptionBn, int position, BigDecimal price,
 			int mcqCount, int writtenCount, StudentOwnAccessService.Access access, String coverUrl, boolean popular,
 			PriceView pricing, Boolean favourite, @JsonInclude(JsonInclude.Include.ALWAYS) Double ratingAverage,
-			int ratingCount, Instant createdAt) {
+			int ratingCount, Instant createdAt, @JsonInclude(JsonInclude.Include.ALWAYS) ModuleRoutinePdfService.RoutinePdfView routinePdf) {
 
 		public PublicModule withFavourite(boolean marked) {
 			return new PublicModule(id, categoryId, categoryPath, titleEn, titleBn, descriptionEn, descriptionBn, position,
-					price, mcqCount, writtenCount, access, coverUrl, popular, pricing, marked, ratingAverage, ratingCount, createdAt);
+					price, mcqCount, writtenCount, access, coverUrl, popular, pricing, marked, ratingAverage, ratingCount, createdAt,
+					routinePdf);
 		}
 
 	}
