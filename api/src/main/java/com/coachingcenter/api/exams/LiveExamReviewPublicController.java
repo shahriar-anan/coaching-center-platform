@@ -3,10 +3,14 @@ package com.coachingcenter.api.exams;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.coachingcenter.api.files.FileResponses;
 
 /** The public reviews (reviews plan, section 6). No sign-in; only approved comments and no student ids, phones or emails. */
 @RestController
@@ -29,6 +33,17 @@ public class LiveExamReviewPublicController {
 	@GetMapping("/api/v1/public/reviews/featured")
 	public List<LiveExamReviewPublicService.FeaturedReview> featured() {
 		return reviews.featured();
+	}
+
+	/**
+	 * The author's profile picture of one approved review, shown beside it. Keyed by the review, so no student id is needed.
+	 * Cached for an hour: the URL carries the upload time, so a new picture gets a new URL.
+	 */
+	@GetMapping("/api/v1/public/reviews/{id}/photo")
+	public ResponseEntity<InputStreamResource> photo(@PathVariable UUID id) {
+		LiveExamReviewPublicService.ReviewPhoto photo = reviews.photoOf(id);
+		return FileResponses.inline(photo.body(), photo.contentType(), photo.byteSize(), "profile-picture.jpg",
+				"public, max-age=3600");
 	}
 
 }

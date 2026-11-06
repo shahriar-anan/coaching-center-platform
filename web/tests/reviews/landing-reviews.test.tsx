@@ -74,7 +74,28 @@ describe("landing reviews", () => {
     expect(within(section).getByText("BCS Package")).toBeInTheDocument();
     expect(within(section).getByRole("img", { name: "4 out of 5" })).toBeInTheDocument();
     // The initial in the circle, from the name.
-    expect(within(section).getAllByText("F")).not.toHaveLength(0);
+    // Without a picture the avatar shows the initials of the name: "Farhana A." gives "FA".
+    expect(within(section).getAllByText("FA")).not.toHaveLength(0);
+  });
+
+  it("shows the reviewer's picture on a featured card, and the initials when there is none", async () => {
+    mockApi({
+      [`GET ${ROUTE}`]: [
+        featured("r1", { photoUrl: "/api/v1/public/reviews/r1/photo?v=1729396800000" }),
+        featured("r2", { name: "Rafi K.", photoUrl: null }),
+      ],
+    });
+    renderWithProviders(<Reviews />, { user: null, locale: "en" });
+
+    const section = await screen.findByRole("region", { name: en.landing.title });
+    const withPicture = within(section).getByRole("img", { name: "Farhana A." });
+    const picture = withPicture.querySelector("img");
+    expect(picture).not.toBeNull();
+    expect(picture?.getAttribute("src")).toContain("/api/v1/public/reviews/r1/photo?v=1729396800000");
+    // No picture: the card shows the initials, and no image.
+    const initials = within(section).getByRole("img", { name: "Rafi K." });
+    expect(initials.querySelector("img")).toBeNull();
+    expect(initials).toHaveTextContent("RK");
   });
 
   it("shows the title in Bangla when the page is in Bangla", async () => {

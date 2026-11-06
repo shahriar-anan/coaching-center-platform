@@ -1,5 +1,7 @@
 package com.coachingcenter.api.exams;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -23,6 +25,9 @@ import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.error.FieldErrorDetail;
 import com.coachingcenter.api.common.web.PageResponse;
+import com.coachingcenter.api.files.LocalFileStorage;
+import com.coachingcenter.api.users.StudentPhoto;
+import com.coachingcenter.api.users.StudentPhotoRepository;
 import com.coachingcenter.api.users.StudentProfile;
 import com.coachingcenter.api.users.StudentProfileRepository;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -55,14 +60,50 @@ public class LiveExamReviewModerationService {
 
 	private final Clock clock;
 
+	private final StudentPhotoRepository photos;
+
+	private final LocalFileStorage fileStorage;
+
 	public LiveExamReviewModerationService(EntityManager entityManager, LiveExamReviewRepository reviews,
-			LiveExamReviewTargets targets, StudentProfileRepository students, AuditRecorder audit, Clock clock) {
+			LiveExamReviewTargets targets, StudentProfileRepository students, AuditRecorder audit, Clock clock,
+			StudentPhotoRepository photos, LocalFileStorage fileStorage) {
 		this.entityManager = entityManager;
 		this.reviews = reviews;
 		this.targets = targets;
 		this.students = students;
 		this.audit = audit;
 		this.clock = clock;
+		this.photos = photos;
+		this.fileStorage = fileStorage;
+	}
+
+	/**
+	 * The author's picture of one review in the staff queue, for the same readers and the same rows the queue shows. An
+	 * instructor gets only the reviews of their own exams; any other review is 404. The student's id is never in the URL.
+	 */
+	@Transactional(readOnly = true)
+	public LiveExamReviewPublicService.ReviewPhoto photoOf(CurrentActor actor, UUID reviewId) {
+		Scope scope = scope(actor, Filters.parse(null, null, null, null, null, null, null));
+		var query = entityManager.createQuery("select r.studentId" + scope.where() + " and r.id = :rid", UUID.class);
+		scope.params().forEach(query::setParameter);
+		query.setParameter("rid", reviewId);
+		UUID studentId = query.getResultStream().findFirst().orElseThrow(LiveExamReviewModerationService::notFound);
+		StudentPhoto photo = photos.findById(studentId).orElseThrow(LiveExamReviewModerationService::notFound);
+		Path path = fileStorage.resolve(photo.getStoredName());
+		if (!Files.exists(path)) {
+			throw notFound();
+		}
+		try {
+			return new LiveExamReviewPublicService.ReviewPhoto(Files.newInputStream(path), photo.getContentType(),
+					photo.getByteSize());
+		}
+		catch (java.io.IOException exception) {
+			throw notFound();
+		}
+	}
+
+	private static ApiException notFound() {
+		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
 
 	/**
@@ -265,15 +306,22 @@ public class LiveExamReviewModerationService {
 		for (StudentProfile profile : students.findAllById(studentIds)) {
 			names.put(profile.getUserId(), profile.getFullName());
 		}
+		Map<UUID, StudentPhoto> pictures = new HashMap<>();
+		for (StudentPhoto photo : photos.findAllById(studentIds)) {
+			pictures.put(photo.getUserId(), photo);
+		}
 		List<StaffRow> result = new ArrayList<>();
 		for (LiveExamReview row : rows) {
 			LiveExamReviewTargets.Target target = row.getExamId() != null ? examTargets.get(row.getExamId())
 					: moduleTargets.get(row.getModuleId());
+			StudentPhoto picture = pictures.get(row.getStudentId());
+			String photoUrl = picture == null || picture.getUpdatedAt() == null ? null
+					: "/api/v1/staff/reviews/" + row.getId() + "/photo?v=" + picture.getUpdatedAt().toEpochMilli();
 			result.add(new StaffRow(row.getId(), target == null ? null : target.kind().path(),
 					target == null ? null : target.id(), target == null ? null : target.titleEn(),
 					target == null ? null : target.titleBn(), row.getStudentId(), names.getOrDefault(row.getStudentId(), ""),
 					row.getRating(), row.getComment(), row.getStatus(), row.getHideReason(), row.isFeatured(),
-					row.getCreatedAt(), row.getUpdatedAt(), row.getModeratedAt()));
+					row.getCreatedAt(), row.getUpdatedAt(), row.getModeratedAt(), photoUrl));
 		}
 		return result;
 	}
@@ -374,11 +422,15 @@ public class LiveExamReviewModerationService {
 	public record Counts(long pending, long approved, long hidden, long featured) {
 	}
 
-	/** One queue row. {@code comment}, {@code hideReason} and {@code moderatedAt} are always written, null included. */
+	/**
+	 * One queue row. {@code comment}, {@code hideReason}, {@code moderatedAt} and {@code photoUrl} are always written, null
+	 * included. {@code photoUrl} is the author's picture on the staff route, or null when there is none.
+	 */
 	public record StaffRow(UUID id, String kind, UUID targetId, String targetTitleEn, String targetTitleBn, UUID studentId,
 			String studentName, int rating, @JsonInclude(JsonInclude.Include.ALWAYS) String comment, String status,
 			@JsonInclude(JsonInclude.Include.ALWAYS) String hideReason, boolean featured, Instant createdAt,
-			Instant updatedAt, @JsonInclude(JsonInclude.Include.ALWAYS) Instant moderatedAt) {
+			Instant updatedAt, @JsonInclude(JsonInclude.Include.ALWAYS) Instant moderatedAt,
+			@JsonInclude(JsonInclude.Include.ALWAYS) String photoUrl) {
 	}
 
 	public record PendingCount(long count) {

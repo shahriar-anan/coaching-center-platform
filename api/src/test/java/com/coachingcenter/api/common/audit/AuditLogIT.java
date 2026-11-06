@@ -331,6 +331,9 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"PUT /api/v1/live-exam-modules/{id}/routine-pdf",
 			"DELETE /api/v1/live-exam-modules/{id}/routine-pdf",
 			"GET /api/v1/public/live-exam-modules/{id}/routine.pdf",
+			// Reviewer pictures (reviews photo change).
+			"GET /api/v1/public/reviews/{id}/photo",
+			"GET /api/v1/staff/reviews/{id}/photo",
 			"GET /api/v1/public/site-notices",
 			"GET /api/v1/public/site-notices/{id}",
 			"PUT /api/v1/live-exams/{id}/answers-released",

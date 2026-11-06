@@ -5,9 +5,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.file.Files;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -32,6 +35,7 @@ import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 import com.coachingcenter.api.common.audit.AuditRecorder;
+import com.coachingcenter.api.files.LocalFileStorage;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -57,6 +61,9 @@ class ExamReviewIT extends PostgresIntegrationTest {
 	/** A featuring time later than every other test's clock, so a featured review sorts first. */
 	private static final Instant FEATURE_AT = Instant.parse("2026-10-30T10:00:00Z");
 
+	/** When the reviewer's picture was last changed. The URLs carry this time, in milliseconds. */
+	private static final Instant PICTURE_UPDATED = Instant.parse("2026-10-21T08:00:00Z");
+
 	private static final MediaType JSON = MediaType.APPLICATION_JSON;
 
 	@Autowired
@@ -73,6 +80,9 @@ class ExamReviewIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private MutableClock clock;
+
+	@Autowired
+	private LocalFileStorage fileStorage;
 
 	private AuthoringFixture fx;
 
@@ -760,6 +770,77 @@ class ExamReviewIT extends PostgresIntegrationTest {
 	}
 
 	// ---- helpers -------------------------------------------------------------------------------------------------
+
+	/** A reviewer's picture on the reviews: the public list and the featured list carry its URL, the picture is served only for an approved review (the review id is the key, so no student id appears), and the staff queue has its own route that needs a staff sign-in. */
+	@Test
+	void aReviewerPictureShowsOnApprovedReviewsAndTheStaffQueueOnly() throws Exception {
+		String staff = fx.staff();
+		String master = fx.master();
+		UUID category = fx.category(staff, "Reviewer photo category");
+		UUID exam = standalone(staff, master, category, "Reviewer photo exam");
+		UUID withPicture = seededStudent(master, exam, "Nusrat Jahan");
+		UUID noPicture = seededStudent(master, exam, "Mahbub");
+		UUID waiting = seededStudent(master, exam, "Rafiq Hasan");
+		givePicture(withPicture);
+		givePicture(waiting);
+		String approved = rate(fx.token(withPicture), "exam", exam, "{\"rating\":5,\"comment\":\"Clear picture review\"}")
+			.get("id").asText();
+		String plain = rate(fx.token(noPicture), "exam", exam, "{\"rating\":4,\"comment\":\"Plain review\"}").get("id").asText();
+		String pending = rate(fx.token(waiting), "exam", exam, "{\"rating\":3,\"comment\":\"Waiting review\"}").get("id").asText();
+		moderate(staff, approved, "{\"status\":\"APPROVED\"}");
+		moderate(staff, plain, "{\"status\":\"APPROVED\"}");
+
+		// The public list: the picture's URL for the author with a picture, null (not absent) for the others, and no student id.
+		JsonNode content = publicReviews("exam", exam).get("page").get("content");
+		JsonNode shown = rowWithId(content, approved);
+		assertThat(shown.get("photoUrl").asText())
+			.isEqualTo("/api/v1/public/reviews/" + approved + "/photo?v=" + PICTURE_UPDATED.toEpochMilli());
+		assertThat(rowWithId(content, plain).get("photoUrl").isNull()).isTrue();
+		assertThat(content.toString()).doesNotContain(withPicture.toString());
+
+		// Served for the approved review, cached for an hour; a plain author's review or a pending one has no picture to serve.
+		send(get("/api/v1/public/reviews/" + approved + "/photo"), null)
+			.andExpect(status().isOk())
+			.andExpect(header().string("Cache-Control", "public, max-age=3600"))
+			.andExpect(header().string("Content-Type", "image/jpeg"));
+		send(get("/api/v1/public/reviews/" + plain + "/photo"), null).andExpect(status().isNotFound());
+		send(get("/api/v1/public/reviews/" + pending + "/photo"), null).andExpect(status().isNotFound());
+
+		// The featured list carries the same URL once the review is featured.
+		feature(staff, approved, true);
+		assertThat(featuredRow(approved).get("photoUrl").asText()).isEqualTo(shown.get("photoUrl").asText());
+
+		// The staff queue: the URL is the staff route, which needs a staff sign-in and is never cached by shared caches.
+		JsonNode queued = rowWithId(queue(staff, exam, "status", "APPROVED").get("content"), approved);
+		assertThat(queued.get("photoUrl").asText())
+			.isEqualTo("/api/v1/staff/reviews/" + approved + "/photo?v=" + PICTURE_UPDATED.toEpochMilli());
+		send(get("/api/v1/staff/reviews/" + approved + "/photo"), staff)
+			.andExpect(status().isOk())
+			.andExpect(header().string("Cache-Control", "private, no-cache"));
+		send(get("/api/v1/staff/reviews/" + approved + "/photo"), fx.token(withPicture)).andExpect(status().isForbidden());
+		send(get("/api/v1/staff/reviews/" + plain + "/photo"), staff).andExpect(status().isNotFound());
+	}
+
+	/** Gives a student a stored profile picture as the upload would. The bytes are served as they are, so they need no image. */
+	private void givePicture(UUID student) throws Exception {
+		String stored = UUID.randomUUID().toString();
+		byte[] bytes = { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 1, 2, 3, 4 };
+		Files.createDirectories(fileStorage.rootDirectory());
+		Files.write(fileStorage.resolve(stored), bytes);
+		fx.jdbc().update("""
+				insert into student_photos (user_id, stored_name, content_type, byte_size, updated_at)
+				values (?, ?, 'image/jpeg', ?, ?)
+				""", student, stored, (long) bytes.length, Timestamp.from(PICTURE_UPDATED));
+	}
+
+	private static JsonNode rowWithId(JsonNode content, String id) {
+		for (JsonNode row : content) {
+			if (row.get("id").asText().equals(id)) {
+				return row;
+			}
+		}
+		throw new AssertionError("The review is not in the list: " + id);
+	}
 
 	/** A published standalone MCQ exam in the category, with one question. */
 	private UUID standalone(String staff, String master, UUID category, String title) throws Exception {

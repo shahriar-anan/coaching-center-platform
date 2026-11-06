@@ -1,8 +1,10 @@
 import { Quote } from "lucide-react";
 import { Section } from "@/components/student/landing/section";
+import { Avatar } from "@/components/ui/file/avatar";
 import { Stars } from "@/components/ui/stars";
 import { useLocale } from "@/i18n/locale-context";
 import { useFeaturedReviews, type FeaturedReview } from "@/lib/api/exam/reviews";
+import { apiUrl } from "@/lib/config";
 import { formatNumber, pickTitle } from "@/lib/format";
 
 /**
@@ -32,17 +34,12 @@ export function Reviews() {
 /** One review: the initial in a circle with the name, the exam or package it is about, the stars, the comment and a quote mark. */
 function ReviewQuote({ review }: { review: FeaturedReview }) {
   const { t, locale } = useLocale();
-  const initial = Array.from(review.name.trim())[0]?.toUpperCase() ?? "";
   const target = pickTitle({ titleEn: review.targetTitleEn, titleBn: review.targetTitleBn }, locale);
   return (
     <figure className="flex h-full flex-col gap-4 rounded-card border border-border bg-card p-6 text-start shadow-md">
       <div className="flex items-center justify-between gap-3">
-        <span
-          aria-hidden="true"
-          className="flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-accent bg-accent/10 text-lg font-bold text-text-accent"
-        >
-          {initial}
-        </span>
+        <Avatar src={review.photoUrl ? apiUrl(review.photoUrl) : null} name={review.name} size={48} />
+
         <Quote aria-hidden="true" className="size-8 shrink-0 text-accent" />
       </div>
       <figcaption className="grid gap-0.5">

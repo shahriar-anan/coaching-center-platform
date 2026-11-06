@@ -30,6 +30,8 @@ export type StaffReviewRow = {
   createdAt: string;
   updatedAt: string;
   moderatedAt: string | null;
+  /** The author's picture on the staff route, which needs the sign-in token. Null when there is none. */
+  photoUrl: string | null;
 };
 
 /** The tab badges. Counted with every filter except the status. */
@@ -65,6 +67,7 @@ function normalizeRow(raw: RawRow): StaffReviewRow {
     targetTitleBn: raw.targetTitleBn ?? null,
     studentId: raw.studentId ?? "",
     studentName: raw.studentName ?? "",
+    photoUrl: raw.photoUrl ?? null,
     rating: raw.rating ?? 0,
     comment: raw.comment ?? null,
     status: raw.status ?? "PENDING",

@@ -34,6 +34,8 @@ export type StudentRow = {
   role: string;
   status: AccountStatus;
   studentCode: string | null;
+  /** When the account was made: the sign-up time for a student. Absent on an older API. */
+  createdAt?: string | null;
 };
 
 /** `POST /api/v1/students`, `/instructors`, `/admins`: the one-time code is shown once. */

@@ -27,7 +27,7 @@ const staffPeople = {
     createTitle: "Add a student",
     searchLabel: "Find a student",
     searchPlaceholder: "Search by name, phone, email or code",
-    columns: { name: "Name", phone: "Phone", email: "Email", code: "Code", status: "Status" },
+    columns: { name: "Name", phone: "Phone", email: "Email", code: "Code", status: "Status", signedUp: "Signed up" },
     activate: "Activate",
     deactivate: "Deactivate",
     reissue: "Send a new code",
