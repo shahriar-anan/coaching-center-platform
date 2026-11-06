@@ -255,7 +255,7 @@ public class AccountService {
 			}
 		}
 		return new AccountView(user.getId(), fullName, user.getPhone(), user.getEmail(), user.getRole(), user.getStatus(),
-				studentCode);
+				studentCode, user.getCreatedAt());
 	}
 
 	private ApiException validationFailed() {
@@ -278,8 +278,9 @@ public class AccountService {
 			java.time.Instant createdAt, List<LiveExamInstructorModules.ModuleRef> modules) {
 	}
 
+	/** An account row. {@code createdAt} is when the account was made, which for a student is the sign-up time. */
 	public record AccountView(UUID id, String fullName, String phone, String email, String role, String status,
-			String studentCode) {
+			String studentCode, Instant createdAt) {
 	}
 
 }

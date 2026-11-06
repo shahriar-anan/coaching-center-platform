@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Avatar } from "@/components/ui/file/avatar";
 import { Button } from "@/components/ui/button";
 import { Pill, type PillTone } from "@/components/ui/pill";
 import { Stars } from "@/components/ui/stars";
 import { useLocale } from "@/i18n/locale-context";
+import { useAuthorizedObjectUrl } from "@/lib/hooks/use-authorized-object-url";
 import { useFormat } from "@/lib/format/use-format";
 import type { ReviewStatus } from "@/lib/api/exam/reviews";
 import type { StaffReviewRow } from "@/lib/api/exam/staff-reviews";
@@ -45,6 +47,8 @@ export function ReviewRow({
   const { t } = useLocale();
   const { pickTitle, formatDateTime, formatNumber } = useFormat();
   const [expanded, setExpanded] = useState(false);
+  // The picture needs the sign-in token, so it is fetched as an object URL (null until it arrives).
+  const photo = useAuthorizedObjectUrl(row.photoUrl);
 
   const comment = row.comment;
   const long = comment !== null && comment.length > PREVIEW_CHARS;
@@ -92,6 +96,7 @@ export function ReviewRow({
       )}
 
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
+        <Avatar src={photo} name={row.studentName} size={28} />
         <Link href={`/staff/students/${row.studentId}`} prefetch className="font-medium text-text underline-offset-2 hover:underline">
           {row.studentName || t("staffReviews.row.unnamed")}
         </Link>

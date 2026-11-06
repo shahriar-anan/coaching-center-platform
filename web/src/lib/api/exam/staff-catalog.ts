@@ -9,7 +9,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData, type QueryClient } from "@tanstack/react-query";
 import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import type { PageResponse, PaperLanguage, ExamType } from "@/lib/api/exam/types";
+import type { PageResponse, PaperLanguage, ExamType, RoutinePdf } from "@/lib/api/exam/types";
 import { catalogKeys } from "@/lib/api/exam/catalog";
 import { sittingKeys } from "@/lib/api/exam/sitting";
 
@@ -55,6 +55,8 @@ export type StaffModule = {
   writtenCount?: number;
   /** The package cover path, or null. Only the Master Admin changes it (see the cover uploader). */
   coverUrl?: string | null;
+  /** The routine PDF, or null. Changed by the cover's permission, at once (see the routine PDF uploader). */
+  routinePdf?: RoutinePdf | null;
   /** Discount and popular flag (NR-01). Only the Master Admin changes them. */
   discountPercent?: number | null;
   discountEndsAt?: string | null;
@@ -447,6 +449,37 @@ export function useRemoveModuleCover(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}/cover`, { method: "DELETE" }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
+    },
+  });
+}
+
+/**
+ * Uploads or replaces the package's routine PDF (the cover's permission). It applies at once, not through a staged change.
+ * The server replaces any earlier PDF and checks the file's first bytes.
+ */
+export function useUploadRoutinePdf(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}/routine-pdf`, { method: "PUT", body: form });
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
+      queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });
+    },
+  });
+}
+
+/** Removes the package's routine PDF (the cover's permission). */
+export function useRemoveRoutinePdf(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<StaffModule>(`/api/v1/live-exam-modules/${id}/routine-pdf`, { method: "DELETE" }),
     onSuccess: (saved) => {
       queryClient.setQueryData(staffCatalogKeys.module(saved.id), saved);
       queryClient.invalidateQueries({ queryKey: ["staffCatalog", "modules"] });

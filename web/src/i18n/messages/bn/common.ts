@@ -174,6 +174,13 @@ const common = {
     tooLarge: "ফাইলটি {max}-এর চেয়ে বড়। ছোট একটি ফাইল দিন।",
     limit: "সর্বোচ্চ {max}",
     uploading: "আপলোড হচ্ছে… {percent}%",
+    view: "দেখুন",
+    download: "ডাউনলোড করুন",
+    pdf: "পিডিএফ",
+    sizeKb: "{size} KB",
+    sizeMb: "{size} MB",
+    opening: "খোলা হচ্ছে…",
+    openFailed: "ফাইলটি খোলা যায়নি",
   },
   confirm: {
     typeToConfirm: "নিশ্চিত করতে লিখুন: {name}",

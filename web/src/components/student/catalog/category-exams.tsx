@@ -42,8 +42,9 @@ export function CategoryExams(props: { categoryId: string; door: Door; hasChildr
 
 function CategoryExamsList({ categoryId, door, hasChildren }: { categoryId: string; door: Door; hasChildren: boolean }) {
   const { t } = useLocale();
-  // Without subcategories the branch is the category itself, so the switch stays hidden and the value stays on.
-  const [branch, setBranch] = useState(true);
+  // Off by default: the category's own exams. Without subcategories the branch is the category itself, so the switch is hidden
+  // and the value makes no difference.
+  const [branch, setBranch] = useState(false);
   const [view, setView] = useExamViewParam();
   const query = useCategoryExams(categoryId, doorType(door), branch, view);
   const rows = query.data?.pages.flatMap((page) => page.content) ?? [];

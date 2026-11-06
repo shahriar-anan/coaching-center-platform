@@ -27,7 +27,7 @@ const staffPeople = {
     createTitle: "নতুন শিক্ষার্থী যোগ করুন",
     searchLabel: "শিক্ষার্থী খুঁজুন",
     searchPlaceholder: "নাম, ফোন, ইমেইল বা কোড দিয়ে খুঁজুন",
-    columns: { name: "নাম", phone: "ফোন", email: "ইমেইল", code: "কোড", status: "অবস্থা" },
+    columns: { name: "নাম", phone: "ফোন", email: "ইমেইল", code: "কোড", status: "অবস্থা", signedUp: "নিবন্ধনের তারিখ" },
     activate: "চালু করুন",
     deactivate: "বন্ধ করুন",
     reissue: "কোড আবার দিন",

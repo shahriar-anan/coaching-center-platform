@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +25,7 @@ import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.web.PageResponse;
+import com.coachingcenter.api.files.FileResponses;
 
 import tools.jackson.databind.JsonNode;
 
@@ -40,13 +42,17 @@ public class LiveExamModuleController {
 
 	private final PackageRevisionService revisions;
 
+	private final ModuleRoutinePdfService routinePdfs;
+
 	public LiveExamModuleController(LiveExamModuleService modules, LiveExamStaffModuleService staff,
-			PermissionChecker permissions, ModuleCoverService covers, PackageRevisionService revisions) {
+			PermissionChecker permissions, ModuleCoverService covers, PackageRevisionService revisions,
+			ModuleRoutinePdfService routinePdfs) {
 		this.modules = modules;
 		this.staff = staff;
 		this.permissions = permissions;
 		this.covers = covers;
 		this.revisions = revisions;
+		this.routinePdfs = routinePdfs;
 	}
 
 	@PostMapping("/api/v1/live-exam-modules")
@@ -142,6 +148,33 @@ public class LiveExamModuleController {
 	public LiveExamModuleService.ModuleView removeCover(@PathVariable UUID id) {
 		require(Permissions.MODULE_COVER_MANAGE);
 		covers.remove(id);
+		return staff.get(id);
+	}
+
+	/** The routine PDF for staff screens, so a draft package's PDF can be previewed. The public route serves published packages only. */
+	@GetMapping("/api/v1/live-exam-modules/{id}/routine-pdf")
+	public ResponseEntity<InputStreamResource> staffRoutinePdf(@PathVariable UUID id,
+			@RequestParam(name = "download", required = false, defaultValue = "false") boolean download) {
+		require(Permissions.EXAM_READ);
+		ModuleRoutinePdfService.RoutinePdfFile file = routinePdfs.open(id);
+		return download
+				? FileResponses.attachment(file.body(), ModuleRoutinePdfService.CONTENT_TYPE, file.byteSize(), file.fileName(),
+						"private, no-cache")
+				: FileResponses.inline(file.body(), ModuleRoutinePdfService.CONTENT_TYPE, file.byteSize(), file.fileName(),
+						"private, no-cache");
+	}
+
+	@PutMapping(value = "/api/v1/live-exam-modules/{id}/routine-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public LiveExamModuleService.ModuleView uploadRoutinePdf(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+		require(Permissions.MODULE_COVER_MANAGE);
+		routinePdfs.upload(id, file, actorId());
+		return staff.get(id);
+	}
+
+	@DeleteMapping("/api/v1/live-exam-modules/{id}/routine-pdf")
+	public LiveExamModuleService.ModuleView removeRoutinePdf(@PathVariable UUID id) {
+		require(Permissions.MODULE_COVER_MANAGE);
+		routinePdfs.remove(id);
 		return staff.get(id);
 	}
 

@@ -3,8 +3,11 @@ package com.coachingcenter.api.notices;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -36,7 +39,13 @@ public class SiteNoticeService {
 
 	private static final String DENIED = "Access is denied.";
 
+	private static final String STAFF_PATH = "/api/v1/site-notices/";
+
+	private static final String PUBLIC_PATH = "/api/v1/public/site-notices/";
+
 	private final SiteNoticeRepository notices;
+
+	private final SiteNoticeFileRepository noticeFiles;
 
 	private final PermissionChecker permissions;
 
@@ -44,8 +53,10 @@ public class SiteNoticeService {
 
 	private final Clock clock;
 
-	public SiteNoticeService(SiteNoticeRepository notices, PermissionChecker permissions, AuditRecorder audit, Clock clock) {
+	public SiteNoticeService(SiteNoticeRepository notices, SiteNoticeFileRepository noticeFiles, PermissionChecker permissions,
+			AuditRecorder audit, Clock clock) {
 		this.notices = notices;
+		this.noticeFiles = noticeFiles;
 		this.permissions = permissions;
 		this.audit = audit;
 		this.clock = clock;
@@ -63,7 +74,8 @@ public class SiteNoticeService {
 		}
 		var rows = filter == null ? notices.findByDeletedAtIsNullOrderByUpdatedAtDescIdDesc(request)
 				: notices.findByStatusAndDeletedAtIsNullOrderByUpdatedAtDescIdDesc(filter, request);
-		return PageResponse.from(rows.map(SiteNoticeService::staffRow));
+		Map<UUID, List<SiteNoticeFile>> files = filesByNotice(rows.getContent());
+		return PageResponse.from(rows.map(notice -> staffRow(notice, files.getOrDefault(notice.getId(), List.of()))));
 	}
 
 	@Transactional(readOnly = true)
@@ -179,7 +191,8 @@ public class SiteNoticeService {
 	public PageResponse<PublicRow> published(int page) {
 		var request = PageRequest.of(Math.max(page, 0), PUBLIC_PAGE_SIZE);
 		var rows = notices.findByStatusAndDeletedAtIsNullOrderByPublishedAtDescIdDesc(SiteNotice.PUBLISHED, request);
-		return PageResponse.from(rows.map(SiteNoticeService::publicRow));
+		Map<UUID, List<SiteNoticeFile>> files = filesByNotice(rows.getContent());
+		return PageResponse.from(rows.map(notice -> publicRow(notice, files.getOrDefault(notice.getId(), List.of()))));
 	}
 
 	/** One published notice. A draft, an unpublished notice or a deleted one is not found. */
@@ -188,7 +201,7 @@ public class SiteNoticeService {
 		SiteNotice notice = notices.findByIdAndDeletedAtIsNull(id)
 			.filter(row -> SiteNotice.PUBLISHED.equals(row.getStatus()))
 			.orElseThrow(SiteNoticeService::notFound);
-		return publicRow(notice);
+		return publicRow(notice, noticeFiles.findByNoticeIdOrderByPositionAsc(notice.getId()));
 	}
 
 	/** The four texts, tidied: blank becomes null, line endings become LF, lengths are limited. */
@@ -239,7 +252,8 @@ public class SiteNoticeService {
 		}
 	}
 
-	private static UUID actorId() {
+	/** The signed-in user's id, for the created-by and updated-by columns. Package-private for {@link SiteNoticeFileService}. */
+	static UUID actorId() {
 		var authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication != null && authentication.getPrincipal() instanceof CurrentActor actor) {
 			return actor.userId();
@@ -247,35 +261,102 @@ public class SiteNoticeService {
 		throw new ApiException(ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED, "Authentication is required.");
 	}
 
-	private static ApiException notFound() {
+	static ApiException notFound() {
 		return new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 	}
 
-	private static ApiException validation(List<FieldErrorDetail> errors) {
+	static ApiException validation(List<FieldErrorDetail> errors) {
 		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.", errors);
 	}
 
-	private static StaffRow staffRow(SiteNotice notice) {
-		return new StaffRow(notice.getId(), notice.getStatus(), notice.getTitleEn(), notice.getTitleBn(), notice.getBodyEn(),
-				notice.getBodyBn(), notice.getCreatedAt(), notice.getUpdatedAt(), notice.getPublishedAt());
+	/** The files of several notices, grouped by notice, in position order. Empty input makes no query. */
+	private Map<UUID, List<SiteNoticeFile>> filesByNotice(List<SiteNotice> rows) {
+		if (rows.isEmpty()) {
+			return Map.of();
+		}
+		List<UUID> ids = rows.stream().map(SiteNotice::getId).toList();
+		return noticeFiles.findByNoticeIdInOrderByPositionAsc(ids).stream()
+			.collect(Collectors.groupingBy(SiteNoticeFile::getNoticeId));
 	}
 
-	private static PublicRow publicRow(SiteNotice notice) {
+	private StaffRow staffRow(SiteNotice notice) {
+		return staffRow(notice, noticeFiles.findByNoticeIdOrderByPositionAsc(notice.getId()));
+	}
+
+	/** A staff row with the notice's files. {@code files} is every file of the notice, in any order. */
+	static StaffRow staffRow(SiteNotice notice, List<SiteNoticeFile> files) {
+		return new StaffRow(notice.getId(), notice.getStatus(), notice.getTitleEn(), notice.getTitleBn(), notice.getBodyEn(),
+				notice.getBodyBn(), notice.getCreatedAt(), notice.getUpdatedAt(), notice.getPublishedAt(),
+				photoViews(notice.getId(), files, true), pdfView(notice.getId(), files, true));
+	}
+
+	/** A public row with the notice's files. {@code files} is every file of the notice, in any order. */
+	static PublicRow publicRow(SiteNotice notice, List<SiteNoticeFile> files) {
 		return new PublicRow(notice.getId(), notice.getTitleEn(), notice.getTitleBn(), notice.getBodyEn(), notice.getBodyBn(),
-				notice.getPublishedAt());
+				notice.getPublishedAt(), photoViews(notice.getId(), files, false), pdfView(notice.getId(), files, false));
+	}
+
+	/** The photos in position order. Staff rows point at the staff file route; public rows at the public one. */
+	private static List<PhotoView> photoViews(UUID noticeId, List<SiteNoticeFile> files, boolean staff) {
+		return files.stream()
+			.filter(file -> SiteNoticeFile.PHOTO.equals(file.getKind()))
+			.sorted(Comparator.comparingInt(SiteNoticeFile::getPosition))
+			.map(file -> new PhotoView(file.getId(),
+					(staff ? STAFF_PATH + noticeId + "/files/" + file.getId() : PUBLIC_PATH + noticeId + "/photos/" + file.getId())
+							+ "?v=" + version(file)))
+			.toList();
+	}
+
+	/** The PDF, or null when the notice has none. */
+	private static PdfView pdfView(UUID noticeId, List<SiteNoticeFile> files, boolean staff) {
+		return files.stream()
+			.filter(file -> SiteNoticeFile.PDF.equals(file.getKind()))
+			.findFirst()
+			.map(file -> new PdfView(
+					(staff ? STAFF_PATH + noticeId + "/files/" + file.getId() : PUBLIC_PATH + noticeId + "/pdf") + "?v=" + version(file),
+					displayName(file), file.getByteSize()))
+			.orElse(null);
+	}
+
+	/** The upload time in milliseconds. A replaced PDF gets a new time, so its URL changes and caches are not stale. */
+	static String version(SiteNoticeFile file) {
+		return String.valueOf(file.getCreatedAt() == null ? 0L : file.getCreatedAt().toEpochMilli());
+	}
+
+	/** The name shown and sent on download: the uploaded name, or a plain default when it has none. */
+	static String displayName(SiteNoticeFile file) {
+		if (file.getOriginalName() != null && !file.getOriginalName().isBlank()) {
+			return file.getOriginalName();
+		}
+		return SiteNoticeFile.PHOTO.equals(file.getKind()) ? "photo.jpg" : "notice.pdf";
 	}
 
 	/** The request body: the four texts. Any of them may be null or blank on a draft. */
 	public record NoticeForm(String titleEn, String titleBn, String bodyEn, String bodyBn) {
 	}
 
-	/** A staff row: the four texts as stored (null when blank), the status and the dates. */
+	/**
+	 * A staff row: the four texts as stored (null when blank), the status, the dates, and the files. {@code photos} is never
+	 * null (empty when there are none); {@code pdf} is null when there is no PDF.
+	 */
 	public record StaffRow(UUID id, String status, String titleEn, String titleBn, String bodyEn, String bodyBn,
-			Instant createdAt, Instant updatedAt, Instant publishedAt) {
+			Instant createdAt, Instant updatedAt, Instant publishedAt, List<PhotoView> photos, PdfView pdf) {
 	}
 
-	/** A published notice as the public sees it: no status and no staff names. */
-	public record PublicRow(UUID id, String titleEn, String titleBn, String bodyEn, String bodyBn, Instant publishedAt) {
+	/**
+	 * A published notice as the public sees it: no status and no staff names. {@code photos} is never null; {@code pdf} is
+	 * null when there is no PDF.
+	 */
+	public record PublicRow(UUID id, String titleEn, String titleBn, String bodyEn, String bodyBn, Instant publishedAt,
+			List<PhotoView> photos, PdfView pdf) {
+	}
+
+	/** One photo: its id and the URL that serves its bytes. */
+	public record PhotoView(UUID id, String url) {
+	}
+
+	/** The PDF: the URL that serves it, its file name and its size in bytes. */
+	public record PdfView(String url, String fileName, long byteSize) {
 	}
 
 	/** The four texts after tidying. {@link #missing()} names each one that is null. */

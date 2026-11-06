@@ -6,6 +6,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { CoverUploader } from "@/components/staff/catalog/cover-uploader";
+import { RoutinePdfUploader } from "@/components/staff/catalog/routine-pdf-uploader";
 import {
   primaryExamAction,
   useCategoryTree,
@@ -522,6 +523,10 @@ function DetailsBody({ module }: { module?: StaffModule }) {
       ) : null}
 
       {module && role.canManageCover ? <CoverUploader module={module} /> : null}
+
+      {module && (role.canManageCover || module.routinePdf) ? (
+        <RoutinePdfUploader module={module} canManage={role.canManageCover} />
+      ) : null}
 
       {module && !readOnly && role.canAuthor ? (
         <section aria-labelledby="module-publish-heading" className="grid max-w-3xl gap-4 rounded-card border border-border bg-card shadow-[var(--card-shadow)] p-5">

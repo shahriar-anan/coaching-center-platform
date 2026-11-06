@@ -2,6 +2,24 @@ import type { MessageTree } from "../types";
 
 /** Staff catalog copy (WS5), written for an English reader. Keys match bn/staffCatalog.ts. */
 const staffCatalog = {
+  routinePdf: {
+    heading: "Routine PDF",
+    hint: "A PDF of the routine, up to 20 MB. Students and visitors see it on the package's Routine tab. The change shows at once.",
+    none: "No routine PDF has been uploaded.",
+    uploaded: "Uploaded {date}",
+    upload: "Upload PDF",
+    replace: "Replace PDF",
+    view: "View",
+    remove: "Remove PDF",
+    removeTitle: "Remove the routine PDF?",
+    removeBody: "It will no longer show on the package's Routine tab. The list of exams stays as it is.",
+    removeConfirm: "Remove",
+    saved: "Routine PDF saved.",
+    removed: "Routine PDF removed.",
+    wrongType: "Choose a PDF file.",
+    tooLarge: "The file is larger than 20 MB. Choose a smaller file.",
+    failed: "The routine PDF could not be saved. Try again.",
+  },
   nav: {
     exams: "Exams",
     home: "Dashboard",

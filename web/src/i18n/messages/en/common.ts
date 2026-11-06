@@ -174,6 +174,13 @@ const common = {
     tooLarge: "The file is larger than {max}. Choose a smaller file.",
     limit: "Up to {max}",
     uploading: "Uploading… {percent}%",
+    view: "View",
+    download: "Download",
+    pdf: "PDF",
+    sizeKb: "{size} KB",
+    sizeMb: "{size} MB",
+    opening: "Opening…",
+    openFailed: "Couldn't open the file",
   },
   confirm: {
     typeToConfirm: "Type {name} to confirm",

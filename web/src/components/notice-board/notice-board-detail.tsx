@@ -1,6 +1,8 @@
 "use client";
 
+import { NoticePhotos } from "@/components/notice-board/notice-photos";
 import { noticeBody, noticeTitle } from "@/components/notice-board/notice-text";
+import { PdfAttachmentCard } from "@/components/ui/file/pdf-attachment-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -53,6 +55,15 @@ export function NoticeBoardDetail({ id }: { id: string }) {
       />
       <p className="text-meta text-muted">{t("notices.board.publishedOn", { date: formatDate(data.publishedAt) })}</p>
       <div className="whitespace-pre-line text-body text-text">{noticeBody(data, locale)}</div>
+      {data.photos && data.photos.length > 0 ? <NoticePhotos title={heading} photos={data.photos} size="page" /> : null}
+      {data.pdf ? (
+        <PdfAttachmentCard
+          url={data.pdf.url}
+          fileName={data.pdf.fileName}
+          byteSize={data.pdf.byteSize}
+          title={t("notices.board.pdfTitle")}
+        />
+      ) : null}
       <Button href="/notice-board" variant="secondary" className="justify-self-start">
         {t("notices.board.allNotices")}
       </Button>

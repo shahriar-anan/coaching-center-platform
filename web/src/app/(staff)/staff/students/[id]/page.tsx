@@ -19,6 +19,7 @@ import { AccountStatusToggle, DeleteAccountButton } from "@/components/staff/sta
 import { RequireStaff } from "@/lib/auth/guards";
 import { useStudent, useUpdateStudentName } from "@/lib/api/exam/staff-people";
 import { useLocale } from "@/i18n/locale-context";
+import { useFormat } from "@/lib/format/use-format";
 
 export default function StaffStudentPage({ params }: { params: Promise<{ id: string }> }) {
   return (
@@ -39,6 +40,7 @@ function StudentRoute({ params }: { params: Promise<{ id: string }> }) {
 
 function StudentDetail({ id }: { id: string }) {
   const { t } = useLocale();
+  const { formatDate } = useFormat();
   const router = useRouter();
   const student = useStudent(id);
 
@@ -71,6 +73,10 @@ function StudentDetail({ id }: { id: string }) {
             <Fact label={t("staffPeople.students.columns.phone")} value={row.phone} latin />
             <Fact label={t("staffPeople.students.columns.email")} value={row.email} latin />
             <Fact label={t("staffPeople.students.columns.code")} value={row.studentCode ?? "—"} latin />
+            <Fact
+              label={t("staffPeople.students.columns.signedUp")}
+              value={row.createdAt ? formatDate(row.createdAt) : "—"}
+            />
             <div className="grid gap-1">
               <dt className="text-meta text-muted">{t("staffPeople.students.columns.status")}</dt>
               <dd>

@@ -47,6 +47,8 @@ export interface PublicReview {
   rating: number;
   comment: string;
   createdAt: string;
+  /** The author's profile picture, a public path, or null when there is none. Absent on an older API. */
+  photoUrl?: string | null;
 }
 
 /** A staff-picked review for the landing page, with the exam or package it is about. */

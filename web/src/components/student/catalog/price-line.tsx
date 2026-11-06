@@ -11,7 +11,18 @@ import type { PriceLabel } from "./price-view";
  * drops to its own line instead of squeezing the amounts. Free, package-only and no price each get a short word, never a zero
  * (plan S2.2).
  */
-export function PriceLine({ label, size = "row", className }: { label: PriceLabel; size?: "row" | "detail"; className?: string }) {
+export function PriceLine({
+  label,
+  size = "row",
+  className,
+  endOnOwnLine = false,
+}: {
+  label: PriceLabel;
+  size?: "row" | "detail";
+  className?: string;
+  /** Puts the end date on its own line under the price, as on the package card. */
+  endOnOwnLine?: boolean;
+}) {
   const { t, locale } = useLocale();
   const amountClass = size === "detail" ? "text-card-title font-extrabold text-text-accent" : "text-body font-bold text-text";
 
@@ -38,7 +49,7 @@ export function PriceLine({ label, size = "row", className }: { label: PriceLabe
       <span className="rounded-control bg-ok/10 px-1.5 py-0.5 text-pill font-bold text-ok-text">
         {t("catalog.price.discount", { percent: String(label.percent) })}
       </span>
-      {endText ? <span className="text-meta text-muted">{endText}</span> : null}
+      {endText ? <span className={cn("text-meta text-muted", endOnOwnLine && "basis-full text-end")}>{endText}</span> : null}
     </span>
   );
 }

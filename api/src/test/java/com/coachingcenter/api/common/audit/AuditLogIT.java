@@ -313,6 +313,27 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/site-notices/{id}/publish",
 			"POST /api/v1/site-notices/{id}/unpublish",
 			"DELETE /api/v1/site-notices/{id}",
+			// Notice photos and PDF (notice media plan, F1).
+			"POST /api/v1/site-notices/{id}/photos",
+			"DELETE /api/v1/site-notices/{id}/photos/{fileId}",
+			"PUT /api/v1/site-notices/{id}/photos/order",
+			"PUT /api/v1/site-notices/{id}/pdf",
+			"DELETE /api/v1/site-notices/{id}/pdf",
+			"GET /api/v1/site-notices/{id}/files/{fileId}",
+			"GET /api/v1/public/site-notices/{id}/photos/{fileId}",
+			"GET /api/v1/public/site-notices/{id}/pdf",
+			// Student profile picture (F2).
+			"GET /api/v1/me/photo",
+			"PUT /api/v1/me/photo",
+			"DELETE /api/v1/me/photo",
+			// Package routine PDF (F3).
+			"GET /api/v1/live-exam-modules/{id}/routine-pdf",
+			"PUT /api/v1/live-exam-modules/{id}/routine-pdf",
+			"DELETE /api/v1/live-exam-modules/{id}/routine-pdf",
+			"GET /api/v1/public/live-exam-modules/{id}/routine.pdf",
+			// Reviewer pictures (reviews photo change).
+			"GET /api/v1/public/reviews/{id}/photo",
+			"GET /api/v1/staff/reviews/{id}/photo",
 			"GET /api/v1/public/site-notices",
 			"GET /api/v1/public/site-notices/{id}",
 			"PUT /api/v1/live-exams/{id}/answers-released",

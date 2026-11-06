@@ -29,21 +29,21 @@ const page = (content: unknown[], pageNumber: number, totalPages: number) => ({
 });
 
 describe("the category exam list (S2.1)", () => {
-  it("starts with the whole branch, and the switch turns it to the category's own exams", async () => {
+  it("starts with the category's own exams, and the switch turns on the whole branch", async () => {
     const { calls } = mockApi({
       "GET /api/v1/public/live-exam-categories/c1/exams": () => page([exam("e1", "First exam")], 0, 1),
     });
     renderWithProviders(<CategoryExams categoryId="c1" door="mcq" hasChildren />, { locale: "en" });
 
     expect(await screen.findByText("First exam")).toBeInTheDocument();
-    expect(calls[0].search).toContain("branch=true");
+    expect(calls[0].search).toContain("branch=false");
     expect(calls[0].search).toContain("examType=MCQ");
 
     const toggle = screen.getByRole("switch", { name: "Include exams in subcategories" });
-    expect(toggle).toBeChecked();
+    expect(toggle).not.toBeChecked();
     await userEvent.click(toggle);
-    await waitFor(() => expect(calls.some((call) => call.search.includes("branch=false"))).toBe(true));
-    expect(screen.getByRole("switch", { name: "Include exams in subcategories" })).not.toBeChecked();
+    await waitFor(() => expect(calls.some((call) => call.search.includes("branch=true"))).toBe(true));
+    expect(screen.getByRole("switch", { name: "Include exams in subcategories" })).toBeChecked();
   });
 
   it("loads the next page on Load more, and keeps the rows already shown", async () => {

@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFile, apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { Me, PageResponse } from "@/lib/api/exam/types";
+import { useSession } from "@/lib/auth/session-context";
 
 /** Account and auth mutations for the signed-in student. Keys live in this file. */
 
@@ -174,6 +175,31 @@ export function useSetPhone() {
   return useMutation({
     mutationFn: (body: { phone: string }) =>
       apiRequest<Me>("/api/v1/me/phone", { method: "POST", body }),
+  });
+}
+
+/**
+ * Sets the student's profile picture. The browser sends the file; the server re-encodes it and keeps it at most 1 MB.
+ * Refreshes the session afterwards, so the header shows the new picture.
+ */
+export function useUploadPhoto() {
+  const { refreshMe } = useSession();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiRequest<Me>("/api/v1/me/photo", { method: "PUT", body: form });
+    },
+    onSuccess: () => refreshMe(),
+  });
+}
+
+/** Removes the student's profile picture. Refreshes the session afterwards, so the header shows the initials. */
+export function useRemovePhoto() {
+  const { refreshMe } = useSession();
+  return useMutation({
+    mutationFn: () => apiRequest<Me>("/api/v1/me/photo", { method: "DELETE" }),
+    onSuccess: () => refreshMe(),
   });
 }
 

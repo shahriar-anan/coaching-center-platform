@@ -19,6 +19,7 @@ function row(overrides: Partial<StaffReviewRow> = {}): StaffReviewRow {
     targetTitleBn: "মক",
     studentId: "s1",
     studentName: "Nusrat Jahan",
+    photoUrl: null,
     rating: 5,
     comment: "Clear",
     status: "PENDING",

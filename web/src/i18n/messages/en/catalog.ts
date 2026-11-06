@@ -89,6 +89,7 @@ const catalog: typeof bn = {
   unlocked: "Unlocked",
   priceNotSet: "Price not set yet.",
   routineTitle: "Exam routine",
+  routinePdf: { title: "Routine (PDF)" },
   colExam: "Exam",
   colDate: "Date",
   colTime: "Time",

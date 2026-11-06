@@ -29,6 +29,8 @@ export interface Me {
   studentCode: string | null;
   /** True after a Google sign-up until the student adds a phone. */
   phoneRequired?: boolean;
+  /** The student's own profile picture path with a version (`/api/v1/me/photo?v=…`), or null. Students only. */
+  photoUrl?: string | null;
 }
 
 export type ExamType = "MCQ" | "WRITTEN";
@@ -92,6 +94,18 @@ export interface PublicModule extends Titled {
   ratingCount?: number;
   /** When the package was created (ISO 8601). The landing page shows the newest. */
   createdAt?: string;
+  /** The package's optional routine PDF, or null when none was uploaded (notice media plan, F3). */
+  routinePdf?: RoutinePdf | null;
+}
+
+/** A package's routine PDF. Anyone can view and download it once the package is public. */
+export interface RoutinePdf {
+  /** The public path with the upload time as `?v=`, for example `/api/v1/public/live-exam-modules/{id}/routine.pdf?v=...`. */
+  url: string;
+  fileName: string;
+  byteSize: number;
+  /** When it was uploaded (ISO 8601). */
+  updatedAt: string;
 }
 
 /** The price block on an exam or package: the list price, the discount, and the price the order charges (NR-01). */

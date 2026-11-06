@@ -17,6 +17,7 @@ import {
   NOTICE_FIELDS,
   type NoticeField,
 } from "@/components/notice-board/notice-text";
+import { NoticeAttachments } from "@/components/staff/notice-board/notice-attachments";
 import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -255,6 +256,14 @@ export function NoticeEditor({
           ) : null}
         </div>
       </form>
+
+      <NoticeAttachments
+        notice={current}
+        editable={canEdit}
+        busy={busy}
+        onUpdated={setCurrent}
+        title={current?.titleEn || current?.titleBn || t("notices.board.staff.untitled")}
+      />
 
       <ConfirmDialog
         open={confirm === "publish"}

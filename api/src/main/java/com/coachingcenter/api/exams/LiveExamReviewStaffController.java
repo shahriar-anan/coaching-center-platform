@@ -71,6 +71,18 @@ public class LiveExamReviewStaffController {
 		return moderation.pendingCount();
 	}
 
+	/**
+	 * The author's picture of a review in the queue. The same readers as the queue, and an instructor only for their own
+	 * exams. Never cached by shared caches.
+	 */
+	@GetMapping("/api/v1/staff/reviews/{id}/photo")
+	public org.springframework.http.ResponseEntity<org.springframework.core.io.InputStreamResource> photo(@PathVariable UUID id) {
+		requireRead();
+		var photo = moderation.photoOf(actor(), id);
+		return com.coachingcenter.api.files.FileResponses.inline(photo.body(), photo.contentType(), photo.byteSize(),
+				"profile-picture.jpg", "private, no-cache");
+	}
+
 	/** Body {@code {"status": "APPROVED" or "HIDDEN", "reason": required for HIDDEN}}. Returns the review's queue row. */
 	@PutMapping("/api/v1/staff/reviews/{id}/status")
 	public LiveExamReviewModerationService.StaffRow status(@PathVariable UUID id, @RequestBody JsonNode body) {

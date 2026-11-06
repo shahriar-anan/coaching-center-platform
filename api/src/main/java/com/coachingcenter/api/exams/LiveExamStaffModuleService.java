@@ -37,13 +37,17 @@ public class LiveExamStaffModuleService {
 
 	private final PackageRevisionService revisions;
 
+	private final ModuleRoutinePdfService routinePdfs;
+
 	public LiveExamStaffModuleService(LiveExamModuleService moduleViews, LiveExamModuleRepository modules,
-			LiveExamCategoryRepository categories, LiveExamRepository exams, PackageRevisionService revisions) {
+			LiveExamCategoryRepository categories, LiveExamRepository exams, PackageRevisionService revisions,
+			ModuleRoutinePdfService routinePdfs) {
 		this.moduleViews = moduleViews;
 		this.modules = modules;
 		this.categories = categories;
 		this.exams = exams;
 		this.revisions = revisions;
+		this.routinePdfs = routinePdfs;
 	}
 
 	/** Master Admin and System Admin. {@code status} is optional; {@code q} matches either title, case-insensitively. */
@@ -94,7 +98,7 @@ public class LiveExamStaffModuleService {
 		PackageRevisionService.Draft working = context.drafts().get(module.getId());
 		UUID categoryId = working == null ? module.getCategoryId() : working.categoryId();
 		return moduleViews.staffView(module, working, pathOf(categoryId, context.categories()),
-				counts.mcq(), counts.written());
+				counts.mcq(), counts.written(), context.routinePdfs().get(module.getId()));
 	}
 
 	/** Every live category that is not deleted, by id. Loaded once per request; the table is small. */
@@ -121,11 +125,11 @@ public class LiveExamStaffModuleService {
 		return List.copyOf(path);
 	}
 
-	/** One round of queries for a whole page: categories, counts, staged drafts. */
+	/** One round of queries for a whole page: categories, counts, staged drafts, routine PDFs. */
 	private Context context(List<LiveExamModule> rows) {
 		Map<UUID, LiveExamCategory> byId = categoriesById(categories);
 		List<UUID> moduleIds = rows.stream().map(LiveExamModule::getId).toList();
-		return new Context(byId, counts(moduleIds), revisions.stagedDrafts(moduleIds));
+		return new Context(byId, counts(moduleIds), revisions.stagedDrafts(moduleIds), routinePdfs.viewsFor(moduleIds));
 	}
 
 	private Map<UUID, Counts> counts(List<UUID> moduleIds) {
@@ -162,7 +166,7 @@ public class LiveExamStaffModuleService {
 	}
 
 	private record Context(Map<UUID, LiveExamCategory> categories, Map<UUID, Counts> counts,
-			Map<UUID, PackageRevisionService.Draft> drafts) {
+			Map<UUID, PackageRevisionService.Draft> drafts, Map<UUID, ModuleRoutinePdfService.RoutinePdfView> routinePdfs) {
 	}
 
 }

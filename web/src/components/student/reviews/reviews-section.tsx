@@ -1,8 +1,10 @@
 "use client";
 
 import { useId } from "react";
+import { Avatar } from "@/components/ui/file/avatar";
 import { Button } from "@/components/ui/button";
 import { Stars } from "@/components/ui/stars";
+import { apiUrl } from "@/lib/config";
 import { useLocale } from "@/i18n/locale-context";
 import { usePublicReviews, type PublicReview, type ReviewKind, type StarCounts } from "@/lib/api/exam/reviews";
 import { formatDate, formatNumber } from "@/lib/format";
@@ -103,6 +105,7 @@ function Comment({ review }: { review: PublicReview }) {
   return (
     <article className="grid gap-2 rounded-card border border-border bg-card p-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Avatar src={review.photoUrl ? apiUrl(review.photoUrl) : null} name={review.name} size={36} />
         <span className="font-semibold text-text">{review.name}</span>
         <Stars value={review.rating} size="size-4" label={t("reviews.stars.outOf", { n: formatNumber(review.rating, locale) })} />
         <time dateTime={review.createdAt} className="text-meta text-muted">

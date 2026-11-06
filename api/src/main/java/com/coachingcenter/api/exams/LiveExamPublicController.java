@@ -24,6 +24,7 @@ import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.web.PageResponse;
+import com.coachingcenter.api.files.FileResponses;
 
 @RestController
 public class LiveExamPublicController {
@@ -38,13 +39,17 @@ public class LiveExamPublicController {
 
 	private final ExamCoverService examCovers;
 
+	private final ModuleRoutinePdfService routinePdfs;
+
 	public LiveExamPublicController(LiveExamPublicService catalog, StudentOwnAccessService access,
-			ModuleCoverService covers, FavouriteService favourites, ExamCoverService examCovers) {
+			ModuleCoverService covers, FavouriteService favourites, ExamCoverService examCovers,
+			ModuleRoutinePdfService routinePdfs) {
 		this.catalog = catalog;
 		this.access = access;
 		this.covers = covers;
 		this.favourites = favourites;
 		this.examCovers = examCovers;
+		this.routinePdfs = routinePdfs;
 	}
 
 	@GetMapping("/api/v1/public/live-exam-categories")
@@ -140,6 +145,19 @@ public class LiveExamPublicController {
 			.contentType(MediaType.parseMediaType(file.contentType()))
 			.contentLength(file.byteSize())
 			.body(new InputStreamResource(file.body()));
+	}
+
+	/** The package's routine PDF for visitors. A package that is not published (or is deleted or archived) is 404. */
+	@GetMapping("/api/v1/public/live-exam-modules/{id}/routine.pdf")
+	public ResponseEntity<InputStreamResource> routinePdf(@PathVariable UUID id,
+			@RequestParam(name = "download", required = false, defaultValue = "false") boolean download) {
+		catalog.module(id, null);
+		ModuleRoutinePdfService.RoutinePdfFile file = routinePdfs.open(id);
+		return download
+				? FileResponses.attachment(file.body(), ModuleRoutinePdfService.CONTENT_TYPE, file.byteSize(), file.fileName(),
+						"public, max-age=3600")
+				: FileResponses.inline(file.body(), ModuleRoutinePdfService.CONTENT_TYPE, file.byteSize(), file.fileName(),
+						"public, max-age=3600");
 	}
 
 	@GetMapping("/api/v1/public/live-exam-modules/{id}")
