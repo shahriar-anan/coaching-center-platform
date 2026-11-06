@@ -1,7 +1,8 @@
 # Plan: release of the media features and the payout encryption (Flyway V75 to V78)
 
-Status (7 November 2026, 04:40 Dhaka): Shahriar gave the go. Builds and rehearsal done; the live release waits for the
-production key on the server.
+Status (7 November 2026, 04:55 Dhaka): **released.** Live is `80c1f0a`, Flyway 78. Record and rollback:
+`../reports/client-review-deploy.md`, "Media features and payout encryption". Open: the Master Admin's checks on the live
+site (section 5.5 step 3 and 4), and dropping the plain payout columns after Shahriar approves the verification.
 
 - Builds from `80c1f0a`: jar SHA-256 `905bfb4e2f759b1ac8333e3adfea9510907e4eca85f568910cffce24aa60aba0`
   (`F:\cc-releases\api-80c1f0a.jar`); website package SHA-256

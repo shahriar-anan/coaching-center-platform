@@ -243,3 +243,42 @@ Live test (Shahriar, 5 November, Dhaka), on a test written exam "Payment EN" mad
 - Refund from the merchant panel and unpublishing the test exam: see below.
 
 Rollback to sandbox: copy `/etc/coaching-api.env.sandbox` back over `/etc/coaching-api.env` and restart `coaching-api`.
+## Media features and payout encryption, 7 November 2026 (Dhaka)
+
+API and website, Flyway 74 to 78. Commit `80c1f0a` (`demo/client-review`; code as merged in `de1c901`). Plan:
+`../plans/media-release-deploy.md`. Released by the agent on Shahriar's go, 04:46 to 04:55 Dhaka.
+
+- **Ships:** payout account numbers sealed (V75, plain columns kept and dual-written); notice photos and PDF (V76); student
+  profile picture (V77); package routine PDF (V78); reviewer pictures on public and staff reviews; "Signed up" on the staff
+  student page; discount tag on package cards; dark-mode fix; browse starts on the category's own exams.
+- **Jar** SHA-256 `905bfb4e2f759b1ac8333e3adfea9510907e4eca85f568910cffce24aa60aba0`. Started in 24.7 s with
+  `PAYOUT_BACKFILL_ENABLED=true`: 4 migrations applied (75 to 78), backfill sealed 1 account row (counts only logged),
+  0 accounts left unsealed. Restarted with the backfill off: started in 15.0 s, no errors.
+- **Payout key:** generated and stored by Shahriar (password manager plus an off-server copy), added to
+  `/etc/coaching-api.env` by him as `PAYOUT_ENCRYPTION_KEY` with `PAYOUT_KEY_VERSION=1`. The agent checked only that the
+  line exists once, is 44 characters and decodes to 32 bytes. The key was never shown to the agent.
+- **Website** package SHA-256 `91f661e078baf4762bc5ef60dd958769af2f1a7b6b24731a76ffab070e6bdf37`, build
+  `l23pI4LvrTr5TEztQhHTk`, swapped in at 22:50 UTC (04:50 Dhaka); up after 1 s. Previous release
+  `/opt/coaching-web.before-20261106-225054`. The swap ran detached on the box (`nohup`) because the PC's link to the box
+  dropped SSH connections all night.
+- **Before:** an open sitting existed (a written exam "Bangladesh and International Affairs", started 02:13 Dhaka, after
+  its window had closed at 17:10 the day before; deadline 05:13; no answer uploaded; no request for that exam since 02:15).
+  Shahriar chose to deploy during it. No payment had started in the 15 minutes before. 1 payout account with a number.
+- **Rehearsal** on a local restore of `coaching-pre-media-rehearsal-20261106-221509.dump`: passed (see the plan's status).
+- **Backups (stamp `20261106-222202`):** `/var/backups/coaching/coaching-pre-media-20261106-222202.dump` (424 entries,
+  SHA-256 `c15af6f3…77fe`), `files-pre-media-20261106-222202.tgz` (SHA-256 `f25ed879…3982`), both also in
+  `F:\exam-vps-backups\`; `/etc/coaching-api.env.before-media-20261106-222202`;
+  `/opt/coaching-api/api.jar.before-media-20261106-222202` (the `fdefac8` jar, SHA-256 `53ff62cd…c692`).
+- **Checks:** live preflight (`MODE=live`) 0 failed of 21. Public: home, `/packages`, `/notice-board`, `/mcq`, `/written`,
+  `/account`, the live package page and the admin login all 200; Swagger 404; the live package's pricing (30% off) and
+  `routinePdf: null` in the API; the routine PDF route 404 with none uploaded. API log since the release: 0 errors, 0
+  5xx responses, no stored payout number anywhere in it; 4 warnings from PDFBox's font loader.
+- **Not checked by the agent** (needs the Master Admin's sign-in): the payout account screen (masked and full number), the
+  staff reviews page, a student's "Signed up" line, and a draft notice with a photo and a PDF in the staff preview.
+
+Rollback:
+- API: stop `coaching-api`, copy `api.jar.before-media-20261106-222202` over `api.jar` and
+  `coaching-api.env.before-media-20261106-222202` over `/etc/coaching-api.env`, start it. The previous jar starts on Flyway
+  78 and reads the plain payout columns (proved in the rehearsal). If a payout account is changed while the previous jar
+  runs, clear that account's sealed columns before the new jar goes out again.
+- Website: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261106-225054` back, start it.
