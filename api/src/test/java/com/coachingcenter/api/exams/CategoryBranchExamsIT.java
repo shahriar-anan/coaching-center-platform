@@ -42,8 +42,12 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class CategoryBranchExamsIT extends PostgresIntegrationTest {
 
-	/** 27 October 2026, 16:00 in Dhaka: the same run time as DemoContentSeedIT. */
-	private static final Instant NOW = Instant.parse("2026-10-27T10:00:00Z");
+	/**
+	 * The real run time. The upcoming list compares exam windows with the real clock, so a fixed seed date made the demo exams
+	 * (9 to 12 days after the seed time) drop out of the list once that date had passed. Every check here reads its dates
+	 * from the seeded rows, so a moving seed time is safe.
+	 */
+	private static final Instant NOW = Instant.now();
 
 	private static final String CLEANUP = ".cursor/progress/ui-delivery/demo-cleanup.sql";
 
