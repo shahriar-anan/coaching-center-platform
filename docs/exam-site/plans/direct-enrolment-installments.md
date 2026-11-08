@@ -1,6 +1,6 @@
 # Plan: payments and installments on direct enrolment
 
-Status (8 November 2026): Phases 1 to 6 are built and tested, and committed as `38d3b4b` on `feature/direct-enrolment-installments`. The package extension in **section 14** is implemented in the working tree (8 November 2026), compiled (API `test-compile` and web `tsc` both pass) and **not tested**. Two API gaps remain and are planned in section 14.11, waiting for Shahriar's go-ahead. Section 14.2 has the audit. Phase 7 (QA and release) is not done. Section 0 records what was built and where the build differs from this plan. The site is live and takes real payments, so section 11 (how this ships) governs every phase.
+Status (9 November 2026): **released.** Live since 01:45 Dhaka on 9 November, Flyway 80, including the package extension in section 14 and the gaps in section 14.11. Release plan and record: [direct-enrolment-release.md](direct-enrolment-release.md) and `../reports/client-review-deploy.md`. The browser walkthrough (10.3), the regression checks (10.4) and the Master Admin's live checks are still open. Section 14.2 has the audit. Section 0 records what was built and where the build differs from this plan. The site is live and takes real payments, so section 11 (how this ships) governs every phase.
 
 ## 0. Build log
 

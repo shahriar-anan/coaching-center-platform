@@ -1,8 +1,9 @@
 # Plan: release of direct enrolment installments and the package add-exams flow (Flyway V79 and V80)
 
-Status (9 November 2026): **planned, not released.** `demo/client-review` is at `8331118`, a fast-forward of
-`feature/direct-enrolment-installments`, with no conflicts. Nothing has been built or changed on the box. The site takes real
-money, so section 2 governs the whole release. Follows [media-release-deploy.md](media-release-deploy.md) and section 11 of
+Status (9 November 2026, 01:46 Dhaka): **released.** Live is `9bb0ec6`, Flyway 80. Record and rollback:
+`../reports/client-review-deploy.md`, "Direct enrolment installments and package add-exams". Open: section 6.5 steps 4 to 6
+(they need the Master Admin's sign-in), the browser walkthrough and regression checks in 4.2, and the three ESLint errors in the
+record. Follows [media-release-deploy.md](media-release-deploy.md) and section 11 of
 [direct-enrolment-installments.md](direct-enrolment-installments.md).
 
 ## 1. What ships

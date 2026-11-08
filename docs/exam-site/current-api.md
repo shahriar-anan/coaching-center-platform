@@ -544,3 +544,11 @@ A time in the header longer than the exam's window (the staged window on a publi
 The header is shown on the student's sitting (`StudentExam.paperHeader`) in place of the title and time line. The exam's own `titleEn` and `titleBn` do not change. A pinned attempt keeps the header it started with (`McqAttemptSnapshot`). The header is a field of the change list (`paperHeader`).
 
 Known gaps: `McqDocxParserTest` is written but not run, as requested, and the import endpoints have no integration test yet. The Bangla problem and warning texts are proposals until the client confirms them. The change list has no summary line for a large question replacement.
+
+## Added 2026-11-09 (direct enrolment payments and installments; API)
+
+- **Enrolling with a payment.** `POST /live-exam-grants` takes an optional `payment` (`agreedTotal`, `amount`, `method`, `reference`, `paidOn`, `note`, `schedule` of `{amount, dueOn}`). Without it the grant is No charge and needs a `reason`. Master Admin only.
+- **Quote.** `GET /live-exam-grants/quote` (`scope`, `moduleId` or `examId`, `studentId`) also returns `onRoster`, `rosterStarted`, `directGrantActive`, `unfinishedPlanId`, and `overlaps`, each with `kind`, `id`, titles, `via`, plan figures and `packageTitleEn`/`packageTitleBn`.
+- **Plans.** `GET /installment-plans`, `GET /installment-plans/summary`, `GET /installment-plans/{id}`, `POST /installment-plans/{id}/payments`, `PUT /installment-plans/{id}/schedule`, `POST /installment-plans/{id}/restore-access`, `POST /installment-payments/{id}/void` (latest payment only, body `{"reason"}`), `GET /installment-payments/{id}/receipt.pdf`. The student reads a receipt at `GET /me/installment-payments/{id}/receipt.pdf`.
+- **One way into a package.** A live roster row refuses a direct grant (409 `STUDENT_ON_ROSTER`). A live manual package grant refuses a roster add (409 `STUDENT_HAS_DIRECT_ENROLMENT`); a paste lists that student under `alreadyEnrolled`.
+- **Enrolment lists.** Each row carries `onRoster`, `startedAny`, `grantScope` and `moduleId` (null for an exam grant).

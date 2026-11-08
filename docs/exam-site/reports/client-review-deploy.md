@@ -282,3 +282,52 @@ Rollback:
   78 and reads the plain payout columns (proved in the rehearsal). If a payout account is changed while the previous jar
   runs, clear that account's sealed columns before the new jar goes out again.
 - Website: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261106-225054` back, start it.
+
+## Direct enrolment installments and package add-exams, 9 November 2026 (Dhaka)
+
+API and website, Flyway 78 to 80. Commit `9bb0ec6` (`demo/client-review`; code as in `8331118`, the commit adds only the release
+plan). Plan: `../plans/direct-enrolment-release.md`. Released by the agent on Shahriar's go, 01:28 to 01:46 Dhaka.
+
+- **Ships:** direct enrolment with full price, installments or No charge on exams and packages; a receipt per payment; the
+  Installments page and notification tab; 06:30 Dhaka reminders; roster and direct grant can no longer both give access to a
+  package; overlap warnings; exam-time email on direct enrolment; the package add-exams picker and bulk add (up to 500); the
+  package page loads every exam; package card price wraps.
+- **Tests on the release commit:** full API suite 1,042 tests, 0 failures, on a fresh database; full web suite 256 files, 1,742
+  tests, all passing. Shahriar reports having read the Bangla copy. ESLint on the changed files: 3 errors, 1 warning, none
+  affecting behaviour, not fixed in this release: `module` as a variable name in `staff/enrolments/page.tsx:41` and
+  `roster-tab.tsx:27`, a state update inside an effect in `my-exams-page.tsx:41`, and an unused `locale` in
+  `notifications-page.tsx:34`.
+- **Not done before release, by Shahriar's choice of "now":** the browser walkthrough (plan 10.3) and the regression checks
+  (10.4).
+- **Jar** SHA-256 `02e95c5c975fea936a9a90b32433786cc8d436e0383eed671ecc3fcf0cab910c` (`F:\cc-releases\api-9bb0ec6.jar`). Restarted at
+  19:43:10 UTC, started in 20.5 s, 2 migrations applied (79 and 80).
+- **Website** package SHA-256 `f8784d6a8a9ce746d93e70b2bfb127ba31ae8bd6a2c93d66209d64d95714e55b`
+  (`F:\cc-releases\web-9bb0ec6-20261108-191842.tgz`), build `_9SBs6JXXApVis45dME5J`, swapped in at 19:45 UTC (01:45 Dhaka); up after
+  1 s. Previous release `/opt/coaching-web.before-20261108-194517`. Both steps ran detached on the box because the PC's link
+  dropped SSH connections.
+- **Before:** no open sitting and no payment started in the last 15 minutes, read immediately before the backups and again
+  immediately before the API restart.
+- **Rehearsal** on a local restore of `coaching-pre-installments-rehearsal-20261108-190606.dump` (SHA-256 `a8cacbdc…85f8`), with the
+  `dev` profile, no mail or payment credentials and a throwaway payout key: passed. 2 migrations applied, row counts unchanged in
+  6 tables. On the copy: enrolment with a plan, second payment, receipt PDF (97 KB), void, the Installments list, exam-time and
+  receipt emails queued (logged, not sent), notices, both roster refusals; bulk add of 34 exams on a draft (withdrawn and missing
+  skipped, repeat skipped, 501 ids refused), and a bulk add on a published package staged until re-publish. The previous jar
+  `80c1f0a` then started on the upgraded copy, kept the student's access and notices, and marked 2 queued installment emails
+  `SKIPPED`. The new jar restarted clean with the plan intact. The rehearsal database, its files and the throwaway key were removed.
+- **Backups (stamp `20261108-192841`):** `/var/backups/coaching/coaching-pre-installments-20261108-192841.dump` (440 entries,
+  SHA-256 `0b05b8f7…c3df`), `files-pre-installments-20261108-192841.tgz` (SHA-256 `22491b57…23e0`), both also in
+  `F:\exam-vps-backups\`; `/etc/coaching-api.env.before-installments-20261108-192841`;
+  `/opt/coaching-api/api.jar.before-installments-20261108-192841` (the `80c1f0a` jar, SHA-256 `905bfb4e…0aba0`).
+- **Checks:** live preflight (`MODE=live`) 0 failed. Students, orders, grants, notices and mail rows unchanged (90, 5, 3, 33, 11);
+  the 3 new tables empty. Public home, `/packages`, `/notice-board`, `/mcq`, `/written`, `/login` and the admin login all 200; the
+  installment and bulk routes 401 without a sign-in; Swagger 404. API log since the release: 0 errors, 0 warnings, 0 5xx.
+- **Not checked by the agent** (needs the Master Admin's sign-in): the add-exams picker on a draft package; a direct enrolment
+  with the test account `shahriaranany6@gmail.com`, with real receipt and exam-time emails; the roster refusal in the browser.
+- **To watch:** the first reminder job at 06:30 Dhaka on 9 November; with no plans it should do nothing.
+
+Rollback:
+- API: stop `coaching-api`, copy `api.jar.before-installments-20261108-192841` over `api.jar`, start it. The previous jar runs on
+  Flyway 80 (proved in the rehearsal). New tables stay; queued installment emails are skipped; payments recorded stay in the
+  database, but the old screens cannot show them.
+- Website: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261108-194517` back, start it. Roll
+  the website back first if direct enrolment misbehaves, so nobody can record more payments.
