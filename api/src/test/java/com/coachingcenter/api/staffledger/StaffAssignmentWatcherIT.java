@@ -75,7 +75,9 @@ class StaffAssignmentWatcherIT extends PostgresIntegrationTest {
 		UUID master = seed("MASTER_ADMIN");
 		UUID first = seed("INSTRUCTOR");
 		UUID second = seed("INSTRUCTOR");
-		String title = "Muslim Law " + UUID.randomUUID();
+		// No digits in the random part: a run of nine digits in a title is shortened by the notice text (StaffNotificationWriter.fitText),
+		// so a random UUID could make the stored title differ from the one the test looks for.
+		String title = "Muslim Law " + UUID.randomUUID().toString().replaceAll("[0-9]", "a");
 		UUID exam = writtenExam(title);
 		watcher.watch();
 

@@ -1,5 +1,6 @@
 import {
   Activity,
+  CalendarClock,
   ClipboardCheck,
   ClipboardList,
   CreditCard,
@@ -39,6 +40,7 @@ export type StaffNavKey =
   | "audit"
   | "account"
   | "orders"
+  | "installments"
   | "announcements"
   | "noticeBoard"
   | "reviews"
@@ -185,6 +187,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/orders",
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "read" },
     icon: Receipt,
+  },
+  {
+    key: "installments",
+    group: "money",
+    href: "/staff/installments",
+    access: { MASTER_ADMIN: "full" },
+    icon: CalendarClock,
   },
   {
     key: "staffPay",

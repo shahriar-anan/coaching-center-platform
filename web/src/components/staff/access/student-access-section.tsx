@@ -91,6 +91,14 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
               {t("staffAdmin.access.revoke")}
             </Button>
           ) : null}
+          {row.paymentPlanId ? (
+            <Link
+              href={staffHref(`/staff/installments/${row.paymentPlanId}`)}
+              className="text-label text-action underline-offset-4 hover:underline"
+            >
+              {t("staffAdmin.access.planLink")}
+            </Link>
+          ) : null}
           <Link
             href={staffHref(`/staff/modules/${row.moduleId}?tab=roster`)}
             className="text-label text-action underline-offset-4 hover:underline"
@@ -115,9 +123,14 @@ function StudentAccessContent({ studentId, studentName }: { studentId: string; s
           <p className="text-meta text-muted">{t("staffAdmin.access.intro")}</p>
         </div>
         {canGrant ? (
-          <Button variant="secondary" href={staffHref(`/staff/enrol?student=${studentId}`)}>
-            {t("staffAdmin.access.grantOpen")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" href={staffHref(`/staff/installments?studentId=${studentId}`)}>
+              {t("staffAdmin.enrol.manageInstallments")}
+            </Button>
+            <Button variant="secondary" href={staffHref(`/staff/enrol?student=${studentId}`)}>
+              {t("staffAdmin.access.grantOpen")}
+            </Button>
+          </div>
         ) : null}
       </div>
 

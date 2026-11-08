@@ -9,6 +9,17 @@ const base = { createdAt: "2026-11-01T04:00:00Z", readAt: null, score: null, max
 
 const exam = { id: "e1", moduleId: "m1", examType: "MCQ", titleEn: "Exam one", titleBn: "পরীক্ষা এক", liveAt: null, endAt: null };
 
+/** A money notice's block: the plan's title and the figures the notice carries. */
+const installment = {
+  titleEn: "Package one",
+  titleBn: "কিস্তির প্যাকেজ",
+  amount: 2100,
+  dueOn: "2026-12-08",
+  paid: 2100,
+  due: 4200,
+  receiptNo: "RCPT-2026-000140",
+};
+
 /** One row per kind: the exam (or none) the API sends with it, and the link the row should have. */
 const rows: Record<(typeof NOTICE_KINDS)[number], { notice: Record<string, unknown>; href: string | null }> = {
   EXAM_REMINDER: { notice: { exam }, href: "/exam/e1" },
@@ -28,6 +39,12 @@ const rows: Record<(typeof NOTICE_KINDS)[number], { notice: Record<string, unkno
   },
   MCQ_SCORE: { notice: { exam, score: 7, maximum: 10, passed: true }, href: "/exam/e1/result" },
   WRITTEN_RESULT: { notice: { exam, score: 30, maximum: 50, passed: false }, href: "/exam/e1/result" },
+  // A money notice opens the payments even when the API also sends an exam (plan section 7).
+  INSTALLMENT_PAYMENT_RECEIVED: { notice: { exam, installment }, href: "/my-modules?tab=offline" },
+  INSTALLMENT_DUE_SOON: { notice: { exam: null, installment }, href: "/my-modules?tab=offline" },
+  INSTALLMENT_OVERDUE: { notice: { exam: null, installment }, href: "/my-modules?tab=offline" },
+  INSTALLMENT_PAYMENT_VOIDED: { notice: { exam: null, installment }, href: "/my-modules?tab=offline" },
+  INSTALLMENT_SCHEDULE_CHANGED: { notice: { exam: null, installment: { paid: 2100, due: 4200 } }, href: "/my-modules?tab=offline" },
 };
 
 function renderOne(kind: string, extra: Record<string, unknown>) {

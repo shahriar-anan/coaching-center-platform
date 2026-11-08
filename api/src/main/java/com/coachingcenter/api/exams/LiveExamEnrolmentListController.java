@@ -32,14 +32,14 @@ public class LiveExamEnrolmentListController {
 	public PageResponse<LiveExamEnrolmentListService.EnrolledStudent> forModule(@PathVariable UUID moduleId,
 			@PageableDefault(size = 20) Pageable pageable) {
 		require();
-		return PageResponse.from(enrolments.forModule(moduleId, pageable));
+		return PageResponse.from(enrolments.forModule(moduleId, pageable, permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)));
 	}
 
 	@GetMapping("/api/v1/live-exams/{examId}/enrolments")
 	public PageResponse<LiveExamEnrolmentListService.EnrolledStudent> forExam(@PathVariable UUID examId,
 			@PageableDefault(size = 20) Pageable pageable) {
 		require();
-		return PageResponse.from(enrolments.forExam(examId, pageable));
+		return PageResponse.from(enrolments.forExam(examId, pageable, permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)));
 	}
 
 	private void require() {

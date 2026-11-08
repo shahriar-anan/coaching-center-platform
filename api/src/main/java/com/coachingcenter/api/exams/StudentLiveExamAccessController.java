@@ -37,7 +37,7 @@ public class StudentLiveExamAccessController {
 		if (!permissions.has(Permissions.STUDENT_READ)) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");
 		}
-		return PageResponse.from(access.list(id, pageable));
+		return PageResponse.from(access.list(id, pageable, permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)));
 	}
 
 	/** Every sitting of one student, newest first, for the staff student page. */

@@ -173,6 +173,99 @@ public final class EmailTemplates {
 		return new RenderedEmail("পেমেন্ট রসিদ · Payment receipt", frame(ctx, "৳" + plainMoney(amount) + " · " + itemBn, html.toString()), text);
 	}
 
+	/**
+	 * The receipt of one payment on a direct enrolment's plan (plan section 7): the amount paid, how and when, the receipt number,
+	 * what is still due and the next installment. A link opens the student's packages; there is no attachment. A null
+	 * {@code nextOn} means nothing more is due, and that line is left out.
+	 */
+	public static RenderedEmail installmentReceipt(MailContext ctx, MailRecipient who, boolean module, String itemBn, String itemEn,
+			String amount, String method, String reference, String paidOn, String receiptNo, String dueAfter, String nextOn,
+			String nextAmount) {
+		String first = who == null ? null : who.firstName();
+		String kindBn = module ? "প্যাকেজ" : "পরীক্ষা";
+		String kindEn = module ? "Package" : "Exam";
+		StringBuilder html = new StringBuilder();
+		html.append(hero("কিস্তির পেমেন্ট পাওয়া গেছে", "Installment payment received"));
+		html.append(para(first == null ? "আপনার পেমেন্ট পাওয়া গেছে। রসিদটি নিচে দেওয়া হলো।" : esc(first) + ", আপনার পেমেন্ট পাওয়া গেছে। রসিদটি নিচে দেওয়া হলো।",
+				(first == null ? "" : esc(first) + ", ") + "your payment was received. The receipt is below."));
+		// the amount paid on this receipt, large and centred
+		html.append("<table role=\"presentation\" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:22px auto 4px;\"><tr><td align=\"center\">"
+				+ "<div style=\"display:inline-block;background:#e9f5ec;color:#1f6b3a;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:700;\">"
+				+ "&#10003;&nbsp; জমা হয়েছে · Received</div>"
+				+ "<div style=\"font-size:40px;line-height:1.2;font-weight:700;color:" + NAVY + ";padding:12px 0 0;\">" + money(amount) + "</div>"
+				+ "<div style=\"font-size:12px;letter-spacing:2px;color:" + MUTED + ";padding-top:2px;\">BDT</div>"
+				+ "</td></tr></table>");
+		List<String[]> rows = new java.util.ArrayList<>(List.of(
+				new String[] { kindBn, kindEn, esc(itemBn) + "<br><span style=\"color:" + MUTED + ";font-size:13px\">" + esc(itemEn) + "</span>" },
+				new String[] { "পেমেন্টের মাধ্যম", "Paid with", esc(method) },
+				new String[] { "লেনদেন নম্বর", "Transaction",
+						"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(reference) + "</span>" },
+				new String[] { "তারিখ", "Date", esc(paidOn) },
+				new String[] { "রসিদ নম্বর", "Receipt number",
+						"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(receiptNo) + "</span>" },
+				new String[] { "বাকি আছে", "Still due", "<strong>" + money(dueAfter) + "</strong> BDT" }));
+		if (nextOn != null) {
+			rows.add(new String[] { "পরবর্তী কিস্তি", "Next installment",
+					money(nextAmount) + " <span style=\"color:" + MUTED + ";font-size:13px\">" + esc(nextOn) + "</span>" });
+		}
+		html.append(facts(rows));
+		html.append(button("আমার পরীক্ষা দেখুন", "See my exams", ctx.site("/my-modules")));
+		html.append(note("রসিদটি সংরক্ষণ করুন। কোনো প্রশ্ন থাকলে রসিদ নম্বরসহ আমাদের জানান।",
+				"Keep this receipt. If you have a question, quote the receipt number."));
+		String text = text("কিস্তির পেমেন্ট রসিদ / Installment payment receipt",
+				(first == null ? "" : first + ", ") + "আপনার পেমেন্ট পাওয়া গেছে / your payment was received.",
+				kindBn + " / " + kindEn + ": " + itemBn + " / " + itemEn, "জমা / Received: " + plainMoney(amount) + " BDT",
+				"পেমেন্টের মাধ্যম / Paid with: " + method, "লেনদেন / Transaction: " + reference, "তারিখ / Date: " + paidOn,
+				"রসিদ নম্বর / Receipt number: " + receiptNo, "বাকি আছে / Still due: " + plainMoney(dueAfter) + " BDT",
+				nextOn == null ? "" : "পরবর্তী কিস্তি / Next installment: " + plainMoney(nextAmount) + " BDT on " + nextOn,
+				"খুলুন / Open: " + ctx.site("/my-modules"));
+		return new RenderedEmail("কিস্তির পেমেন্ট রসিদ · Installment payment receipt",
+				frame(ctx, "৳" + plainMoney(amount) + " · " + itemBn, html.toString()), text);
+	}
+
+	/**
+	 * A reminder that an installment is due soon or overdue (plan section 7). The student gets it at their verified address and
+	 * follows {@code link} to their payments. The Master Admin gets the student's name and a link to the plan. {@code amount} is
+	 * what is owed on the installment, and {@code stillDue} what the plan still owes in all.
+	 */
+	public static RenderedEmail installmentReminder(MailContext ctx, MailRecipient who, boolean overdue, boolean toStudent,
+			String studentName, String itemBn, String itemEn, String amount, String dueOn, String stillDue, String link) {
+		String first = who == null ? null : who.firstName();
+		String greet = toStudent && first != null ? esc(first) + ", " : "";
+		String titleBn = overdue ? (toStudent ? "কিস্তির মেয়াদ পেরিয়ে গেছে" : "কিস্তি পরিশোধ হয়নি")
+				: (toStudent ? "কিস্তির তারিখ এগিয়ে আসছে" : "কিস্তি আসছে");
+		String titleEn = overdue ? "Installment overdue" : "Installment due soon";
+		String bodyBn = toStudent
+				? (overdue ? "আপনার একটি কিস্তির তারিখ পেরিয়ে গেছে। যত দ্রুত সম্ভব পরিশোধ করুন।"
+					: "আপনার পরবর্তী কিস্তির তারিখ কাছে এসেছে। সময়মতো পরিশোধ করুন।")
+				: (overdue ? "একজন শিক্ষার্থীর কিস্তি নির্ধারিত তারিখ পেরিয়ে গেছে, এখনো পরিশোধ হয়নি।"
+					: "একজন শিক্ষার্থীর কিস্তির তারিখ কাছে এসেছে।");
+		String bodyEn = toStudent
+				? (overdue ? "an installment of yours is past its due date. Please pay it as soon as you can."
+					: "your next installment is due soon. Please pay it on time.")
+				: (overdue ? "A student's installment is past its due date and is still unpaid."
+					: "A student's installment is due soon.");
+		StringBuilder html = new StringBuilder();
+		html.append(hero(titleBn, titleEn));
+		html.append(para(greet + bodyBn, greet + bodyEn));
+		List<String[]> rows = new java.util.ArrayList<>();
+		if (!toStudent) {
+			rows.add(new String[] { "শিক্ষার্থী", "Student", esc(studentName) });
+		}
+		rows.add(new String[] { "কী কিনেছেন", "Item", esc(itemBn) + "<br><span style=\"color:" + MUTED + ";font-size:13px\">" + esc(itemEn) + "</span>" });
+		rows.add(new String[] { "কিস্তির পরিমাণ", "Installment", "<strong>" + money(amount) + "</strong> BDT" });
+		rows.add(new String[] { "তারিখ", "Due date", esc(dueOn) });
+		rows.add(new String[] { "মোট বাকি", "Still due on the plan", money(stillDue) + " BDT" });
+		html.append(facts(rows));
+		html.append(button(toStudent ? "পেমেন্টের বিবরণ" : "কিস্তি দেখুন", toStudent ? "View payments" : "Open installments", link));
+		String text = text(titleBn + " / " + titleEn, greet + bodyBn + " / " + greet + bodyEn,
+				toStudent ? "" : "শিক্ষার্থী / Student: " + studentName, itemBn + " / " + itemEn,
+				"কিস্তির পরিমাণ / Installment: " + plainMoney(amount) + " BDT", "তারিখ / Due date: " + dueOn,
+				"মোট বাকি / Still due on the plan: " + plainMoney(stillDue) + " BDT", "খুলুন / Open: " + link);
+		return new RenderedEmail(titleBn + " · " + titleEn + ": " + itemEn,
+				frame(ctx, "৳" + plainMoney(amount) + " · " + itemBn, html.toString()), text);
+	}
+
 	/** The note the Master Admin gets for each paid order. */
 	public static RenderedEmail purchaseNotice(MailContext ctx, String studentName, String phone, String email, String itemBn,
 			String itemEn, String amount, String channel, String tranId, String when) {

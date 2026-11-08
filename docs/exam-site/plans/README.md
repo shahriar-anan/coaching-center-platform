@@ -6,6 +6,7 @@ A plan adds slice order, endpoints, schema, and tests. It does not change a deci
 
 | Plan | Status |
 |---|---|
+| [direct-enrolment-installments.md](direct-enrolment-installments.md) | Planned 8 November 2026, not started. Payments, installments, receipts and reminders on direct enrolment. Flyway `V79`. |
 | [01-written-publish.md](01-written-publish.md) | Confirmed and implemented. Flyway `V29`. |
 | [02-public-catalog.md](02-public-catalog.md) | Confirmed and implemented. Access rules and the paper-language flag. Prices stay out. Flyway `V30`. |
 | [resolve-api-gaps.md](resolve-api-gaps.md) | Done. Steps 2a and 2b implemented. Step 2b owns Flyway `V31`. |

@@ -9,6 +9,7 @@ import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
 import { canOpenReviews } from "@/components/staff/reviews/review-access";
 import { ExamPrice } from "@/components/staff/exams/exam-price";
 import { useFormat } from "@/lib/format/use-format";
+import { staffHref } from "@/lib/config";
 import type { StaffExam } from "@/lib/api/exam/staff-catalog";
 
 export type ExamAction = "copy" | "withdraw" | "delete" | "restore";
@@ -72,6 +73,7 @@ export function ExamRow({
       href: `/staff/enrol?exam=${exam.id}`,
       disabled: exam.status !== "PUBLISHED",
     });
+    items.push({ label: t("staffExams.row.installments"), href: staffHref(`/staff/installments?examId=${exam.id}`) });
   }
 
   return (

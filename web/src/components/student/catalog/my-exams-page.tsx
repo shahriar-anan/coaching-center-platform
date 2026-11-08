@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, ListChecks, Package } from "lucide-react";
 import {
   useMyLiveExamAccess,
@@ -21,12 +22,37 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { accessSourceKey } from "@/components/student/result/access-source";
 import { doorPath, examPath, modulePath } from "./catalog-helpers";
-import { accessEnd, orderedRows } from "./my-exams-rows";
+import { accessEnd, orderedRows, parseMyExamsTab, type MyExamsTab } from "./my-exams-rows";
 import { AccessPill, OwnedCard, TitleText } from "./owned-card";
 import { TypeFilter, filterByType, typeLabelKey, useTypeFilterParam } from "./type-filter";
 import { OfflinePurchases } from "./offline-purchases";
 
-type Tab = "exams" | "packages" | "offline";
+/**
+ * The tab, read from `?tab=` and written back to it, so a notice can open the Offline purchases tab and Back returns to the same
+ * tab. The local value follows the URL when the URL changes while the page is open.
+ */
+function useMyExamsTab(): [MyExamsTab, (next: MyExamsTab) => void] {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const fromUrl = parseMyExamsTab(searchParams.get("tab"));
+  const [tab, setTab] = useState<MyExamsTab>(fromUrl);
+  useEffect(() => {
+    setTab(fromUrl);
+  }, [fromUrl]);
+  const change = (next: MyExamsTab) => {
+    setTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "exams") {
+      params.delete("tab");
+    } else {
+      params.set("tab", next);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+  return [tab, change];
+}
 
 function ExamRow({ grant, exam, pending }: { grant: OwnExamGrant; exam: PublicExam | undefined; pending: boolean }) {
   const { t, locale } = useLocale();
@@ -62,7 +88,7 @@ function PackageRow({ grant, pkg, pending }: { grant: OwnModuleGrant; pkg: Publi
  */
 export function MyExamsPage() {
   const { t } = useLocale();
-  const [tab, setTab] = useState<Tab>("exams");
+  const [tab, setTab] = useMyExamsTab();
   const [type, setType] = useTypeFilterParam();
   const access = useMyLiveExamAccess(true);
   const grants = access.data;
@@ -122,7 +148,7 @@ export function MyExamsPage() {
           { value: "offline", label: t("account.payments.tabs.offline") },
         ]}
         value={tab}
-        onChange={(value) => setTab(value as Tab)}
+        onChange={(value) => setTab(parseMyExamsTab(value))}
       />
       {tab === "exams" ? (
         <div className="mt-3">

@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
@@ -37,6 +38,8 @@ public class StudentInboxService {
 	/**
 	 * An exam notice needs its live exam and module, not deleted. An announcement has no exam: it shows for everyone, or
 	 * for the module it names while that module is not deleted. A withdrawn announcement shows nowhere (plan section 6).
+	 * A direct-enrolment money notice names its installment or payment instead, and its target is read without the deleted
+	 * filter, so it stays visible (plan section 7). A reminder whose installment was rescheduled away is hidden.
 	 */
 	private static final String FROM = """
 			from student_notices n
@@ -44,10 +47,17 @@ public class StudentInboxService {
 			left join live_exam_modules m on m.id = coalesce(e.module_id, n.module_id) and m.deleted_at is null
 			left join announcements a on a.id = n.announcement_id
 			left join live_exam_participants p on p.id = n.participant_id
+			left join live_exam_installments ins on ins.id = n.installment_id
+			left join live_exam_direct_payments dp on dp.id = n.direct_payment_id
+			left join live_exam_payment_plans ip on ip.id = coalesce(ins.plan_id, dp.plan_id)
+			left join live_exam_grants ig on ig.id = ip.grant_id
+			left join live_exams ie on ie.id = ig.exam_id
+			left join live_exam_modules im on im.id = ig.module_id
 			where n.user_id = :me
 			  and (n.exam_id is null or e.id is not null)
 			  and (coalesce(e.module_id, n.module_id) is null or m.id is not null)
 			  and (a.id is null or a.withdrawn_at is null)
+			  and (n.kind not in ('INSTALLMENT_DUE_SOON', 'INSTALLMENT_OVERDUE') or n.installment_id is not null)
 			""";
 
 	private static final String SELECT = """
@@ -62,7 +72,16 @@ public class StudentInboxService {
 			    when p.question_snapshot is not null then (select coalesce(sum((q ->> 'marks')::int), 0)
 			          from jsonb_array_elements(p.question_snapshot::jsonb -> 'questions') q)
 			    else (select coalesce(sum(q.marks), 0) from live_exam_questions q
-			          where q.exam_id = e.id and q.deleted_at is null) end as maximum
+			          where q.exam_id = e.id and q.deleted_at is null) end as maximum,
+			  ip.id as inst_plan_id, ip.agreed_total as inst_total, ins.seq as inst_seq, ins.amount as inst_row_amount,
+			  ins.due_on as inst_due_on,
+			  (select coalesce(sum(r.amount), 0) from live_exam_installments r where r.plan_id = ins.plan_id and r.seq < ins.seq)
+			    as inst_before,
+			  (select coalesce(sum(x.amount), 0) from live_exam_direct_payments x where x.plan_id = ip.id and x.voided_at is null)
+			    as inst_paid_now,
+			  dp.amount as pay_amount, dp.paid_to_date as pay_paid, dp.due_after as pay_due, dp.next_due_on as pay_next_on,
+			  dp.receipt_no as pay_receipt,
+			  coalesce(ie.title_en, im.title_en) as inst_title_en, coalesce(ie.title_bn, im.title_bn) as inst_title_bn
 			""";
 
 	private final NamedParameterJdbcTemplate jdbc;
@@ -167,7 +186,48 @@ public class StudentInboxService {
 						rs.getObject("notice_module_id", UUID.class), rs.getObject("announcement_exam_id", UUID.class));
 		return new NoticeView(rs.getObject("id", UUID.class), kind, format(rs.getTimestamp("created_at").toInstant()),
 				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement,
-				rs.getBoolean("updated") ? Boolean.TRUE : null, NoticeGroup.of(kind).name());
+				rs.getBoolean("updated") ? Boolean.TRUE : null, NoticeGroup.of(kind).name(), installment(kind, rs));
+	}
+
+	/**
+	 * The money a direct-enrolment notice is about (plan section 7). A payment notice shows that payment's receipt figures, as
+	 * they were when it was recorded. A reminder shows the amount still owed on its installment, and the plan's position now.
+	 * A schedule change shows the plan's position now. Null for every other kind, and for a notice whose plan is gone.
+	 */
+	private static NoticeInstallment installment(String kind, java.sql.ResultSet rs) throws java.sql.SQLException {
+		if (!NoticeGroup.isInstallment(kind) || rs.getObject("inst_plan_id") == null) {
+			return null;
+		}
+		BigDecimal total = rs.getBigDecimal("inst_total");
+		BigDecimal paidNow = rs.getBigDecimal("inst_paid_now");
+		String titleEn = rs.getString("inst_title_en");
+		String titleBn = rs.getString("inst_title_bn");
+		if (total == null || paidNow == null) {
+			return null;
+		}
+		if (StudentNoticeWriter.INSTALLMENT_PAYMENT_RECEIVED.equals(kind) || StudentNoticeWriter.INSTALLMENT_PAYMENT_VOIDED.equals(kind)) {
+			if (rs.getObject("pay_receipt") == null) {
+				return null;
+			}
+			return new NoticeInstallment(titleEn, titleBn, rs.getBigDecimal("pay_amount"), isoDate(rs, "pay_next_on"),
+					rs.getBigDecimal("pay_paid"), rs.getBigDecimal("pay_due"), rs.getString("pay_receipt"));
+		}
+		if (StudentNoticeWriter.INSTALLMENT_DUE_SOON.equals(kind) || StudentNoticeWriter.INSTALLMENT_OVERDUE.equals(kind)) {
+			BigDecimal rowAmount = rs.getBigDecimal("inst_row_amount");
+			BigDecimal before = rs.getBigDecimal("inst_before");
+			if (rowAmount == null || before == null) {
+				return null;
+			}
+			BigDecimal onRow = paidNow.subtract(before).max(BigDecimal.ZERO).min(rowAmount);
+			return new NoticeInstallment(titleEn, titleBn, rowAmount.subtract(onRow), isoDate(rs, "inst_due_on"), paidNow,
+					total.subtract(paidNow), null);
+		}
+		return new NoticeInstallment(titleEn, titleBn, null, null, paidNow, total.subtract(paidNow), null);
+	}
+
+	private static String isoDate(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+		java.sql.Date value = rs.getDate(column);
+		return value == null ? null : value.toLocalDate().toString();
 	}
 
 	private static String format(Instant instant) {
@@ -176,10 +236,19 @@ public class StudentInboxService {
 
 	/**
 	 * {@code exam} is null for an announcement, and {@code announcement} is null for every other kind. {@code group} is the
-	 * tab the notice sits under (N1).
+	 * tab the notice sits under (N1). {@code installment} is set only for a direct-enrolment money notice.
 	 */
 	public record NoticeView(UUID id, String kind, String createdAt, String readAt, NoticeExam exam, Integer score,
-			Integer maximum, Boolean passed, NoticeAnnouncement announcement, Boolean updated, String group) {
+			Integer maximum, Boolean passed, NoticeAnnouncement announcement, Boolean updated, String group,
+			NoticeInstallment installment) {
+	}
+
+	/**
+	 * The money a direct-enrolment notice is about, in BDT. {@code dueOn} is the installment's date (or the next date, for a
+	 * payment). {@code receiptNo} is set only for a payment notice.
+	 */
+	public record NoticeInstallment(String titleEn, String titleBn, BigDecimal amount, String dueOn, BigDecimal paid,
+			BigDecimal due, String receiptNo) {
 	}
 
 	/** {@code count} is every unread notice; {@code byGroup} counts them per tab (N1). */

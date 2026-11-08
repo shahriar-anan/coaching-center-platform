@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarClock, ChevronRight, Megaphone, Receipt, Trophy, type LucideIcon } from "lucide-react";
+import { Bell, CalendarClock, ChevronRight, CircleAlert, Megaphone, Receipt, Trophy, type LucideIcon } from "lucide-react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useState } from "react";
@@ -31,6 +31,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
 import { announcementTarget, announcementText, packageDoor } from "./_components/announcement";
+import {
+  INSTALLMENT_HREF,
+  installmentFacts,
+  installmentTitle,
+  installmentTone,
+  isInstallmentKind,
+  type InstallmentKind,
+} from "./_components/installment-notice";
 import {
   NOTICE_TABS,
   defaultNoticeTab,
@@ -88,8 +96,18 @@ function IconTile({ icon: Icon, tone }: { icon: LucideIcon; tone: Tone }) {
   );
 }
 
+/** The icon for each money notice. The tone comes from `installmentTone`, so overdue reads as a warning. */
+const INSTALLMENT_ICON: Record<InstallmentKind, LucideIcon> = {
+  INSTALLMENT_PAYMENT_RECEIVED: Receipt,
+  INSTALLMENT_DUE_SOON: CalendarClock,
+  INSTALLMENT_OVERDUE: CircleAlert,
+  INSTALLMENT_PAYMENT_VOIDED: Receipt,
+  INSTALLMENT_SCHEDULE_CHANGED: CalendarClock,
+};
+
 /** The icon and tint for an exam notice: results in green, a changed time in amber, access in the accent. */
 function kindIcon(kind: string): { icon: LucideIcon; tone: Tone } {
+  if (isInstallmentKind(kind)) return { icon: INSTALLMENT_ICON[kind], tone: installmentTone(kind) };
   if (kind === "MCQ_SCORE" || kind === "WRITTEN_RESULT") return { icon: Trophy, tone: "ok" };
   if (kind === "EXAM_TIME_CHANGED") return { icon: CalendarClock, tone: "warn" };
   if (kind === "PURCHASE_GRANTED" || kind === "ACCESS_GRANTED") return { icon: Receipt, tone: "accent" };
@@ -193,6 +211,56 @@ function AnnouncementRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: 
 }
 
 /**
+ * A direct-enrolment money notice (plan section 7). Its title is the plan's exam or package, read from the notice's own block, so it
+ * still reads when that exam or package is gone. The figures are chips, and the one action opens the student's payments.
+ */
+function InstallmentRow({ notice, onOpen }: { notice: Notice; onOpen: (notice: Notice) => void }) {
+  const { t, locale } = useLocale();
+  const unread = isMissing(notice.readAt);
+  const installment = isMissing(notice.installment) ? null : notice.installment;
+  const title = installmentTitle(installment, locale);
+  const kindLabel = t(noticeKindLabelKey(notice.kind));
+  const facts = installmentFacts(notice.kind, installment, locale);
+  const { icon, tone } = kindIcon(notice.kind);
+  const actionLabel = t("notices.installment.viewPayments");
+
+  return (
+    <article className={CARD}>
+      <IconTile icon={icon} tone={tone} />
+      <div className="grid min-w-0 flex-1 gap-1.5">
+        <TitleLine
+          title={title || kindLabel}
+          unread={unread}
+          time={{ iso: notice.createdAt, text: formatDateTime(notice.createdAt, locale) }}
+        />
+        {title ? <p className="text-meta text-muted">{kindLabel}</p> : null}
+        {facts.length ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {facts.map((fact) => (
+              <span key={fact.key} className={cn(CHIP, "tabular-nums text-text")}>
+                {t(fact.key, fact.params)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-x-5">
+          <Link
+            href={INSTALLMENT_HREF}
+            prefetch
+            onClick={() => onOpen(notice)}
+            className={ACTION}
+            aria-label={`${title || kindLabel}. ${actionLabel}`}
+          >
+            {actionLabel}
+            <ChevronRight aria-hidden="true" className="size-4 rtl:rotate-180" />
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/**
  * One exam notice (Phase 4, A8): an icon for its kind, the exam title, the kind and start time, the score and outcome as chips
  * for a result, and the actions. Opening any link marks the notice read.
  */
@@ -200,6 +268,9 @@ function NoticeRow({ notice, tab, onOpen }: { notice: Notice; tab: NoticeGroup; 
   const { t, locale } = useLocale();
   if (notice.kind === "ANNOUNCEMENT") {
     return <AnnouncementRow notice={notice} onOpen={onOpen} />;
+  }
+  if (isInstallmentKind(notice.kind)) {
+    return <InstallmentRow notice={notice} onOpen={onOpen} />;
   }
   const unread = isMissing(notice.readAt);
   const title = notice.exam ? pickTitle(notice.exam, locale) : "";

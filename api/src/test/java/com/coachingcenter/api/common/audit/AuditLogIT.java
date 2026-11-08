@@ -37,6 +37,17 @@ import tools.jackson.databind.ObjectMapper;
 class AuditLogIT extends PostgresIntegrationTest {
 
 	private static final Set<String> API_OPERATIONS = Set.of(
+			"GET /api/v1/installment-payments/{id}/receipt.pdf",
+			"GET /api/v1/installment-plans",
+			"GET /api/v1/installment-plans/summary",
+			"GET /api/v1/installment-plans/{id}",
+			"GET /api/v1/live-exam-grants/quote",
+			"GET /api/v1/me/installment-payments/{id}/receipt.pdf",
+			"GET /api/v1/me/installment-plans/{id}",
+			"POST /api/v1/installment-payments/{id}/void",
+			"POST /api/v1/installment-plans/{id}/payments",
+			"POST /api/v1/installment-plans/{id}/restore-access",
+			"PUT /api/v1/installment-plans/{id}/schedule",
 			"POST /api/v1/auth/register",
 			"POST /api/v1/auth/activate",
 			"POST /api/v1/auth/login",

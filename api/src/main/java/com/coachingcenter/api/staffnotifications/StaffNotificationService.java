@@ -7,7 +7,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -61,15 +64,18 @@ public class StaffNotificationService {
 		this.clock = clock;
 	}
 
-	/** One page of the caller's notifications, newest first. {@code unreadOnly} keeps only the unread ones. */
+	/**
+	 * One page of the caller's notifications, newest first. {@code unreadOnly} keeps only the unread ones. {@code group} limits
+	 * the page to one tab; null means every notification (plan section 7).
+	 */
 	@Transactional(readOnly = true)
-	public Page<NotificationView> list(UUID me, boolean unreadOnly, int page, int size) {
+	public Page<NotificationView> list(UUID me, boolean unreadOnly, StaffNotificationGroup group, int page, int size) {
 		int pageSize = size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
 		int pageNumber = Math.max(page, 0);
-		String filter = unreadOnly ? UNREAD : "";
 		MapSqlParameterSource params = new MapSqlParameterSource("me", me)
 			.addValue("limit", pageSize)
 			.addValue("offset", (long) pageNumber * pageSize);
+		String filter = (unreadOnly ? UNREAD : "") + groupClause(group, params);
 		Long total = jdbc.queryForObject("select count(*) from staff_notifications n where n.recipient_id = :me" + filter,
 				params, Long.class);
 		List<NotificationView> rows = jdbc.query(
@@ -78,12 +84,35 @@ public class StaffNotificationService {
 		return new PageImpl<>(rows, PageRequest.of(pageNumber, pageSize), total == null ? 0 : total);
 	}
 
-	/** How many of the caller's notifications are unread: the bell's number. */
+	/**
+	 * How many of the caller's notifications are unread: the bell's number in {@code count}, and the same number split by tab in
+	 * {@code byGroup}, so the two always add up.
+	 */
 	@Transactional(readOnly = true)
 	public UnreadCount unreadCount(UUID me) {
-		Long count = jdbc.queryForObject("select count(*) from staff_notifications n where n.recipient_id = :me" + UNREAD,
-				new MapSqlParameterSource("me", me), Long.class);
-		return new UnreadCount(count == null ? 0 : count.intValue());
+		Map<String, Integer> byGroup = new LinkedHashMap<>();
+		for (StaffNotificationGroup group : StaffNotificationGroup.values()) {
+			byGroup.put(group.name(), 0);
+		}
+		jdbc.query("select n.kind, count(*) as total from staff_notifications n where n.recipient_id = :me" + UNREAD
+				+ " group by n.kind", new MapSqlParameterSource("me", me), (RowCallbackHandler) rs -> byGroup.merge(
+						groupOf(rs.getString("kind")).name(), rs.getInt("total"), Integer::sum));
+		int count = byGroup.values().stream().mapToInt(Integer::intValue).sum();
+		return new UnreadCount(count, byGroup);
+	}
+
+	/** The tab a stored kind sits under. */
+	private static StaffNotificationGroup groupOf(String kind) {
+		return StaffNotificationGroup.isInstallment(kind) ? StaffNotificationGroup.INSTALLMENT : StaffNotificationGroup.OTHER;
+	}
+
+	/** The kind condition for one tab, or nothing for every notification. */
+	private static String groupClause(StaffNotificationGroup group, MapSqlParameterSource params) {
+		if (group == null) {
+			return "";
+		}
+		params.addValue("groupKinds", StaffNotificationGroup.installmentKinds());
+		return " and n.kind " + (group == StaffNotificationGroup.INSTALLMENT ? "in" : "not in") + " (:groupKinds)";
 	}
 
 	/** Marks one of the caller's notifications read. The first read time is kept. Another person's row is not found. */
@@ -126,8 +155,8 @@ public class StaffNotificationService {
 	public record NotificationView(UUID id, String kind, JsonNode payload, String link, String createdAt, String readAt) {
 	}
 
-	/** The unread count for the bell. */
-	public record UnreadCount(int count) {
+	/** {@code count} is every unread notification; {@code byGroup} counts them per tab, keyed by {@link StaffNotificationGroup}. */
+	public record UnreadCount(int count, Map<String, Integer> byGroup) {
 	}
 
 }

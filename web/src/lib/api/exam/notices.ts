@@ -46,6 +46,23 @@ export interface NoticeAnnouncement {
   examId: string | null;
 }
 
+/**
+ * The money a direct-enrolment notice is about (plan section 7). The API leaves out any field it has no value for, and the whole
+ * block is left out for a notice whose plan is gone, so every field is optional. Titles come from the plan, not the exam.
+ */
+export interface NoticeInstallment {
+  titleEn?: string | null;
+  titleBn?: string | null;
+  /** The payment's amount on a payment notice, or what is still owed on the installment for a reminder. */
+  amount?: number | null;
+  /** A Dhaka calendar date, YYYY-MM-DD: the next date for a payment, the installment's date for a reminder. */
+  dueOn?: string | null;
+  paid?: number | null;
+  due?: number | null;
+  /** Set on a payment notice only. */
+  receiptNo?: string | null;
+}
+
 export interface Notice {
   id: string;
   kind: NoticeKind;
@@ -56,6 +73,8 @@ export interface Notice {
   exam: NoticeExam | null;
   /** Set on an ANNOUNCEMENT notice, and null on every other kind. */
   announcement: NoticeAnnouncement | null;
+  /** Set on a direct-enrolment money notice. Left out on every other kind. */
+  installment?: NoticeInstallment | null;
   /** Set on a written-result notice sent after an earlier one for the same paper (a correction was released). */
   updated?: boolean | null;
   /** MCQ score or written mark, with the maximum. */

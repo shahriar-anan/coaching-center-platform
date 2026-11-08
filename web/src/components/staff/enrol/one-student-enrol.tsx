@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
+import { useRole } from "@/lib/auth/guards";
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/lib/api/exam/types";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import { SearchInput } from "@/components/ui/search-input";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { EnrolDoneNotice, PaymentEnrolForm, type EnrolDone } from "@/components/staff/enrol/payment-enrol-form";
+import type { EnrolScope, GrantPayment } from "@/components/staff/enrol/payment-model";
 
 /** A student as the staff students list shows them: the code, phone and email are what an admin recognises. */
 export type FoundStudent = {
@@ -25,6 +28,9 @@ export type FoundStudent = {
  * Enrols one student at a time. The admin types a student code, phone, email or name, picks one result, checks it, and
  * enrols. There is no bulk step. A student who is already enrolled is shown as such, and the search waits until the
  * admin has typed two characters and stops typing for a moment.
+ *
+ * With `payment` (the exam panel and the direct enrolment page, for a Master Admin) the chosen student gets the payment
+ * form instead of the reason box. Without it, the screen is the No charge form it was (the roster tab).
  */
 export function OneStudentEnrol({
   enabled,
@@ -33,19 +39,28 @@ export function OneStudentEnrol({
   enrolledIds,
   enrol,
   headingId,
+  payment,
+  initialStudent,
 }: {
   enabled: boolean;
   disabledHint: string;
   requireReason: boolean;
   enrolledIds: Set<string>;
-  enrol: (studentId: string, reason: string) => Promise<unknown>;
+  enrol: (studentId: string, reason: string, payment?: GrantPayment) => Promise<unknown>;
   headingId: string;
+  /** Opts into the payment fields. Only the Master Admin gets them, since only the Master Admin may post a payment. */
+  payment?: { scope: EnrolScope; targetId: string; targetTitle: string };
+  /** The student already chosen when the screen opens, such as the one named in `?student=`. */
+  initialStudent?: FoundStudent | null;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
+  const { isMasterAdmin } = useRole();
+  const paying = payment !== undefined && isMasterAdmin;
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [selected, setSelected] = useState<FoundStudent | null>(null);
+  const [selected, setSelected] = useState<FoundStudent | null>(initialStudent ?? null);
+  const [done, setDone] = useState<EnrolDone | null>(null);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +81,7 @@ export function OneStudentEnrol({
 
   function choose(student: FoundStudent) {
     setSelected(student);
+    setDone(null);
     setReason("");
     setReasonError(null);
     setError(null);
@@ -111,7 +127,26 @@ export function OneStudentEnrol({
         <p className="text-meta text-muted">{t("staffCatalog.enrol.help")}</p>
       </div>
 
-      {selected ? (
+      {done ? <EnrolDoneNotice done={done} /> : null}
+
+      {selected && paying && payment ? (
+        <PaymentEnrolForm
+          key={`${payment.scope}-${payment.targetId}`}
+          scope={payment.scope}
+          targetId={payment.targetId}
+          targetTitle={payment.targetTitle}
+          student={selected}
+          alreadyEnrolled={enrolledIds.has(selected.id)}
+          enrol={enrol}
+          onCancel={() => setSelected(null)}
+          onDone={(result) => {
+            setDone(result);
+            setSelected(null);
+            setQuery("");
+            setDebounced("");
+          }}
+        />
+      ) : selected ? (
         <form onSubmit={submit} noValidate className="grid gap-3 rounded-control border border-border bg-bg p-4">
           <div className="grid gap-0.5">
             <span className="text-label font-semibold">{selected.fullName}</span>

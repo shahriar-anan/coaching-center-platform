@@ -91,6 +91,7 @@ const common = {
     instructors: "Teachers",
     admins: "System admins",
     payments: "Payments",
+    installments: "Installments",
     audit: "Activity log",
     staffPay: "Staff pay",
     myPay: "My pay",

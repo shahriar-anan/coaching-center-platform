@@ -3,6 +3,7 @@ package com.coachingcenter.api.exams;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -118,6 +119,43 @@ class ExamMailQueue {
 		return ids;
 	}
 
+	/**
+	 * The receipt of one payment on a direct enrolment's plan (plan section 7). Joins the payment's transaction, so the row is
+	 * written only if the payment is. Nothing is queued for a student with no verified email, or who is not active. The scan
+	 * sends it after commit.
+	 */
+	@Transactional
+	public void enqueueInstallmentReceipt(UUID paymentId, UUID studentId) {
+		User student = activeStudent(studentId);
+		if (student == null || ExamMailTexts.receiptAddress(student) == null) {
+			return;
+		}
+		insert(ExamOutboundMail.INSTALLMENT_RECEIPT, paymentId.toString(), studentId);
+	}
+
+	/**
+	 * One installment reminder to a student, at the verified account email (plan section 7). Nothing is queued for a student who
+	 * is not active or has no verified email. Joins the caller's transaction, so a repeat run adds nothing.
+	 */
+	@Transactional
+	public void enqueueInstallmentReminderForStudent(String kind, UUID studentId, UUID installmentId, LocalDate dueOn,
+			String week) {
+		User student = activeStudent(studentId);
+		if (student == null || ExamMailTexts.receiptAddress(student) == null) {
+			return;
+		}
+		insert(kind, ExamMailTexts.installmentKey(studentId, installmentId, dueOn, week), studentId);
+	}
+
+	/** The same reminder to the Master Admin (plan section 7, D20). Nothing is queued when there is no Master Admin with an email. */
+	@Transactional
+	public void enqueueInstallmentReminderForMaster(String kind, UUID installmentId, LocalDate dueOn, String week) {
+		UUID master = masterAdmin();
+		if (master != null) {
+			insert(kind, ExamMailTexts.installmentKey(master, installmentId, dueOn, week), master);
+		}
+	}
+
 	@Transactional
 	public List<UUID> enqueueForRoster(UUID moduleId, UUID studentId) {
 		if (!modulePublished(moduleId) || activeStudent(studentId) == null) {
@@ -182,8 +220,9 @@ class ExamMailQueue {
 		return user;
 	}
 
-	// There is one Master Admin. The oldest active one with an email is the recipient if that ever differs.
-	private UUID masterAdmin() {
+	// There is one Master Admin. The oldest active one with an email is the recipient if that ever differs. Package-private so
+	// the installment reminders use the same recipient.
+	UUID masterAdmin() {
 		List<UUID> found = jdbc.queryForList("""
 				select id from users
 				where role = 'MASTER_ADMIN' and status = 'ACTIVE' and deleted_at is null

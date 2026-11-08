@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
@@ -13,10 +14,21 @@ import { Field } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import { Pill, type PillTone } from "@/components/ui/pill";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { staffHref } from "@/lib/config";
 
-/** One active grant, as the enrolment list returns it. The newest enrolment comes first. */
+/**
+ * One active grant, as the enrolment list returns it. The newest enrolment comes first. The plan fields are set only for a
+ * Master Admin, and only when the grant is a direct enrolment that took a payment (plan section 6).
+ */
 export type EnrolledRow = {
+  /** The direct-enrolment plan on this grant, when it has one. */
+  paymentPlanId?: string | null;
+  /** Taka paid and still due on the plan, and its status. Left out for anyone but the Master Admin. */
+  paid?: number | null;
+  due?: number | null;
+  planStatus?: string | null;
   /** Null when access comes from a roster row, which has no grant to revoke. */
   grantId: string | null;
   studentId: string;
@@ -30,6 +42,23 @@ export type EnrolledRow = {
 };
 
 const PAGE_SIZE = 20;
+
+/**
+ * Paid or Due for a direct enrolment, linked to its installment plan. Shown to the Master Admin only; the API leaves the figures
+ * out for anyone else, and the caller checks the role as well (plan E67).
+ */
+function PlanPill({ planId, due, status }: { planId: string; due?: number | null; status?: string | null }) {
+  const { t } = useLocale();
+  const { formatMoney } = useFormat();
+  const settled = status === "COMPLETED" || (due ?? 0) <= 0;
+  const tone: PillTone = settled ? "ok" : status === "OVERDUE" ? "danger" : "warn";
+  const label = settled ? t("staffAdmin.enrolments.plan.paid") : t("staffAdmin.enrolments.plan.due", { amount: formatMoney(due ?? 0) ?? "" });
+  return (
+    <Link href={staffHref(`/staff/installments/${planId}`)} title={t("staffAdmin.enrolments.plan.open")} className="self-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <Pill tone={tone}>{label}</Pill>
+    </Link>
+  );
+}
 
 /**
  * The students who hold access to one package (`MODULE`) or one exam (`EXAM`). The list is refetched after each direct
@@ -98,6 +127,9 @@ export function EnrolledList({ scope, targetId }: { scope: "MODULE" | "EXAM"; ta
                   {[row.studentCode, row.phone, row.email].filter(Boolean).join(" · ")}
                 </span>
               </span>
+              {isMasterAdmin && row.paymentPlanId ? (
+                <PlanPill planId={row.paymentPlanId} due={row.due} status={row.planStatus} />
+              ) : null}
               <span className="grid gap-0.5 text-end text-meta text-muted">
                 <span className="font-bold text-text">{t(`staffAdmin.enrolments.source.${row.source}`)}</span>
                 <span className="tabular-nums">{t("staffAdmin.enrolments.addedOn", { date: formatDate(row.enrolledAt) })}</span>

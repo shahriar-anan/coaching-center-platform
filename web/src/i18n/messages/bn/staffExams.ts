@@ -49,6 +49,7 @@ const staffExams = {
     withdraw: "প্রত্যাহার",
     students: "শিক্ষার্থী",
     enrol: "সরাসরি ভর্তি",
+    installments: "কিস্তি",
     delete: "মুছুন",
     also: "আরও {count}টি প্যাকেজে আছে",
     undated: "তারিখ এখনো নয়",

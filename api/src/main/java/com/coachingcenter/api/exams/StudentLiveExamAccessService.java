@@ -4,7 +4,10 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -13,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -95,15 +99,29 @@ public class StudentLiveExamAccessService {
 
 	private final Clock clock;
 
-	StudentLiveExamAccessService(JdbcTemplate jdbc, LiveExamAccess access, LiveExamRepository liveExams, Clock clock) {
+	private final InstallmentPlanReader installments;
+
+	StudentLiveExamAccessService(JdbcTemplate jdbc, LiveExamAccess access, LiveExamRepository liveExams, Clock clock,
+			InstallmentPlanReader installments) {
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.access = access;
 		this.liveExams = liveExams;
 		this.clock = clock;
+		this.installments = installments;
 	}
 
+	/** The rows without the plan link. Kept for callers that do not show money. */
 	@Transactional(readOnly = true)
 	public Page<AccessRow> list(UUID studentId, Pageable pageable) {
+		return list(studentId, pageable, false);
+	}
+
+	/**
+	 * The rows. {@code withPlans} is true only for a caller holding {@code LIVE_EXAM_INSTALLMENT}: a grant row then names its
+	 * direct-enrolment plan, so the screen can link to it. Otherwise {@code paymentPlanId} is null.
+	 */
+	@Transactional(readOnly = true)
+	public Page<AccessRow> list(UUID studentId, Pageable pageable, boolean withPlans) {
 		requireStudent(studentId);
 		int size = Math.min(Math.max(pageable.getPageSize(), 1), MAX_SIZE);
 		Pageable page = PageRequest.of(pageable.getPageNumber(), size);
@@ -125,17 +143,20 @@ public class StudentLiveExamAccessService {
 					return new AccessRow(rs.getObject("module_id", UUID.class), rs.getString("module_title_en"),
 							rs.getString("module_title_bn"), rs.getString("via"), exams,
 							rs.getObject("order_id", UUID.class), rs.getString("tran_id"),
-							rs.getObject("grant_id", UUID.class), instant(rs.getTimestamp("granted_at")), null, false);
+							rs.getObject("grant_id", UUID.class), instant(rs.getTimestamp("granted_at")), null, false, null);
 				});
 		Instant now = clock.instant();
-		return new PageImpl<>(rows.stream().map(row -> withExpiry(row, now)).toList(), page, total == null ? 0 : total);
+		Map<UUID, InstallmentPlanReader.PlanRow> plans = withPlans
+				? installments.byGrantIds(rows.stream().map(AccessRow::grantId).filter(Objects::nonNull).toList())
+				: Map.of();
+		return new PageImpl<>(rows.stream().map(row -> withExpiry(row, now, plans)).toList(), page, total == null ? 0 : total);
 	}
 
 	/**
 	 * When the row's access ends. An exam row ends with its own window and access days; a package row ends when the package's
 	 * paid exams have all run out.
 	 */
-	private AccessRow withExpiry(AccessRow row, Instant now) {
+	private AccessRow withExpiry(AccessRow row, Instant now, Map<UUID, InstallmentPlanReader.PlanRow> plans) {
 		Instant endsAt;
 		if (row.exams().isEmpty()) {
 			endsAt = access.moduleEnd(row.moduleId(), row.grantedAt());
@@ -145,8 +166,10 @@ public class StudentLiveExamAccessService {
 				.map(exam -> AccessWindow.end(exam, row.grantedAt()))
 				.orElse(null);
 		}
+		InstallmentPlanReader.PlanRow plan = row.grantId() == null ? null : plans.get(row.grantId());
+		UUID paymentPlanId = plan == null ? null : plan.planId();
 		return new AccessRow(row.moduleId(), row.moduleTitleEn(), row.moduleTitleBn(), row.via(), row.exams(), row.orderId(),
-				row.tranId(), row.grantId(), row.grantedAt(), endsAt, LiveExamAccess.expired(endsAt, now));
+				row.tranId(), row.grantId(), row.grantedAt(), endsAt, LiveExamAccess.expired(endsAt, now), paymentPlanId);
 	}
 
 	private static Instant instant(Timestamp value) {
@@ -165,10 +188,11 @@ public class StudentLiveExamAccessService {
 	/**
 	 * {@code exams} names the bought exam for an {@code EXAM_PURCHASE} row, and is empty when the whole module is open.
 	 * {@code grantId} is the grant a revoke takes, and is null for a roster row. {@code grantedAt} is when the access began,
-	 * and {@code endsAt} is when it ends (null for lifetime), with {@code expired} true from that moment.
+	 * and {@code endsAt} is when it ends (null for lifetime), with {@code expired} true from that moment. {@code paymentPlanId} is
+	 * the direct-enrolment plan on the grant. It is set only for a caller who may see installments.
 	 */
 	public record AccessRow(UUID moduleId, String moduleTitleEn, String moduleTitleBn, String via, List<ExamRef> exams,
-			UUID orderId, String tranId, UUID grantId, Instant grantedAt, Instant endsAt, boolean expired) {
+			UUID orderId, String tranId, UUID grantId, Instant grantedAt, Instant endsAt, boolean expired, UUID paymentPlanId) {
 	}
 
 	public record ExamRef(UUID id, String titleEn, String titleBn) {

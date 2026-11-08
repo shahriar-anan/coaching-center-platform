@@ -1,9 +1,12 @@
 package com.coachingcenter.api.exams;
 
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -30,6 +33,10 @@ class ExamMailTexts {
 
 	private static final Duration HOUR_CLOSE = Duration.ofMinutes(15);
 
+	private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
+
+	private final InstallmentPlanReader installments;
+
 	private final LiveExamOrderRepository orders;
 
 	private final LiveExamGrantRepository grants;
@@ -50,7 +57,9 @@ class ExamMailTexts {
 
 	ExamMailTexts(LiveExamOrderRepository orders, LiveExamGrantRepository grants, LiveExamRepository exams,
 			LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility, UserRepository users,
-			LiveExamAccess access, StudentProfileRepository profiles, AppProperties properties) {
+			LiveExamAccess access, StudentProfileRepository profiles, AppProperties properties,
+			InstallmentPlanReader installments) {
+		this.installments = installments;
 		this.orders = orders;
 		this.grants = grants;
 		this.exams = exams;
@@ -68,6 +77,12 @@ class ExamMailTexts {
 		}
 		if (ExamOutboundMail.PURCHASE_NOTICE.equals(row.getKind())) {
 			return purchaseNotice(row);
+		}
+		if (ExamOutboundMail.INSTALLMENT_RECEIPT.equals(row.getKind())) {
+			return installmentReceipt(row);
+		}
+		if (ExamOutboundMail.INSTALLMENT_DUE_SOON.equals(row.getKind()) || ExamOutboundMail.INSTALLMENT_OVERDUE.equals(row.getKind())) {
+			return installmentReminder(row);
 		}
 		if (ExamOutboundMail.EXAM_TIME.equals(row.getKind()) || ExamOutboundMail.HOUR_BEFORE.equals(row.getKind())) {
 			return notice(row, now);
@@ -98,6 +113,119 @@ class ExamMailTexts {
 			return student.getEmail();
 		}
 		return null;
+	}
+
+	/** Where a receipt with no typed address goes: the account email, and only when it is verified (plan section 7). */
+	static String receiptAddress(User student) {
+		if (student.getEmailVerifiedAt() != null && student.getEmail() != null && !student.getEmail().isBlank()) {
+			return student.getEmail();
+		}
+		return null;
+	}
+
+	/**
+	 * The receipt of one payment on a direct enrolment's plan (plan section 7), with the receipt number and a link, not an
+	 * attachment. Nothing goes for a voided payment, since its receipt is no longer valid, nor to a student who is not active
+	 * or has no verified email.
+	 */
+	private Prepared installmentReceipt(ExamOutboundMail row) {
+		UUID paymentId = uuidOf(row.getMessageKey());
+		if (paymentId == null) {
+			return null;
+		}
+		InstallmentPlanReader.PaymentReceipt receipt = installments.receipt(paymentId, null).orElse(null);
+		if (receipt == null || receipt.voided()) {
+			return null;
+		}
+		User student = activeStudent(row.getUserId());
+		if (student == null || !student.getId().equals(receipt.studentId())) {
+			return null;
+		}
+		String to = receiptAddress(student);
+		if (to == null) {
+			return null;
+		}
+		RenderedEmail mail = EmailTemplates.installmentReceipt(context, new MailRecipient(to, receipt.studentName(), Role.STUDENT),
+				!receipt.exam(), nullToEmpty(receipt.itemTitleBn()), nullToEmpty(receipt.itemTitleEn()),
+				receipt.amount().toPlainString(), InstallmentPlanReader.methodLabel(receipt.method()), receipt.reference(),
+				DAY.format(receipt.paidOn()), receipt.receiptNo(), receipt.dueAfter().toPlainString(),
+				receipt.nextDueOn() == null ? null : DAY.format(receipt.nextDueOn()),
+				receipt.nextDueAmount() == null ? null : receipt.nextDueAmount().toPlainString());
+		return new Prepared(to, mail.subject(), mail.text(), mail.html());
+	}
+
+	/**
+	 * A reminder that an installment is due soon or overdue (plan section 7), to the student at the verified address, or to the
+	 * Master Admin. It is checked again now: skipped when the installment was rescheduled away, when the plan has no live payment,
+	 * when its access is revoked, when nothing is owed on the row any more, or when there is no address to send to.
+	 */
+	private Prepared installmentReminder(ExamOutboundMail row) {
+		boolean overdue = ExamOutboundMail.INSTALLMENT_OVERDUE.equals(row.getKind());
+		String[] parts = row.getMessageKey() == null ? new String[0] : row.getMessageKey().split("/");
+		if (parts.length != (overdue ? 4 : 3) || row.getUserId() == null || !row.getUserId().toString().equals(parts[0])) {
+			return null;
+		}
+		UUID installmentId = uuidOf(parts[1]);
+		LocalDate dueOn = dateOf(parts[2]);
+		if (installmentId == null || dueOn == null) {
+			return null;
+		}
+		InstallmentPlanReader.DueRow due = installments.dueRow(installmentId).orElse(null);
+		if (due == null || !dueOn.equals(due.dueOn()) || due.revoked() || !due.livePayment() || due.uncovered().signum() <= 0) {
+			return null;
+		}
+		boolean toStudent = due.studentId().equals(row.getUserId());
+		MailRecipient to;
+		String link;
+		if (toStudent) {
+			User student = activeStudent(row.getUserId());
+			String address = student == null ? null : receiptAddress(student);
+			if (address == null) {
+				return null;
+			}
+			to = new MailRecipient(address, due.studentName(), Role.STUDENT);
+			link = context.site("/my-modules?tab=offline");
+		}
+		else {
+			User admin = users.findByIdAndDeletedAtIsNull(row.getUserId()).orElse(null);
+			if (admin == null || !Role.MASTER_ADMIN.name().equals(admin.getRole()) || !"ACTIVE".equals(admin.getStatus())
+					|| admin.getEmail() == null || admin.getEmail().isBlank()) {
+				return null;
+			}
+			to = new MailRecipient(admin.getEmail(), null, Role.MASTER_ADMIN);
+			link = context.forRole(Role.MASTER_ADMIN, "/staff/installments/" + due.planId());
+		}
+		RenderedEmail mail = EmailTemplates.installmentReminder(context, to, overdue, toStudent, nullToEmpty(due.studentName()),
+				nullToEmpty(due.itemTitleBn()), nullToEmpty(due.itemTitleEn()), due.uncovered().toPlainString(), DAY.format(dueOn),
+				due.due().toPlainString(), link);
+		return new Prepared(to.email(), mail.subject(), mail.text(), mail.html());
+	}
+
+	/** The message key of an installment reminder: the recipient, the installment, its due date, and for overdue the week. */
+	static String installmentKey(UUID recipientId, UUID installmentId, LocalDate dueOn, String week) {
+		return recipientId + "/" + installmentId + "/" + dueOn + (week == null ? "" : "/" + week);
+	}
+
+	private static LocalDate dateOf(String value) {
+		try {
+			return LocalDate.parse(value);
+		}
+		catch (DateTimeException exception) {
+			return null;
+		}
+	}
+
+	private static String nullToEmpty(String value) {
+		return value == null ? "" : value;
+	}
+
+	private static UUID uuidOf(String value) {
+		try {
+			return UUID.fromString(value);
+		}
+		catch (IllegalArgumentException | NullPointerException exception) {
+			return null;
+		}
 	}
 
 	private Prepared receipt(ExamOutboundMail row) {

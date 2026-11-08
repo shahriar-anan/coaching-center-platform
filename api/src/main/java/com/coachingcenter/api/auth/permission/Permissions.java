@@ -96,6 +96,9 @@ public final class Permissions {
 
 	public static final String LIVE_EXAM_RELEASE = "LIVE_EXAM_RELEASE";
 
+	/** Direct enrolment payments and installment plans (plan direct-enrolment-installments). Master Admin only. */
+	public static final String LIVE_EXAM_INSTALLMENT = "LIVE_EXAM_INSTALLMENT";
+
 	public static final String INSTRUCTOR_STATUS = "INSTRUCTOR_STATUS";
 
 	public static final String INSTRUCTOR_DELETE = "INSTRUCTOR_DELETE";

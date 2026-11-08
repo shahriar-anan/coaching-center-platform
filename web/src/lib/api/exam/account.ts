@@ -234,6 +234,21 @@ export function isNotDeployed(error: unknown): boolean {
   return error.status === 405 || (error.status === 404 && error.code === "INTERNAL_ERROR");
 }
 
+/**
+ * The money of a direct enrolment's payment plan, on an Offline purchases row (plan section 8). The API leaves a field out when it
+ * is null, so every field is optional. Only the figures the student sees are typed: no reference, no staff text.
+ */
+export type OfflinePayment = {
+  planId?: string;
+  agreedTotal?: number;
+  paid?: number;
+  due?: number;
+  /** A Dhaka calendar date, YYYY-MM-DD. Left out once nothing is due. */
+  nextDueOn?: string | null;
+  /** ACTIVE, DUE_SOON, OVERDUE, COMPLETED or ACCESS_REVOKED. */
+  status?: string;
+};
+
 /** One exam the student was enrolled in by hand, for the Offline purchases tab. */
 export type OfflineExam = {
   examId: string;
@@ -242,18 +257,24 @@ export type OfflineExam = {
   examType: "MCQ" | "WRITTEN";
   grantedAt: string;
   /** Null for lifetime access. */
-  endsAt: string | null;
+  endsAt?: string | null;
   expired: boolean;
+  /** True when staff took the access back. The card stays for its receipts, and does not link to the exam. */
+  accessRemoved?: boolean;
+  /** Set for a direct enrolment with a payment. Left out for No charge. */
+  payment?: OfflinePayment | null;
 };
 
-/** One package a staff member enrolled the student in by hand. */
+/** One package a staff member enrolled the student in by hand. Fields as for {@link OfflineExam}. */
 export type OfflinePackage = {
   moduleId: string;
   titleEn: string;
   titleBn: string;
   grantedAt: string;
-  endsAt: string | null;
+  endsAt?: string | null;
   expired: boolean;
+  accessRemoved?: boolean;
+  payment?: OfflinePayment | null;
 };
 
 export type OfflineOrders = { exams: OfflineExam[]; packages: OfflinePackage[] };

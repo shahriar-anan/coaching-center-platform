@@ -24,16 +24,30 @@ public enum NoticeGroup {
 
 	private static final Set<String> ANNOUNCEMENT_KINDS = Set.of("ANNOUNCEMENT");
 
+	/** The direct-enrolment money notices (plan section 7). They sit under Exams. */
+	private static final Set<String> INSTALLMENT_KINDS = Set.of(StudentNoticeWriter.INSTALLMENT_PAYMENT_RECEIVED,
+			StudentNoticeWriter.INSTALLMENT_DUE_SOON, StudentNoticeWriter.INSTALLMENT_OVERDUE,
+			StudentNoticeWriter.INSTALLMENT_PAYMENT_VOIDED, StudentNoticeWriter.INSTALLMENT_SCHEDULE_CHANGED);
+
 	public static NoticeGroup of(String kind) {
 		if (RESULT_KINDS.contains(kind)) {
 			return RESULTS;
 		}
-		return ANNOUNCEMENT_KINDS.contains(kind) ? ANNOUNCEMENTS : EXAMS;
+		if (ANNOUNCEMENT_KINDS.contains(kind)) {
+			return ANNOUNCEMENTS;
+		}
+		return EXAMS;
+	}
+
+	/** Whether a kind is one of the direct-enrolment money notices, which carry an {@code installment} block. */
+	static boolean isInstallment(String kind) {
+		return INSTALLMENT_KINDS.contains(kind);
 	}
 
 	/**
 	 * The kinds a query names for this tab. For {@link #RESULTS} and {@link #ANNOUNCEMENTS} these are the tab's own kinds.
-	 * For {@link #EXAMS} they are the kinds of the other two tabs, which Exams excludes, so every other kind is Exams.
+	 * For {@link #EXAMS} they are the kinds of the other two tabs, which Exams excludes with "not in", so every other kind is
+	 * Exams. The installment kinds are not listed here on purpose: listing them would hide them from Exams.
 	 */
 	public Set<String> kinds() {
 		return switch (this) {

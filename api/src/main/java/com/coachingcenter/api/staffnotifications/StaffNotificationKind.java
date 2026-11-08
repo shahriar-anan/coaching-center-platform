@@ -47,6 +47,23 @@ public enum StaffNotificationKind {
 	 * To every Master Admin except the one who made the change: a written exam's marker or pay per sheet changed. Payload:
 	 * personName, examTitleEn, examTitleBn, previousInstructorName, instructorName, previousSheetRate, sheetRate.
 	 */
-	EXAM_PAY_TERMS_CHANGED
+	EXAM_PAY_TERMS_CHANGED,
+
+	/**
+	 * To the Master Admin: an installment payment was recorded on a direct enrolment. Payload: studentName, titleEn, titleBn,
+	 * amount, dueOn (the next installment's date, or null when nothing is left), due (what is still owed).
+	 */
+	INSTALLMENT_PAYMENT_RECORDED,
+
+	/**
+	 * To the Master Admin: an unpaid installment falls due soon. Payload: studentName, titleEn, titleBn, amount (what is
+	 * uncovered on that installment), dueOn, due (what is still owed on the plan).
+	 */
+	INSTALLMENT_DUE_SOON,
+
+	/**
+	 * To the Master Admin: an unpaid installment is past its date. Same payload as {@link #INSTALLMENT_DUE_SOON}. Sent weekly.
+	 */
+	INSTALLMENT_OVERDUE
 
 }

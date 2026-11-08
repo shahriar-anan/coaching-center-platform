@@ -735,6 +735,7 @@ const staffCatalog = {
     students: "Students",
     exams: "Exams",
     roster: "Direct enrolment",
+    installments: "Installments",
   },
   setup: {
     heading: "Setup steps for this package",
@@ -787,6 +788,8 @@ const staffCatalog = {
     GENERIC: "Something went wrong. Try again.",
     VALIDATION_FAILED: "Check the details. Some fields are not right.",
     GRANT_ALREADY_ACTIVE: "This student already has access to this package or exam. Revoke it first to enrol again.",
+    PACKAGE_HAS_INSTALLMENTS:
+      "Students are paying for this package in installments, so it cannot be deleted. Archive it instead.",
     RESOURCE_NOT_FOUND: "This is no longer available. Open it again from the list.",
     ACCESS_DENIED: "Your role cannot do this.",
     EXAM_WINDOW_CONFLICT: "Another exam in this package is at the same time. Leave at least five minutes between start times.",

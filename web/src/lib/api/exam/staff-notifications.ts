@@ -20,7 +20,13 @@ export type StaffNotificationKind =
   | "SALARY_DUE_SOON"
   | "SALARY_OVERDUE"
   | "MARKING_UNPAID_REMINDER"
+  | "INSTALLMENT_PAYMENT_RECORDED"
+  | "INSTALLMENT_DUE_SOON"
+  | "INSTALLMENT_OVERDUE"
   | (string & {});
+
+/** The tabs of the notification centre that the API filters on. `OTHER` is every kind not in `INSTALLMENT`. */
+export type StaffNotificationGroup = "INSTALLMENT" | "OTHER";
 
 /** The values a row's text needs. Names, amounts, counts and dates only; never an account number. */
 export type StaffNotificationPayload = Record<string, string | number | boolean | null>;
@@ -36,9 +42,13 @@ export interface StaffNotification {
   readAt: string | null;
 }
 
-/** The bell's number. */
+/**
+ * The bell's number. `byGroup` counts unread notifications per tab; the API may leave it out on an older build, so a
+ * screen reads it with `?.`.
+ */
 export interface StaffUnreadCount {
   count: number;
+  byGroup?: Partial<Record<StaffNotificationGroup, number>>;
 }
 
 /** The list page size. The API default is 20. */
@@ -46,23 +56,28 @@ export const STAFF_NOTIFICATION_PAGE = 20;
 
 export const staffNotificationKeys = {
   all: ["staffNotifications"] as const,
-  list: (page: number, unreadOnly: boolean) => ["staffNotifications", "list", page, unreadOnly ? "UNREAD" : "ALL"] as const,
+  list: (page: number, unreadOnly: boolean, group?: StaffNotificationGroup) =>
+    ["staffNotifications", "list", page, unreadOnly ? "UNREAD" : "ALL", group ?? "ANY"] as const,
   unread: () => ["staffNotifications", "unread"] as const,
 };
 
-/** One page of the signed-in person's notifications, newest first. */
-export function staffNotificationsPath(page: number, unreadOnly: boolean): string {
+/** One page of the signed-in person's notifications, newest first. `group` keeps one tab; absent means every kind. */
+export function staffNotificationsPath(page: number, unreadOnly: boolean, group?: StaffNotificationGroup): string {
   const query = new URLSearchParams({ page: String(page), size: String(STAFF_NOTIFICATION_PAGE) });
   if (unreadOnly) {
     query.set("unread", "true");
   }
+  if (group) {
+    query.set("group", group);
+  }
   return `/api/v1/me/staff-notifications?${query}`;
 }
 
-export function useStaffNotifications(page: number, unreadOnly: boolean) {
+export function useStaffNotifications(page: number, unreadOnly: boolean, group?: StaffNotificationGroup) {
   return useQuery({
-    queryKey: staffNotificationKeys.list(page, unreadOnly),
-    queryFn: ({ signal }) => apiRequest<PageResponse<StaffNotification>>(staffNotificationsPath(page, unreadOnly), { signal }),
+    queryKey: staffNotificationKeys.list(page, unreadOnly, group),
+    queryFn: ({ signal }) =>
+      apiRequest<PageResponse<StaffNotification>>(staffNotificationsPath(page, unreadOnly, group), { signal }),
   });
 }
 

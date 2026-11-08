@@ -35,11 +35,16 @@ public class StaffNotificationController {
 		this.permissions = permissions;
 	}
 
-	/** {@code unread=true} keeps only the unread ones. {@code size} is at most 50 (default 20). Newest first. */
+	/**
+	 * {@code unread=true} keeps only the unread ones. {@code group=INSTALLMENT} keeps one tab (OTHER is the rest); absent means all.
+	 * {@code size} is at most 50 (default 20). Newest first.
+	 */
 	@GetMapping("/api/v1/me/staff-notifications")
 	public PageResponse<StaffNotificationService.NotificationView> list(@RequestParam(defaultValue = "false") boolean unread,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-		Page<StaffNotificationService.NotificationView> rows = notifications.list(me(), unread, page, size);
+			@RequestParam(required = false) String group, @RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		Page<StaffNotificationService.NotificationView> rows = notifications.list(me(), unread,
+				StaffNotificationGroup.parse(group), page, size);
 		return PageResponse.from(rows);
 	}
 

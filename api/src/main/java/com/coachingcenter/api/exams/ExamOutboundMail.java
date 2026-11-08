@@ -22,6 +22,15 @@ public class ExamOutboundMail {
 
 	public static final String PURCHASE_NOTICE = "PURCHASE_NOTICE";
 
+	/** The receipt of one payment on a direct enrolment's plan. Key: the payment id (plan section 7). */
+	public static final String INSTALLMENT_RECEIPT = "INSTALLMENT_RECEIPT";
+
+	/** A reminder that an installment is due within the window. Key: recipient, installment and due date (plan section 7). */
+	public static final String INSTALLMENT_DUE_SOON = "INSTALLMENT_DUE_SOON";
+
+	/** A weekly reminder that an installment is overdue. Key: as due soon, plus the ISO week of the reminder. */
+	public static final String INSTALLMENT_OVERDUE = "INSTALLMENT_OVERDUE";
+
 	public static final String PENDING = "PENDING";
 
 	public static final String SENT = "SENT";

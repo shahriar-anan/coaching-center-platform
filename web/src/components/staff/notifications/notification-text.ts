@@ -20,6 +20,9 @@ const KNOWN_KINDS = new Set([
   "EXAM_UNASSIGNED",
   "EXAM_RATE_CHANGED",
   "EXAM_PAY_TERMS_CHANGED",
+  "INSTALLMENT_PAYMENT_RECORDED",
+  "INSTALLMENT_DUE_SOON",
+  "INSTALLMENT_OVERDUE",
 ]);
 
 /** A payload value as text: empty for a missing value. */
@@ -53,6 +56,20 @@ function examTitle(payload: StaffNotificationPayload, locale: Locale): string {
     { titleEn: text(payload.examTitleEn) || null, titleBn: text(payload.examTitleBn) || null },
     locale,
   );
+}
+
+/** The student's name in an installment notice, or a plain word when the payload leaves it out. */
+function studentLabel(payload: StaffNotificationPayload, t: Translate): string {
+  return text(payload.studentName) || t("staffNotifications.kind.NO_NAME");
+}
+
+/** The item's title in the language for an installment notice, or a plain phrase when both titles are missing. */
+function itemLabel(payload: StaffNotificationPayload, locale: Locale, t: Translate): string {
+  const title = pickTitle(
+    { titleEn: text(payload.titleEn) || null, titleBn: text(payload.titleBn) || null },
+    locale,
+  );
+  return title || t("staffNotifications.kind.NO_TITLE");
 }
 
 /** A period such as "2026-11" as a month and year in the language. Anything else is shown as it came. */
@@ -139,6 +156,27 @@ export function notificationText(
         person: text(payload.personName),
         amount: money(payload.amount, locale),
         days: count(payload.days),
+      });
+    case "INSTALLMENT_PAYMENT_RECORDED":
+      // Paid in full reads differently from part paid, so each has its own sentence.
+      return t(
+        count(payload.due) > 0
+          ? "staffNotifications.kind.INSTALLMENT_PAYMENT_RECORDED"
+          : "staffNotifications.kind.INSTALLMENT_PAYMENT_RECORDED_FULL",
+        {
+          student: studentLabel(payload, t),
+          item: itemLabel(payload, locale, t),
+          amount: money(payload.amount, locale),
+          due: money(payload.due, locale),
+        },
+      );
+    case "INSTALLMENT_DUE_SOON":
+    case "INSTALLMENT_OVERDUE":
+      return t(`staffNotifications.kind.${kind}`, {
+        student: studentLabel(payload, t),
+        item: itemLabel(payload, locale, t),
+        amount: money(payload.amount, locale),
+        date: dayLabel(payload.dueOn, locale),
       });
     case "EXAM_ASSIGNED":
     case "EXAM_UNASSIGNED":

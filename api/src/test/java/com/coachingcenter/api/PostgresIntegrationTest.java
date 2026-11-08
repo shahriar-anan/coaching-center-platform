@@ -7,6 +7,12 @@ public abstract class PostgresIntegrationTest {
 
 	private static final String FILE_STORAGE_DIR = createStorageDir();
 
+	/**
+	 * One payout key for every test context. The database is shared between contexts, so a test that seals a payout number leaves a
+	 * row that every later context must be able to open. Without a key, the startup guard refuses to start them all.
+	 */
+	private static final String PAYOUT_KEY = java.util.Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes());
+
 	private static String createStorageDir() {
 		try {
 			return java.nio.file.Files.createTempDirectory("coaching-api-files-").toAbsolutePath().toString();
@@ -39,6 +45,8 @@ public abstract class PostgresIntegrationTest {
 		registry.add("MASTER_ADMIN_PASSWORD", () -> "bootstrap-password-1");
 		registry.add("FILE_STORAGE_DIR", () -> FILE_STORAGE_DIR);
 		// Tests call the deadline and reminder jobs directly; a background tick would read another context's clock.
+		registry.add("app.payout.encryption-key", () -> PAYOUT_KEY);
+		registry.add("app.payout.key-version", () -> "1");
 		registry.add("app.exam-jobs.scheduled", () -> "false");
 		registry.add("app.staff-pay.jobs-enabled", () -> "false");
 		registry.add("MATERIAL_MAX_BYTES", () -> "1024");

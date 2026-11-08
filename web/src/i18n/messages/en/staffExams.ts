@@ -49,6 +49,7 @@ const staffExams = {
     withdraw: "Withdraw",
     students: "Students",
     enrol: "Direct enrolment",
+    installments: "Installments",
     delete: "Delete",
     also: "Also in {count} packages",
     undated: "No date yet",

@@ -25,6 +25,8 @@ export type AdminAccessRow = {
   orderId: string | null;
   tranId: string | null;
   grantId: string | null;
+  /** The direct-enrolment plan on this grant. Set only for a Master Admin; the API leaves it out otherwise. */
+  paymentPlanId?: string | null;
 };
 
 export type GrantScope = "MODULE" | "EXAM";
@@ -36,6 +38,29 @@ export type GrantRequest = {
   moduleId?: string;
   examId?: string;
   reason: string;
+};
+
+/**
+ * `GET /api/v1/live-exam-grants/quote`. The standard price is null when the target has none. The two warnings come only when
+ * a `studentId` is sent, and the server leaves out fields that are null, so they are optional here.
+ */
+export type GrantQuote = {
+  listPrice?: number | null;
+  discountPercent?: number | null;
+  standardPrice?: number | null;
+  free: boolean;
+  moduleOnly: boolean;
+  /** A plan on this target with money still owed, whether its access is revoked or not. */
+  unfinishedPlanId?: string | null;
+  /** The student already has active access to the target by some route. */
+  accessHeld?: boolean | null;
+};
+
+/** The grant response. `paymentPlanId` and `receiptNo` are set only when the enrolment took a payment. */
+export type GrantResponse = {
+  id: string;
+  paymentPlanId?: string | null;
+  receiptNo?: string | null;
 };
 
 export function useStudentAccessRows(studentId: string, page: number) {
@@ -350,6 +375,10 @@ export function useSystemStatus() {
  */
 const ERROR_KEYS: Record<string, string> = {
   GRANT_ALREADY_ACTIVE: "errors.grantAlreadyActive",
+  INSTALLMENT_OVERPAYMENT: "errors.installmentOverpayment",
+  INSTALLMENT_DUPLICATE_REFERENCE: "errors.installmentDuplicateReference",
+  INSTALLMENT_VOID_NOT_LATEST: "errors.installmentVoidNotLatest",
+  INSTALLMENT_RESTORE_REFUSED: "errors.installmentRestoreRefused",
   ORDER_NOT_PENDING: "errors.orderNotPending",
   ORDER_NOT_REFUNDABLE: "errors.orderNotRefundable",
   ACCOUNT_HAS_PAID_ORDERS: "errors.accountHasPaidOrders",

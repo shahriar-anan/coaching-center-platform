@@ -91,6 +91,7 @@ const common = {
     instructors: "শিক্ষক",
     admins: "সিস্টেম অ্যাডমিন",
     payments: "পেমেন্ট",
+    installments: "কিস্তি",
     audit: "কার্যক্রম লগ",
     staffPay: "স্টাফ বেতন",
     myPay: "আমার বেতন",

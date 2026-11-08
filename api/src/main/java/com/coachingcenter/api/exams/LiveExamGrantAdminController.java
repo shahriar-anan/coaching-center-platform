@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,11 +32,27 @@ public class LiveExamGrantAdminController {
 		this.permissions = permissions;
 	}
 
+	/**
+	 * Gives access by hand. Without a {@code payment} it is No charge, with a required {@code reason}. With one, a payment plan
+	 * is opened too.
+	 */
 	@PostMapping("/api/v1/live-exam-grants")
 	public ResponseEntity<LiveExamGrantAdminService.GrantView> grant(
 			@Valid @RequestBody LiveExamGrantAdminService.GrantRequest request) {
 		require(Permissions.LIVE_EXAM_GRANT);
 		return ResponseEntity.status(HttpStatus.CREATED).body(grants.grant(actor(), request));
+	}
+
+	/**
+	 * The price an enrolment of one package or exam would charge, for the enrol form. Exactly one of the two ids is given. A
+	 * {@code studentId} adds the unfinished-plan and access-held warnings.
+	 */
+	@GetMapping("/api/v1/live-exam-grants/quote")
+	public LiveExamGrantAdminService.QuoteView quote(@RequestParam String scope,
+			@RequestParam(required = false) UUID moduleId, @RequestParam(required = false) UUID examId,
+			@RequestParam(required = false) UUID studentId) {
+		require(Permissions.LIVE_EXAM_GRANT);
+		return grants.quote(scope, moduleId, examId, studentId);
 	}
 
 	/** {@code reason} is required, 1 to 500 characters. Master Admin only. */

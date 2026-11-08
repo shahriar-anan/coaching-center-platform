@@ -116,7 +116,8 @@ class StaffNotificationIT extends PostgresIntegrationTest {
 	void aDedupeKeyIsUniqueAcrossPeopleSoAProducerPutsTheRecipientInIt() {
 		UUID first = seed("SYSTEM_ADMIN");
 		UUID second = seed("SYSTEM_ADMIN");
-		String shared = "SALARY_DUE_SOON:2026-11";
+		// Unique per run: the test database keeps its rows between runs, so a fixed key would already exist on a second run.
+		String shared = "SALARY_DUE_SOON:" + UUID.randomUUID();
 
 		assertThat(writer.notify(first, StaffNotificationKind.SALARY_DUE_SOON, Map.of("period", "2026-11"), "/staff/pay", shared))
 			.isTrue();

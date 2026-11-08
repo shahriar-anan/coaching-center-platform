@@ -20,11 +20,17 @@ export function AccessPill({ end }: { end: AccessEnd }) {
   return <Pill tone="muted">{t("catalog.myExams.accessUntil", { date: formatDate(end.endsAt, locale, { year: "auto" }) })}</Pill>;
 }
 
-/** A title, or what the row shows while its title loads or when the read fails. */
-export function TitleText({ title, pending, href }: { title: string; pending: boolean; href: string }) {
+/**
+ * A title, or what the row shows while its title loads or when the read fails. With no `href` the title is plain text: a row
+ * whose access was removed does not link as if it were open (plan section 8).
+ */
+export function TitleText({ title, pending, href }: { title: string; pending: boolean; href?: string | null }) {
   const { t } = useLocale();
   if (!title) {
     return <span className="text-muted">{pending ? t("catalog.loading") : t("catalog.myExams.detailsMissing")}</span>;
+  }
+  if (!href) {
+    return <span className="font-semibold text-text">{title}</span>;
   }
   return (
     <Link href={href} prefetch={false} className="font-semibold text-text underline-offset-4 hover:underline">
@@ -58,12 +64,15 @@ export function OwnedCard({
   access,
   facts,
   orderId,
+  footer,
 }: {
   icon: LucideIcon;
   title: ReactNode;
   access: ReactNode;
   facts: (string | null)[];
   orderId?: string | null;
+  /** Anything under the facts, such as a payment line (Offline purchases). */
+  footer?: ReactNode;
 }) {
   const shown = facts.filter((fact): fact is string => Boolean(fact));
   return (
@@ -78,6 +87,7 @@ export function OwnedCard({
             {access}
           </div>
           {shown.length ? <p className="text-meta text-muted">{shown.join(" · ")}</p> : null}
+          {footer}
           {orderId ? <PaymentLink orderId={orderId} /> : null}
         </div>
       </div>

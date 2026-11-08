@@ -1,5 +1,6 @@
 package com.coachingcenter.api.exams;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.sql.ResultSet;
@@ -9,6 +10,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -76,18 +78,26 @@ public class LiveExamEnrolmentListService {
 
 	private final Clock clock;
 
+	private final InstallmentPlanReader plans;
+
 	public LiveExamEnrolmentListService(NamedParameterJdbcTemplate jdbc, LiveExamModuleRepository modules,
-			LiveExamRepository exams, LiveExamMemberships memberships, LiveExamAccess access, Clock clock) {
+			LiveExamRepository exams, LiveExamMemberships memberships, LiveExamAccess access, Clock clock,
+			InstallmentPlanReader plans) {
 		this.jdbc = jdbc;
 		this.modules = modules;
 		this.exams = exams;
 		this.memberships = memberships;
 		this.access = access;
 		this.clock = clock;
+		this.plans = plans;
 	}
 
+	/**
+	 * {@code withMoney} is true only for a caller holding {@code LIVE_EXAM_INSTALLMENT}. Only then does a row carry its plan id,
+	 * paid, due and status (all null otherwise).
+	 */
 	@Transactional(readOnly = true)
-	public Page<EnrolledStudent> forModule(UUID moduleId, Pageable pageable) {
+	public Page<EnrolledStudent> forModule(UUID moduleId, Pageable pageable, boolean withMoney) {
 		modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
 		Instant now = clock.instant();
 		List<Row> rows = new ArrayList<>();
@@ -99,11 +109,11 @@ public class LiveExamEnrolmentListService {
 			.map(Row::toView)
 			.sorted(NEWEST_FIRST)
 			.toList();
-		return slice(sitting, pageable);
+		return withPlans(slice(sitting, pageable), withMoney);
 	}
 
 	@Transactional(readOnly = true)
-	public Page<EnrolledStudent> forExam(UUID examId, Pageable pageable) {
+	public Page<EnrolledStudent> forExam(UUID examId, Pageable pageable, boolean withMoney) {
 		LiveExam exam = exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
 		Instant now = clock.instant();
 		List<UUID> packages = memberships.activeModuleIds(examId);
@@ -120,7 +130,21 @@ public class LiveExamEnrolmentListService {
 			.map(Row::toView)
 			.sorted(NEWEST_FIRST)
 			.toList();
-		return slice(sitting, pageable);
+		return withPlans(slice(sitting, pageable), withMoney);
+	}
+
+	/** Fills each row's plan from its grant, for the callers who may see money. Other rows and callers are left as they are. */
+	private Page<EnrolledStudent> withPlans(Page<EnrolledStudent> page, boolean withMoney) {
+		if (!withMoney || page.isEmpty()) {
+			return page;
+		}
+		List<UUID> grants = page.getContent().stream().map(EnrolledStudent::grantId).filter(Objects::nonNull).toList();
+		Map<UUID, InstallmentPlanReader.PlanRow> byGrant = plans.byGrantIds(grants);
+		List<EnrolledStudent> content = page.getContent().stream().map(student -> {
+			InstallmentPlanReader.PlanRow plan = student.grantId() == null ? null : byGrant.get(student.grantId());
+			return plan == null ? student : student.withPlan(plan.planId(), plan.paid(), plan.due(), plan.status());
+		}).toList();
+		return new PageImpl<>(content, page.getPageable(), page.getTotalElements());
 	}
 
 	private static final Comparator<EnrolledStudent> NEWEST_FIRST =
@@ -168,16 +192,24 @@ public class LiveExamEnrolmentListService {
 			String source, String reason, Instant enrolledAt) {
 
 		EnrolledStudent toView() {
-			return new EnrolledStudent(grantId, studentId, fullName, studentCode, phone, email, source, reason, enrolledAt);
+			return new EnrolledStudent(grantId, studentId, fullName, studentCode, phone, email, source, reason, enrolledAt,
+					null, null, null, null);
 		}
 	}
 
 	/**
 	 * One student who can sit the package or exam. {@code grantId} is null when access comes from a roster row, which has
-	 * no grant to revoke; {@code source} is then {@code ROSTER}.
+	 * no grant to revoke; {@code source} is then {@code ROSTER}. {@code paymentPlanId}, {@code paid}, {@code due} and
+	 * {@code planStatus} are set only for a caller who may see installments, and only when the grant has a plan.
 	 */
 	public record EnrolledStudent(UUID grantId, UUID studentId, String fullName, String studentCode, String phone,
-			String email, String source, String reason, Instant enrolledAt) {
+			String email, String source, String reason, Instant enrolledAt, UUID paymentPlanId, BigDecimal paid,
+			BigDecimal due, String planStatus) {
+
+		EnrolledStudent withPlan(UUID planId, BigDecimal paid, BigDecimal due, String status) {
+			return new EnrolledStudent(grantId, studentId, fullName, studentCode, phone, email, source, reason, enrolledAt,
+					planId, paid, due, status);
+		}
 	}
 
 }

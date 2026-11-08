@@ -20,25 +20,30 @@ import {
   type StaffNotification,
 } from "@/lib/api/exam/staff-notifications";
 import { formatDateTime } from "@/lib/format";
+import { useRole } from "@/lib/auth/guards";
 import { notificationHref, notificationText } from "./notification-text";
 
-type Tab = "UNREAD" | "ALL";
+type Tab = "UNREAD" | "ALL" | "INSTALLMENT";
 
 /**
- * The staff notification list: an Unread tab and an All tab, "Mark all read", and one row per notification. Each row reads
- * from its kind and payload, and links to its page. Opening a row marks it read.
+ * The staff notification list: an Unread tab and an All tab, "Mark all read", and one row per notification. The Installments
+ * tab (Master Admin only) keeps the direct-enrolment kinds, with its own unread badge. Each row reads from its kind and payload,
+ * and links to its page. Opening a row marks it read.
  */
 export function NotificationsPage() {
   const { t, locale } = useLocale();
   const { toast } = useToast();
+  const { isMasterAdmin } = useRole();
   const [tab, setTab] = useState<Tab>("ALL");
   const [page, setPage] = useState(0);
   const unreadOnly = tab === "UNREAD";
-  const list = useStaffNotifications(page, unreadOnly);
+  const installmentsOnly = tab === "INSTALLMENT";
+  const list = useStaffNotifications(page, unreadOnly, installmentsOnly ? "INSTALLMENT" : undefined);
   const unread = useStaffUnreadCount(true);
   const markOne = useMarkStaffNotificationRead();
   const markAll = useMarkAllStaffNotificationsRead();
   const unreadCount = unread.data?.count ?? 0;
+  const unreadInstallments = unread.data?.byGroup?.INSTALLMENT ?? 0;
 
   function chooseTab(next: string) {
     setTab(next as Tab);
@@ -69,8 +74,11 @@ export function NotificationsPage() {
         onChange={chooseTab}
         variant="pill"
         tabs={[
-          { value: "UNREAD", label: t("staffNotifications.tabs.UNREAD"), badge: unreadCount || undefined },
           { value: "ALL", label: t("staffNotifications.tabs.ALL") },
+          { value: "UNREAD", label: t("staffNotifications.tabs.UNREAD"), badge: unreadCount || undefined },
+          ...(isMasterAdmin
+            ? [{ value: "INSTALLMENT", label: t("staffNotifications.tabs.INSTALLMENT"), badge: unreadInstallments || undefined }]
+            : []),
         ]}
       />
 
@@ -81,6 +89,8 @@ export function NotificationsPage() {
       ) : list.data.content.length === 0 ? (
         unreadOnly ? (
           <EmptyState title={t("staffNotifications.emptyUnread")} body={t("staffNotifications.emptyUnreadBody")} />
+        ) : installmentsOnly ? (
+          <EmptyState title={t("staffNotifications.emptyInstallments")} body={t("staffNotifications.emptyInstallmentsBody")} />
         ) : (
           <EmptyState title={t("staffNotifications.empty")} body={t("staffNotifications.emptyBody")} />
         )

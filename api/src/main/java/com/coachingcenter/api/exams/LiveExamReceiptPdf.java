@@ -106,6 +106,12 @@ class LiveExamReceiptPdf {
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd MMM, yyyy", Locale.ENGLISH)
 		.withZone(LiveExamReceipts.DHAKA);
 
+	/** A day with no time: a direct payment's date is a Dhaka date already, so no zone is set. */
+	private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd MMM, yyyy", Locale.ENGLISH);
+
+	/** The stamp colour of a part-paid receipt. */
+	private static final Color AMBER = new Color(0x8a, 0x5f, 0x12);
+
 	private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM, yyyy, HH:mm", Locale.ENGLISH)
 		.withZone(LiveExamReceipts.DHAKA);
 
@@ -115,11 +121,37 @@ class LiveExamReceiptPdf {
 			document.getDocumentInformation().setTitle(text(order.receiptNo()));
 			PDImageXObject logo = PDImageXObject.createFromByteArray(document, logoBytes(), "symam-law-logo");
 			Sheet sheet = new Sheet(document);
-			header(sheet, logo, order);
-			billedTo(sheet, receipt);
+			header(sheet, logo, order.receiptNo(), order.paidAt() == null ? "-" : DATE.format(order.paidAt()));
+			billedTo(sheet, receipt.studentName(), receipt.studentPhone(), receipt.receiptEmail());
 			items(sheet, receipt);
 			totals(sheet, order);
 			paymentDetails(sheet, receipt);
+			footer(sheet);
+			sheet.finish();
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			document.save(out);
+			return out.toByteArray();
+		}
+		catch (IOException exception) {
+			throw new UncheckedIOException(exception);
+		}
+	}
+
+	/**
+	 * The receipt of one direct payment on an installment plan (plan section 6.1). It has the same header, billed-to block, item
+	 * table, footer and PAID stamp as the online receipt, but its totals and payment details are its own: the figures are the ones
+	 * the payment stored when it was recorded, so a reprint is unchanged.
+	 */
+	byte[] renderDirect(InstallmentPlanReader.PaymentReceipt receipt) {
+		try (PDDocument document = new PDDocument()) {
+			document.getDocumentInformation().setTitle(text(receipt.receiptNo()));
+			PDImageXObject logo = PDImageXObject.createFromByteArray(document, logoBytes(), "symam-law-logo");
+			Sheet sheet = new Sheet(document);
+			header(sheet, logo, receipt.receiptNo(), DAY.format(receipt.paidOn()));
+			billedTo(sheet, receipt.studentName(), receipt.studentPhone(), receipt.studentEmail());
+			directItems(sheet, receipt);
+			directTotals(sheet, receipt);
+			detailsBlock(sheet, directDetails(receipt));
 			footer(sheet);
 			sheet.finish();
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -138,8 +170,7 @@ class LiveExamReceiptPdf {
 	}
 
 	/** The company block on the left, and the logo with the receipt title on the right. */
-	private static void header(Sheet sheet, PDImageXObject logo, LiveExamOrderHistoryService.OwnOrderRow order)
-			throws IOException {
+	private static void header(Sheet sheet, PDImageXObject logo, String receiptNo, String date) throws IOException {
 		sheet.show(LEFT, 62, BOLD, 22, INK, COMPANY_NAME);
 		sheet.show(LEFT, 80, REGULAR, 10, GREY, COMPANY_TAGLINE);
 		float top = 98;
@@ -152,29 +183,28 @@ class LiveExamReceiptPdf {
 		sheet.image(logo, RIGHT - LOGO_WIDTH, 40, LOGO_WIDTH, logoHeight);
 		float titleTop = 40 + logoHeight + 16;
 		sheet.showRight(RIGHT, titleTop, BOLD, 13, INK, "PAYMENT RECEIPT");
-		sheet.showRight(RIGHT, titleTop + 16, REGULAR, 10, INK, text(order.receiptNo()));
-		sheet.showRight(RIGHT, titleTop + 30, REGULAR, 10, GREY,
-				"Date: " + (order.paidAt() == null ? "-" : DATE.format(order.paidAt())));
+		sheet.showRight(RIGHT, titleTop + 16, REGULAR, 10, INK, text(receiptNo));
+		sheet.showRight(RIGHT, titleTop + 30, REGULAR, 10, GREY, "Date: " + date);
 		sheet.rule(LEFT, RIGHT, titleTop + 46, DIVIDER, 0.8f);
 		sheet.y = titleTop + 62;
 	}
 
 	/** The student's name (Latin letters only), phone and the email the receipt went to. Empty lines are left out. */
-	private static void billedTo(Sheet sheet, LiveExamOrderHistoryService.Receipt receipt) throws IOException {
+	private static void billedTo(Sheet sheet, String studentName, String studentPhone, String receiptEmail) throws IOException {
 		float top = sheet.y;
 		sheet.show(LEFT, top, BOLD, 8.5f, GREY, "BILLED TO");
 		top += 16;
-		String name = nameText(receipt.studentName());
+		String name = nameText(studentName);
 		if (!name.isEmpty()) {
 			sheet.show(LEFT, top, BOLD, 13, INK, name);
 			top += 16;
 		}
-		String phone = ascii(receipt.studentPhone());
+		String phone = ascii(studentPhone);
 		if (!phone.isEmpty()) {
 			sheet.show(LEFT, top, REGULAR, 10, INK, phone);
 			top += 14;
 		}
-		String email = ascii(receipt.receiptEmail());
+		String email = ascii(receiptEmail);
 		if (!email.isEmpty()) {
 			sheet.show(LEFT, top, REGULAR, 10, INK, email);
 			top += 14;
@@ -188,32 +218,51 @@ class LiveExamReceiptPdf {
 		tableHeader(sheet);
 		for (LiveExamOrderHistoryService.ReceiptItem item : receipt.items()) {
 			String title = ascii(item.titleEn());
-			List<String> titleLines = title.isEmpty() ? List.of() : wrap(title, BOLD, 10, DESC_WIDTH);
-			List<String> validityLines = wrap(validity(item.accessDays()), REGULAR, 9, VALIDITY_WIDTH);
-			int lines = Math.max(Math.max(titleLines.size(), validityLines.size()), 1);
-			float height = 27 + (lines - 1) * 13;
-			if (!sheet.fits(height)) {
-				sheet.newPage();
-				tableHeader(sheet);
-			}
-			float top = sheet.y;
-			if (title.isEmpty()) {
-				sheet.show(DESC_X, top + 18, REGULAR, 9, GREY, "Order ID: " + text(order.orderId() == null ? null
-						: order.orderId().toString()));
-			}
-			for (int i = 0; i < titleLines.size(); i++) {
-				sheet.show(DESC_X, top + 18 + i * 13, BOLD, 10, INK, titleLines.get(i));
-			}
-			sheet.show(TYPE_X, top + 18, REGULAR, 9, INK, item.type());
-			for (int i = 0; i < validityLines.size(); i++) {
-				sheet.show(VALIDITY_X, top + 18 + i * 13, REGULAR, 9, INK, validityLines.get(i));
-			}
-			if (item.listPrice() != null) {
-				sheet.showRight(AMOUNT_RIGHT, top + 18, REGULAR, 10, INK, money(item.listPrice()));
-			}
-			sheet.rule(LEFT, RIGHT, top + height, DIVIDER, 0.6f);
-			sheet.y = top + height;
+			String missingTitle = "Order ID: " + text(order.orderId() == null ? null : order.orderId().toString());
+			itemRow(sheet, title, missingTitle, item.type(), item.accessDays(), item.listPrice());
 		}
+	}
+
+	/** The one row of a direct payment's item table: the exam or package, with its standard price (plan section 6.1). */
+	private static void directItems(Sheet sheet, InstallmentPlanReader.PaymentReceipt receipt) throws IOException {
+		String type = receipt.exam() ? "Exam" : "Package";
+		String title = ascii(receipt.itemTitleEn());
+		tableHeader(sheet);
+		// A title with no English text prints the type in its place, since the standard font cannot draw Bangla.
+		itemRow(sheet, title.isEmpty() ? type : title, null, type, receipt.exam() ? receipt.accessDays() : null,
+				receipt.standardPrice());
+	}
+
+	/**
+	 * One row of the item table. A title with no English text is replaced by {@code missingTitle}, printed in grey. A row that does
+	 * not fit starts a new page with the table header again.
+	 */
+	private static void itemRow(Sheet sheet, String title, String missingTitle, String type, Integer accessDays, BigDecimal amount)
+			throws IOException {
+		List<String> titleLines = title.isEmpty() ? List.of() : wrap(title, BOLD, 10, DESC_WIDTH);
+		List<String> validityLines = wrap(validity(accessDays), REGULAR, 9, VALIDITY_WIDTH);
+		int lines = Math.max(Math.max(titleLines.size(), validityLines.size()), 1);
+		float height = 27 + (lines - 1) * 13;
+		if (!sheet.fits(height)) {
+			sheet.newPage();
+			tableHeader(sheet);
+		}
+		float top = sheet.y;
+		if (title.isEmpty()) {
+			sheet.show(DESC_X, top + 18, REGULAR, 9, GREY, missingTitle);
+		}
+		for (int i = 0; i < titleLines.size(); i++) {
+			sheet.show(DESC_X, top + 18 + i * 13, BOLD, 10, INK, titleLines.get(i));
+		}
+		sheet.show(TYPE_X, top + 18, REGULAR, 9, INK, type);
+		for (int i = 0; i < validityLines.size(); i++) {
+			sheet.show(VALIDITY_X, top + 18 + i * 13, REGULAR, 9, INK, validityLines.get(i));
+		}
+		if (amount != null) {
+			sheet.showRight(AMOUNT_RIGHT, top + 18, REGULAR, 10, INK, money(amount));
+		}
+		sheet.rule(LEFT, RIGHT, top + height, DIVIDER, 0.6f);
+		sheet.y = top + height;
 	}
 
 	private static void tableHeader(Sheet sheet) throws IOException {
@@ -298,6 +347,11 @@ class LiveExamReceiptPdf {
 		if (LiveExamOrder.SSLCOMMERZ.equals(receipt.method())) {
 			rows.add(new String[] { "Gateway", "SSLCommerz" });
 		}
+		detailsBlock(sheet, rows);
+	}
+
+	/** The payment details block: the label and the value of each row, shared by the online and the direct receipt. */
+	private static void detailsBlock(Sheet sheet, List<String[]> rows) throws IOException {
 		List<List<String>> values = new ArrayList<>();
 		float height = 30;
 		for (String[] row : rows) {
@@ -321,6 +375,98 @@ class LiveExamReceiptPdf {
 			top += lines.size() * 13 + 4;
 		}
 		sheet.y = top;
+	}
+
+	/**
+	 * The totals of a direct payment: the standard price, any adjustment to the agreed total with its sign, the total, what this
+	 * receipt paid, what is paid so far, and what is due. The next installment is printed under them, unless nothing is due. The
+	 * stamp is PAID when nothing is due, PART PAID otherwise, and VOID for a voided payment.
+	 */
+	private static void directTotals(Sheet sheet, InstallmentPlanReader.PaymentReceipt receipt) throws IOException {
+		boolean priced = receipt.standardPrice() != null;
+		boolean adjusted = priced && receipt.agreedTotal().compareTo(receipt.standardPrice()) != 0;
+		boolean next = receipt.nextDueOn() != null && receipt.nextDueAmount() != null;
+		int lines = (priced ? 1 : 0) + (adjusted ? 1 : 0) + 4;
+		float blockHeight = 8 + lines * 18 + (next ? 16 : 0) + 16;
+		if (!sheet.fits(blockHeight)) {
+			sheet.newPage();
+		}
+		float blockTop = sheet.y + 8;
+		float top = blockTop;
+		if (priced) {
+			sheet.showRight(LABEL_RIGHT, top + 12, REGULAR, 10, INK, "Subtotal");
+			sheet.showRight(AMOUNT_RIGHT, top + 12, REGULAR, 10, INK, money(receipt.standardPrice()));
+			top += 18;
+		}
+		if (adjusted) {
+			BigDecimal difference = receipt.agreedTotal().subtract(receipt.standardPrice());
+			String sign = difference.signum() < 0 ? "-" : "+";
+			sheet.showRight(LABEL_RIGHT, top + 12, REGULAR, 10, INK, "Price adjustment");
+			sheet.showRight(AMOUNT_RIGHT, top + 12, REGULAR, 10, INK, sign + money(difference.abs()));
+			top += 18;
+		}
+		sheet.rule(340, AMOUNT_RIGHT, top + 1, DIVIDER, 0.8f);
+		top += 6;
+		sheet.showRight(LABEL_RIGHT, top + 12, BOLD, 10, INK, "Total");
+		sheet.showRight(AMOUNT_RIGHT, top + 12, BOLD, 10, INK, money(receipt.agreedTotal()));
+		top += 18;
+		sheet.showRight(LABEL_RIGHT, top + 12, BOLD, 11, GREEN, "Paid on this receipt");
+		sheet.showRight(AMOUNT_RIGHT, top + 12, BOLD, 11, GREEN, money(receipt.amount()));
+		top += 18;
+		sheet.showRight(LABEL_RIGHT, top + 12, REGULAR, 10, INK, "Paid so far");
+		sheet.showRight(AMOUNT_RIGHT, top + 12, REGULAR, 10, INK, money(receipt.paidToDate()));
+		top += 18;
+		sheet.showRight(LABEL_RIGHT, top + 12, BOLD, 10, INK, "Due");
+		sheet.showRight(AMOUNT_RIGHT, top + 12, BOLD, 10, INK, money(receipt.dueAfter()));
+		top += 18;
+		if (next) {
+			sheet.showRight(AMOUNT_RIGHT, top + 10, REGULAR, 9, GREY,
+					"Next installment: " + money(receipt.nextDueAmount()) + " on " + DAY.format(receipt.nextDueOn()));
+			top += 16;
+		}
+		String word;
+		Color color;
+		if (receipt.voided()) {
+			word = "VOID";
+			color = RED;
+		}
+		else if (receipt.dueAfter().signum() == 0) {
+			word = "PAID";
+			color = GREEN;
+		}
+		else {
+			word = "PART PAID";
+			color = AMBER;
+		}
+		sheet.paidStamp(LEFT + 95, blockTop + 40, word, color);
+		sheet.y = top + 16;
+	}
+
+	/**
+	 * The payment details of a direct payment: its status, the date, the method, the reference, the receipt number, and the
+	 * installment when the plan has more than one row. The gateway row and the order ID do not apply.
+	 */
+	private static List<String[]> directDetails(InstallmentPlanReader.PaymentReceipt receipt) {
+		String status;
+		if (receipt.voided()) {
+			status = "Voided";
+		}
+		else if (receipt.dueAfter().signum() == 0) {
+			status = "Paid";
+		}
+		else {
+			status = "Part paid";
+		}
+		List<String[]> rows = new ArrayList<>();
+		rows.add(new String[] { "Status", status });
+		rows.add(new String[] { "Paid on", DAY.format(receipt.paidOn()) });
+		rows.add(new String[] { "Payment method", InstallmentPlanReader.methodLabel(receipt.method()) });
+		rows.add(new String[] { "Transaction reference", text(receipt.reference()) });
+		rows.add(new String[] { "Receipt number", text(receipt.receiptNo()) });
+		if (receipt.installmentCount() > 1) {
+			rows.add(new String[] { "Installment", receipt.installmentNo() + " of " + receipt.installmentCount() });
+		}
+		return rows;
 	}
 
 	/** The footer on the last page: the computer-generated line, a divider, the thank-you line and the support line. */

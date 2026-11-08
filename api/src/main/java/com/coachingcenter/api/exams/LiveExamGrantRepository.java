@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * The access checks ignore revoked grants: a revoked grant is history, not access (R-2). {@link #existsByStudentId} is
@@ -37,5 +39,17 @@ public interface LiveExamGrantRepository extends JpaRepository<LiveExamGrant, UU
 	boolean existsByOrderIdAndRevokeReason(UUID orderId, String revokeReason);
 
 	boolean existsByScopeAndExamId(String scope, UUID examId);
+
+	/**
+	 * Whether a package has a payment plan whose access is still given (plan section 4, C9). A package with one cannot be deleted.
+	 * Only a package grant counts: an exam grant names its exam, and its access does not depend on the package.
+	 */
+	@Query(value = """
+			select exists (
+			  select 1 from live_exam_payment_plans p
+			  join live_exam_grants g on g.id = p.grant_id
+			  where g.scope = 'MODULE' and g.module_id = :moduleId and g.revoked_at is null)
+			""", nativeQuery = true)
+	boolean hasLivePaymentPlanForModule(@Param("moduleId") UUID moduleId);
 
 }

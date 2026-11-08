@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
+import { staffHref } from "@/lib/config";
 import { useListParams } from "@/lib/url/list-params";
 import { useRole } from "@/lib/auth/guards";
 import { useCategoryTree, useModules, type CategoryTreeNode, type StaffModule } from "@/lib/api/exam/staff-catalog";
@@ -71,6 +72,9 @@ export function ModuleList() {
         href: `/staff/enrol?package=${m.id}`,
         disabled: m.status !== "PUBLISHED",
       });
+    }
+    if (role.isMasterAdmin) {
+      items.push({ label: t("staffCatalog.rowMenu.installments"), href: staffHref(`/staff/installments?moduleId=${m.id}`) });
     }
     return (
       <div onClick={(e) => e.stopPropagation()}>

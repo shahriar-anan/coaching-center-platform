@@ -54,10 +54,14 @@ public class LiveExamModuleService {
 
 	private final ModuleRoutinePdfService routinePdfs;
 
+	private final LiveExamGrantRepository grants;
+
 	public LiveExamModuleService(LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility,
 			LiveExamAccess access, AuditRecorder audit, ExamMailService examMail, AfterCommit afterCommit,
 			PackageRevisionService revisions, LiveExamPackageExamRepository memberships, Clock clock,
-			RichTextSanitizer sanitizer, LiveExamParticipantRepository participants, ModuleRoutinePdfService routinePdfs) {
+			RichTextSanitizer sanitizer, LiveExamParticipantRepository participants, ModuleRoutinePdfService routinePdfs,
+			LiveExamGrantRepository grants) {
+		this.grants = grants;
 		this.participants = participants;
 		this.routinePdfs = routinePdfs;
 		this.modules = modules;
@@ -196,6 +200,10 @@ public class LiveExamModuleService {
 		if (participants.hasOpenSittingInPackage(module.getId(), LiveExamParticipant.IN_PROGRESS, now)) {
 			throw new ApiException(ErrorCode.CATALOG_SITTING_OPEN, HttpStatus.CONFLICT,
 					"Students are sitting an exam in this package now. Try again after the sitting ends.");
+		}
+		if (grants.hasLivePaymentPlanForModule(module.getId())) {
+			throw new ApiException(ErrorCode.PACKAGE_HAS_INSTALLMENTS, HttpStatus.CONFLICT,
+					"A student is paying for this package in instalments. It can be archived, but not deleted.");
 		}
 		module.setDeletedAt(now);
 		for (LiveExamPackageExam link : memberships.findActiveByModuleId(module.getId())) {
