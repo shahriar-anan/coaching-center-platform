@@ -219,7 +219,7 @@ class LiveExamReceiptPdf {
 		for (LiveExamOrderHistoryService.ReceiptItem item : receipt.items()) {
 			String title = ascii(item.titleEn());
 			String missingTitle = "Order ID: " + text(order.orderId() == null ? null : order.orderId().toString());
-			itemRow(sheet, title, missingTitle, item.type(), item.accessDays(), item.listPrice());
+			itemRow(sheet, title, missingTitle, item.type(), validity(item.accessDays()), item.listPrice());
 		}
 	}
 
@@ -229,18 +229,19 @@ class LiveExamReceiptPdf {
 		String title = ascii(receipt.itemTitleEn());
 		tableHeader(sheet);
 		// A title with no English text prints the type in its place, since the standard font cannot draw Bangla.
-		itemRow(sheet, title.isEmpty() ? type : title, null, type, receipt.exam() ? receipt.accessDays() : null,
-				receipt.standardPrice());
+		// A package's validity is fixed text, so a reprint never changes when exams are added or removed (plan 14.4, P28).
+		itemRow(sheet, title.isEmpty() ? type : title, null, type,
+				receipt.exam() ? validity(receipt.accessDays()) : PACKAGE_VALIDITY, receipt.standardPrice());
 	}
 
 	/**
 	 * One row of the item table. A title with no English text is replaced by {@code missingTitle}, printed in grey. A row that does
 	 * not fit starts a new page with the table header again.
 	 */
-	private static void itemRow(Sheet sheet, String title, String missingTitle, String type, Integer accessDays, BigDecimal amount)
+	private static void itemRow(Sheet sheet, String title, String missingTitle, String type, String validityText, BigDecimal amount)
 			throws IOException {
 		List<String> titleLines = title.isEmpty() ? List.of() : wrap(title, BOLD, 10, DESC_WIDTH);
-		List<String> validityLines = wrap(validity(accessDays), REGULAR, 9, VALIDITY_WIDTH);
+		List<String> validityLines = wrap(validityText, REGULAR, 9, VALIDITY_WIDTH);
 		int lines = Math.max(Math.max(titleLines.size(), validityLines.size()), 1);
 		float height = 27 + (lines - 1) * 13;
 		if (!sheet.fits(height)) {
@@ -477,6 +478,9 @@ class LiveExamReceiptPdf {
 		sheet.centre(794, REGULAR, 8.5f, GREY,
 				"For support, email " + COMPANY_EMAIL + " or call " + COMPANY_PHONE + ".");
 	}
+
+	/** The validity of a direct payment on a package. Fixed text, so it never changes with the package's exams (plan P28). */
+	private static final String PACKAGE_VALIDITY = "As set for the package";
 
 	private static String validity(Integer accessDays) {
 		return accessDays == null ? "Lifetime" : accessDays + " days after the exam window ends";

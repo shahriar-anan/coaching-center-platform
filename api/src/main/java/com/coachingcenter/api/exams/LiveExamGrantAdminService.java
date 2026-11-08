@@ -55,9 +55,18 @@ public class LiveExamGrantAdminService {
 
 	private final LiveExamPaymentPlanService plans;
 
+	private final LiveExamRosterService rosters;
+
+	private final LiveExamOverlaps overlapping;
+
+	private final ExamMailService examMail;
+
+	private final AfterCommit afterCommit;
+
 	public LiveExamGrantAdminService(LiveExamGrantRepository grants, LiveExamModuleRepository modules,
 			LiveExamRepository exams, UserRepository users, AuditRecorder audit, Clock clock, StudentNoticeWriter notices,
-			LiveExamMemberships memberships, LiveExamAccess access, LiveExamPaymentPlanService plans) {
+			LiveExamMemberships memberships, LiveExamAccess access, LiveExamPaymentPlanService plans,
+			LiveExamRosterService rosters, LiveExamOverlaps overlapping, ExamMailService examMail, AfterCommit afterCommit) {
 		this.access = access;
 		this.memberships = memberships;
 		this.grants = grants;
@@ -68,6 +77,10 @@ public class LiveExamGrantAdminService {
 		this.clock = clock;
 		this.notices = notices;
 		this.plans = plans;
+		this.rosters = rosters;
+		this.overlapping = overlapping;
+		this.examMail = examMail;
+		this.afterCommit = afterCommit;
 	}
 
 	/**
@@ -87,6 +100,8 @@ public class LiveExamGrantAdminService {
 				throw validationFailed();
 			}
 			moduleId = request.moduleId();
+			// Locks the package first, so a roster add and this enrolment cannot both pass the roster check (plan 14.4).
+			modules.lockById(moduleId).orElseThrow(this::notFound);
 			LiveExamModule target = modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
 			requirePublished(LiveExamModule.PUBLISHED.equals(target.getStatus()));
 			price = snapshot(ExamPricing.view(target, now));
@@ -129,6 +144,10 @@ public class LiveExamGrantAdminService {
 			if (access.holdsModuleGrant(student.getId(), moduleId, now)) {
 				throw grantActive();
 			}
+			// A roster row whose access has ended does not block (plan 14.7, P2).
+			if (access.rosterLive(student.getId(), moduleId, now)) {
+				throw rosterBlock();
+			}
 			access.retireExpiredGrants(student.getId(), scope, moduleId, null, now, LiveExamAccess.RETIRED);
 		}
 		else {
@@ -158,8 +177,11 @@ public class LiveExamGrantAdminService {
 		if (request.payment() != null) {
 			payment = plans.open(grant.getId(), student.getId(), price, request.payment(), actor.userId());
 		}
-		notices.accessGranted(student.getId(), exam == null ? moduleId : exam.getId(), scope);
+		UUID targetId = exam == null ? moduleId : exam.getId();
+		notices.accessGranted(student.getId(), targetId, scope);
 		audit.record(AuditRecorder.ACCESS_GRANTED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grant.getId());
+		// The exam-time email goes out after the commit, so a refused or rolled-back enrolment sends nothing (plan 14.3, P52).
+		afterCommit.run(() -> examMail.onDirectEnrolment(scope, targetId, student.getId()));
 		if (payment == null) {
 			return view(grant);
 		}
@@ -168,11 +190,13 @@ public class LiveExamGrantAdminService {
 
 	/**
 	 * What an enrolment of one target would charge, for the form. A free exam says so and has no price to take. A target with no
-	 * price has none, and the Master Admin types the total. With a {@code studentId} the quote also carries the two warnings:
-	 * an unfinished plan on the same target, and access the student already holds by any route (plan section 4).
+	 * price has none, and the Master Admin types the total. With a {@code studentId} the quote also carries the warnings: an
+	 * unfinished plan on the same target, access the student already holds by any route (plan section 4), the roster and direct
+	 * enrolment state of a package, and the overlapping exams or packages (plan 14.4). Plan figures in the overlaps are sent only
+	 * when {@code withMoney} is true.
 	 */
 	@Transactional(readOnly = true)
-	public QuoteView quote(String scopeName, UUID moduleId, UUID examId, UUID studentId) {
+	public QuoteView quote(String scopeName, UUID moduleId, UUID examId, UUID studentId, boolean withMoney) {
 		Instant now = clock.instant();
 		String scope = scopeName == null ? "" : scopeName.trim().toUpperCase();
 		if (studentId != null && users.findByIdAndDeletedAtIsNull(studentId)
@@ -185,24 +209,43 @@ public class LiveExamGrantAdminService {
 			PriceView view = ExamPricing.view(module, now);
 			Boolean held = null;
 			UUID unfinished = null;
+			Boolean onRoster = null;
+			Boolean rosterStarted = null;
+			Boolean directGrantActive = null;
+			List<QuoteOverlap> overlaps = null;
 			if (studentId != null) {
 				AccessState state = access.moduleState(studentId, moduleId, now);
 				held = state.granted() && !state.expired();
 				unfinished = plans.unfinishedPlanId(studentId, LiveExamOrder.MODULE, moduleId, null);
+				boolean rostered = access.rosterLive(studentId, moduleId, now);
+				onRoster = rostered;
+				rosterStarted = rostered && rosters.startedAny(moduleId, studentId);
+				directGrantActive = access.holdsDirectModuleGrant(studentId, moduleId, now);
+				overlaps = overlapping.forPackage(studentId, moduleId, now, withMoney);
 			}
-			return new QuoteView(view.price(), view.discountPercent(), view.effectivePrice(), false, true, unfinished, held);
+			return new QuoteView(view.price(), view.discountPercent(), view.effectivePrice(), false, true, unfinished, held,
+					onRoster, rosterStarted, directGrantActive, overlaps);
 		}
 		if (LiveExamOrder.EXAM.equals(scope) && examId != null && moduleId == null) {
 			LiveExam exam = exams.findByIdAndDeletedAtIsNull(examId).orElseThrow(this::notFound);
 			PriceView view = ExamPricing.view(exam, now, false);
 			Boolean held = null;
 			UUID unfinished = null;
+			Boolean onRoster = null;
+			Boolean rosterStarted = null;
+			Boolean directGrantActive = null;
+			List<QuoteOverlap> overlaps = null;
 			if (studentId != null) {
 				held = access.canSit(studentId, exam, now);
 				unfinished = plans.unfinishedPlanId(studentId, LiveExamOrder.EXAM, null, examId);
+				// The roster block applies to a package only (D22), so an exam quote never reports a roster.
+				onRoster = false;
+				rosterStarted = false;
+				directGrantActive = access.holdsDirectExamGrant(studentId, exam, now);
+				overlaps = overlapping.forExam(studentId, exam, now, withMoney);
 			}
 			return new QuoteView(view.price(), view.discountPercent(), view.effectivePrice(), exam.isFree(), false, unfinished,
-					held);
+					held, onRoster, rosterStarted, directGrantActive, overlaps);
 		}
 		throw validationFailed();
 	}
@@ -248,6 +291,11 @@ public class LiveExamGrantAdminService {
 				"This student already has active access to that module or exam.");
 	}
 
+	private static ApiException rosterBlock() {
+		return new ApiException(ErrorCode.STUDENT_ON_ROSTER, HttpStatus.CONFLICT,
+				"This student is on the roster for this package. Remove them from the roster before enrolling them.");
+	}
+
 	private static ApiException validationFailed() {
 		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 	}
@@ -279,10 +327,23 @@ public class LiveExamGrantAdminService {
 	 * The price an enrolment of a target would charge. {@code standardPrice} is the price after any active discount, and is null
 	 * when there is no price. {@code free} is true for a free exam, which takes no payment. {@code unfinishedPlanId} and
 	 * {@code accessHeld} are set only when the quote named a student: the plan with an unpaid balance on this target (null when
-	 * none), and whether the student has active access to it by any route.
+	 * none), and whether the student has active access to it by any route. The rest are set only with a student too:
+	 * {@code onRoster} (a live roster row on the package; false for an exam), {@code rosterStarted} (that row has a sitting),
+	 * {@code directGrantActive} (a live manual grant on this target) and {@code overlaps} (the exams or packages the student
+	 * already holds that overlap this enrolment). An overlap never blocks.
 	 */
 	public record QuoteView(BigDecimal listPrice, Integer discountPercent, BigDecimal standardPrice, boolean free,
-			boolean moduleOnly, UUID unfinishedPlanId, Boolean accessHeld) {
+			boolean moduleOnly, UUID unfinishedPlanId, Boolean accessHeld, Boolean onRoster, Boolean rosterStarted,
+			Boolean directGrantActive, List<QuoteOverlap> overlaps) {
+	}
+
+	/**
+	 * One exam or package the student already holds that overlaps the enrolment. {@code kind} is EXAM or PACKAGE, and {@code via}
+	 * is DIRECT, ONLINE, BUNDLE, ROSTER or PACKAGE (an exam held through a package). {@code planId}, {@code paid} and {@code due}
+	 * are set only when the access comes from a payment plan and the caller may see money.
+	 */
+	public record QuoteOverlap(String kind, UUID id, String titleEn, String titleBn, String via, UUID planId,
+			BigDecimal paid, BigDecimal due, String packageTitleEn, String packageTitleBn) {
 	}
 
 	/** Direct enrolment is only for a published exam or package. Existing grants stay when one is archived or unpublished. */

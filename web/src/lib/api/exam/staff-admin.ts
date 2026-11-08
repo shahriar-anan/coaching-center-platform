@@ -41,8 +41,26 @@ export type GrantRequest = {
 };
 
 /**
- * `GET /api/v1/live-exam-grants/quote`. The standard price is null when the target has none. The two warnings come only when
- * a `studentId` is sent, and the server leaves out fields that are null, so they are optional here.
+ * One thing the student already holds that overlaps the new enrolment (plan D23). Taka, not paisa. `paid` and `due` are set
+ * only when the item has a payment plan. `packageTitleEn` and `packageTitleBn` name the package an exam is held through, when
+ * the API sends them; they are not in the contract yet, so the copy falls back to the word "package".
+ */
+export type OverlapItem = {
+  kind: "EXAM" | "PACKAGE";
+  id: string;
+  titleEn: string;
+  titleBn: string;
+  via: "DIRECT" | "ONLINE" | "BUNDLE" | "ROSTER" | "PACKAGE";
+  planId?: string | null;
+  paid?: number | null;
+  due?: number | null;
+  packageTitleEn?: string | null;
+  packageTitleBn?: string | null;
+};
+
+/**
+ * `GET /api/v1/live-exam-grants/quote`. The standard price is null when the target has none. The warnings come only when a
+ * `studentId` is sent, and the server leaves out fields that are null, so they are optional here.
  */
 export type GrantQuote = {
   listPrice?: number | null;
@@ -54,6 +72,14 @@ export type GrantQuote = {
   unfinishedPlanId?: string | null;
   /** The student already has active access to the target by some route. */
   accessHeld?: boolean | null;
+  /** A package only: the student is on its roster with live access, which blocks a direct enrolment (plan D22). */
+  onRoster?: boolean | null;
+  /** A package only: the student has sat an exam in it, so their result stays if the roster row is removed. */
+  rosterStarted?: boolean | null;
+  /** The student already has a direct (manual) grant on this target, so nothing more can be added here. */
+  directGrantActive?: boolean | null;
+  /** What else the student holds that overlaps this enrolment. Shown as a warning; never blocks (plan D23). */
+  overlaps?: OverlapItem[] | null;
 };
 
 /** The grant response. `paymentPlanId` and `receiptNo` are set only when the enrolment took a payment. */

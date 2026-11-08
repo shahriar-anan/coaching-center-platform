@@ -147,22 +147,6 @@ export type StaffExam = {
   started?: boolean | null;
 };
 
-export type StudentMatch = { id: string; fullName: string; phone: string | null; email: string | null };
-
-/** One row of `GET .../roster`: everyone already marked for the module. */
-export type RosterMember = {
-  studentId: string;
-  fullName: string;
-  phone: string | null;
-  email: string | null;
-  studentCode: string | null;
-  addedAt: string;
-  /** True when the student has a sitting in this module: the result stays after removal. */
-  startedAny: boolean;
-};
-
-export type PasteResult = { marked: StudentMatch[]; unknown: string[] };
-
 export type InstructorRow = {
   id: string;
   fullName: string | null;
@@ -256,8 +240,6 @@ export const staffCatalogKeys = {
   module: (id: string) => ["staffCatalog", "module", id] as const,
   moduleExams: (moduleId: string) => ["staffCatalog", "moduleExams", moduleId] as const,
   exam: (id: string) => ["staffCatalog", "exam", id] as const,
-  roster: (moduleId: string, q: string, page: number) => ["staffCatalog", "roster", moduleId, q, page] as const,
-  rosterSearch: (moduleId: string, q: string) => ["staffCatalog", "rosterSearch", moduleId, q] as const,
   instructors: (params: InstructorListParams) => ["staffCatalog", "instructors", params] as const,
   pending: (kind: ChangeKind, id: string) => ["staffCatalog", "pending", kind, id] as const,
   stagedSummary: (moduleId: string) => ["staffCatalog", "stagedSummary", moduleId] as const,
@@ -1006,61 +988,16 @@ export function useUploadQuestionPdf(examId: string) {
 
 /* ---------- roster (Master Admin) ---------- */
 
-/** The full member list, paged, with `q` matching name, phone, email or code. */
-export function useRoster(moduleId: string, q: string, page: number) {
-  const query = new URLSearchParams({ page: String(page), size: "20" });
-  if (q) {
-    query.set("q", q);
-  }
-  return useQuery({
-    queryKey: staffCatalogKeys.roster(moduleId, q, page),
-    queryFn: () => apiRequest<PageResponse<RosterMember>>(`/api/v1/live-exam-modules/${moduleId}/roster?${query}`),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useRosterSearch(moduleId: string, q: string) {
-  return useQuery({
-    queryKey: staffCatalogKeys.rosterSearch(moduleId, q),
-    queryFn: () =>
-      apiRequest<StudentMatch[]>(
-        `/api/v1/live-exam-modules/${moduleId}/roster/search?q=${encodeURIComponent(q)}`,
-      ),
-    enabled: q.trim().length >= 2,
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useAddToRoster(moduleId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (studentId: string) =>
-      apiRequest<StudentMatch>(`/api/v1/live-exam-modules/${moduleId}/roster`, {
-        method: "POST",
-        body: { studentId },
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffCatalog", "roster", moduleId] }),
-  });
-}
-
-export function usePasteRoster(moduleId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (values: string[]) =>
-      apiRequest<PasteResult>(`/api/v1/live-exam-modules/${moduleId}/roster/paste`, {
-        method: "POST",
-        body: { values },
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffCatalog", "roster", moduleId] }),
-  });
-}
-
+/**
+ * Removes a student from a package's roster. The enrolment lists and the open payment form both read the staffEnrol keys,
+ * so those are refetched too: the form then sees the roster row is gone and opens the payment fields.
+ */
 export function useRemoveFromRoster(moduleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (studentId: string) =>
       apiRequest<void>(`/api/v1/live-exam-modules/${moduleId}/roster/${studentId}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffCatalog", "roster", moduleId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffEnrol"] }),
   });
 }
 

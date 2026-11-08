@@ -275,6 +275,8 @@ export type OfflinePackage = {
   expired: boolean;
   accessRemoved?: boolean;
   payment?: OfflinePayment | null;
+  /** The door the package opens on: a written-only package opens the written door. Left out by an older API; read as MCQ. */
+  door?: "mcq" | "written" | null;
 };
 
 export type OfflineOrders = { exams: OfflineExam[]; packages: OfflinePackage[] };

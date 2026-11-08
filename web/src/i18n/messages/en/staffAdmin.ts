@@ -63,6 +63,8 @@ const staffAdmin = {
     more: "Show more",
     source: { ORDER: "Bought", MANUAL: "Added by hand", BUNDLE: "Bundle", ROSTER: "On the roster" },
     addedOn: "Enrolled {date}",
+    throughPackage: "Through the package",
+    openPackage: "Open the package",
     revoke: "Revoke access",
     revokeTitle: "Revoke this access?",
     revokeBody: "{name} loses access to this package or exam. The record stays in the audit trail.",
@@ -334,6 +336,35 @@ const staffAdmin = {
       openUnfinished: "Open the unfinished plan",
       accessHeldWarning:
         "This student already has access to this {kind} by another route, such as a package, the roster or an online purchase. You can still enrol them.",
+      rosterBlock:
+        "This student is on this package's roster (added without a payment). Remove them from the roster first, then enrol again with the payment.",
+      rosterRemove: "Remove from roster",
+      directActive:
+        "This student already has a direct enrolment in this package or exam. Nothing more can be added here. Open their installment plan or the list below to see it.",
+      overlap: {
+        heading: "This student already has access to something related.",
+        exam: "Exam: {title} — {how}",
+        package: "Package: {title} — {how}",
+        how: {
+          ONLINE: "bought online",
+          DIRECT: "given by hand (direct enrolment)",
+          BUNDLE: "from a bundle",
+          ROSTER: "on the package roster",
+          ROSTER_PACKAGE: "on the roster of the package {package}",
+          PACKAGE: "through the package {package}",
+          OTHER: "already has access",
+        },
+        packageWord: "package",
+        plan: "Paying in installments: paid {paid}, still due {due}. This plan stays open.",
+        planNoAmounts: "Paying in installments. This plan stays open.",
+        movedFromExam:
+          "{title} is still being paid in installments: paid {paid}, still due {due}. Enrolling in this package does not close that plan. The {due} stays owed and stays in the Installments total due until it is paid. If the exam is no longer needed, deal with the balance by hand: the site cannot close the plan yet. Revoking the exam's own access stops its reminders, but it does not clear the balance.",
+        movedFromExamNoAmounts:
+          "{title} is still being paid in installments. Enrolling in this package does not close that plan. Its balance stays owed until it is paid, and the site cannot close the plan yet. Deal with it by hand.",
+        openPlan: "Open the payment plan",
+        closing:
+          "Nothing is blocked. This new enrolment starts its own access and its own payments. If the student should pay less because of what they already have, lower the total above yourself before you confirm.",
+      },
       receiptNumber: "Receipt {number}",
       openReceipt: "Open the receipt",
       openPlan: "Open the installment plan",

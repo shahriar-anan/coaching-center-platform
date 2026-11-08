@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { apiRequest } from "@/lib/api/client";
 import type { PageResponse } from "@/lib/api/exam/types";
+import { useRemoveFromRoster } from "@/lib/api/exam/staff-catalog";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
@@ -39,6 +42,14 @@ export type EnrolledRow = {
   source: "ORDER" | "MANUAL" | "BUNDLE" | "ROSTER";
   reason: string | null;
   enrolledAt: string;
+  /** The student is on this package's roster. A row can have this and a grant at once (plan 14.5). */
+  onRoster?: boolean | null;
+  /** The student has sat an exam in this package, so their result stays if the roster row is removed. */
+  startedAny?: boolean | null;
+  /** The scope of the grant: MODULE for a package grant, EXAM for one exam. Null for a roster row with no grant. */
+  grantScope?: "MODULE" | "EXAM" | null;
+  /** The package a MODULE grant belongs to, for the link on an exam's list. Not in the contract yet: without it there is no link. */
+  moduleId?: string | null;
 };
 
 const PAGE_SIZE = 20;
@@ -61,8 +72,8 @@ function PlanPill({ planId, due, status }: { planId: string; due?: number | null
 }
 
 /**
- * The students who hold access to one package (`MODULE`) or one exam (`EXAM`). The list is refetched after each direct
- * enrolment, because every enrol call invalidates the `staffEnrol` keys, so a new student appears at the top.
+ * The students who hold access to one package (`MODULE`) or one exam (`EXAM`). A package list has a search and loads more
+ * students on request. Every enrol call invalidates the `staffEnrol` keys, so a new student appears at the top.
  */
 export function EnrolledList({ scope, targetId }: { scope: "MODULE" | "EXAM"; targetId: string }) {
   const { t } = useLocale();
@@ -71,9 +82,15 @@ export function EnrolledList({ scope, targetId }: { scope: "MODULE" | "EXAM"; ta
   const { isMasterAdmin } = useRole();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Only a package list is searched. The search box debounces what is typed, so the query waits for a pause.
+  const [search, setSearch] = useState("");
+  const q = scope === "MODULE" ? search.trim() : "";
   const [revoking, setRevoking] = useState<EnrolledRow | null>(null);
   const [reason, setReason] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  // A roster student is removed from the package's roster, with a confirmation. Only a package has a roster.
+  const [removingRoster, setRemovingRoster] = useState<EnrolledRow | null>(null);
+  const removeRoster = useRemoveFromRoster(targetId);
   // Only a direct enrolment (a manual grant) can be taken back here; a purchase is not revoked from this list.
   const revoke = useMutation({
     mutationFn: ({ grantId, reason: text }: { grantId: string; reason: string }) =>
@@ -95,59 +112,114 @@ export function EnrolledList({ scope, targetId }: { scope: "MODULE" | "EXAM"; ta
   }
 
   const list = useInfiniteQuery({
-    queryKey: ["staffEnrol", "enrolled", scope, targetId],
+    queryKey: ["staffEnrol", "enrolled", scope, targetId, q],
     queryFn: ({ pageParam, signal }) =>
-      apiRequest<PageResponse<EnrolledRow>>(`${base}?page=${pageParam}&size=${PAGE_SIZE}`, { signal }),
+      apiRequest<PageResponse<EnrolledRow>>(
+        `${base}?page=${pageParam}&size=${PAGE_SIZE}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+        { signal },
+      ),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+    // A new search keeps the last list on screen until the new one arrives, so the search box keeps its focus.
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 
-  if (list.isPending) {
-    return <Skeleton variant="card" count={2} />;
-  }
   const rows = list.data?.pages.flatMap((page) => page.content) ?? [];
   const total = list.data?.pages[0]?.totalElements ?? 0;
 
   return (
     <div className="grid gap-3">
-      <p className="text-meta tabular-nums font-bold text-muted">{t("staffAdmin.enrolments.total", { count: formatNumber(total) })}</p>
-      {rows.length === 0 ? (
-        <p className="rounded-control border border-dashed border-border p-4 text-meta text-muted">{t("staffAdmin.enrolments.empty")}</p>
-      ) : (
-        <ul className="grid gap-2">
-          {rows.map((row) => (
-            <li
-              key={row.grantId ?? row.studentId}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-control bg-card px-4 py-3 shadow-sm"
-            >
-              <span className="grid min-w-0 gap-0.5">
-                <span className="font-bold text-text">{row.fullName}</span>
-                <span className="text-meta text-muted" dir="ltr">
-                  {[row.studentCode, row.phone, row.email].filter(Boolean).join(" · ")}
-                </span>
-              </span>
-              {isMasterAdmin && row.paymentPlanId ? (
-                <PlanPill planId={row.paymentPlanId} due={row.due} status={row.planStatus} />
-              ) : null}
-              <span className="grid gap-0.5 text-end text-meta text-muted">
-                <span className="font-bold text-text">{t(`staffAdmin.enrolments.source.${row.source}`)}</span>
-                <span className="tabular-nums">{t("staffAdmin.enrolments.addedOn", { date: formatDate(row.enrolledAt) })}</span>
-              </span>
-              {isMasterAdmin && row.source === "MANUAL" && row.grantId ? (
-                <Button variant="secondary" onClick={() => { setFailure(null); setReason(""); setRevoking(row); }}>
-                  {t("staffAdmin.enrolments.revoke")}
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-      {list.hasNextPage ? (
-        <Button variant="secondary" className="justify-self-start" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
-          {t("staffAdmin.enrolments.more")}
-        </Button>
+      {scope === "MODULE" ? (
+        <div className="w-full sm:w-72">
+          <SearchInput value={search} onChange={setSearch} placeholder={t("staffCatalog.roster.listSearch")} />
+        </div>
       ) : null}
+
+      {list.isPending ? (
+        <Skeleton variant="card" count={2} />
+      ) : (
+        <>
+          <p className="text-meta tabular-nums font-bold text-muted">{t("staffAdmin.enrolments.total", { count: formatNumber(total) })}</p>
+          {rows.length === 0 ? (
+            <p className="rounded-control border border-dashed border-border p-4 text-meta text-muted">
+              {q ? t("common.search.noResults") : t("staffAdmin.enrolments.empty")}
+            </p>
+          ) : (
+            <ul className="grid gap-2">
+              {rows.map((row) => {
+                // A package's roster row can be removed, even when the student also holds a grant on the package.
+                const rosterRow = scope === "MODULE" && (row.onRoster === true || row.source === "ROSTER");
+                // A package grant seen from an exam is not revoked here: that would close the whole package.
+                const throughPackage = scope === "EXAM" && row.grantScope === "MODULE";
+                const canRevoke = isMasterAdmin && row.source === "MANUAL" && row.grantId !== null && !throughPackage;
+                return (
+                  <li
+                    key={row.grantId ?? row.studentId}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-control bg-card px-4 py-3 shadow-sm"
+                  >
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="font-bold text-text">{row.fullName}</span>
+                      <span className="text-meta text-muted" dir="ltr">
+                        {[row.studentCode, row.phone, row.email].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    {isMasterAdmin && row.paymentPlanId ? (
+                      <PlanPill planId={row.paymentPlanId} due={row.due} status={row.planStatus} />
+                    ) : null}
+                    <span className="grid gap-0.5 text-end text-meta text-muted">
+                      <span className="font-bold text-text">
+                        {throughPackage ? t("staffAdmin.enrolments.throughPackage") : t(`staffAdmin.enrolments.source.${row.source}`)}
+                      </span>
+                      <span className="tabular-nums">{t("staffAdmin.enrolments.addedOn", { date: formatDate(row.enrolledAt) })}</span>
+                    </span>
+                    {isMasterAdmin && rosterRow ? (
+                      <Button variant="danger" onClick={() => setRemovingRoster(row)}>
+                        {t("staffCatalog.roster.remove")}
+                      </Button>
+                    ) : null}
+                    {canRevoke ? (
+                      <Button variant="secondary" onClick={() => { setFailure(null); setReason(""); setRevoking(row); }}>
+                        {t("staffAdmin.enrolments.revoke")}
+                      </Button>
+                    ) : null}
+                    {scope === "EXAM" && row.moduleId ? (
+                      <Button variant="secondary" href={staffHref(`/staff/modules/${row.moduleId}?tab=roster`)}>
+                        {t("staffAdmin.enrolments.openPackage")}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {list.hasNextPage ? (
+            <Button variant="secondary" className="justify-self-start" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
+              {t("staffAdmin.enrolments.more")}
+            </Button>
+          ) : null}
+        </>
+      )}
+
+      <ConfirmDialog
+        open={removingRoster !== null}
+        onOpenChange={(open) => !open && setRemovingRoster(null)}
+        title={t("staffCatalog.roster.removeTitle", { name: removingRoster?.fullName ?? "" })}
+        body={removingRoster?.startedAny === true ? t("staffCatalog.roster.removeStartedBody") : t("staffCatalog.roster.removeBody")}
+        confirmLabel={t("staffCatalog.roster.removeConfirm")}
+        tone="danger"
+        onConfirm={async () => {
+          if (!removingRoster) {
+            return;
+          }
+          try {
+            await removeRoster.mutateAsync(removingRoster.studentId);
+            toast({ title: t("staffCatalog.roster.removed"), tone: "ok" });
+          } catch (caught) {
+            throw new Error(t(catalogErrorKey(caught)));
+          }
+        }}
+      />
 
       <Dialog
         open={revoking !== null}

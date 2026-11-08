@@ -61,11 +61,13 @@ public class LiveExamRosterService {
 
 	private final AfterCommit afterCommit;
 
+	private final LiveExamAccess access;
+
 	private final Clock clock;
 
 	public LiveExamRosterService(LiveExamRosterRepository roster, LiveExamModuleRepository modules, UserRepository users,
-			StudentProfileRepository profiles, ExamMailService examMail, AfterCommit afterCommit, Clock clock,
-			JdbcTemplate jdbc) {
+			StudentProfileRepository profiles, ExamMailService examMail, AfterCommit afterCommit, LiveExamAccess access,
+			Clock clock, JdbcTemplate jdbc) {
 		this.roster = roster;
 		this.jdbc = new NamedParameterJdbcTemplate(jdbc);
 		this.modules = modules;
@@ -73,6 +75,7 @@ public class LiveExamRosterService {
 		this.profiles = profiles;
 		this.examMail = examMail;
 		this.afterCommit = afterCommit;
+		this.access = access;
 		this.clock = clock;
 	}
 
@@ -101,10 +104,19 @@ public class LiveExamRosterService {
 		return users.findStudentsByNameOrCode(q).stream().map(this::match).toList();
 	}
 
+	/**
+	 * Adds a student to the roster. Refused with 409 when the student holds a live direct (manual) grant on the package, since
+	 * that is a direct enrolment (plan 14.3). An online purchase does not block it.
+	 */
 	@Transactional
 	public StudentMatch mark(UUID moduleId, UUID studentId) {
+		lockModule(moduleId);
 		requirePublished(moduleId);
 		User student = requireStudent(studentId);
+		if (access.holdsDirectModuleGrant(studentId, moduleId, clock.instant())) {
+			throw new ApiException(ErrorCode.STUDENT_HAS_DIRECT_ENROLMENT, HttpStatus.CONFLICT,
+					"This student is already enrolled directly in this package.");
+		}
 		if (!roster.existsByModuleIdAndStudentId(moduleId, studentId)) {
 			LiveExamRoster row = new LiveExamRoster();
 			row.setModuleId(moduleId);
@@ -116,15 +128,21 @@ public class LiveExamRosterService {
 		return match(student);
 	}
 
+	/**
+	 * Adds each matched student to the roster. A student with a live direct grant on the package is skipped and listed in
+	 * {@code alreadyEnrolled} instead of failing the whole paste (plan 14.4).
+	 */
 	@Transactional
 	public PasteResult paste(UUID moduleId, JsonNode body) {
 		requireModule(moduleId);
+		lockModule(moduleId);
 		JsonNode values = body.get("values");
 		if (values == null || !values.isArray()) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 		}
 		List<StudentMatch> marked = new ArrayList<>();
 		List<String> unknown = new ArrayList<>();
+		List<StudentMatch> alreadyEnrolled = new ArrayList<>();
 		for (JsonNode value : values) {
 			if (value == null || value.isNull() || value.asText().isBlank()) {
 				continue;
@@ -134,11 +152,29 @@ public class LiveExamRosterService {
 			if (student == null) {
 				unknown.add(raw);
 			}
+			else if (access.holdsDirectModuleGrant(student.getId(), moduleId, clock.instant())) {
+				alreadyEnrolled.add(match(student));
+			}
 			else {
 				marked.add(mark(moduleId, student.getId()));
 			}
 		}
-		return new PasteResult(marked, unknown);
+		return new PasteResult(marked, unknown, alreadyEnrolled);
+	}
+
+	/**
+	 * Whether the student has a sitting on any exam of the package. The roster list shows this as {@code startedAny}, and removing
+	 * such a student keeps that result.
+	 */
+	boolean startedAny(UUID moduleId, UUID studentId) {
+		Boolean found = jdbc.queryForObject("""
+				SELECT exists (
+				  SELECT 1 FROM live_exam_participants p
+				  JOIN live_exams e ON e.id = p.exam_id
+				  WHERE e.module_id = :moduleId AND p.student_id = :studentId AND p.deleted_at IS NULL
+				)
+				""", new MapSqlParameterSource("moduleId", moduleId).addValue("studentId", studentId), Boolean.class);
+		return Boolean.TRUE.equals(found);
 	}
 
 	@Transactional
@@ -213,6 +249,11 @@ public class LiveExamRosterService {
 		modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
 	}
 
+	/** Locks the package's row for the rest of the transaction, so a roster add and a direct enrolment cannot race. */
+	private void lockModule(UUID moduleId) {
+		modules.lockById(moduleId).orElseThrow(this::notFound);
+	}
+
 	/** A student can be added directly only to a published package (archived, draft or withdrawn ones refuse new enrollments; existing rows stay). */
 	private void requirePublished(UUID moduleId) {
 		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
@@ -233,7 +274,8 @@ public class LiveExamRosterService {
 	public record StudentMatch(UUID id, String fullName, String phone, String email) {
 	}
 
-	public record PasteResult(List<StudentMatch> marked, List<String> unknown) {
+	/** {@code alreadyEnrolled} lists the matched students skipped because they hold a live direct grant on the package. */
+	public record PasteResult(List<StudentMatch> marked, List<String> unknown, List<StudentMatch> alreadyEnrolled) {
 	}
 
 	public record RosterRow(UUID studentId, String fullName, String phone, String email, String studentCode,

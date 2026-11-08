@@ -79,7 +79,13 @@ public class StudentOwnAccessService {
 	/** The packages a student holds by hand. A package with a payment plan is listed as the exam is, even when deleted. */
 	private static final String MANUAL_MODULES = """
 			SELECT g.id AS grant_id, g.module_id, m.title_en, m.title_bn, g.created_at AS granted_at,
-			  g.revoked_at, p.id AS plan_id
+			  g.revoked_at, p.id AS plan_id,
+			  (SELECT count(*) FROM live_exam_package_exams pe JOIN live_exams e ON e.id = pe.exam_id
+			    AND e.deleted_at IS NULL AND e.status = 'PUBLISHED'
+			    WHERE pe.module_id = g.module_id AND pe.removed_at IS NULL AND e.exam_type = 'WRITTEN') AS written_count,
+			  (SELECT count(*) FROM live_exam_package_exams pe JOIN live_exams e ON e.id = pe.exam_id
+			    AND e.deleted_at IS NULL AND e.status = 'PUBLISHED'
+			    WHERE pe.module_id = g.module_id AND pe.removed_at IS NULL AND e.exam_type = 'MCQ') AS mcq_count
 			FROM live_exam_grants g
 			JOIN live_exam_modules m ON m.id = g.module_id
 			LEFT JOIN live_exam_payment_plans p ON p.grant_id = g.id
@@ -185,9 +191,12 @@ public class StudentOwnAccessService {
 			boolean expired, boolean accessRemoved, OfflinePayment payment) {
 	}
 
-	/** One package the student was enrolled in by hand. Fields as for {@link MyOfflineExam}. */
+	/**
+	 * One package the student was enrolled in by hand. Fields as for {@link MyOfflineExam}. {@code door} is {@code written} or
+	 * {@code mcq}, the same rule as the public package page: written when the package has written exams and no MCQ ones.
+	 */
 	public record MyOfflinePackage(UUID moduleId, String titleEn, String titleBn, Instant grantedAt, Instant endsAt,
-			boolean expired, boolean accessRemoved, OfflinePayment payment) {
+			boolean expired, boolean accessRemoved, OfflinePayment payment, String door) {
 	}
 
 	/**
@@ -222,9 +231,11 @@ public class StudentOwnAccessService {
 			UUID moduleId = rs.getObject("module_id", UUID.class);
 			Instant grantedAt = instant(rs.getTimestamp("granted_at"));
 			Instant endsAt = access.moduleEnd(moduleId, grantedAt);
+			// The same door rule as the public package page (packageDoor in the web): written only when there are written exams and no MCQ.
+			boolean written = rs.getInt("written_count") > 0 && rs.getInt("mcq_count") == 0;
 			return new MyOfflinePackage(moduleId, rs.getString("title_en"), rs.getString("title_bn"), grantedAt, endsAt,
 					LiveExamAccess.expired(endsAt, now), rs.getTimestamp("revoked_at") != null,
-					offlinePayment(plans.get(rs.getObject("grant_id", UUID.class))));
+					offlinePayment(plans.get(rs.getObject("grant_id", UUID.class))), written ? "written" : "mcq");
 		});
 		return new MyOffline(exams, packages);
 	}

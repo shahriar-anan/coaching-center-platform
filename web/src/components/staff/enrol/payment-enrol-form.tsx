@@ -8,10 +8,15 @@ import { useFormat } from "@/lib/format/use-format";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { GrantQuote, GrantResponse } from "@/lib/api/exam/staff-admin";
+import { useRemoveFromRoster } from "@/lib/api/exam/staff-catalog";
 import { staffHref } from "@/lib/config";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { OverlapNotice } from "@/components/staff/enrol/overlap-notice";
+import { directAlreadyActive, heldWarning, overlapItems, rosterBlocks } from "@/components/staff/enrol/overlap-model";
 import { PaymentFields } from "@/components/staff/enrol/payment-fields";
 import {
   EMPTY_DRAFT,
@@ -28,10 +33,16 @@ import type { FoundStudent } from "@/components/staff/student-picker";
 /** What the screen keeps after a student is enrolled, for the success notice. */
 export type EnrolDone = { name: string; paymentPlanId: string | null; receiptNo: string | null };
 
+/** The codes that mean the quote on screen is out of date, so it is read again. */
+const STALE_QUOTE_CODES = new Set(["STUDENT_ON_ROSTER", "STUDENT_HAS_DIRECT_ENROLMENT"]);
+
 /**
- * The payment form for one student and one target, under the student's name. It reads the quote for the price and the two
+ * The payment form for one student and one target, under the student's name. It reads the quote for the price and the
  * warnings, takes the draft, and asks for a confirmation before anything is saved (plan C7). `enrol` posts the grant; a
  * failure stays on this form with its message, and a success hands the result to `onDone`.
+ *
+ * A package whose roster holds the student is blocked until the roster row is removed (plan D22). A student who already has a
+ * direct enrolment here cannot be enrolled again. An overlap with other access warns and never blocks (plan D23).
  */
 export function PaymentEnrolForm({
   scope,
@@ -54,11 +65,14 @@ export function PaymentEnrolForm({
 }) {
   const { t } = useLocale();
   const { formatNumber, formatMoney, formatDate } = useFormat();
+  const { toast } = useToast();
   const [draft, setDraft] = useState<PaymentDraft>(EMPTY_DRAFT);
   const [showErrors, setShowErrors] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failures, setFailures] = useState<string[]>([]);
+  const [removing, setRemoving] = useState(false);
+  const removeRoster = useRemoveFromRoster(targetId);
 
   const quote = useQuery({
     queryKey: ["staffEnrol", "quote", scope, targetId, student.id],
@@ -70,6 +84,11 @@ export function PaymentEnrolForm({
   });
   const data = quote.data;
   const free = data?.free === true;
+  const blocked = rosterBlocks(data, scope);
+  const alreadyDirect = directAlreadyActive(data);
+  const cannotSubmit = alreadyDirect || alreadyEnrolled;
+  const warning = heldWarning(data, free);
+  const overlaps = overlapItems(data);
   const standardPaisa = quotePaisa(data?.standardPrice ?? null);
   const today = todayInDhaka();
   const resolved = resolveDraft(draft, { targetId, standardPaisa, free, today });
@@ -83,7 +102,7 @@ export function PaymentEnrolForm({
   function review(event: FormEvent) {
     event.preventDefault();
     setShowErrors(true);
-    if (check.ok) {
+    if (check.ok && !blocked && !cannotSubmit) {
       setFailures([]);
       setReviewing(true);
     }
@@ -109,7 +128,16 @@ export function PaymentEnrolForm({
         lines.push(...error.fieldErrors.map((item) => item.message));
       }
       setFailures(lines);
+      if (error instanceof ApiError && STALE_QUOTE_CODES.has(error.code)) {
+        void quote.refetch();
+      }
     }
+  }
+
+  // The hook invalidates the staffEnrol keys, which include this quote, so the quote is read again and the payment fields open.
+  async function removeFromRoster() {
+    await removeRoster.mutateAsync(student.id);
+    toast({ title: t("staffCatalog.roster.removed"), tone: "ok" });
   }
 
   const money = (paisa: number) => formatMoney(paisa / 100) ?? "";
@@ -155,7 +183,13 @@ export function PaymentEnrolForm({
           </span>
         </div>
 
-        {alreadyEnrolled ? <p className="text-meta text-muted">{t("staffCatalog.enrol.already")}</p> : null}
+        {alreadyDirect ? (
+          <p role="status" className="rounded-control border border-warn/40 bg-warn/10 p-3 text-meta text-warn">
+            {t("staffAdmin.enrol.payment.directActive")}
+          </p>
+        ) : alreadyEnrolled ? (
+          <p className="text-meta text-muted">{t("staffCatalog.enrol.already")}</p>
+        ) : null}
 
         {data?.unfinishedPlanId ? (
           <div role="status" className="grid gap-2 rounded-control border border-warn/40 bg-warn/10 p-3 text-meta text-warn">
@@ -165,7 +199,8 @@ export function PaymentEnrolForm({
             </Link>
           </div>
         ) : null}
-        {data?.accessHeld && !free ? (
+        {!blocked && warning === "OVERLAPS" ? <OverlapNotice items={overlaps} scope={scope} /> : null}
+        {!blocked && warning === "ACCESS_HELD" ? (
           <p role="status" className="rounded-control border border-warn/40 bg-warn/10 p-3 text-meta text-warn">
             {t("staffAdmin.enrol.payment.accessHeldWarning", { kind })}
           </p>
@@ -174,7 +209,16 @@ export function PaymentEnrolForm({
         {quote.isPending ? <p className="text-meta text-muted">{t("staffAdmin.enrol.payment.loadingPrice")}</p> : null}
         {quote.isError ? <p role="alert" className="text-meta text-danger">{t("staffAdmin.enrol.payment.quoteError")}</p> : null}
 
-        {quote.isPending ? null : (
+        {quote.isPending ? null : blocked ? (
+          <div role="status" className="grid gap-3 rounded-control border border-warn/40 bg-warn/10 p-3 text-meta text-warn">
+            <p>{t("staffAdmin.enrol.payment.rosterBlock")}</p>
+            <div>
+              <Button variant="danger" onClick={() => setRemoving(true)}>
+                {t("staffAdmin.enrol.payment.rosterRemove")}
+              </Button>
+            </div>
+          </div>
+        ) : (
           <PaymentFields
             draft={draft}
             resolved={resolved}
@@ -195,14 +239,32 @@ export function PaymentEnrolForm({
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={quote.isPending || busy || alreadyEnrolled}>
-            {t("staffAdmin.enrol.payment.review")}
-          </Button>
+          {blocked ? null : (
+            <Button type="submit" disabled={quote.isPending || busy || cannotSubmit}>
+              {t("staffAdmin.enrol.payment.review")}
+            </Button>
+          )}
           <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
             {t("common.actions.cancel")}
           </Button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={removing}
+        onOpenChange={(open) => setRemoving(open)}
+        title={t("staffCatalog.roster.removeTitle", { name: student.fullName })}
+        body={data?.rosterStarted === true ? t("staffCatalog.roster.removeStartedBody") : t("staffCatalog.roster.removeBody")}
+        confirmLabel={t("staffCatalog.roster.removeConfirm")}
+        tone="danger"
+        onConfirm={async () => {
+          try {
+            await removeFromRoster();
+          } catch (caught) {
+            throw new Error(t(catalogErrorKey(caught)));
+          }
+        }}
+      />
 
       <Dialog
         open={reviewing && check.ok}
@@ -224,14 +286,17 @@ export function PaymentEnrolForm({
           </>
         }
       >
-        <dl className="grid gap-2">
-          {summary.map(([label, value]) => (
-            <div key={label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-2 last:border-b-0">
-              <dt className="text-meta text-muted">{label}</dt>
-              <dd className="text-end font-medium tabular-nums text-text">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="grid gap-4">
+          <dl className="grid gap-2">
+            {summary.map(([label, value]) => (
+              <div key={label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-2 last:border-b-0">
+                <dt className="text-meta text-muted">{label}</dt>
+                <dd className="text-end font-medium tabular-nums text-text">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {warning === "OVERLAPS" ? <OverlapNotice items={overlaps} scope={scope} /> : null}
+        </div>
       </Dialog>
     </>
   );

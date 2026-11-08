@@ -339,7 +339,7 @@ const staffCatalog = {
     listHeading: "Direct enrolment list",
     listSearch: "Search the list",
     emptyTitle: "No one has been enrolled directly in this package yet.",
-    emptyBody: "Search above to add someone, or paste a list of phones or emails below.",
+    emptyBody: "Search above to enrol someone.",
     loadError: "The direct enrolment list cannot be loaded right now.",
     columns: {
       name: "Name",
@@ -752,7 +752,7 @@ const staffCatalog = {
     priceMissing: "Without a price the package cannot be bought.",
     noExams: "No exams yet.",
     notPublished: "Not published yet.",
-    rosterNote: "Enrol someone directly to let them sit without paying.",
+    rosterNote: "Enrol a student directly and record the payment, or choose No charge.",
     reasonArchived: "The package is archived, so students cannot see it.",
     reasonNotPublished: "The package is not published yet, so students cannot see or buy it.",
     reasonNoPrice: "Neither the package nor any published exam has a price, so it cannot be bought now.",
@@ -788,6 +788,9 @@ const staffCatalog = {
     GENERIC: "Something went wrong. Try again.",
     VALIDATION_FAILED: "Check the details. Some fields are not right.",
     GRANT_ALREADY_ACTIVE: "This student already has access to this package or exam. Revoke it first to enrol again.",
+    STUDENT_ON_ROSTER:
+      "This student is on this package's roster. Remove them from the roster first, then enrol with the payment.",
+    STUDENT_HAS_DIRECT_ENROLMENT: "This student already has a direct enrolment in this package or exam.",
     PACKAGE_HAS_INSTALLMENTS:
       "Students are paying for this package in installments, so it cannot be deleted. Archive it instead.",
     RESOURCE_NOT_FOUND: "This is no longer available. Open it again from the list.",

@@ -169,6 +169,34 @@ class ExamMailQueue {
 		return ids;
 	}
 
+	/**
+	 * The exam-time mail for a direct enrolment (D24): one exam, or every dated, published exam in a package. An exam whose
+	 * window has ended is skipped. Only this path checks that, so the roster and order paths are unchanged. Call it after the
+	 * enrolment commits; nothing is queued for a refused or rolled-back enrolment (P52).
+	 */
+	@Transactional
+	public List<UUID> enqueueForDirectEnrolment(String scope, UUID targetId, UUID studentId) {
+		Instant now = clock.instant();
+		List<UUID> ids = new ArrayList<>();
+		if (LiveExamAccess.EXAM.equals(scope)) {
+			LiveExam exam = exams.findByIdAndDeletedAtIsNull(targetId).orElse(null);
+			if (exam != null && !hasEnded(exam, now)) {
+				ids.addAll(consider(studentId, exam, now));
+			}
+		}
+		else if (LiveExamAccess.MODULE.equals(scope)) {
+			if (!modulePublished(targetId)) {
+				return List.of();
+			}
+			for (LiveExam exam : exams.findDatedPublishedByModuleId(targetId)) {
+				if (!hasEnded(exam, now)) {
+					ids.addAll(consider(studentId, exam, now));
+				}
+			}
+		}
+		return ids;
+	}
+
 	@Transactional
 	public void enqueueHourBefore(Instant now) {
 		Instant after = now.plus(Duration.ofMinutes(15));
@@ -205,6 +233,11 @@ class ExamMailQueue {
 		// published packages the exam is in and from exam grants, so a package no longer has to be the exam's only owner.
 		return exam != null && exam.getDeletedAt() == null && LiveExam.PUBLISHED.equals(exam.getStatus())
 				&& exam.getLiveAt() != null && !visibility.branchHidden(exam.getCategoryId());
+	}
+
+	/** The window end is exclusive (ExamWindow), so an exam is over from its end onward. */
+	private static boolean hasEnded(LiveExam exam, Instant now) {
+		return exam.getEndsAt() != null && !now.isBefore(exam.getEndsAt());
 	}
 
 	private boolean modulePublished(UUID moduleId) {

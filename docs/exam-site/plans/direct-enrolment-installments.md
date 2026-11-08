@@ -1,6 +1,6 @@
 # Plan: payments and installments on direct enrolment
 
-Status: Phase 1 built on branch work in progress (8 November 2026), not compiled and not tested, because the standing rule says no test runs until Shahriar asks. Phases 2 to 7 not started. Section 0 records what was built and where the build differs from this plan. The site is live and takes real payments, so section 11 (how this ships) governs every phase.
+Status (8 November 2026): Phases 1 to 6 are built and tested, and committed as `38d3b4b` on `feature/direct-enrolment-installments`. The package extension in **section 14** is implemented in the working tree (8 November 2026), compiled (API `test-compile` and web `tsc` both pass) and **not tested**. Two API gaps remain and are planned in section 14.11, waiting for Shahriar's go-ahead. Section 14.2 has the audit. Phase 7 (QA and release) is not done. Section 0 records what was built and where the build differs from this plan. The site is live and takes real payments, so section 11 (how this ships) governs every phase.
 
 ## 0. Build log
 
@@ -289,7 +289,7 @@ Each payment produces its own receipt showing the total, the amount paid so far,
 | D14 | Reminders go in-app **and by email**. Due-soon 3 days before; overdue the day after the due date, then weekly until paid (the same timing as staff salaries) |
 | D15 | Two places for the Master Admin: an **Installments tab in the notification centre** and a dedicated **Installments page** in the sidebar |
 | D16 | The Master Admin can **void the latest payment** with a reason and **change the unpaid schedule**. Neither is a refund |
-| D17 | The package page's **Roster** tab is out of scope and stays exactly as it is |
+| D17 | ~~The package page's **Roster** tab is out of scope and stays exactly as it is~~ **Replaced on 8 November by D21 (section 14)** |
 | D18 | **Every screen that shows a direct enrolment links to the Installments page**, so the enrolment is managed from there (section 8) |
 | D19 | The bulk list is removed for every payment type, No charge included |
 | D20 | Reminder emails go to both the student and the Master Admin |
@@ -324,8 +324,8 @@ The student has full access from 8 November. Receipt 140 shows Total 6,300, Paid
 |---|---|---|
 | A direct enrolment is one `live_exam_grants` row with `source = MANUAL` and no money | `LiveExamGrantAdminService.grant` | The plan links to this row by `grant_id` |
 | Two screens post to that endpoint: the bulk page (`direct-enrolment.tsx`) and the one-student panel on the exam page (`exam-enrol.tsx`) | `web/src/components/staff/enrol/` | Both get the same payment fields. The bulk page becomes one student (D12). `useGrantAccess` in `staff-admin.ts` has no caller |
-| The package Roster tab also "enrols", but writes `live_exam_roster`, with no grant | `roster-tab.tsx`, `LiveExamRosterService` | No plan can attach. Out of scope (D17) |
-| `OneStudentEnrol` is shared by the exam panel and the Roster tab | `one-student-enrol.tsx`, `roster-tab.tsx:60` | Payment fields must be opt-in by prop, so the Roster tab does not change |
+| The package Roster tab also "enrols", but writes `live_exam_roster`, with no grant | `roster-tab.tsx`, `LiveExamRosterService` | No plan can attach. Replaced by D21: the package page now enrols with a grant (section 14) |
+| `OneStudentEnrol` is shared by the exam panel and the Roster tab | `one-student-enrol.tsx`, `roster-tab.tsx:60` | Payment fields are opt-in by prop. Since D21 the package page opts in too (section 14) |
 | Exams and packages have no short code | `LiveExam`, `LiveExamModule` | The cash reference uses the start of the ID (C4) |
 | Receipts read only from paid orders, and the student's PDF route rejects anything else | `LiveExamOrderHistoryService.receipt` | A new PDF route and a new input for the PDF |
 | `LiveExamReceipts.next` draws numbers from one sequence | `live_exam_receipt_seq` (V52) | Reused, so numbers stay unique across online and offline payments |
@@ -566,7 +566,7 @@ The online purchase flow already sets the pattern: an in-app notice, a receipt e
 **Direct enrolment** (`direct-enrolment.tsx`, `exam-enrol.tsx`, `one-student-enrol.tsx`)
 - A shared component `components/staff/enrol/payment-fields.tsx` with a pure `payment-model.ts` that builds and checks the schedule and builds the cash reference.
 - `/staff/enrol` becomes one student (D12): the package or exam picker, a student search that selects one student, then the payment fields. The list, the per-student results and the bulk copy (`listHeading`, `count`, `finished`, `failedNote`) are removed. `?student=`, `?exam=` and `?package=` keep working.
-- `OneStudentEnrol` gains an opt-in slot for the payment fields. `exam-enrol.tsx` uses it. `roster-tab.tsx` does not, and is not edited (D17).
+- `OneStudentEnrol` gains an opt-in slot for the payment fields. `exam-enrol.tsx` uses it, and since D21 so does `roster-tab.tsx` (section 14).
 - Type choice: Full payment (default), Installments, No charge. A free exam shows only No charge.
 - Fields: standard price (read only), agreed total, paid today, method, reference, payment date. For Installments: number of installments, per-installment amount, next installment date (one month ahead), and a read-only schedule preview. Choosing Cash fills in the reference (C4).
 - The reason is required only for No charge.
@@ -617,7 +617,7 @@ Each phase can be reviewed alone. Phases 1 to 3 are API only and change nothing 
 | 1. Schema and enrolment | V79, permission, audit and error codes, `InstallmentCalculator`, schedule validator, quote route, `payment` on the grant | A grant with a payment creates the plan, rows and first payment in one transaction. Without one it behaves as today |
 | 2. Payments and receipts | Plan list and detail, record payment, schedule change, void, restore access, package-delete guard, PDF, receipt email, staff and student receipt routes, offline list changes | A receipt prints correctly for part paid, paid and void. The online receipt is unchanged |
 | 3. Notifications | Notice kinds, inbox join, staff kinds, group filter and count, reminder job, reminder emails | Notices and emails go out once each, on the right days, and stop when paid or revoked |
-| 4. Staff web: enrolment | Payment fields on both forms, `/staff/enrol` reduced to one student | All three types work on both screens. The Roster tab is unchanged |
+| 4. Staff web: enrolment | Payment fields on both forms, `/staff/enrol` reduced to one student | All three types work on both screens. The package page is covered by section 14 |
 | 5. Staff web: Installments | Page, detail, actions, notification tab, links from every screen in section 8 | The Master Admin can run a plan from start to finish, starting from any of those screens |
 | 6. Student web | Offline tab, receipts, notices, URL tab | A student sees the same numbers as the Master Admin |
 | 7. QA and release | Section 10 and 11 | Every exit criterion in 10.5 met. Live and recorded |
@@ -628,7 +628,7 @@ Phases 1 to 6 go live together in one release. A half-shipped set is not safe: p
 
 **Do not change.** These are outside this feature, and a diff that touches them needs a reason:
 - `LiveExamOrder*`, `SslCommerzGateway` and the checkout.
-- `roster-tab.tsx` and `LiveExamRosterService` (D17).
+- ~~`roster-tab.tsx` and `LiveExamRosterService` (D17).~~ Replaced by D21: section 14 lists the changes allowed to these two files.
 - The online receipt's output. `LiveExamReceiptPdf` is refactored only as far as sharing `header` and `billedTo`.
 - The existing `POST /api/v1/live-exam-grants` behaviour when `payment` is absent.
 - `SalaryReminders` and the Staff pay tables. Reuse only.
@@ -807,7 +807,7 @@ Run on the QA database with real emails going to a test inbox. To test due dates
 | R5 | Staff pay: salary job, ledger, its notifications, and the Unread and All tabs |
 | R6 | Every existing student notice kind, unread counts and mark-all-read |
 | R7 | Exam reminders, exam-time emails, and the hour-before email |
-| R8 | The package Roster tab adds and removes students as before |
+| R8 | Students already on a package's roster keep their access and can be removed. New package enrolments go through section 14 |
 | R9 | Revoking any grant from the existing screens |
 | R10 | Existing direct enrolments still give access and list correctly |
 | R11 | Exam and package archive and delete, other than the new package guard |
@@ -848,7 +848,7 @@ The site is live and takes real money. The release follows the steps in [media-r
 - SMS
 - The mobile app
 - Bulk enrolment (D12)
-- The package Roster tab and payments on Roster enrolments (D17)
+- Adding new students to a package's old roster from any screen (D21 replaces it with enrolment by grant)
 - A notice to the student when access is restored
 - Counting direct payments in revenue totals: they stay out of `/staff/payments`, `/staff/orders` and the student's online payment summary
 
@@ -876,3 +876,276 @@ Reviewed against the code on 8 November 2026. Each item is now built into the se
 | Null fields are left out of JSON | Screens break on `undefined` | Optional types, `isMissing` (section 8) |
 | Re-created check constraints can drop a kind | An existing feature fails at its next insert | Copy the lists exactly, and test old kinds (sections 5, 10.1) |
 | Rollback path unproven | A failed release could not be undone | Previous jar rehearsed against V79 (section 11) |
+
+## 14. Package enrolment extension
+
+Planned 8 November 2026. Not started beyond the uncommitted work in 14.2. **Nothing here is built until Shahriar says so.** No new migration is needed.
+
+### 14.1 Decisions (Shahriar, 8 November 2026)
+
+| ID | Decision |
+|---|---|
+| D21 | Packages take payments exactly as exams do. Direct enrolment on a package offers Full payment, Installments and No charge, on the package page and on the direct enrolment page. Replaces D17 |
+| D22 | A student who already has access through a package's old roster cannot be enrolled in that package again. The form blocks it and asks the Master Admin to remove the roster entry first. The API refuses it too |
+| D23 | When a student's exam and package overlap, in either direction, the form **warns and does not block**. Any price difference is sorted out by hand, through the agreed total |
+| D24 | Every direct enrolment sends the exam-time email, for an exam as well as a package, with any payment type |
+| D25 | The overlap warning names the package. An exam page row reached through a package links to that package (section 14.11) |
+| D26 | Moving a student from an exam plan to a package does **not** close the exam plan. Its unpaid balance stays due and in "total due", and there is no Close plan action yet. The warning says so clearly in that case (section 14.11) |
+
+### 14.2 Audit: what still treats packages as taking no payment
+
+The earlier wrong statement that packages take no payment was one edit, reversed the same day. This audit checked all the code for anything that still behaves that way.
+
+| # | Where | What it does now | State | Action |
+|---|---|---|---|---|
+| A1 | `direct-enrolment.tsx` | Payment form is back for packages. One leftover from the wrong edit: the Manage installments button is hidden until a target is chosen | Uncommitted | Restore the committed version of that button |
+| A2 | `roster-tab.tsx` (package page) | Now uses the payment form and creates a grant | Uncommitted, correct | Keep, and finish with 14.5 |
+| A3 | `POST .../roster` and `POST .../roster/paste` | Still give package access with no money. No screen calls them now | Open | Keep the routes, because 14 integration tests use them to set up access. Add the guard in 14.4 |
+| A4 | Copy `staffCatalog.setup.rosterNote` (en, bn) | "Enrol someone directly to let them sit without paying" | Wrong | Reword (14.6) |
+| A5 | Copy `staffOps.paymentDetail.rosterLink` and `rosterHint` | "Give access without payment", "lets the student sit the exam without paying" | Wrong | Reword (14.6) |
+| A6 | Copy `staffCatalog.roster.emptyBody` | Tells the admin to paste a list, which no longer exists | Stale | Reword (14.6) |
+| A7 | Package enrolment by grant | Sends no exam-time email. The old roster route did (`ExamMailService.onRosterAdded`) | Regression in A2 | Send it (14.4) |
+| A8 | Package receipt PDF | Validity always prints "Lifetime", even when the package's access ends | Wrong for a paid package | Fix (14.4) |
+| A9 | Package card on Offline purchases | Always links to the MCQ door, so a written-only package opens the wrong page. Older bug, now on a paid card | Wrong | Fix (14.5) |
+
+Checked and correct for packages: the quote, price snapshot, plan, schedule, payments, void, restore, reminders, notices, student routes, and the Installments list and detail. All the payment integration tests in fact use packages. The gap is the other way round: **no integration test enrols an exam with a payment** (14.8).
+
+Other regressions from A2, fixed in 14.5:
+- The list lost its search and page numbers.
+- Removing a roster student no longer warns that the student has already sat an exam (`removeStartedBody`).
+- The form no longer shows "already enrolled".
+- A student with both a grant and a roster row shows only the grant, so the roster entry cannot be removed.
+- `useRoster`, `useAddToRoster`, `usePasteRoster`, `useRosterSearch` and `useRemoveFromRoster` have no callers.
+
+### 14.3 Rules
+
+- **Live roster access blocks enrolment.** The check is "a roster row whose access has not ended". It applies to Full payment, Installments and No charge.
+- **An expired roster row does not block.** It gives no access, and the list hides it, so blocking would leave the admin stuck.
+- **The reverse is refused too.** The roster route refuses a student who holds a live direct (manual) package grant. An online purchase next to a roster row stays allowed, as it is today, because existing behaviour and tests depend on it.
+- **Converting a roster student** takes two steps: remove the roster entry, then enrol with the payment. Sittings and results are kept when a roster entry is removed.
+
+**Exam and package overlap (D23)**
+
+- **What counts as overlap.** Enrolling in a package: the student has live access to an exam inside it through that exam's own grant (a direct enrolment, an online purchase or a bundle) or through another package. Enrolling on an exam: the student has live access to a package containing it, through a grant, an online purchase or the roster.
+- **What does not count.** Revoked or expired access, a free exam, and an exam no longer in the package.
+- **The same-package roster rule (D22) still blocks.** A roster entry on a package only warns when the enrolment is on a single exam inside it.
+- **The warning is specific.** It names each exam or package and how the student holds it. For a payment plan it also shows paid and due, with a link to the plan.
+- **It shows for all three payment types,** and again in the confirmation dialog. The API never refuses an overlap.
+- **Nothing is adjusted automatically.** The total still starts at the standard price, and the warning says to lower it by hand if credit is due. The receipt then shows the existing Price adjustment line.
+- **The two plans stay separate.** Each keeps its own schedule, payments, receipts and reminders. Revoking one does not affect the other.
+- **Settling an old exam plan after moving to a package.** Paying it off ends it. Otherwise revoking the old exam access stops its reminders, and the student keeps the exam through the package (open question 1).
+
+**Exam-time email (D24)**
+
+- Sent after the enrolment commits, for each dated, published exam it gives access to. A failure is logged and never affects the enrolment or the payment.
+- **An exam that is already over is skipped.** The existing queue has no such check, so enrolling in a package with past exams would otherwise send a mail for each one. The check is added only to this new path, so the existing mail is unchanged.
+- It uses the existing message key (student, exam, start time), so a student who already has that email gets no repeat.
+- Restore access sends it too. The key stops a repeat, and a time that changed while access was revoked is still announced.
+- It follows the existing address rule: any email on the account, verified or not. Receipts and installment reminders remain verified-only.
+
+### 14.4 API
+
+| Change | File |
+|---|---|
+| New error `STUDENT_ON_ROSTER` (409), raised in `grant()` for package scope before any plan is written | `LiveExamGrantAdminService`, `ErrorCode` |
+| New error `STUDENT_HAS_DIRECT_ENROLMENT` (409) on the roster route. Paste skips such students and lists them in a new `alreadyEnrolled` field | `LiveExamRosterService` |
+| Both paths take a row lock on the package, so a roster add and an enrolment cannot race. Add `lockById` to the package repository if it has none | `LiveExamModuleRepository` |
+| Quote gains `onRoster`, `rosterStarted`, `directGrantActive`, and `overlaps`: a list of `{ kind: EXAM or PACKAGE, id, titleEn, titleBn, via, planId, paid, due }`. Only sent when the quote names a student. Built from `LiveExamPackageExamRepository.findActiveByModuleId` for a package and `LiveExamMemberships.activeModuleIds` for an exam, with `LiveExamAccess` and `InstallmentPlanReader.byGrantIds` | `LiveExamGrantAdminService` |
+| Enrolled rows gain `onRoster`, `startedAny`, `grantScope`. Package list gains a `q` search | `LiveExamEnrolmentListService` |
+| New `ExamMailService.onDirectEnrolment(scope, targetId, studentId)` and `ExamMailQueue.enqueueForDirectEnrolment`, called after commit from `grant()` and `restoreAccess()`. Reuses `consider` and skips exams whose window has ended. `onRosterAdded` stays as it is | `ExamMailService`, `ExamMailQueue`, `LiveExamGrantAdminService`, `InstallmentPlanService` |
+| Package receipt validity prints "As set for the package". It is fixed text, so a reprint never changes when exams are added or removed | `LiveExamReceiptPdf` |
+| Offline package rows gain the door, so the card opens the right page | `StudentOwnAccessService` |
+
+### 14.5 Web
+
+- **Blocked state on the enrol form.** With `onRoster`, the payment fields are replaced by a message and a **Remove from roster** button. The confirmation warns when the student has already sat an exam. After removal the quote refetches and the form opens.
+- **Already enrolled.** With `directGrantActive`, the form says so and cannot be submitted.
+- **Overlap warning** on both the exam and package forms: one line per item in `overlaps`, with paid, due and a plan link where there is a plan, and a reminder to adjust the total by hand. It replaces the generic "access held" warning when `overlaps` has items, and is repeated in the confirmation dialog. Submitting is never disabled by it.
+- **Package list:** restore search and page numbers. Show Remove on any row with a roster entry, including a student who also has a grant. Restore the started-exam warning.
+- **Exam page list:** a row from a package grant is labelled as coming through the package. Its Revoke button is replaced with a link to the package, because revoking there would end access to the whole package.
+- **Dead code:** remove the five unused roster hooks.
+- **Student card:** the package link uses the door from the API.
+- **A1:** restore the button.
+
+### 14.6 Copy (en and natural bn)
+
+| Key | New meaning |
+|---|---|
+| `staffCatalog.setup.rosterNote` | Enrol a student directly and record the payment, or choose No charge |
+| `staffOps.paymentDetail.rosterLink` | Open direct enrolment |
+| `staffOps.paymentDetail.rosterHint` | Record a payment taken in person, or give access with No charge |
+| `staffCatalog.roster.emptyBody` | Search above to enrol someone |
+| New | The roster-block message, the Remove from roster button, the overlap warning lines (exam held, package held, how it is held, adjust the total by hand), the error text for both new codes, and "through the package" |
+
+### 14.7 Edge cases for package enrolment
+
+| # | Case | Expected |
+|---|---|---|
+| P1 | Student has live roster access; enrol with Full, Installments or No charge | Blocked on the form; API 409 `STUDENT_ON_ROSTER`; nothing written, no receipt number used |
+| P2 | Roster row whose access has ended | Not blocked; enrolment works |
+| P3 | Remove the roster entry, then enrol | Quote refetches, form opens, plan created, new access period starts |
+| P4 | Remove a roster student who has sat an exam | Warned first; results kept |
+| P5 | Roster route for a student with a live direct grant | API 409; paste lists them under `alreadyEnrolled` |
+| P6 | Roster add and enrolment at the same moment | One wins, the other is refused; never both |
+| P7 | Student already has both (from before this change) | Shown once, with Remove available. Count such rows on production before release |
+| P8 | Student bought the package online, then direct enrolment | Refused by the access check, as today |
+| P9 | Direct enrolment active, then online purchase of the same package | Not offered, as today |
+| P10 | Package has no price | Quote empty; total typed; no adjustment line on the receipt |
+| P11 | Package discount ends, or price changes, after enrolment | Plan keeps its agreed total and snapshot |
+| P12 | Package has only free exams | Payment still allowed; access has no end |
+| P13 | Package unpublished or archived while the form is open | Refused, nothing saved |
+| P14 | Package archived during a plan | Access and reminders continue; new enrolment and Restore refused |
+| P15 | Delete a package with a live plan; with only revoked plans | Refused; allowed, and receipts stay visible |
+| P16 | Exam added to the package during a plan | Student gets it; total unchanged |
+| P17 | Exam removed from the package during a plan | Access to it follows the existing rule; total unchanged; the Master Admin can change the schedule |
+| P18 | Package access ends with money owed | Access ends; reminders continue |
+| P19 | Student pays for one exam, then enrols in a package containing it | Warning names the exam with paid, due and plan link; allowed (D23, details in P31 to P42) |
+| P20 | Student has the package, then enrols on an exam inside it | Warning names the package and how it is held; allowed (D23) |
+| P21 | Exam page shows a package-grant student | Labelled; no Revoke; link to the package |
+| P22 | Revoke a package grant | All the package's exams close together; plan and receipts stay |
+| P23 | Restore when the student was since added another way | Refused, nothing changed |
+| P24 | Re-enrol after a revoke | Unfinished-plan warning; a new plan is allowed |
+| P25 | `?moduleId=` on the Installments list | Package plans only, not plans on single exams inside it |
+| P26 | Package with dated, upcoming exams | Exam-time email once per exam and time, to the email on the account; none for undated exams (full cases in P43 to P52) |
+| P27 | Written-only package card | Opens the written door |
+| P28 | Package receipt | Says "Package", "As set for the package", never "Lifetime" |
+| P29 | Package title in English missing | Receipt prints "Package"; notices still show the title |
+| P30 | System Admin on a package | No enrol tab, no money; API 403 |
+
+**Exam and package overlap (D23)**
+
+| # | Case | Expected |
+|---|---|---|
+| P31 | Package enrolment; student is on an installment plan for one exam inside | Warning with the exam, paid, due and plan link; submitting still works |
+| P32 | Several exams inside overlap | Every one is listed |
+| P33 | Exam inside was bought online or in a bundle | Listed as bought; no plan figures |
+| P34 | Exam inside is held on No charge | Listed as direct, with no money figures |
+| P35 | Student holds the exam through a different package | Listed as overlap |
+| P36 | Exam enrolment; student holds a package by grant, online purchase or roster | Warning names the package and how it is held; the D22 block does not apply |
+| P37 | The exam is in two packages the student holds | Both are listed |
+| P38 | Access revoked or expired, a free exam, or an exam removed from the package | No warning for it |
+| P39 | No charge chosen with an overlap | Same warning, and enrolment works |
+| P40 | Total lowered by hand after the warning | Plan uses the typed total; receipt shows the negative Price adjustment |
+| P41 | Both plans active | Separate payments, receipts and reminders; one reminder per plan, so the student can get two |
+| P42 | Old exam access revoked after moving to the package | Its reminders stop; the student still sits it through the package; Restore on that plan is refused while the package covers it |
+| P42a | Package revoked later, exam grant still live | The student keeps that exam only, and its plan is unaffected |
+| P42b | Access changes after the form was opened | The warning may be out of date, but the API does not depend on it, so nothing is refused or lost |
+
+**Exam-time email (D24)**
+
+| # | Case | Expected |
+|---|---|---|
+| P43 | Exam enrolment on a dated, upcoming exam, with Full, Installments or No charge | One exam-time email |
+| P44 | Undated exam, or hidden category branch | None |
+| P45 | Exam, or exams inside a package, whose window has ended | None for those; upcoming ones still sent |
+| P46 | Student already has this email through another route | No repeat |
+| P47 | Exam time changes after enrolment | Existing publish flow sends the new time once |
+| P48 | Restore access | No repeat for the same time; sent if the time changed while revoked |
+| P49 | Access revoked before the email is sent | Skipped at send time by the existing check |
+| P50 | Mail server down | Enrolment and payment stand; the existing scan retries |
+| P51 | Suspended student, or no email on the account | None |
+| P52 | Enrolment refused or rolled back | None, because nothing is queued until commit |
+
+### 14.8 Tests
+
+Run only when Shahriar says so.
+
+- **API:** P1 to P9, P13 to P15, P22 to P26, P28, P30, the quote `overlaps` for P31 to P38, the separate-plan cases P41, P42 and P42a, and the email cases P43 to P52.
+- **Mail:** extend `ExamMailIT`, which already captures sent mail.
+- **Exam scope:** add an exam-enrolment integration test (enrol, record, void, receipt, reminder), since every current one uses a package.
+- **Web:** blocked state and removal, already enrolled, the overlap warning on both forms and in the confirmation (with submit still enabled), list search and paging, roster Remove on a double row, the exam-page label, the student card door.
+- **Regression:** the 14 integration tests that use the roster route must still pass, then the full API and web suites.
+
+### 14.9 Order of work
+
+1. API: errors, guards, lock, quote fields including `overlaps`, list fields, the exam-time email on enrol and restore, receipt text, door.
+2. Web: blocked state, list, exam-page label, A1, dead code, card door.
+3. Copy in en and bn.
+4. Tests, then the full suites on a fresh test database.
+5. Commit on `feature/direct-enrolment-installments`, including the uncommitted A1 and A2 work.
+6. Before release, run a read-only count of students with both a roster row and a live direct grant on production (P7).
+
+### 14.10 Open questions
+
+Answered 8 November: overlap warns and does not block (D23), and exam enrolments send the exam-time email (D24).
+
+1. After a student moves from an exam to a package, revoking the old exam access stops its reminders, but its unpaid balance still counts in the Installments "total due", and there is no way to close a plan. Is that acceptable (recommended for now), or should the plan add a Close plan action with a reason?
+
+### 14.11 Package name in the warning, and the package link on exam rows
+
+Planned 8 November 2026. Not built. No new migration. The web already reads both fields (`OverlapItem.packageTitleEn` and `packageTitleBn`, `EnrolledRow.moduleId`), so most of the work is in the API.
+
+**Decision (D25, Shahriar):** the overlap warning names the actual package, and an exam-page row reached through a package links to that package.
+
+#### Issue 1: the package name in the warning
+
+Today, when a student holds an exam through a different package, `LiveExamOverlaps.examRoute` knows which package it is, but the `Hit` keeps only the exam's title. The warning then reads "through the package package".
+
+| Change | File |
+|---|---|
+| `QuoteOverlap` and `Hit` gain `packageTitleEn` and `packageTitleBn`. They are null when not needed, and the API leaves them out | `LiveExamGrantAdminService`, `LiveExamOverlaps` |
+| `examRoute` fills them from the package it found, for both `PACKAGE` and `ROSTER` routes. `openPackage` already returns that package | `LiveExamOverlaps` |
+| An exam's own grant, and every `PACKAGE`-kind item, leave them null, because the item's own title already says it | `LiveExamOverlaps` |
+| New wording for an exam held on another package's roster: "on the roster of the package {package}". Today it says only "on the package roster", which does not say which package. A package item keeps the existing short text | `overlap-model.ts`, `overlap-notice.tsx`, en and bn `staffAdmin.ts` (bn: "{package} প্যাকেজের রোস্টারে") |
+| When several exams come through the same package plan, its paid and due line shows once, on the first of those exams. Otherwise it looks as if the student owes the same money twice | `overlap-model.ts`, `overlap-notice.tsx` |
+| Fix the spelling "instalments" to "installments" in the English `overlap.plan` and `overlap.planNoAmounts` | en `staffAdmin.ts` |
+
+The fallback word stays in the web as a safety net for an older API during release.
+
+#### Issue 2: the package link on exam rows
+
+Today the exam page labels a package student "Through the package" and removes Revoke, but cannot link to the package, because the row has no package ID.
+
+| Change | File |
+|---|---|
+| `EnrolledStudent` and `Row` gain `moduleId`. `MODULE_GRANTS` selects `g.module_id`, `ROSTER_ROWS` selects `r.module_id`, and `EXAM_GRANTS` selects `NULL::uuid` | `LiveExamEnrolmentListService` |
+| `toView` and `withPlan` carry it through | `LiveExamEnrolmentListService` |
+| On the exam page, show **Open the package** on any row with a `moduleId`, so a roster student gets the link too. Today only a package grant would | `enrolled-list.tsx` |
+| The link opens the package's enrolment tab directly (`/staff/modules/{id}?tab=roster`), where that student can be managed | `enrolled-list.tsx` |
+
+On a package's own list the link is not shown, because the admin is already there.
+
+#### The "moved from an exam" warning (D26)
+
+This is the case where a student who is paying an exam in instalments enrols in a package that contains that exam. The exam plan is not closed, so the warning must say so, in the same block as the overlap.
+
+- **Shown when:** the enrolment is on a package, and an overlap item is an exam with a plan that still has money due.
+- **Wording (English):** "This student is still paying for {exam} in instalments: paid {paid}, still due {due}. Enrolling in this package does not close that plan. The {due} stays owed, and stays in the Installments total due, until it is paid. If the exam is no longer needed, the balance must be dealt with by hand. Revoking the exam's own access stops its reminders but does not clear the balance."
+- **Wording (Bangla):** natural wording written in the same meaning, checked against the existing Bangla terms (কিস্তি, বকেয়া, পরিশোধিত).
+- **Other plans in the overlap** (a package plan on an exam enrolment, or any plan) get a shorter line: "Paying in instalments: paid {paid}, still due {due}. This plan stays open."
+- **The line appears** in the warning on the form and in the confirmation, and it is never removed by a choice the admin makes, because it describes money that is still owed.
+
+#### Edge cases
+
+| # | Case | Expected |
+|---|---|---|
+| P68 | Package enrolment; the student pays for an exam inside it in instalments | The moved-from-exam line appears with the exam's paid and due, and the plan link |
+| P69 | Same, but the exam plan is already paid in full | The line is not shown; the exam appears as a normal overlap |
+| P70 | Two exam plans inside the package | One moved-from-exam line for each, each with its own figures |
+| P53 | Package enrolment; an exam inside is held through another package's grant | "through the package {name}", with that package's name in the current language |
+| P54 | Same, but through another package's roster | "on the roster of the package {name}" |
+| P55 | Exam held by its own grant | No package name; existing text |
+| P56 | Exam enrolment; the student holds a package containing it | The item's own title is the package; existing text; no repeated name |
+| P57 | Package has a title in only one language | The other language falls back to it, as titles do elsewhere |
+| P58 | Two exams come through one package plan | Both are listed; paid and due appear once |
+| P59 | Two exams come through two different package plans | Each shows its own paid and due |
+| P60 | Other package has no plan (online purchase or No charge) | Named, with no money line |
+| P61 | Exam page; student through a package grant | "Through the package", no Revoke, and a link that opens that package's enrolment tab |
+| P62 | Exam page; student through a package roster | "On the roster", and the same link |
+| P63 | Exam page; student with their own exam grant | Revoke as before; no package link |
+| P64 | Student holds the exam through two packages | Shown once, linking to one of them. The other is still on the student's access page |
+| P65 | Package archived after enrolment | The link still opens the package for staff |
+| P66 | Package list | No package link on its rows; `moduleId` present but unused |
+| P67 | System Admin or Instructor calls either route | 403 as before; the new fields are never seen |
+
+#### Tests (run only when Shahriar says so)
+
+- **API:** extend `LiveEnrolmentListIT` to check `moduleId` on a package grant, a roster row and an exam grant (null). Add `packageTitleEn` and `packageTitleBn` checks for P53 to P56 to the overlap test in 14.8.
+- **Web:** extend `overlap-model.test.ts` for the wording choice and the paid-and-due-once rule. Add tests for the exam-row link on P61 to P63.
+
+#### Order of work
+
+1. API: `moduleId` on rows, then the package titles on overlaps.
+2. Web: wording choice, paid-and-due-once, the exam-row link and its `?tab=roster` target, copy in en and bn.
+3. API `test-compile` and web `tsc`.
+4. Then the tests, with the rest of section 14, when Shahriar says so.

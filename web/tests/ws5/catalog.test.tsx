@@ -147,9 +147,22 @@ describe("roster (Master Admin)", () => {
   };
 
   it("lists the members and asks before removing one", async () => {
+    // The package list now shows everyone with access, from the enrolment list. A roster student has no grant.
     mockApi({
-      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": {
-        content: [member],
+      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/enrolments": {
+        content: [
+          {
+            grantId: null,
+            studentId: member.studentId,
+            fullName: member.fullName,
+            studentCode: member.studentCode,
+            phone: member.phone,
+            email: null,
+            source: "ROSTER",
+            reason: null,
+            enrolledAt: member.addedAt,
+          },
+        ],
         page: 0,
         size: 20,
         totalElements: 1,
@@ -163,26 +176,28 @@ describe("roster (Master Admin)", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("নাঈম হাসান");
   });
 
-  it("enrols one student found by student code, and refuses a package that is not published", async () => {
+  it("offers the payment form for a student found by student code, and refuses a package that is not published", async () => {
     const found = { id: "s9", fullName: "রাফি আহমেদ", phone: "01711000099", email: null, studentCode: "DEMO-STU-009" };
     const api = mockApi({
-      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
+      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/enrolments": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
       "GET /api/v1/students": { content: [found], page: 0, size: 8, totalElements: 1, totalPages: 1 },
-      "POST /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": found,
+      // A package is enrolled through the same grant route as an exam, so the form asks for its price first.
+      "GET /api/v1/live-exam-grants/quote": { listPrice: 500, discountPercent: null, standardPrice: 500, free: false, moduleOnly: true, unfinishedPlanId: null, accessHeld: false },
     });
     renderWithProviders(<RosterTab moduleId={moduleFixture.id} published />, { user: fixtures.masterAdmin });
 
     await userEvent.type(screen.getByPlaceholderText("শিক্ষার্থী কোড, ফোন, ইমেইল বা নাম"), "DEMO-STU-009");
     await userEvent.click(await screen.findByRole("button", { name: "বেছে নিন" }));
-    await userEvent.click(screen.getByRole("button", { name: "শিক্ষার্থীকে ভর্তি করুন" }));
     await waitFor(() =>
-      expect(api.calls.some((call) => call.method === "POST" && (call.body as { studentId?: string }).studentId === "s9")).toBe(true),
+      expect(api.calls.some((call) => call.method === "GET" && call.path === "/api/v1/live-exam-grants/quote")).toBe(true),
     );
+    // Nothing is saved until the form is confirmed.
+    expect(api.calls.some((call) => call.method === "POST")).toBe(false);
   });
 
   it("does not offer enrolment on a package that is not published", () => {
     mockApi({
-      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/roster": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
+      "GET /api/v1/live-exam-modules/aaaaaaaa-0000-0000-0000-000000000001/enrolments": { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 },
     });
     renderWithProviders(<RosterTab moduleId={moduleFixture.id} published={false} />, { user: fixtures.masterAdmin });
     expect(screen.queryByPlaceholderText("শিক্ষার্থী কোড, ফোন, ইমেইল বা নাম")).not.toBeInTheDocument();

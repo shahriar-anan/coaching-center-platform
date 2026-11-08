@@ -81,11 +81,13 @@ function ExamCard({ row }: { row: OfflineExam }) {
 function PackageCard({ row }: { row: OfflinePackage }) {
   const { t, locale } = useLocale();
   const title = pickTitle({ titleEn: row.titleEn, titleBn: row.titleBn }, locale);
+  // The package opens on the door the API names. Without one (an older API), the MCQ door as before.
+  const door = row.door === "written" ? "written" : "mcq";
   return (
     <OfflineCard
       icon={Package}
       title={
-        <TitleText title={title} pending={false} href={canOpenOfflineItem(row) ? modulePath("mcq", row.moduleId) : null} />
+        <TitleText title={title} pending={false} href={canOpenOfflineItem(row) ? modulePath(door, row.moduleId) : null} />
       }
       row={row}
       facts={[t("account.payments.offline.packageType"), t("account.payments.offline.addedBy")]}

@@ -7,6 +7,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.coachingcenter.api.auth.permission.PermissionChecker;
@@ -28,11 +29,12 @@ public class LiveExamEnrolmentListController {
 		this.permissions = permissions;
 	}
 
+	/** {@code q} is optional: it matches name, phone, email or student code, and the list keeps its paging. */
 	@GetMapping("/api/v1/live-exam-modules/{moduleId}/enrolments")
 	public PageResponse<LiveExamEnrolmentListService.EnrolledStudent> forModule(@PathVariable UUID moduleId,
-			@PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) String q, @PageableDefault(size = 20) Pageable pageable) {
 		require();
-		return PageResponse.from(enrolments.forModule(moduleId, pageable, permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)));
+		return PageResponse.from(enrolments.forModule(moduleId, q, pageable, permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)));
 	}
 
 	@GetMapping("/api/v1/live-exams/{examId}/enrolments")

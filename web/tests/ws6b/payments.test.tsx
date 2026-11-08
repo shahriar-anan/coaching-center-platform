@@ -125,14 +125,14 @@ describe("staff payments list", () => {
 describe("payment detail", () => {
   it("opens the direct-enrolment link for Master Admin only", () => {
     const { unmount } = renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster canRefund={false} />);
-    expect(screen.getByRole("link", { name: "পেমেন্ট ছাড়া দিতে সরাসরি ভর্তি খুলুন" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "সরাসরি ভর্তি খুলুন" })).toHaveAttribute(
       "href",
       "/staff/modules/bbbbbbbb-0000-4000-8000-000000000001?tab=roster",
     );
     unmount();
 
     renderWithProviders(<PaymentDetail row={pendingModule} canOpenRoster={false} canRefund={false} />);
-    expect(screen.queryByRole("link", { name: "পেমেন্ট ছাড়া দিতে সরাসরি ভর্তি খুলুন" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "সরাসরি ভর্তি খুলুন" })).toBeNull();
   });
 
   it("warns on a payment flagged risky, and on no other", () => {

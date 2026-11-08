@@ -76,6 +76,20 @@ public class ExamMailService {
 		}
 	}
 
+	/**
+	 * The exam-time mail after a direct enrolment (D24). Scope is "EXAM" or "MODULE"; the target is the exam or the package.
+	 * The caller invokes it after commit. A failure is logged with ids only and never reaches the enrolment.
+	 */
+	public void onDirectEnrolment(String scope, UUID targetId, UUID studentId) {
+		try {
+			deliver(queue.enqueueForDirectEnrolment(scope, targetId, studentId));
+		}
+		catch (RuntimeException exception) {
+			log.warn("exam mail enqueue failed scope={} targetId={} studentId={} error={} message={}", scope, targetId, studentId,
+					exception.getClass().getSimpleName(), exception.getMessage());
+		}
+	}
+
 	@Scheduled(fixedDelay = 5, initialDelay = 5, timeUnit = TimeUnit.MINUTES)
 	public void scan() {
 		if (!running.compareAndSet(false, true)) {

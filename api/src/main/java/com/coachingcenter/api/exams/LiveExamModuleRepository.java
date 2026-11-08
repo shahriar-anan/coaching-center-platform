@@ -8,12 +8,23 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 public interface LiveExamModuleRepository extends JpaRepository<LiveExamModule, UUID> {
 
 	Optional<LiveExamModule> findByIdAndDeletedAtIsNull(UUID id);
+
+	/**
+	 * Locks the package's row until the transaction ends. A roster add and a direct enrolment both take it first, so they cannot
+	 * race (plan 14.4). Deleted packages are returned too: the caller checks them.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select m from LiveExamModule m where m.id = :id")
+	Optional<LiveExamModule> lockById(@Param("id") UUID id);
 
 	List<LiveExamModule> findByDeletedAtIsNull();
 

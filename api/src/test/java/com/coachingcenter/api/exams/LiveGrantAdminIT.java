@@ -612,29 +612,34 @@ class LiveGrantAdminIT extends PostgresIntegrationTest {
 		String system = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID student = seed("STUDENT", "Access Reader");
 		UUID module = module(system, "Access rows");
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + student + "\"}"))
-			.andExpect(status().isCreated());
+		// A live direct grant and a live roster row cannot both exist on a package (plan 14.3, D22), so the rows are made in turn.
 		MvcResult grant = mockMvc.perform(post("/api/v1/live-exam-grants").header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content(body(student, "MODULE", module, null, "Second route in")))
+			.content(body(student, "MODULE", module, null, "Direct route")))
 			.andExpect(status().isCreated())
 			.andReturn();
 		UUID grantId = UUID.fromString(json.readTree(grant.getResponse().getContentAsString()).get("id").asText());
 		String path = "/api/v1/students/" + student + "/live-exam-access";
 
-		// Rows sort by module, then via: MANUAL before ROSTER.
+		// The direct grant is the one row, and it carries its grant id.
 		mockMvc.perform(get(path).header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.totalElements").value(2))
+			.andExpect(jsonPath("$.totalElements").value(1))
 			.andExpect(jsonPath("$.content[0].via").value("MANUAL"))
-			.andExpect(jsonPath("$.content[0].grantId").value(grantId.toString()))
-			.andExpect(jsonPath("$.content[1].via").value("ROSTER"))
-			.andExpect(jsonPath("$.content[1].grantId").doesNotExist());
+			.andExpect(jsonPath("$.content[0].grantId").value(grantId.toString()));
 
-		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grantId).param("reason", "Duplicate route")
+		// Revoking it takes its row off the list.
+		mockMvc.perform(delete("/api/v1/live-exam-grants/" + grantId).param("reason", "Moved to the roster")
 			.header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk());
+		mockMvc.perform(get(path).header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(0));
+
+		// A roster row can now be added, since no live direct grant is left. It has no grant id, and the revoked grant stays off.
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/roster").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"studentId\":\"" + student + "\"}"))
+			.andExpect(status().isCreated());
 		mockMvc.perform(get(path).header("Authorization", "Bearer " + master))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalElements").value(1))

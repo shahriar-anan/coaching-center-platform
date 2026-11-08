@@ -66,9 +66,14 @@ public class InstallmentPlanService {
 
 	private final InstallmentStaffNotices staff;
 
+	private final ExamMailService examMail;
+
+	private final AfterCommit afterCommit;
+
 	public InstallmentPlanService(JdbcTemplate jdbc, LiveExamReceipts receipts, AuditRecorder audit, Clock clock,
 			ExamMailQueue mail, LiveExamGrantRepository grants, LiveExamRepository exams, LiveExamModuleRepository modules,
-			LiveExamAccess access, InstallmentPlanReader reader, StudentNoticeWriter notices, InstallmentStaffNotices staff) {
+			LiveExamAccess access, InstallmentPlanReader reader, StudentNoticeWriter notices, InstallmentStaffNotices staff,
+			ExamMailService examMail, AfterCommit afterCommit) {
 		this.jdbc = jdbc;
 		this.receipts = receipts;
 		this.audit = audit;
@@ -81,6 +86,8 @@ public class InstallmentPlanService {
 		this.reader = reader;
 		this.notices = notices;
 		this.staff = staff;
+		this.examMail = examMail;
+		this.afterCommit = afterCommit;
 	}
 
 	/**
@@ -256,9 +263,14 @@ public class InstallmentPlanService {
 			}
 		}
 		else if (LiveExamOrder.MODULE.equals(old.getScope())) {
+			// Locks the package first, as a roster add and an enrolment do, so the roster check below holds (plan 14.4).
+			modules.lockById(old.getModuleId()).orElseThrow(InstallmentPlanService::notFound);
 			LiveExamModule module = modules.findByIdAndDeletedAtIsNull(old.getModuleId())
 				.filter(found -> LiveExamModule.PUBLISHED.equals(found.getStatus()))
 				.orElseThrow(() -> refused("The package is no longer published."));
+			if (access.rosterLive(plan.studentId(), module.getId(), now)) {
+				throw refused("The student is on the roster for this package.");
+			}
 			AccessState state = access.moduleState(plan.studentId(), module.getId(), now);
 			if (state.granted() && !state.expired()) {
 				throw refused("The student already has access to this package.");
@@ -291,6 +303,11 @@ public class InstallmentPlanService {
 		}
 		jdbc.update("update live_exam_payment_plans set grant_id = ? where id = ?", grant.getId(), planId);
 		audit.record(AuditRecorder.INSTALLMENT_ACCESS_RESTORED, AuditRecorder.INSTALLMENT_PLAN_ENTITY, planId);
+		// The exam-time email goes out after the commit, as for a new enrolment. The mail key stops a repeat (plan 14.3, D24).
+		String scope = old.getScope();
+		UUID targetId = LiveExamOrder.EXAM.equals(scope) ? old.getExamId() : old.getModuleId();
+		UUID studentId = plan.studentId();
+		afterCommit.run(() -> examMail.onDirectEnrolment(scope, targetId, studentId));
 		return LiveExamGrantAdminService.view(grant);
 	}
 

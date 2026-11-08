@@ -45,14 +45,15 @@ public class LiveExamGrantAdminController {
 
 	/**
 	 * The price an enrolment of one package or exam would charge, for the enrol form. Exactly one of the two ids is given. A
-	 * {@code studentId} adds the unfinished-plan and access-held warnings.
+	 * {@code studentId} adds the warnings (unfinished plan, access held, roster, direct enrolment and overlaps). Plan figures in
+	 * the overlaps are sent only to a caller who may see installments.
 	 */
 	@GetMapping("/api/v1/live-exam-grants/quote")
 	public LiveExamGrantAdminService.QuoteView quote(@RequestParam String scope,
 			@RequestParam(required = false) UUID moduleId, @RequestParam(required = false) UUID examId,
 			@RequestParam(required = false) UUID studentId) {
 		require(Permissions.LIVE_EXAM_GRANT);
-		return grants.quote(scope, moduleId, examId, studentId);
+		return grants.quote(scope, moduleId, examId, studentId, permissions.has(Permissions.LIVE_EXAM_INSTALLMENT));
 	}
 
 	/** {@code reason} is required, 1 to 500 characters. Master Admin only. */

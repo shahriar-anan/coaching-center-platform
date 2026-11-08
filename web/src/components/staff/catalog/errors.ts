@@ -3,6 +3,8 @@ import { ApiError } from "@/lib/api/errors";
 /** Codes the catalog screens put a sentence to. Anything else shows the generic line. */
 const KNOWN_CODES = new Set([
   "GRANT_ALREADY_ACTIVE",
+  "STUDENT_ON_ROSTER",
+  "STUDENT_HAS_DIRECT_ENROLMENT",
   "PACKAGE_HAS_INSTALLMENTS",
   "EXAM_WINDOW_CONFLICT",
   "EXAM_WINDOW_ENDED",

@@ -155,6 +155,39 @@ public class LiveExamAccess {
 	}
 
 	/**
+	 * A live roster row on the package: the row exists and its access has not ended. An expired row does not count (plan 14.3).
+	 * {@link #moduleState} is not used here, because it reports only the longest route, so a live roster row next to a longer
+	 * grant would not show.
+	 */
+	boolean rosterLive(UUID studentId, UUID moduleId, Instant now) {
+		return roster.findById(new LiveExamRoster.Key(moduleId, studentId))
+			.map(row -> !expired(moduleEnd(moduleId, row.getCreatedAt()), now))
+			.orElse(false);
+	}
+
+	/** A live manual (direct enrolment) package grant: not revoked, not expired. Online purchases and bundles do not count. */
+	boolean holdsDirectModuleGrant(UUID studentId, UUID moduleId, Instant now) {
+		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
+			if (grant.getRevokedAt() == null && LiveExamGrant.SOURCE_MANUAL.equals(grant.getSource())
+					&& !expired(moduleEnd(moduleId, grant.getCreatedAt()), now)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** A live manual (direct enrolment) exam grant: not revoked, not expired. Online purchases and bundles do not count. */
+	boolean holdsDirectExamGrant(UUID studentId, LiveExam exam, Instant now) {
+		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, exam.getId())) {
+			if (grant.getRevokedAt() == null && LiveExamGrant.SOURCE_MANUAL.equals(grant.getSource())
+					&& !AccessWindow.expired(exam, grant.getCreatedAt(), now)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Ends the grants of one target that have run out, so that a new purchase or grant can take their place. The database
 	 * allows one unrevoked grant per student and target, so an expired one must be revoked first. It is kept for the record,
 	 * with the reason. Only called once the target is no longer live for the student.
@@ -257,7 +290,7 @@ public class LiveExamAccess {
 	}
 
 	/** A package still covers a grant made before it was removed (R4). An active package covers every grant. */
-	private static boolean covers(Instant grantStart, Instant removedAt) {
+	static boolean covers(Instant grantStart, Instant removedAt) {
 		return removedAt == null || grantStart.isBefore(removedAt);
 	}
 
