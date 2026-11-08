@@ -48,11 +48,12 @@ export function PackageCard({
       <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
         <p className="line-clamp-2 text-card-title font-bold leading-snug text-text group-hover:text-text-accent">{title}</p>
         {summary ? <p className="line-clamp-2 text-body leading-relaxed text-muted">{summary}</p> : null}
-        <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t border-border pt-3 text-meta">
-          <span className="min-w-0 truncate tabular-nums text-muted">
+        {/* Wraps instead of squeezing: on a narrow card the price (with its discount and end date) drops under the count. */}
+        <div className="mt-auto flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border pt-3 text-meta">
+          <span className="min-w-0 tabular-nums text-muted">
             {t("common.purchase.shared.examCount", { count: formatNumber(examCount, locale) })}
           </span>
-          <span className="shrink-0 text-end">
+          <span className="min-w-0 max-w-full text-end">
             <PriceLine label={priceLabel(pricingOf(pricing, price))} endOnOwnLine />
           </span>
         </div>
