@@ -404,6 +404,8 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/live-exam-modules/{id}/exams/{examId}",
 			"DELETE /api/v1/live-exam-modules/{id}/exams/{examId}",
 			"PATCH /api/v1/live-exam-modules/{id}/exams/order",
+			"POST /api/v1/live-exam-modules/{id}/exams/bulk",
+			"GET /api/v1/live-exam-modules/{id}/exams/members",
 			"GET /api/v1/live-exam-modules/{id}/pending-changes",
 			"DELETE /api/v1/live-exam-modules/{id}/pending-changes",
 			"GET /api/v1/live-exam-modules/{id}/staged-summary",

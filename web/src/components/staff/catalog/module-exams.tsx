@@ -11,103 +11,26 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import {
   staffCatalogKeys,
-  useAddExamToPackage,
   useCopyExam,
-  useExamSearch,
   useModule,
   useModuleExams,
+  useModuleMemberIds,
   useRemoveExamFromPackage,
   useReorderPackageExams,
   type StaffExam,
 } from "@/lib/api/exam/staff-catalog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
-import { SearchInput } from "@/components/ui/search-input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { ExamStatusPill } from "@/components/staff/catalog/status-pill";
-import { catalogErrorKey, isApiError } from "@/components/staff/catalog/errors";
+import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { AddExamsDialog } from "@/components/staff/catalog/add-exams-dialog";
 import { NewExamDialog } from "@/components/staff/catalog/new-exam-dialog";
 import { alsoInCount, hasPendingDot, movedOrder, priceOfRow } from "@/components/staff/catalog/package-rows";
-
-/** Adds an exam that already exists to this package. Exams already in it are shown but cannot be added again. */
-function AddExistingDialog({
-  moduleId,
-  memberIds,
-  open,
-  onOpenChange,
-}: {
-  moduleId: string;
-  memberIds: Set<string>;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { t, locale } = useLocale();
-  const { toast } = useToast();
-  const [q, setQ] = useState("");
-  const search = useExamSearch(q);
-  const add = useAddExamToPackage(moduleId);
-  const [failure, setFailure] = useState<string | null>(null);
-
-  async function addExam(exam: StaffExam) {
-    setFailure(null);
-    try {
-      await add.mutateAsync(exam.id);
-      toast({ title: t("staffCatalog.moduleExams.added"), tone: "ok" });
-    } catch (e) {
-      // A clash on the server says the exam is in the package already; the message is the same either way.
-      setFailure(isApiError(e, "EXAM_ALREADY_IN_PACKAGE") ? t("staffCatalog.errors.EXAM_ALREADY_IN_PACKAGE") : t(catalogErrorKey(e)));
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={t("staffCatalog.moduleExams.addTitle")} description={t("staffCatalog.moduleExams.addBody")} className="sm:max-w-2xl">
-      <div className="grid gap-3">
-        <SearchInput value={q} onChange={setQ} placeholder={t("staffCatalog.moduleExams.addPlaceholder")} />
-        {failure ? (
-          <p role="alert" className="text-meta text-danger">
-            {failure}
-          </p>
-        ) : null}
-        {q.trim().length < 2 ? (
-          <p className="text-meta text-muted">{t("staffCatalog.moduleExams.addHint")}</p>
-        ) : search.isPending ? (
-          <Skeleton variant="rows" count={3} />
-        ) : search.isError ? (
-          <ErrorState onRetry={() => search.refetch()} message={t("staffCatalog.moduleExams.loadError")} error={search.error} />
-        ) : (search.data?.content ?? []).length === 0 ? (
-          <EmptyState title={t("staffCatalog.moduleExams.addEmpty")} />
-        ) : (
-          <ul className="grid gap-2">
-            {(search.data?.content ?? []).map((exam) => {
-              const inside = memberIds.has(exam.id);
-              return (
-                <li key={exam.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-card p-3">
-                  <div className="min-w-0">
-                    <p className="font-medium break-words">{locale === "bn" ? exam.titleBn : exam.titleEn}</p>
-                    <p className="text-meta text-muted">{t(`staffCatalog.examType.${exam.examType}`)}</p>
-                  </div>
-                  {inside ? (
-                    <span className="text-meta text-muted">{t("staffCatalog.moduleExams.alreadyIn")}</span>
-                  ) : (
-                    <Button variant="secondary" disabled={add.isPending} onClick={() => addExam(exam)}>
-                      {t("staffCatalog.moduleExams.add")}
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-    </Dialog>
-  );
-}
 
 /**
  * The exams of one package, in the package's order. Each row has an Open button, a title link, a pending dot, and
@@ -121,6 +44,7 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
   const role = useRole();
   const pkg = useModule(moduleId);
   const exams = useModuleExams(moduleId);
+  const members = useModuleMemberIds(moduleId);
   const copy = useCopyExam(moduleId);
   const remove = useRemoveExamFromPackage(moduleId);
   const reorder = useReorderPackageExams(moduleId);
@@ -147,7 +71,9 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
 
   const rows = exams.data?.content ?? [];
   const ids = rows.map((exam) => exam.id);
-  const memberIds = new Set(ids);
+  // The member ids include staged changes; until they arrive, the rows already listed stand in for them.
+  const memberIds = new Set(members.data?.examIds ?? ids);
+  const packageTitle = pkg.data ? (locale === "bn" ? pkg.data.titleBn : pkg.data.titleEn) || undefined : undefined;
   const published = pkg.data?.status === "PUBLISHED";
 
   async function archiveExam(exam: StaffExam) {
@@ -410,8 +336,8 @@ export function ModuleExams({ moduleId }: { moduleId: string }) {
         />
       )}
       {role.canAuthor ? <NewExamDialog moduleId={moduleId} open={creating} onOpenChange={setCreating} /> : null}
-      {role.canAuthor ? (
-        <AddExistingDialog moduleId={moduleId} memberIds={memberIds} open={adding} onOpenChange={setAdding} />
+      {role.canAuthor && adding ? (
+        <AddExamsDialog moduleId={moduleId} memberIds={memberIds} open onOpenChange={setAdding} packageTitle={packageTitle} />
       ) : null}
       {role.canAuthor && removing ? (
         <ConfirmDialog

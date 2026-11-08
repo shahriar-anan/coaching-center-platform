@@ -239,6 +239,8 @@ export const staffCatalogKeys = {
   modules: (params: ModuleListParams) => ["staffCatalog", "modules", params] as const,
   module: (id: string) => ["staffCatalog", "module", id] as const,
   moduleExams: (moduleId: string) => ["staffCatalog", "moduleExams", moduleId] as const,
+  /** Child of `moduleExams`, so a prefix invalidation of the package's exam lists covers it. */
+  memberIds: (moduleId: string) => ["staffCatalog", "moduleExams", moduleId, "memberIds"] as const,
   exam: (id: string) => ["staffCatalog", "exam", id] as const,
   instructors: (params: InstructorListParams) => ["staffCatalog", "instructors", params] as const,
   pending: (kind: ChangeKind, id: string) => ["staffCatalog", "pending", kind, id] as const,
@@ -311,6 +313,44 @@ export function useRestoreCategory() {
 }
 
 /* ---------- modules ---------- */
+
+/** The server caps a page at 100 rows (G5). Lists longer than that are read one page after another. */
+const CATALOG_PAGE_SIZE = 100;
+
+/**
+ * Reads every page of a list, in order. A row that turns up on two pages (a row moved while the reads ran) is kept once.
+ * `url` builds the request for one zero-based page.
+ */
+async function readAllPages<T extends { id: string }>(url: (page: number) => string): Promise<{ content: T[]; totalElements: number }> {
+  const content: T[] = [];
+  const seen = new Set<string>();
+  let page = 0;
+  let totalPages = 1;
+  let totalElements = 0;
+  do {
+    const body = await apiRequest<PageResponse<T>>(url(page));
+    for (const row of body.content) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        content.push(row);
+      }
+    }
+    totalPages = body.totalPages;
+    totalElements = body.totalElements;
+    page += 1;
+  } while (page < totalPages);
+  return { content, totalElements };
+}
+
+/** Every package, for a picker. Each page of the list is read, so packages past the first 100 are not left out. */
+export function useAllModuleOptions() {
+  return useQuery({
+    queryKey: ["staffCatalog", "modules", "all"] as const,
+    queryFn: async (): Promise<StaffModule[]> =>
+      (await readAllPages<StaffModule>((page) => `/api/v1/live-exam-modules?size=${CATALOG_PAGE_SIZE}&page=${page}`)).content,
+    staleTime: 60_000,
+  });
+}
 
 export type ModuleListParams = { categoryId?: string; q?: string; status?: string };
 
@@ -512,17 +552,36 @@ export function useDeleteModule(id: string) {
 
 /* ---------- exams ---------- */
 
-/** The query for one module's exams, shared by the module page and the admin agenda (UF6). */
+/**
+ * The query for one module's exams, shared by the module page and the admin agenda (UF6). Every page is read, so a package
+ * with more than 100 exams is whole. The result is one page holding all the rows, so `content` is the full list.
+ */
 export function moduleExamsQuery(moduleId: string) {
   return {
     queryKey: staffCatalogKeys.moduleExams(moduleId),
-    queryFn: () => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exam-modules/${moduleId}/exams?size=100`),
+    queryFn: async (): Promise<PageResponse<StaffExam>> => {
+      const { content, totalElements } = await readAllPages<StaffExam>(
+        (page) => `/api/v1/live-exam-modules/${moduleId}/exams?size=${CATALOG_PAGE_SIZE}&page=${page}`,
+      );
+      return { content, page: 0, size: content.length, totalElements, totalPages: 1 };
+    },
   };
 }
 
 export function useModuleExams(moduleId: string | undefined) {
   return useQuery({
     ...moduleExamsQuery(moduleId ?? ""),
+    enabled: Boolean(moduleId),
+  });
+}
+
+/** The ids of the exams in a package. On a published package they include the staged changes. */
+export type ModuleMemberIds = { examIds: string[]; pendingChanges: boolean };
+
+export function useModuleMemberIds(moduleId: string | undefined) {
+  return useQuery({
+    queryKey: staffCatalogKeys.memberIds(moduleId ?? ""),
+    queryFn: () => apiRequest<ModuleMemberIds>(`/api/v1/live-exam-modules/${moduleId}/exams/members`),
     enabled: Boolean(moduleId),
   });
 }
@@ -710,11 +769,26 @@ function useMembership(moduleId: string) {
   });
 }
 
-/** Adds an exam to a package. An exam already in it is refused with `EXAM_ALREADY_IN_PACKAGE`. */
-export function useAddExamToPackage(moduleId: string) {
-  const membership = useMembership(moduleId);
+export type BulkAddSkipReason = "ALREADY_IN_PACKAGE" | "ARCHIVED" | "NOT_FOUND";
+
+/** What a bulk add did: the exams added, and each one left out with the reason. */
+export type BulkAddResult = {
+  added: string[];
+  skipped: { examId: string; reason: BulkAddSkipReason }[];
+  pendingChanges: boolean;
+};
+
+/** Adds several exams to a package in one call (at most 500 ids). The package's exam lists and member ids are refreshed. */
+export function useAddExamsToPackage(moduleId: string) {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (examId: string) => membership.mutateAsync({ kind: "add", examId }),
+    mutationFn: (examIds: string[]) =>
+      apiRequest<BulkAddResult>(`/api/v1/live-exam-modules/${moduleId}/exams/bulk`, { method: "POST", body: { examIds } }),
+    onSuccess: () =>
+      Promise.all([
+        refreshChanged(queryClient, "package", moduleId),
+        queryClient.invalidateQueries({ queryKey: staffCatalogKeys.memberIds(moduleId) }),
+      ]),
   });
 }
 
@@ -730,17 +804,6 @@ export function useReorderPackageExams(moduleId: string) {
   const membership = useMembership(moduleId);
   return useMutation({
     mutationFn: (examIds: string[]) => membership.mutateAsync({ kind: "reorder", examIds }),
-  });
-}
-
-/** Exams matching a search, for "Add existing exam". Nothing is searched below two characters. */
-export function useExamSearch(q: string) {
-  const term = q.trim();
-  return useQuery({
-    queryKey: ["staffCatalog", "examSearch", term],
-    queryFn: () => apiRequest<PageResponse<StaffExam>>(`/api/v1/live-exams?${new URLSearchParams({ q: term, size: "20" })}`),
-    enabled: term.length >= 2,
-    placeholderData: keepPreviousData,
   });
 }
 

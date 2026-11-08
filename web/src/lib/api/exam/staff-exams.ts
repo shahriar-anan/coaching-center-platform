@@ -34,6 +34,8 @@ export type ExamListParams = {
   popular?: boolean;
   pending?: boolean;
   q?: string;
+  /** With a category, also list the exams of every subcategory below it (`branch=true`). */
+  branch?: boolean;
 };
 
 /** Rows per request for the Exams page. The page then asks for the next page until the server has no more. */
@@ -60,6 +62,9 @@ export function examListQuery(params: ExamListParams, page = 0): string {
   }
   if (params.pending) {
     query.set("pending", "true");
+  }
+  if (params.branch) {
+    query.set("branch", "true");
   }
   return query.toString();
 }

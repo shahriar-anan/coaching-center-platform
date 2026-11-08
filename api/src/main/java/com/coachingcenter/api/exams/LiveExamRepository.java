@@ -331,7 +331,7 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			SELECT e FROM LiveExam e
 			LEFT JOIN LiveExamPackageExam pk ON pk.examId = e.id AND pk.moduleId = :packageId AND pk.removedAt IS NULL
 			WHERE e.deletedAt IS NULL
-			  AND (:anyCategory = true OR e.categoryId = :categoryId)
+			  AND (:anyCategory = true OR e.categoryId IN :categoryIds)
 			  AND (:anyPackage = true OR EXISTS (
 			    SELECT pm FROM LiveExamPackageExam pm
 			    WHERE pm.examId = e.id AND pm.moduleId = :packageId AND pm.removedAt IS NULL))
@@ -353,7 +353,7 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			""", countQuery = """
 			SELECT count(e) FROM LiveExam e
 			WHERE e.deletedAt IS NULL
-			  AND (:anyCategory = true OR e.categoryId = :categoryId)
+			  AND (:anyCategory = true OR e.categoryId IN :categoryIds)
 			  AND (:anyPackage = true OR EXISTS (
 			    SELECT pm FROM LiveExamPackageExam pm
 			    WHERE pm.examId = e.id AND pm.moduleId = :packageId AND pm.removedAt IS NULL))
@@ -373,7 +373,8 @@ public interface LiveExamRepository extends JpaRepository<LiveExam, UUID> {
 			    OR (:phase = 'LIVE' AND e.liveAt <= :now AND e.endsAt > :now)
 			    OR (:phase = 'ENDED' AND e.endsAt <= :now))
 			""")
-	Page<LiveExam> searchForStaff(@Param("anyCategory") boolean anyCategory, @Param("categoryId") UUID categoryId,
+	Page<LiveExam> searchForStaff(@Param("anyCategory") boolean anyCategory,
+			@Param("categoryIds") Collection<UUID> categoryIds,
 			@Param("anyPackage") boolean anyPackage, @Param("packageId") UUID packageId,
 			@Param("standalone") boolean standalone, @Param("anyType") boolean anyType,
 			@Param("examType") String examType, @Param("anyMode") boolean anyMode, @Param("mode") String mode,

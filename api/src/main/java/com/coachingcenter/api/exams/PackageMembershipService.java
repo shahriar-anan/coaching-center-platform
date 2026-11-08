@@ -3,7 +3,11 @@ package com.coachingcenter.api.exams;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -76,6 +80,60 @@ public class PackageMembershipService {
 		return view(moduleId, false);
 	}
 
+	/**
+	 * Adds several exams at once (B1). The package row is locked first, so a concurrent add cannot race it. Each id is
+	 * added or skipped with a reason, in the order the caller sent them. A published package stages the additions as one
+	 * revision.
+	 */
+	@Transactional
+	public BulkResult bulkAdd(UUID moduleId, List<UUID> examIds) {
+		LiveExamModule module = modules.lockById(moduleId).filter(row -> row.getDeletedAt() == null).orElseThrow(this::notFound);
+		if (LiveExamModule.ARCHIVED.equals(module.getStatus())) {
+			throw new ApiException(ErrorCode.MODULE_ARCHIVED, HttpStatus.CONFLICT, "An archived module cannot be changed.");
+		}
+		List<UUID> requested = new ArrayList<>(new LinkedHashSet<>(examIds));
+		Map<UUID, LiveExam> loaded = new HashMap<>();
+		for (LiveExam exam : exams.findAllById(requested)) {
+			loaded.put(exam.getId(), exam);
+		}
+		boolean published = LiveExamModule.PUBLISHED.equals(module.getStatus());
+		PackageRevisionService.Draft draft = published ? revisions.workingCopy(module) : null;
+		List<UUID> next = published ? new ArrayList<>(draft.examIds()) : null;
+		Set<UUID> inDraft = published ? new HashSet<>(draft.examIds()) : null;
+		List<UUID> added = new ArrayList<>();
+		List<Skipped> skipped = new ArrayList<>();
+		for (UUID examId : requested) {
+			LiveExam exam = loaded.get(examId);
+			if (exam == null || exam.getDeletedAt() != null) {
+				skipped.add(new Skipped(examId, "NOT_FOUND"));
+				continue;
+			}
+			if (LiveExam.ARCHIVED.equals(exam.getStatus())) {
+				skipped.add(new Skipped(examId, "ARCHIVED"));
+				continue;
+			}
+			boolean already = published ? inDraft.contains(examId) : memberships.existsActive(moduleId, examId);
+			if (already) {
+				skipped.add(new Skipped(examId, "ALREADY_IN_PACKAGE"));
+				continue;
+			}
+			if (published) {
+				next.add(examId);
+				inDraft.add(examId);
+			}
+			else {
+				membership.attach(moduleId, examId, clock.instant());
+			}
+			added.add(examId);
+			audit.record(AuditRecorder.LIVE_EXAM_PACKAGE_EXAM_ADD, AuditRecorder.LIVE_EXAM_MODULE_ENTITY, moduleId);
+		}
+		if (published && !added.isEmpty()) {
+			revisions.stage(module, draft.withExamIds(next));
+		}
+		boolean pending = published && revisions.hasRevision(moduleId);
+		return new BulkResult(added, skipped, pending);
+	}
+
 	/** Removes an exam from the package. Students who held the package keep the exam while their access lasts (R4). */
 	@Transactional
 	public void remove(UUID moduleId, UUID examId) {
@@ -121,6 +179,16 @@ public class PackageMembershipService {
 		return view(moduleId, false);
 	}
 
+	/** The package's exams as staff see them: a published package shows its staged draft, so staged changes are included. */
+	@Transactional(readOnly = true)
+	public Members members(UUID moduleId) {
+		LiveExamModule module = modules.findByIdAndDeletedAtIsNull(moduleId).orElseThrow(this::notFound);
+		if (LiveExamModule.PUBLISHED.equals(module.getStatus())) {
+			return new Members(revisions.workingCopy(module).examIds(), revisions.hasRevision(moduleId));
+		}
+		return new Members(activeExamIds(moduleId), false);
+	}
+
 	private MembershipView view(UUID moduleId, boolean pending) {
 		return new MembershipView(moduleId, activeExamIds(moduleId), pending);
 	}
@@ -162,6 +230,18 @@ public class PackageMembershipService {
 
 	/** The package's exams in order, and whether a staged revision is waiting. */
 	public record MembershipView(UUID moduleId, List<UUID> examIds, boolean pendingChanges) {
+	}
+
+	/** A bulk add's outcome: the exams added, the ones skipped with a reason, and whether a revision is waiting. */
+	public record BulkResult(List<UUID> added, List<Skipped> skipped, boolean pendingChanges) {
+	}
+
+	/** An exam a bulk add did not add. The reason is NOT_FOUND, ARCHIVED or ALREADY_IN_PACKAGE. */
+	public record Skipped(UUID examId, String reason) {
+	}
+
+	/** The package's exam ids in order, including staged changes on a published package, and whether a revision is staged. */
+	public record Members(List<UUID> examIds, boolean pendingChanges) {
 	}
 
 }

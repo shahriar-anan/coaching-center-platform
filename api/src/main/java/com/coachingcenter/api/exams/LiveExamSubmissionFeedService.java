@@ -1,11 +1,8 @@
 package com.coachingcenter.api.exams;
 
 import java.time.Instant;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -116,7 +113,7 @@ public class LiveExamSubmissionFeedService {
 		}
 		if (categoryId != null) {
 			where.append(" AND e.categoryId IN (:categoryIds)");
-			params.put("categoryIds", categoryAndDescendants(categoryId, byId));
+			params.put("categoryIds", LiveExamCategoryTree.categoryAndDescendants(categoryId, byId.values()));
 		}
 		if (q != null && !q.isBlank()) {
 			where.append(" AND lower(s.fullName) LIKE :name");
@@ -170,26 +167,6 @@ public class LiveExamSubmissionFeedService {
 			adminProfiles.findAllById(distinct).forEach(profile -> names.put(profile.getUserId(), profile.getFullName()));
 		}
 		return names;
-	}
-
-	/** The category and every category under it, at any depth. An id the table does not know gives just itself, so it matches no exam. */
-	private static Set<UUID> categoryAndDescendants(UUID categoryId, Map<UUID, LiveExamCategory> byId) {
-		Map<UUID, List<UUID>> children = new HashMap<>();
-		for (LiveExamCategory category : byId.values()) {
-			if (category.getParentId() != null) {
-				children.computeIfAbsent(category.getParentId(), key -> new ArrayList<>()).add(category.getId());
-			}
-		}
-		Set<UUID> found = new HashSet<>();
-		Deque<UUID> pending = new ArrayDeque<>();
-		pending.push(categoryId);
-		while (!pending.isEmpty()) {
-			UUID current = pending.pop();
-			if (found.add(current)) {
-				pending.addAll(children.getOrDefault(current, List.of()));
-			}
-		}
-		return found;
 	}
 
 	/** Matches the status the row shows: failed, published, draft (marked but not published) or awaiting a mark. */

@@ -31,7 +31,8 @@ public class StaffExamListController {
 
 	/**
 	 * Staff see every exam; an instructor sees only the exams assigned to them. {@code sort} accepts {@code liveAt},
-	 * {@code title} and {@code updatedAt}.
+	 * {@code title} and {@code updatedAt}. With {@code branch=true}, a {@code categoryId} also matches the exams in every
+	 * sub-category under it.
 	 */
 	@GetMapping("/api/v1/live-exams")
 	public PageResponse<StaffExamListService.StaffExamRow> list(
@@ -45,6 +46,7 @@ public class StaffExamListController {
 			@RequestParam(required = false) String q,
 			@RequestParam(required = false, defaultValue = "false") boolean pending,
 			@RequestParam(required = false, defaultValue = "false") boolean popular,
+			@RequestParam(required = false, defaultValue = "false") boolean branch,
 			@PageableDefault(size = 20) Pageable pageable) {
 		UUID instructor = null;
 		if (!permissions.has(Permissions.EXAM_READ)) {
@@ -55,7 +57,7 @@ public class StaffExamListController {
 		}
 		StaffExamListService.ListQuery query = new StaffExamListService.ListQuery(packageId, categoryId, standalone,
 				LiveExamTypeFilter.parse(type), LiveExamTypeFilter.parseMode(mode), status,
-				LiveExamTypeFilter.parsePhase(phase), q, pending, popular);
+				LiveExamTypeFilter.parsePhase(phase), q, pending, popular, branch);
 		return PageResponse.from(lists.list(query, instructor, pageable));
 	}
 

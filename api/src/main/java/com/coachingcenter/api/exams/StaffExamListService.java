@@ -50,11 +50,15 @@ public class StaffExamListService {
 
 	private final LiveExamParticipantRepository participants;
 
+	private final LiveExamCategoryRepository categories;
+
 	private final Clock clock;
 
 	public StaffExamListService(LiveExamRepository exams, LiveExamPackageExamRepository links,
 			LiveExamModuleRepository modules, LiveExamQuestionRepository questions, LiveExamRevisionRepository revisions,
-			AdminProfileRepository adminProfiles, LiveExamParticipantRepository participants, Clock clock) {
+			AdminProfileRepository adminProfiles, LiveExamParticipantRepository participants,
+			LiveExamCategoryRepository categories, Clock clock) {
+		this.categories = categories;
 		this.exams = exams;
 		this.links = links;
 		this.modules = modules;
@@ -77,8 +81,7 @@ public class StaffExamListService {
 		// Inside one package, with no sort asked for, the list keeps the package's own order (NR-01 UI Step 1 fix).
 		Pageable sorted = query.packageId() != null && !pageable.getSort().isSorted() ? inPackageOrder(pageable)
 				: ordered(pageable);
-		Page<LiveExam> page = exams.searchForStaff(query.categoryId() == null,
-				query.categoryId() == null ? NONE : query.categoryId(),
+		Page<LiveExam> page = exams.searchForStaff(query.categoryId() == null, categoryIds(query),
 				query.packageId() == null, query.packageId() == null ? NONE : query.packageId(),
 				query.standalone(), LiveExamTypeFilter.ANY.equals(query.examType()), query.examType(),
 				LiveExamTypeFilter.ANY.equals(query.mode()), query.mode(), status.isEmpty(), status,
@@ -99,6 +102,20 @@ public class StaffExamListService {
 		}
 		Map<UUID, String> names = instructorNames(page.getContent());
 		return page.map(exam -> row(exam, now, packages, questionCounts, pending, released, names));
+	}
+
+	/**
+	 * The categories the filter matches: none gives a placeholder that is never read (the query checks the any-flag first);
+	 * {@code branch} adds every sub-category under the chosen one, at any depth.
+	 */
+	private Set<UUID> categoryIds(ListQuery query) {
+		if (query.categoryId() == null) {
+			return Set.of(NONE);
+		}
+		if (query.branch()) {
+			return LiveExamCategoryTree.categoryAndDescendants(query.categoryId(), categories.findByDeletedAtIsNull());
+		}
+		return Set.of(query.categoryId());
 	}
 
 	/** Every live package of each exam, oldest membership first. A deleted package is left out. */
@@ -194,9 +211,12 @@ public class StaffExamListService {
 		};
 	}
 
-	/** The filters of the list. The "any" values are the empty strings of {@link LiveExamTypeFilter}. */
+	/**
+	 * The filters of the list. The "any" values are the empty strings of {@link LiveExamTypeFilter}. {@code branch} makes
+	 * the category filter include its sub-categories.
+	 */
 	public record ListQuery(UUID packageId, UUID categoryId, boolean standalone, String examType, String mode,
-			String status, String phase, String text, boolean pendingOnly, boolean popularOnly) {
+			String status, String phase, String text, boolean pendingOnly, boolean popularOnly, boolean branch) {
 	}
 
 	public record Instructor(UUID id, String name) {

@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +23,9 @@ import tools.jackson.databind.JsonNode;
 
 @RestController
 public class PackageMembershipController {
+
+	/** Most exam ids one bulk add takes. */
+	private static final int MAX_BULK_EXAMS = 500;
 
 	private final PackageMembershipService memberships;
 
@@ -58,6 +62,41 @@ public class PackageMembershipController {
 			examIds.add(UUID.fromString(node.asText()));
 		}
 		return memberships.reorder(id, examIds);
+	}
+
+	/** Body {@code {"examIds":[…]}}: 1 to 500 exam ids. Each is added, or skipped with a reason. */
+	@PostMapping("/api/v1/live-exam-modules/{id}/exams/bulk")
+	public PackageMembershipService.BulkResult bulkAdd(@PathVariable UUID id, @RequestBody JsonNode body) {
+		require(Permissions.LIVE_EXAM_PACKAGE_EDIT);
+		JsonNode ids = body == null ? null : body.get("examIds");
+		if (ids == null || !ids.isArray() || ids.size() == 0 || ids.size() > MAX_BULK_EXAMS) {
+			throw validationFailed();
+		}
+		List<UUID> examIds = new ArrayList<>();
+		for (JsonNode node : ids) {
+			examIds.add(parseId(node));
+		}
+		return memberships.bulkAdd(id, examIds);
+	}
+
+	/** The package's exam ids in order, with staged changes included on a published package. */
+	@GetMapping("/api/v1/live-exam-modules/{id}/exams/members")
+	public PackageMembershipService.Members members(@PathVariable UUID id) {
+		require(Permissions.LIVE_EXAM_PACKAGE_EDIT);
+		return memberships.members(id);
+	}
+
+	private static UUID parseId(JsonNode node) {
+		try {
+			return UUID.fromString(node.asText());
+		}
+		catch (IllegalArgumentException e) {
+			throw validationFailed();
+		}
+	}
+
+	private static ApiException validationFailed() {
+		return new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 	}
 
 	private void require(String permission) {

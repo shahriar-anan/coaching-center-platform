@@ -6,7 +6,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { useListParams } from "@/lib/url/list-params";
-import { useCategoryTree, useModules, type CategoryTreeNode, type StaffExam } from "@/lib/api/exam/staff-catalog";
+import { useCategoryTree, useModules, type StaffExam } from "@/lib/api/exam/staff-catalog";
 import {
   useCopyListedExam,
   useDeleteListedExam,
@@ -27,6 +27,7 @@ import { NewExamDialog } from "@/components/staff/catalog/new-exam-dialog";
 import { ExamGroupSection } from "@/components/staff/exams/exam-group";
 import { ExamRow, type ExamAction } from "@/components/staff/exams/exam-row";
 import { catalogErrorKey } from "@/components/staff/catalog/errors";
+import { categoryRows } from "@/components/staff/catalog/category-rows";
 import { examStatusKey } from "@/components/staff/catalog/status-pill";
 import {
   categoryNames,
@@ -53,14 +54,6 @@ const DEFAULTS = {
 const MODES = ["LIVE", "PRACTICE"] as const;
 const STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"] as const;
 const PHASES = ["UNANNOUNCED", "UPCOMING", "LIVE", "ENDED", "PRACTICE"] as const;
-
-/** Category names with their depth, for the category select. */
-function categoryRows(nodes: CategoryTreeNode[] | undefined, depth = 0): { id: string; depth: number; titleEn: string; titleBn: string }[] {
-  return (nodes ?? []).flatMap((node) => [
-    { id: node.id, depth, titleEn: node.titleEn, titleBn: node.titleBn },
-    ...categoryRows(node.children, depth + 1),
-  ]);
-}
 
 /** The Exams page: exams grouped by package (or by category, or flat), with the filters, search and actions. */
 export function ExamsPage() {
