@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "@/i18n/locale-context";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { cn } from "@/components/ui/cn";
 import type { PriceLabel } from "./price-view";
 
@@ -47,7 +47,7 @@ export function PriceLine({
         {formatMoney(label.list, locale)}
       </s>
       <span className="rounded-control bg-ok/10 px-1.5 py-0.5 text-pill font-bold text-ok-text">
-        {t("catalog.price.discount", { percent: String(label.percent) })}
+        {t("catalog.price.discount", { percent: formatNumber(label.percent, locale) })}
       </span>
       {endText ? <span className={cn("text-meta text-muted", endOnOwnLine && "basis-full text-end")}>{endText}</span> : null}
     </span>

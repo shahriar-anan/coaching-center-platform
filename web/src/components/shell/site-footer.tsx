@@ -56,7 +56,11 @@ const DEVELOPER_URL = "https://www.linkedin.com/in/shahriar-anan-a358562a3/";
  * block on the navy band, the payment methods strip, then the social icons, copyright and credit on a darker bar. Every page
  * has it except the exam sitting page, as on the old site; the shell decides that from the route.
  */
-export function SiteFooter() {
+/**
+ * `tabBarInset` leaves room under the navy band for the student's phone tab bar, which is fixed to the bottom edge. The bar
+ * stays on screen, so the footer's last links are padded clear of it rather than the bar hiding while the footer shows.
+ */
+export function SiteFooter({ tabBarInset = false }: { tabBarInset?: boolean } = {}) {
   const { t } = useLocale();
   const legalLinks = [
     { href: "/terms", label: t("common.footer.terms") },
@@ -66,7 +70,7 @@ export function SiteFooter() {
   const companyLinks = [...legalLinks, { href: "/about", label: t("common.footer.about") }];
 
   return (
-    <footer className="text-[#e5e7eb]">
+    <footer className={cn("text-[#e5e7eb]", tabBarInset && "pb-[var(--tabbar-h,0px)] lg:pb-0")}>
       <div style={{ backgroundColor: OLD_NAVY }}>
         {/* Phones: one centred column, each block 320 px wide. 768–1023 px: three columns without the logo. From 1024 px: the
             logo and the three blocks in four columns, as on the old site. */}

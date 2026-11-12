@@ -262,7 +262,7 @@ export function ExamPage({ examId }: { examId: string }) {
               {owned?.myStatus ? <ExamStatusPill status={owned.myStatus} examType={examType} retakeAvailable={owned.retakeAvailable} /> : null}
               {examAccess.via ? <AccessBadge via={examAccess.via} /> : null}
             </div>
-            <h1 className="text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{title}</h1>
+            <h1 className="text-2xl font-extrabold leading-tight tracking-tight [overflow-wrap:anywhere] md:text-3xl">{title}</h1>
             <RatingBadge average={data.ratingAverage} count={data.ratingCount} />
             <p className="text-body text-muted">{timingLine}</p>
             {status === "SUBMITTED" && owned?.sitting?.submittedAt ? (

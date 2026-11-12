@@ -130,7 +130,8 @@ export function PackageExamCard({
   favourite?: ReactNode;
 }) {
   return (
-    <div className="group relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent hover:bg-text/[0.06]">
+    // On a phone the title has the full width and the price row sits under it; from sm up the price sits in its own column.
+    <div className="group relative grid grid-cols-1 items-start gap-x-4 gap-y-3 rounded-card border border-border bg-card p-4 transition-colors hover:border-accent hover:bg-text/[0.06] sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="grid min-w-0 gap-1.5">
         <div className="flex flex-wrap items-center gap-2 text-meta text-muted">{meta}</div>
         <Link
@@ -142,9 +143,9 @@ export function PackageExamCard({
         </Link>
         {summary ? <p className="line-clamp-2 text-meta leading-relaxed text-muted">{summary}</p> : null}
       </div>
-      <div className="relative z-10 flex flex-col items-end gap-2 text-end">
+      <div className="relative z-10 flex flex-row flex-wrap items-center justify-between gap-2 text-end sm:flex-col sm:items-end sm:justify-start">
         {favourite}
-        <div className="grid justify-items-end gap-1 whitespace-nowrap text-meta">{right}</div>
+        <div className="grid min-w-0 justify-items-end gap-1 text-meta">{right}</div>
       </div>
     </div>
   );

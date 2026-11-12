@@ -7,7 +7,7 @@ import { hasMarkup, sanitizeRichText, type RichNode } from "@/lib/format/rich-te
  * bold word, link and line break into its own row. Blocks get space between them; nested tags are styled by their parent.
  */
 export const richTextBody =
-  "text-body leading-relaxed text-text [&>*+*]:mt-3 [&_a]:text-action [&_a]:underline [&_a]:underline-offset-2 [&_h2]:mt-5 [&_h2]:text-label [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:font-semibold [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:ps-5 [&_li]:mt-1 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:ps-5";
+  "text-body leading-relaxed text-text [overflow-wrap:anywhere] [&>*+*]:mt-3[&_a]:text-action [&_a]:underline [&_a]:underline-offset-2 [&_h2]:mt-5 [&_h2]:text-label [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:font-semibold [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:ps-5 [&_li]:mt-1 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:ps-5";
 
 function renderNodes(nodes: RichNode[]): ReactNode[] {
   return nodes.map((node, index) => {
@@ -34,7 +34,7 @@ export function RichTextView({ value, className }: { value: string | null | unde
     return null;
   }
   if (!hasMarkup(value)) {
-    return <div className={cn("whitespace-pre-line text-body leading-relaxed text-text", className)}>{value}</div>;
+    return <div className={cn("whitespace-pre-line text-body leading-relaxed text-text [overflow-wrap:anywhere]", className)}>{value}</div>;
   }
   return <div className={cn(richTextBody, className)}>{renderNodes(sanitizeRichText(value))}</div>;
 }

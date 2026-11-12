@@ -217,6 +217,9 @@ type UploadOptions = {
 
 type UploadResult = { status: number; text: string; date: string | null };
 
+/** An upload that makes no progress for this long (a dropped mobile connection) is stopped, so the student can retry. */
+const UPLOAD_STALL_MS = 90_000;
+
 function sendUpload(path: string, formData: FormData, options: UploadOptions): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -226,16 +229,32 @@ function sendUpload(path: string, formData: FormData, options: UploadOptions): P
     if (token) {
       xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     }
+    let stall = 0;
+    const arm = () => {
+      window.clearTimeout(stall);
+      stall = window.setTimeout(() => xhr.abort(), UPLOAD_STALL_MS);
+    };
+    const disarm = () => window.clearTimeout(stall);
     xhr.upload.onprogress = (event) => {
+      arm();
       if (event.lengthComputable) {
         options.onProgress?.(Math.round((event.loaded / event.total) * 100));
       }
     };
-    xhr.onload = () =>
+    xhr.onload = () => {
+      disarm();
       resolve({ status: xhr.status, text: xhr.responseText, date: xhr.getResponseHeader("Date") });
-    xhr.onerror = () => reject(new TypeError("Network request failed"));
-    xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+    };
+    xhr.onerror = () => {
+      disarm();
+      reject(new TypeError("Network request failed"));
+    };
+    xhr.onabort = () => {
+      disarm();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
     options.signal?.addEventListener("abort", () => xhr.abort());
+    arm();
     xhr.send(formData);
   });
 }

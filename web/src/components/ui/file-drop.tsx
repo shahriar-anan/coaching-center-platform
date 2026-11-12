@@ -11,9 +11,15 @@ export type FileDropValue = { name: string; size: number; uploadedAt?: string };
 
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 
-async function startsWithPdfMagic(file: File): Promise<boolean> {
-  const head = new Uint8Array(await file.slice(0, PDF_MAGIC.length).arrayBuffer());
-  return PDF_MAGIC.every((byte, i) => head[i] === byte);
+/** A PDF header within the first kilobyte (readers accept a few bytes of junk before it). Throws if the phone cannot read the file. */
+async function hasPdfHeader(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+  for (let start = 0; start + PDF_MAGIC.length <= head.length; start++) {
+    if (PDF_MAGIC.every((byte, i) => head[start + i] === byte)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** A file size in KB below one megabyte (so a small PDF is not shown as 0 MB), and in MB above it. */
@@ -62,7 +68,15 @@ export function FileDrop({
     if (!candidate || uploading) {
       return;
     }
-    if (accept === "pdf" && !(await startsWithPdfMagic(candidate))) {
+    let pdf: boolean;
+    try {
+      pdf = accept !== "pdf" || (await hasPdfHeader(candidate));
+    } catch {
+      // The phone could not read the file (a cloud or messaging app that has not downloaded it). Say so, rather than fail silently.
+      setLocalError(t("common.file.readFailed"));
+      return;
+    }
+    if (!pdf) {
       setLocalError(t("common.file.notPdf"));
       return;
     }
@@ -83,7 +97,7 @@ export function FileDrop({
   const hint = t("common.file.limit", { max: megabytes(maxBytes, locale) });
 
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 gap-2">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -92,7 +106,8 @@ export function FileDrop({
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cn(
-          "grid gap-3 rounded-card border-2 border-dashed bg-card p-5 transition-colors duration-150",
+          // One column that can shrink, so a long file name is cut short rather than pushing the box wider than the card.
+          "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-card border-2 border-dashed bg-card p-5 transition-colors duration-150",
           dragging ? "border-accent" : "border-border-control hover:border-accent",
           shownError && "border-danger",
         )}
@@ -101,7 +116,7 @@ export function FileDrop({
           <div className="flex items-center gap-3">
             <FileText aria-hidden="true" className="size-8 shrink-0 text-muted" />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-text">{file.name}</p>
+              <p className="truncate font-medium text-text" title={file.name}>{file.name}</p>
               <p className="text-meta text-muted">
                 {megabytes(file.size, locale)}
                 {file.uploadedAt ? ` · ${t("common.file.uploadedAt", { time: file.uploadedAt })}` : ""}

@@ -53,8 +53,9 @@ export function PackageLinkCard({
   const title = pkg ? pickTitle(pkg, locale) : pickTitle(fallback, locale);
   const examCount = (pkg?.mcqCount ?? 0) + (pkg?.writtenCount ?? 0);
   return (
-    <div className="group relative flex min-h-14 min-w-0 items-center gap-2 rounded-card border border-border bg-card px-4 py-3 transition-colors hover:border-accent hover:bg-text/[0.06]">
-      <div className="min-w-0 flex-1">
+    // On a phone the price takes a line of its own under the title, so a long title and a discount both keep their room.
+    <div className="group relative flex min-h-14 min-w-0 flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-border bg-card px-4 py-3 transition-colors hover:border-accent hover:bg-text/[0.06]">
+      <div className="min-w-0 grow basis-40">
         <p className="flex min-w-0 items-center gap-2">
           {popular ? <span className="shrink-0"><Pill tone="accent">{t("catalog.popular.badge")}</Pill></span> : null}
           <Link
@@ -69,12 +70,12 @@ export function PackageLinkCard({
           <p className="mt-0.5 text-meta text-muted">{t("common.purchase.shared.examCount", { count: formatNumber(examCount, locale) })}</p>
         ) : null}
       </div>
+      <FavouriteButton kind="package" id={fallback.id} initial={pkg?.favourite} next={href} placement="inline" />
       {pkg ? (
-        <span className="shrink-0 text-end">
+        <span className="ms-auto max-w-full text-end">
           <PriceLine label={priceLabel(pkg.pricing)} />
         </span>
       ) : null}
-      <FavouriteButton kind="package" id={fallback.id} initial={pkg?.favourite} next={href} placement="inline" />
     </div>
   );
 }

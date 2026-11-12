@@ -172,6 +172,7 @@ const common = {
     drop: "Drag the file here, or",
     replace: "Replace file",
     notPdf: "This file is not a PDF. Choose a PDF file.",
+    readFailed: "This file could not be read. Save it on your phone, then choose it again.",
     tooLarge: "The file is larger than {max}. Choose a smaller file.",
     limit: "Up to {max}",
     uploading: "Uploading… {percent}%",

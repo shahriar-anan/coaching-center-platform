@@ -106,25 +106,6 @@ function useHeaderHidden() {
   };
 }
 
-/**
- * Reports whether the footer is on screen. The phone tab bar is fixed to the bottom edge, so it covers the footer's links;
- * the shell hides the bar while the footer is in view. `ref` is a callback ref for the footer's wrapper.
- */
-function useFooterReached(enabled: boolean) {
-  const [node, setNode] = useState<HTMLElement | null>(null);
-  const [reached, setReached] = useState(false);
-  useEffect(() => {
-    if (!enabled || !node || typeof IntersectionObserver === "undefined") {
-      setReached(false);
-      return;
-    }
-    const observer = new IntersectionObserver(([entry]) => setReached(entry.isIntersecting));
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [enabled, node]);
-  return { reached, ref: setNode };
-}
-
 /** The exam and package detail pages keep their own wide frame (detail-layout.tsx); every other page uses the full width. */
 const DETAIL_PATH = /^\/(exam\/[^/]+|mcq\/m\/[^/]+|written\/m\/[^/]+)\/?$/;
 
@@ -253,7 +234,8 @@ function MenuLink({
   );
 }
 
-function TabBar({ hidden }: { hidden: boolean }) {
+/** The phone tab bar. It stays on screen; the footer leaves room for it (see `SiteFooter`'s `tabBarInset`). */
+function TabBar() {
   const { t, locale } = useLocale();
   const pathname = usePathname() ?? "/";
   // Same query as the header bell, so the badge costs no extra request.
@@ -262,11 +244,7 @@ function TabBar({ hidden }: { hidden: boolean }) {
   return (
     <nav
       aria-label={t("common.nav.tabs")}
-      inert={hidden || undefined}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-transform duration-200 motion-reduce:transition-none lg:hidden",
-        hidden && "translate-y-full",
-      )}
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       <ul className="mx-auto grid h-14 max-w-[760px] grid-cols-5">
         {TABS.map((tab) => {
@@ -395,7 +373,6 @@ export function StudentShell({ children }: { children: ReactNode }) {
   // first render the menu is expanded; the browser then reads the stored choice, as the staff menu does.
   const collapsed = useSyncExternalStore(subscribeStudentNavCollapsed, currentStudentNavCollapsed, () => false);
   const header = useHeaderHidden();
-  const footerWatch = useFooterReached(showTabs);
 
   return (
     <div
@@ -460,13 +437,9 @@ export function StudentShell({ children }: { children: ReactNode }) {
         {/* Lists and cards sit in a centred 768 px column; the sitting paper keeps the full frame. */}
         {roomy && !SITTING_PATH.test(pathname) ? <div className={cn("mx-auto w-full max-w-3xl", CATEGORY_PATH.test(pathname) && "lg:max-w-5xl")}>{children}</div> : children}
       </main>
-      {footer !== "none" ? (
-        <div ref={footerWatch.ref}>
-          <SiteFooter />
-        </div>
-      ) : null}
+      {footer !== "none" ? <SiteFooter tabBarInset={showTabs} /> : null}
       </div>
-      {showTabs ? <TabBar hidden={footerWatch.reached} /> : null}
+      {showTabs ? <TabBar /> : null}
       <UnsavedChangesDialog />
     </div>
   );

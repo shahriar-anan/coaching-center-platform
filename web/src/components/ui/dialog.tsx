@@ -56,7 +56,8 @@ export function Dialog({
             }
           }}
           className={cn(
-            "fixed z-50 grid max-h-[85dvh] w-full gap-4 overflow-y-auto bg-card p-5 text-text shadow-xl",
+            // One column that can shrink: a long unbroken word (a file name) wraps inside the sheet instead of widening it.
+            "fixed z-50 grid min-w-0 grid-cols-[minmax(0,1fr)] max-h-[85dvh] w-full gap-4 overflow-y-auto bg-card p-5 text-text shadow-xl",
             "inset-x-0 bottom-0 rounded-t-card pb-[max(1.25rem,env(safe-area-inset-bottom))]",
             "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-card",
             className,
@@ -66,7 +67,7 @@ export function Dialog({
             <div className="grid gap-1">
               <RadixDialog.Title className="text-section font-semibold">{title}</RadixDialog.Title>
               {description ? (
-                <RadixDialog.Description className="text-body text-muted">
+                <RadixDialog.Description className="text-body text-muted [overflow-wrap:anywhere]">
                   {description}
                 </RadixDialog.Description>
               ) : null}
