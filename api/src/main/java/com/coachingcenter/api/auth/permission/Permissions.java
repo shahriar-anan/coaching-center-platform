@@ -137,6 +137,27 @@ public final class Permissions {
 	/** Read and change one's own pay pages and payout accounts. System Admins and instructors; the Master Admin is not paid through it. */
 	public static final String STAFF_PAY_SELF = "STAFF_PAY_SELF";
 
+	/** Offline admission: the queue, the form, the setup, printing and the signed copy. Master Admin and System Admin. */
+	public static final String OFFLINE_ADMISSION_READ = "OFFLINE_ADMISSION_READ";
+
+	/** Offline admission: send back, edit the setup, mark ready, back to review, upload the signed copy. Master Admin and System Admin. */
+	public static final String OFFLINE_ADMISSION_REVIEW = "OFFLINE_ADMISSION_REVIEW";
+
+	/** Offline admission: onboard, change terms after onboarding, add or remove items, close. The Master Admin only. */
+	public static final String OFFLINE_ADMISSION_ONBOARD = "OFFLINE_ADMISSION_ONBOARD";
+
+	/** Offline batches: create, edit and archive. The Master Admin only. */
+	public static final String OFFLINE_BATCH_MANAGE = "OFFLINE_BATCH_MANAGE";
+
+	/** Offline batches: view, and upload or replace the routine. Master Admin and System Admin. */
+	public static final String OFFLINE_BATCH_ROUTINE = "OFFLINE_BATCH_ROUTINE";
+
+	/** Offline fees: record a payment (a System Admin's waits for approval). Master Admin and System Admin. */
+	public static final String OFFLINE_FEE_RECORD = "OFFLINE_FEE_RECORD";
+
+	/** Offline fees: approve, reject and void payments. The Master Admin only. */
+	public static final String OFFLINE_FEE_APPROVE = "OFFLINE_FEE_APPROVE";
+
 	private Permissions() {
 	}
 

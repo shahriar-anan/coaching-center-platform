@@ -19,6 +19,9 @@ public class LiveExamGrant {
 
 	public static final String SOURCE_BUNDLE = "BUNDLE";
 
+	/** Access given by an offline admission at onboarding. Its access ends at {@code accessEndsAt}. */
+	public static final String SOURCE_OFFLINE = "OFFLINE";
+
 	@Id
 	private UUID id;
 
@@ -58,6 +61,18 @@ public class LiveExamGrant {
 
 	@Column(name = "revoke_reason", length = 500)
 	private String revokeReason;
+
+	/** When an OFFLINE grant's access ends (the course end, in Dhaka time). Null for every other grant (plan C15, section 4.4). */
+	@Column(name = "access_ends_at")
+	private Instant accessEndsAt;
+
+	public Instant getAccessEndsAt() {
+		return accessEndsAt;
+	}
+
+	public void setAccessEndsAt(Instant accessEndsAt) {
+		this.accessEndsAt = accessEndsAt;
+	}
 
 	public UUID getId() {
 		return id;

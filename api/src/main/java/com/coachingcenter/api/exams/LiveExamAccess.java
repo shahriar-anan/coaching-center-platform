@@ -33,8 +33,11 @@ public class LiveExamAccess {
 
 	static final String MANUAL = "MANUAL";
 
+	/** Access given by an offline admission: it ends on the course end (plan C15, section 4.4). */
+	static final String OFFLINE = "OFFLINE";
+
 	/** Ties go to the earlier route: an exam grant, then a package, then a bundle, then a manual grant. */
-	private static final List<String> PRECEDENCE = List.of(EXAM, ROSTER, MODULE, BUNDLE, MANUAL);
+	private static final List<String> PRECEDENCE = List.of(EXAM, ROSTER, MODULE, BUNDLE, MANUAL, OFFLINE);
 
 	private final LiveExamRosterRepository roster;
 
@@ -101,7 +104,7 @@ public class LiveExamAccess {
 			.ifPresent(row -> found.add(new Candidate(ROSTER, row.getCreatedAt(), moduleEnd(moduleId, row.getCreatedAt()))));
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
 			if (grant.getRevokedAt() == null) {
-				found.add(new Candidate(moduleSource(grant), grant.getCreatedAt(), moduleEnd(moduleId, grant.getCreatedAt())));
+				found.add(new Candidate(moduleSource(grant), grant.getCreatedAt(), packageEnd(moduleId, grant)));
 			}
 		}
 		return best(found, now);
@@ -137,7 +140,7 @@ public class LiveExamAccess {
 	/** A live exam grant: not revoked and not expired. Only the exam's own grants count, not packages. */
 	boolean holdsExamGrant(UUID studentId, LiveExam exam, Instant now) {
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, exam.getId())) {
-			if (grant.getRevokedAt() == null && !expired(AccessWindow.end(exam, grant.getCreatedAt()), now)) {
+			if (grant.getRevokedAt() == null && !expired(examEnd(exam, grant), now)) {
 				return true;
 			}
 		}
@@ -147,7 +150,7 @@ public class LiveExamAccess {
 	/** A live package grant: not revoked and not expired. */
 	boolean holdsModuleGrant(UUID studentId, UUID moduleId, Instant now) {
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
-			if (grant.getRevokedAt() == null && !expired(moduleEnd(moduleId, grant.getCreatedAt()), now)) {
+			if (grant.getRevokedAt() == null && !expired(packageEnd(moduleId, grant), now)) {
 				return true;
 			}
 		}
@@ -169,7 +172,7 @@ public class LiveExamAccess {
 	boolean holdsDirectModuleGrant(UUID studentId, UUID moduleId, Instant now) {
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
 			if (grant.getRevokedAt() == null && LiveExamGrant.SOURCE_MANUAL.equals(grant.getSource())
-					&& !expired(moduleEnd(moduleId, grant.getCreatedAt()), now)) {
+					&& !expired(packageEnd(moduleId, grant), now)) {
 				return true;
 			}
 		}
@@ -195,14 +198,14 @@ public class LiveExamAccess {
 	void retireExpiredGrants(UUID studentId, String scope, UUID moduleId, LiveExam exam, Instant now, String reason) {
 		if (LiveExamOrder.EXAM.equals(scope)) {
 			for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, exam.getId())) {
-				if (grant.getRevokedAt() == null && expired(AccessWindow.end(exam, grant.getCreatedAt()), now)) {
+				if (grant.getRevokedAt() == null && expired(examEnd(exam, grant), now)) {
 					retire(grant, now, reason);
 				}
 			}
 			return;
 		}
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
-			if (grant.getRevokedAt() == null && expired(moduleEnd(moduleId, grant.getCreatedAt()), now)) {
+			if (grant.getRevokedAt() == null && expired(packageEnd(moduleId, grant), now)) {
 				retire(grant, now, reason);
 			}
 		}
@@ -223,7 +226,7 @@ public class LiveExamAccess {
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, exam.getId())) {
 			if (grant.getRevokedAt() == null) {
 				found.add(new Candidate(examSource(grant), grant.getCreatedAt(),
-						AccessWindow.end(exam, grant.getCreatedAt())));
+						examEnd(exam, grant)));
 			}
 		}
 		for (LiveExamPackageExam membership : memberships.findByExamId(exam.getId())) {
@@ -241,7 +244,7 @@ public class LiveExamAccess {
 			for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
 				if (grant.getRevokedAt() == null && covers(grant.getCreatedAt(), removedAt)) {
 					found.add(new Candidate(moduleSource(grant), grant.getCreatedAt(),
-							AccessWindow.end(exam, grant.getCreatedAt())));
+							examEnd(exam, grant)));
 				}
 			}
 		}
@@ -271,7 +274,23 @@ public class LiveExamAccess {
 		return endsAt != null && !now.isBefore(endsAt);
 	}
 
+	/**
+	 * When access through an exam grant ends (plan C15): an OFFLINE grant ends at its course-end cap, and every other grant at
+	 * the exam's own window. A grant with no cap behaves exactly as before.
+	 */
+	static Instant examEnd(LiveExam exam, LiveExamGrant grant) {
+		return grant.getAccessEndsAt() != null ? grant.getAccessEndsAt() : AccessWindow.end(exam, grant.getCreatedAt());
+	}
+
+	/** When access through a package grant ends: the course-end cap of an OFFLINE grant, otherwise the package end. */
+	Instant packageEnd(UUID moduleId, LiveExamGrant grant) {
+		return grant.getAccessEndsAt() != null ? grant.getAccessEndsAt() : moduleEnd(moduleId, grant.getCreatedAt());
+	}
+
 	private static String examSource(LiveExamGrant grant) {
+		if (LiveExamGrant.SOURCE_OFFLINE.equals(grant.getSource())) {
+			return OFFLINE;
+		}
 		if (LiveExamGrant.SOURCE_BUNDLE.equals(grant.getSource())) {
 			return BUNDLE;
 		}
@@ -279,6 +298,9 @@ public class LiveExamAccess {
 	}
 
 	private static String moduleSource(LiveExamGrant grant) {
+		if (LiveExamGrant.SOURCE_OFFLINE.equals(grant.getSource())) {
+			return OFFLINE;
+		}
 		return LiveExamGrant.SOURCE_MANUAL.equals(grant.getSource()) ? MANUAL : MODULE;
 	}
 

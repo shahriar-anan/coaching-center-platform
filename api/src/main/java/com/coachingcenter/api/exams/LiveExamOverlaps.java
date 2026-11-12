@@ -92,7 +92,7 @@ class LiveExamOverlaps {
 	 */
 	private Hit examRoute(UUID studentId, LiveExam exam, UUID excludedModuleId, Instant now) {
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndExamId(studentId, LiveExamOrder.EXAM, exam.getId())) {
-			if (grant.getRevokedAt() == null && !AccessWindow.expired(exam, grant.getCreatedAt(), now)) {
+			if (grant.getRevokedAt() == null && !LiveExamAccess.expired(LiveExamAccess.examEnd(exam, grant), now)) {
 				return examHit(exam, via(grant), grant.getId(), null);
 			}
 		}
@@ -111,7 +111,7 @@ class LiveExamOverlaps {
 			}
 			for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, moduleId)) {
 				if (grant.getRevokedAt() == null && LiveExamAccess.covers(grant.getCreatedAt(), removedAt)
-						&& !AccessWindow.expired(exam, grant.getCreatedAt(), now)) {
+						&& !LiveExamAccess.expired(LiveExamAccess.examEnd(exam, grant), now)) {
 					return examHit(exam, VIA_PACKAGE, grant.getId(), pkg.get());
 				}
 			}
@@ -122,7 +122,7 @@ class LiveExamOverlaps {
 	/** How the student holds the package for this exam: a package grant first, then the roster. Null when neither gives access. */
 	private Hit packageRoute(UUID studentId, LiveExam exam, LiveExamModule module, Instant now) {
 		for (LiveExamGrant grant : grants.findByStudentIdAndScopeAndModuleId(studentId, LiveExamOrder.MODULE, module.getId())) {
-			if (grant.getRevokedAt() == null && !AccessWindow.expired(exam, grant.getCreatedAt(), now)) {
+			if (grant.getRevokedAt() == null && !LiveExamAccess.expired(LiveExamAccess.examEnd(exam, grant), now)) {
 				return packageHit(module, via(grant), grant.getId());
 			}
 		}
@@ -158,6 +158,9 @@ class LiveExamOverlaps {
 	private static String via(LiveExamGrant grant) {
 		if (LiveExamGrant.SOURCE_MANUAL.equals(grant.getSource())) {
 			return "DIRECT";
+		}
+		if (LiveExamGrant.SOURCE_OFFLINE.equals(grant.getSource())) {
+			return "OFFLINE";
 		}
 		return LiveExamGrant.SOURCE_BUNDLE.equals(grant.getSource()) ? "BUNDLE" : "ONLINE";
 	}

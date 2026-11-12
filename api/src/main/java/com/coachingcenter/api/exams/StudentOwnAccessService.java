@@ -27,12 +27,12 @@ public class StudentOwnAccessService {
 
 	/** A student's own module-wide access. A revoked grant gives nothing; a manual grant reads {@code MANUAL}. */
 	private static final String MY_MODULES = """
-			SELECT r.module_id, 'ROSTER' AS via, CAST(NULL AS UUID) AS order_id, r.created_at AS granted_at
+			SELECT r.module_id, 'ROSTER' AS via, CAST(NULL AS UUID) AS order_id, r.created_at AS granted_at, CAST(NULL AS TIMESTAMPTZ) AS access_ends_at
 			FROM live_exam_roster r
 			JOIN live_exam_modules m ON m.id = r.module_id AND m.deleted_at IS NULL
 			WHERE r.student_id = :studentId
 			UNION ALL
-			SELECT g.module_id, CASE WHEN g.source = 'MANUAL' THEN 'MANUAL' ELSE 'MODULE' END, g.order_id, g.created_at
+			SELECT g.module_id, CASE WHEN g.source = 'MANUAL' THEN 'MANUAL' WHEN g.source = 'OFFLINE' THEN 'OFFLINE' ELSE 'MODULE' END, g.order_id, g.created_at, g.access_ends_at
 			FROM live_exam_grants g
 			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
 			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.revoked_at IS NULL
@@ -44,8 +44,8 @@ public class StudentOwnAccessService {
 	 * open to everyone, so it is not listed (NR-01, C3). The package shown is the exam's primary one, for display only.
 	 */
 	private static final String MY_EXAMS = """
-			SELECT g.exam_id, pm.module_id, CASE WHEN g.source = 'MANUAL' THEN 'MANUAL' ELSE 'EXAM' END AS via, g.order_id,
-			  g.created_at AS granted_at
+			SELECT g.exam_id, pm.module_id, CASE WHEN g.source = 'MANUAL' THEN 'MANUAL' WHEN g.source = 'OFFLINE' THEN 'OFFLINE' ELSE 'EXAM' END AS via, g.order_id,
+			  g.created_at AS granted_at, g.access_ends_at
 			FROM live_exam_grants g
 			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
 			LEFT JOIN LATERAL (
@@ -140,18 +140,18 @@ public class StudentOwnAccessService {
 		MapSqlParameterSource params = new MapSqlParameterSource("studentId", studentId);
 		List<MyModule> modules = jdbc.query(MY_MODULES, params, (rs, number) -> new MyModule(
 				rs.getObject("module_id", UUID.class), rs.getString("via"), rs.getObject("order_id", UUID.class),
-				instant(rs.getTimestamp("granted_at")), null, false)).stream()
+				instant(rs.getTimestamp("granted_at")), instant(rs.getTimestamp("access_ends_at")), false)).stream()
 			.map(row -> {
-				Instant endsAt = access.moduleEnd(row.moduleId(), row.grantedAt());
+				Instant endsAt = row.endsAt() != null ? row.endsAt() : access.moduleEnd(row.moduleId(), row.grantedAt());
 				return new MyModule(row.moduleId(), row.via(), row.orderId(), row.grantedAt(), endsAt,
 						LiveExamAccess.expired(endsAt, now));
 			})
 			.toList();
 		List<MyExam> exams = jdbc.query(MY_EXAMS, params, (rs, number) -> new MyExam(
 				rs.getObject("exam_id", UUID.class), rs.getObject("module_id", UUID.class), rs.getString("via"),
-				rs.getObject("order_id", UUID.class), instant(rs.getTimestamp("granted_at")), null, false)).stream()
+				rs.getObject("order_id", UUID.class), instant(rs.getTimestamp("granted_at")), instant(rs.getTimestamp("access_ends_at")), false)).stream()
 			.map(row -> {
-				Instant endsAt = liveExams.findByIdAndDeletedAtIsNull(row.examId())
+				Instant endsAt = row.endsAt() != null ? row.endsAt() : liveExams.findByIdAndDeletedAtIsNull(row.examId())
 					.map(exam -> AccessWindow.end(exam, row.grantedAt()))
 					.orElse(null);
 				return new MyExam(row.examId(), row.moduleId(), row.via(), row.orderId(), row.grantedAt(), endsAt,

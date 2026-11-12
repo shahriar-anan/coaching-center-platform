@@ -301,6 +301,74 @@ class AccessExpiryIT extends PostgresIntegrationTest {
 		assertThat(state.expired()).isFalse();
 	}
 
+	@Test
+	void anOfflineGrantEndsOnTheCourseEndWhateverTheExamWindowSays() {
+		// The exam's own window runs 30 days past its end (C15). The course ends 10 days after the window, so the course wins.
+		UUID category = category();
+		LiveExam exam = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		UUID student = student();
+		Instant courseEnd = WINDOW_END.plus(Duration.ofDays(10));
+		offlineGrantExam(student, exam, EARLY, courseEnd);
+
+		AccessState state = access.state(student, exam, WINDOW_START);
+		assertThat(state.source()).isEqualTo("OFFLINE");
+		assertThat(state.endsAt()).as("the course end, not the window plus 30 days").isEqualTo(courseEnd);
+		assertThat(access.canSit(student, exam, courseEnd.minusSeconds(1))).isTrue();
+		assertThat(access.canSit(student, exam, courseEnd)).as("the end is exclusive").isFalse();
+	}
+
+	@Test
+	void anOfflineGrantCanEndBeforeTheExamAccessWouldHaveEnded() {
+		// A short course on an exam that would otherwise give 30 days: the course end still governs.
+		UUID category = category();
+		LiveExam exam = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		UUID student = student();
+		Instant courseEnd = WINDOW_END.plus(Duration.ofDays(1));
+		offlineGrantExam(student, exam, EARLY, courseEnd);
+
+		assertThat(access.state(student, exam, WINDOW_START).endsAt()).isEqualTo(courseEnd);
+		assertThat(access.canSit(student, exam, courseEnd)).isFalse();
+	}
+
+	@Test
+	void anOfflineGrantWhoseCourseEndedGivesNoAccess() {
+		UUID category = category();
+		LiveExam exam = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		UUID student = student();
+		offlineGrantExam(student, exam, EARLY, WINDOW_START.minus(Duration.ofDays(1)));
+
+		assertThat(access.canSit(student, exam, WINDOW_START)).isFalse();
+		assertThat(access.state(student, exam, WINDOW_START).expired()).isTrue();
+	}
+
+	@Test
+	void anOfflinePackageGrantEndsOnTheCourseEnd() {
+		UUID category = category();
+		UUID module = module(category);
+		LiveExam exam = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		member(module, exam, EARLY, null);
+		UUID student = student();
+		Instant courseEnd = WINDOW_END.plus(Duration.ofDays(5));
+		offlineGrantModule(student, module, EARLY, courseEnd);
+
+		AccessState state = access.moduleState(student, module, WINDOW_START);
+		assertThat(state.source()).isEqualTo("OFFLINE");
+		assertThat(state.endsAt()).isEqualTo(courseEnd);
+		// Through the package, the exam in it also ends on the course end.
+		assertThat(access.state(student, exam, WINDOW_START).endsAt()).isEqualTo(courseEnd);
+	}
+
+	@Test
+	void aGrantWithNoCapKeepsItsExamWindow() {
+		// The cap is null for every grant that exists today: the old rule still applies, unchanged.
+		UUID category = category();
+		LiveExam exam = exam(category, "LIVE", WINDOW_START, WINDOW_END, 30, false);
+		UUID student = student();
+		grantExam(student, exam, EARLY);
+
+		assertThat(access.state(student, exam, WINDOW_START).endsAt()).isEqualTo(WINDOW_END.plus(Duration.ofDays(30)));
+	}
+
 	private UUID category() {
 		UUID id = UUID.randomUUID();
 		jdbc.update("insert into live_exam_categories (id, title_en, title_bn, position, created_at, updated_at)"
@@ -354,6 +422,22 @@ class AccessExpiryIT extends PostgresIntegrationTest {
 		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source)"
 				+ " values (?, ?, ?, ?, ?, null, ?, 'MANUAL')", UUID.randomUUID(), student, scope, module,
 				exam == null ? null : exam.getId(), ts(createdAt));
+	}
+
+	/** An OFFLINE exam grant with its course-end cap (plan C15). */
+	private UUID offlineGrantExam(UUID student, LiveExam exam, Instant createdAt, Instant capEnd) {
+		UUID id = UUID.randomUUID();
+		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source,"
+				+ " access_ends_at) values (?, ?, 'EXAM', null, ?, null, ?, 'OFFLINE', ?)", id, student, exam.getId(),
+				ts(createdAt), ts(capEnd));
+		return id;
+	}
+
+	/** An OFFLINE package grant with its course-end cap (plan C15). */
+	private void offlineGrantModule(UUID student, UUID module, Instant createdAt, Instant capEnd) {
+		jdbc.update("insert into live_exam_grants (id, student_id, scope, module_id, exam_id, order_id, created_at, source,"
+				+ " access_ends_at) values (?, ?, 'MODULE', ?, null, null, ?, 'OFFLINE', ?)", UUID.randomUUID(), student, module,
+				ts(createdAt), ts(capEnd));
 	}
 
 	private UUID student() {

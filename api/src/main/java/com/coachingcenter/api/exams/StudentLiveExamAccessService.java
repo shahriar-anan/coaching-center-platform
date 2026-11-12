@@ -71,13 +71,13 @@ public class StudentLiveExamAccessService {
 			) pm ON TRUE
 			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND NOT e.is_free AND g.revoked_at IS NULL
 			UNION ALL
-			SELECT m.id, m.title_en, m.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
+			SELECT m.id, m.title_en, m.title_bn, CASE WHEN g.source = 'OFFLINE' THEN 'OFFLINE' ELSE 'MANUAL' END, CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
 			  CAST(NULL AS UUID), CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), g.id, g.created_at
 			FROM live_exam_grants g
 			JOIN live_exam_modules m ON m.id = g.module_id AND m.deleted_at IS NULL
-			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.source = 'MANUAL' AND g.revoked_at IS NULL
+			WHERE g.student_id = :studentId AND g.scope = 'MODULE' AND g.source IN ('MANUAL', 'OFFLINE') AND g.revoked_at IS NULL
 			UNION ALL
-			SELECT pm.id, pm.title_en, pm.title_bn, 'MANUAL', CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
+			SELECT pm.id, pm.title_en, pm.title_bn, CASE WHEN g.source = 'OFFLINE' THEN 'OFFLINE' ELSE 'MANUAL' END, CAST(NULL AS UUID), CAST(NULL AS VARCHAR),
 			  e.id, e.title_en, e.title_bn, g.id, g.created_at
 			FROM live_exam_grants g
 			JOIN live_exams e ON e.id = g.exam_id AND e.deleted_at IS NULL
@@ -87,7 +87,7 @@ public class StudentLiveExamAccessService {
 			  WHERE p.exam_id = e.id AND p.removed_at IS NULL
 			  ORDER BY p.added_at, p.id LIMIT 1
 			) pm ON TRUE
-			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.source = 'MANUAL' AND NOT e.is_free
+			WHERE g.student_id = :studentId AND g.scope = 'EXAM' AND g.source IN ('MANUAL', 'OFFLINE') AND NOT e.is_free
 			  AND g.revoked_at IS NULL
 			""";
 
@@ -146,19 +146,38 @@ public class StudentLiveExamAccessService {
 							rs.getObject("grant_id", UUID.class), instant(rs.getTimestamp("granted_at")), null, false, null);
 				});
 		Instant now = clock.instant();
+		Map<UUID, Instant> caps = accessEndsByGrant(rows.stream().map(AccessRow::grantId).filter(Objects::nonNull).toList());
 		Map<UUID, InstallmentPlanReader.PlanRow> plans = withPlans
 				? installments.byGrantIds(rows.stream().map(AccessRow::grantId).filter(Objects::nonNull).toList())
 				: Map.of();
-		return new PageImpl<>(rows.stream().map(row -> withExpiry(row, now, plans)).toList(), page, total == null ? 0 : total);
+		return new PageImpl<>(rows.stream().map(row -> withExpiry(row, now, plans, caps)).toList(), page, total == null ? 0 : total);
+	}
+
+	/** The course-end caps of the OFFLINE grants among these, by grant id. Grants without a cap are not in the map. */
+	private Map<UUID, Instant> accessEndsByGrant(List<UUID> grantIds) {
+		Map<UUID, Instant> caps = new HashMap<>();
+		if (grantIds.isEmpty()) {
+			return caps;
+		}
+		jdbc.query("SELECT id, access_ends_at FROM live_exam_grants WHERE id IN (:ids) AND access_ends_at IS NOT NULL",
+				new MapSqlParameterSource("ids", grantIds), rs -> {
+					caps.put(rs.getObject("id", UUID.class), instant(rs.getTimestamp("access_ends_at")));
+				});
+		return caps;
 	}
 
 	/**
 	 * When the row's access ends. An exam row ends with its own window and access days; a package row ends when the package's
 	 * paid exams have all run out.
 	 */
-	private AccessRow withExpiry(AccessRow row, Instant now, Map<UUID, InstallmentPlanReader.PlanRow> plans) {
+	private AccessRow withExpiry(AccessRow row, Instant now, Map<UUID, InstallmentPlanReader.PlanRow> plans, Map<UUID, Instant> caps) {
 		Instant endsAt;
-		if (row.exams().isEmpty()) {
+		Instant cap = row.grantId() == null ? null : caps.get(row.grantId());
+		if (cap != null) {
+			// An OFFLINE grant ends at the course end, whatever the exam's own window says (plan C15).
+			endsAt = cap;
+		}
+		else if (row.exams().isEmpty()) {
 			endsAt = access.moduleEnd(row.moduleId(), row.grantedAt());
 		}
 		else {
