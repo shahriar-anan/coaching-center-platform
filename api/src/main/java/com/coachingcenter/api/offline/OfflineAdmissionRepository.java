@@ -16,6 +16,9 @@ public interface OfflineAdmissionRepository extends JpaRepository<OfflineAdmissi
 	/** The student's open admission, if any. The partial unique index (V82) means at most one row matches. */
 	Optional<OfflineAdmission> findFirstByStudentIdAndStatusNot(UUID studentId, String status);
 
+	/** The student's latest admission in one state. The student's own read routes use it for a closed admission (plan 6.4). */
+	Optional<OfflineAdmission> findFirstByStudentIdAndStatusOrderByCreatedAtDesc(UUID studentId, String status);
+
 	/**
 	 * The admission, locked for the rest of the caller's transaction. Every admin change takes this lock first, so two staff changes
 	 * (or a change and an onboarding) run one after the other, and the second one sees the first one's result.

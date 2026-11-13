@@ -47,6 +47,8 @@ import com.coachingcenter.api.staffnotifications.StaffNotificationWriter;
 import com.coachingcenter.api.users.StudentPhotoRepository;
 import com.coachingcenter.api.users.StudentPhotoService;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -74,7 +76,7 @@ public class OfflineAdmissionAdminService {
 	/** The states the queue can filter on. */
 	static final List<String> STATES = List.of(AWAITING_FORM, SUBMITTED, CHANGES_REQUESTED, READY, ONBOARDED, CLOSED);
 
-	/** The money flags the queue names (plan 4.3, D13). Stage 3 accepts them and returns no flags yet; Stage 4 fills them in. */
+	/** The money flags the queue filters on (plan 4.3, D13): unpaid, overdue, and pending-approval. */
 	static final List<String> FLAGS = List.of("unpaid", "overdue", "pending-approval");
 
 	/** The largest signed copy that may be uploaded (D9), the same as a routine PDF. */
@@ -122,12 +124,15 @@ public class OfflineAdmissionAdminService {
 
 	private final Clock clock;
 
+	private final OfflineAdmissionMoney money;
+
 	public OfflineAdmissionAdminService(OfflineAdmissionRepository admissions, OfflineAdmissionSubmissionRepository submissions,
 			OfflineAdmissionItemRepository items, OfflineBatchRepository batches, OfflineAdmissionService form,
 			StudentPhotoRepository photoRows, StudentPhotoService photos, LocalFileStorage fileStorage,
 			StaffNotificationWriter staffNotices, OfflineAdmissionNotices studentNotices, OfflineAccessGrants grants,
 			LiveExamRepository exams, LiveExamModuleRepository modules, AuditRecorder audit, JdbcTemplate jdbc, ObjectMapper json,
-			Clock clock) {
+			Clock clock, OfflineAdmissionMoney money) {
+		this.money = money;
 		this.admissions = admissions;
 		this.submissions = submissions;
 		this.items = items;
@@ -157,9 +162,9 @@ public class OfflineAdmissionAdminService {
 	// ---- queue and detail -------------------------------------------------------------------------------------------------
 
 	/**
-	 * The queue (plan 5, 6.3): filtered by state, batch, and a search over name, mobile and NID (staff only, since this is a staff
-	 * route). Newest first by the time the form was submitted, or created when it was not yet. {@code flag} is checked, but no money
-	 * flag exists yet, so no row is filtered by it and every row carries an empty list of flags.
+	 * The queue (plan 5, 6.3): filtered by state, batch, a search over name, mobile and NID (staff only, since this is a staff route),
+	 * and a money flag (plan 4.3). Newest first by the time the form was submitted, or created when it was not yet. Each row carries
+	 * its flags, what it still owes, and its next unpaid due. The flag filter is applied in SQL, so the paging and the total agree with it.
 	 */
 	@Transactional(readOnly = true)
 	public PageResponse<QueueRow> queue(String status, UUID batchId, String q, String flag, int page, int size) {
@@ -187,8 +192,15 @@ public class OfflineAdmissionAdminService {
 			args.add(like);
 			args.add(like);
 		}
-		if (flag != null && !flag.isBlank() && !FLAGS.contains(flag.trim().toLowerCase(Locale.ROOT))) {
+		String flagValue = flag == null || flag.isBlank() ? null : flag.trim().toLowerCase(Locale.ROOT);
+		if (flagValue != null && !FLAGS.contains(flagValue)) {
 			problems.add(new FieldErrorDetail("flag", "Choose unpaid, overdue or pending-approval."));
+		}
+		else if (flagValue != null) {
+			where.add(flagPredicate(flagValue));
+			if ("overdue".equals(flagValue)) {
+				args.add(money.today());
+			}
 		}
 		if (!problems.isEmpty()) {
 			throw validation(problems);
@@ -201,7 +213,7 @@ public class OfflineAdmissionAdminService {
 		List<Object> pageArgs = new ArrayList<>(args);
 		pageArgs.add(pageSize);
 		pageArgs.add((long) pageNumber * pageSize);
-		List<QueueRow> rows = jdbc.query("""
+		List<QueueRow> found = jdbc.query("""
 				select a.id, a.student_id, a.full_name, a.mobile, a.batch_id, b.name_en, b.name_bn, a.status, a.submit_count,
 				  a.submitted_at, a.created_at, (p.user_id is not null) as has_photo
 				from offline_admissions a
@@ -213,9 +225,27 @@ public class OfflineAdmissionAdminService {
 				""", (rs, row) -> new QueueRow(rs.getObject("id", UUID.class), rs.getObject("student_id", UUID.class),
 				rs.getString("full_name"), rs.getString("mobile"), rs.getObject("batch_id", UUID.class), rs.getString("name_en"),
 				rs.getString("name_bn"), rs.getString("status"), rs.getInt("submit_count"), instant(rs.getTimestamp("submitted_at")),
-				instant(rs.getTimestamp("created_at")), rs.getBoolean("has_photo"), List.of()), pageArgs.toArray());
+				instant(rs.getTimestamp("created_at")), rs.getBoolean("has_photo"), List.of(), null, null), pageArgs.toArray());
+		// The money of the whole page in two queries, then each row's flags from it (plan 4.3).
+		Map<UUID, OfflineAdmissionMoney.Money> moneyByAdmission = money.page(found.stream().map(QueueRow::id).toList(), money.today());
+		List<QueueRow> rows = new ArrayList<>();
+		for (QueueRow row : found) {
+			OfflineAdmissionMoney.Money due = moneyByAdmission.getOrDefault(row.id(), OfflineAdmissionMoney.Money.NONE);
+			rows.add(new QueueRow(row.id(), row.studentId(), row.fullName(), row.mobile(), row.batchId(), row.batchNameEn(),
+					row.batchNameBn(), row.status(), row.submitCount(), row.submittedAt(), row.createdAt(), row.hasPhoto(),
+					due.flags(row.status()), due.owedTotal(), due.nextDueOn()));
+		}
 		int totalPages = (int) ((count + pageSize - 1) / pageSize);
 		return new PageResponse<>(rows, pageNumber, pageSize, count, totalPages);
+	}
+
+	/** The SQL predicate of one money flag on the queue (plan 4.3, D13). {@code flag} is one of {@link #FLAGS}, already lower case. */
+	private static String flagPredicate(String flag) {
+		return switch (flag) {
+			case "unpaid" -> "(" + OfflineAdmissionMoney.NO_PAYMENT_PREDICATE + " or " + OfflineAdmissionMoney.unpaidDue(false) + ")";
+			case "overdue" -> OfflineAdmissionMoney.unpaidDue(true);
+			default -> OfflineAdmissionMoney.PENDING_PREDICATE;
+		};
 	}
 
 	@Transactional(readOnly = true)
@@ -707,11 +737,33 @@ public class OfflineAdmissionAdminService {
 				? readyProblems(a, hasPhoto, active.size()) : List.of();
 		SignedCopy signed = a.getSignedStoredName() == null ? null
 				: new SignedCopy(a.getSignedOriginalName(), a.getSignedUploadedAt(), a.getSignedUploadedBy());
+		List<ItemOverlaps> overlaps = itemOverlaps(a, active);
 		return new AdmissionDetail(a.getId(), a.getStudentId(), a.getStatus(), a.getVersion() == null ? 0L : a.getVersion(),
 				a.getSubmitCount(), a.getSubmittedAt(), a.getCreatedAt(), hasPhoto, hasPhoto ? photoPath(a) : null,
 				OfflineAdmissionService.form(a), a.getChangesReason(), a.getChangesRequestedAt(), setup, itemViews, history,
 				readyProblems, a.getReadyBy(), a.getReadyAt(), a.getOnboardedBy(), a.getOnboardedAt(), a.getClosedAt(),
-				a.getClosedReason(), signed);
+				a.getClosedReason(), signed, overlaps);
+	}
+
+	/**
+	 * The overlaps of each active item, through the same check that adding an item uses (plan 4.4). An item whose exam or package has
+	 * been deleted has none, since the check cannot judge it.
+	 */
+	private List<ItemOverlaps> itemOverlaps(OfflineAdmission a, List<OfflineAdmissionItem> active) {
+		Instant now = clock.instant();
+		List<ItemOverlaps> found = new ArrayList<>();
+		for (OfflineAdmissionItem item : active) {
+			String[] titles = grants.titles(item.getScope(), item.getModuleId(), item.getExamId());
+			boolean live = EXAM.equals(item.getScope())
+					? exams.findByIdAndDeletedAtIsNull(item.getExamId()).isPresent()
+					: modules.findByIdAndDeletedAtIsNull(item.getModuleId()).isPresent();
+			List<LiveExamGrantAdminService.QuoteOverlap> warnings = live
+					? grants.overlaps(a.getStudentId(), item.getScope(), item.getModuleId(), item.getExamId(), now)
+					: List.of();
+			found.add(new ItemOverlaps(item.getId(), titles == null ? "(removed)" : titles[0],
+					titles == null ? "(removed)" : titles[1], warnings));
+		}
+		return found;
 	}
 
 	private OfflineAdmissionItem newItem(UUID admissionId, String scope, UUID examId, UUID moduleId, UUID actorId, Instant now) {
@@ -811,17 +863,27 @@ public class OfflineAdmissionAdminService {
 
 	// ---- views ------------------------------------------------------------------------------------------------------------
 
-	/** One row of the queue. {@code flags} is empty until Stage 4 adds the money flags. */
+	/**
+	 * One row of the queue. {@code flags} are NO_PAYMENT, OVERDUE and PENDING_APPROVAL (plan 4.3); {@code owedTotal} is the sum of the
+	 * unpaid live dues, and {@code nextDueOn} the earliest of them (both null or zero before onboarding).
+	 */
 	public record QueueRow(UUID id, UUID studentId, String fullName, String mobile, UUID batchId, String batchNameEn,
 			String batchNameBn, String status, int submitCount, Instant submittedAt, Instant createdAt, boolean hasPhoto,
-			List<String> flags) {
+			List<String> flags, BigDecimal owedTotal, @JsonInclude(JsonInclude.Include.ALWAYS) LocalDate nextDueOn) {
 	}
 
 	public record AdmissionDetail(UUID id, UUID studentId, String state, long version, int submitCount, Instant submittedAt,
 			Instant createdAt, boolean hasPhoto, String photoUrl, OfflineAdmissionService.Form form, String changesReason,
 			Instant changesRequestedAt, Setup setup, List<ItemView> items, List<SubmissionView> submissions,
 			List<FieldErrorDetail> readyProblems, UUID readyBy, Instant readyAt, UUID onboardedBy, Instant onboardedAt,
-			Instant closedAt, String closedReason, SignedCopy signedCopy) {
+			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps) {
+	}
+
+	/**
+	 * What one active exam or package overlaps with: the same check that adding it uses (plan 4.4). {@code warnings} is empty when the
+	 * student holds nothing that overlaps it. Read only; an overlap never blocks.
+	 */
+	public record ItemOverlaps(UUID itemId, String titleEn, String titleBn, List<LiveExamGrantAdminService.QuoteOverlap> warnings) {
 	}
 
 	public record Setup(UUID batchId, String batchNameEn, String batchNameBn, BigDecimal monthlyFee, LocalDate admittedOn,

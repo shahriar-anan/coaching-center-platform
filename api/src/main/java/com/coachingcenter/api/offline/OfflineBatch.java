@@ -56,6 +56,10 @@ public class OfflineBatch {
 	@Column(name = "routine_uploaded_at")
 	private Instant routineUploadedAt;
 
+	/** How many onboarded students the last routine upload notified (V86). Null for an upload made before V86. */
+	@Column(name = "routine_students_notified")
+	private Integer routineStudentsNotified;
+
 	@Column(nullable = false, length = 16)
 	private String status;
 
@@ -166,6 +170,14 @@ public class OfflineBatch {
 
 	public void setRoutineUploadedAt(Instant routineUploadedAt) {
 		this.routineUploadedAt = routineUploadedAt;
+	}
+
+	public Integer getRoutineStudentsNotified() {
+		return routineStudentsNotified;
+	}
+
+	public void setRoutineStudentsNotified(Integer routineStudentsNotified) {
+		this.routineStudentsNotified = routineStudentsNotified;
 	}
 
 	public String getStatus() {

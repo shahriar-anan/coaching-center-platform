@@ -1,9 +1,12 @@
 package com.coachingcenter.api.offline;
 
+import java.util.List;
 import java.util.UUID;
 
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -16,6 +19,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.files.FileResponses;
+import com.coachingcenter.api.offline.OfflineAdmissionService.AdmissionItemView;
 import com.coachingcenter.api.offline.OfflineAdmissionService.AdmissionView;
 import com.coachingcenter.api.users.StudentPhotoService;
 import tools.jackson.databind.JsonNode;
@@ -31,14 +36,35 @@ public class OfflineAdmissionStudentController {
 
 	private final StudentPhotoService photos;
 
-	public OfflineAdmissionStudentController(OfflineAdmissionService admissions, StudentPhotoService photos) {
+	private final OfflineBatchService batches;
+
+	public OfflineAdmissionStudentController(OfflineAdmissionService admissions, StudentPhotoService photos,
+			OfflineBatchService batches) {
 		this.admissions = admissions;
 		this.photos = photos;
+		this.batches = batches;
 	}
 
 	@GetMapping("/api/v1/me/admission")
 	public AdmissionView current() {
 		return admissions.current(studentId());
+	}
+
+	/** The student's live exams and packages through this admission (plan 6.4, Exams and Packages). */
+	@GetMapping("/api/v1/me/admission/items")
+	public List<AdmissionItemView> items() {
+		return admissions.items(studentId());
+	}
+
+	/**
+	 * The routine of the student's own batch, the same bytes as the staff route. The student names no batch, so they can only ever
+	 * read their own. Private, like the staff route: the browser may keep it, no shared cache may.
+	 */
+	@GetMapping("/api/v1/me/admission/batch-routine.pdf")
+	public ResponseEntity<InputStreamResource> batchRoutine() {
+		OfflineBatchService.RoutineFile file = batches.openRoutine(admissions.ownBatchId(studentId()));
+		return FileResponses.inline(file.body(), MediaType.APPLICATION_PDF_VALUE, file.byteSize(), file.fileName(),
+				"private, no-cache");
 	}
 
 	@PutMapping("/api/v1/me/admission/form")

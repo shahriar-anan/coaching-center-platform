@@ -24,6 +24,7 @@ import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.error.FieldErrorDetail;
 import com.coachingcenter.api.files.LocalFileStorage;
 import com.coachingcenter.api.files.PdfUploads;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import tools.jackson.databind.JsonNode;
 
@@ -219,10 +220,12 @@ public class OfflineBatchService {
 		batch.setRoutineUploadedBy(actorId);
 		batch.setRoutineUploadedAt(now);
 		batch.setUpdatedAt(now);
+		List<UUID> students = jdbc.queryForList(
+				"select student_id from offline_admissions where batch_id = ? and status = 'ONBOARDED'", UUID.class, id);
+		batch.setRoutineStudentsNotified(students.size());
 		batches.saveAndFlush(batch);
 		audit.record(AuditRecorder.OFFLINE_BATCH_ROUTINE_UPLOADED, AuditRecorder.OFFLINE_BATCH_ENTITY, id);
-		for (UUID student : jdbc.queryForList(
-				"select student_id from offline_admissions where batch_id = ? and status = 'ONBOARDED'", UUID.class, id)) {
+		for (UUID student : students) {
 			notices.notice(student, OfflineAdmissionNotices.BATCH_ROUTINE_UPDATED, id + ":" + now.toEpochMilli() + ":" + student);
 		}
 		return view(batch);
@@ -259,7 +262,21 @@ public class OfflineBatchService {
 	BatchView view(OfflineBatch batch) {
 		return new BatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getStartsOn(), batch.getEndsOn(),
 				batch.getDefaultMonthlyFee(), batch.getStatus(), onboardedCount(batch.getId()),
-				batch.getRoutineStoredName() != null, batch.getRoutineOriginalName(), batch.getRoutineUploadedAt());
+				batch.getRoutineStoredName() != null, batch.getRoutineOriginalName(), batch.getRoutineUploadedAt(),
+				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified());
+	}
+
+	/** The name of whoever uploaded the routine, from the staff or student profile. Null when there is no uploader or no name. */
+	private String uploaderName(UUID userId) {
+		if (userId == null) {
+			return null;
+		}
+		return jdbc.queryForList("""
+				select coalesce(ap.full_name, sp.full_name) from users u
+				left join admin_profiles ap on ap.user_id = u.id
+				left join student_profiles sp on sp.user_id = u.id
+				where u.id = ?
+				""", String.class, userId).stream().findFirst().orElse(null);
 	}
 
 	private OfflineBatch find(UUID id) {
@@ -334,10 +351,14 @@ public class OfflineBatchService {
 		return base.length() > 500 ? base.substring(0, 500) : base;
 	}
 
-	/** One batch as the staff and the Master Admin see it. {@code studentCount} counts the onboarded students. */
+	/**
+	 * One batch as the staff and the Master Admin see it. {@code studentCount} counts the onboarded students. {@code routineUploadedBy}
+	 * is the uploader's name, and {@code studentsNotified} is how many students the last routine upload notified (null when not known).
+	 */
 	public record BatchView(UUID id, String nameEn, String nameBn, LocalDate startsOn, LocalDate endsOn,
 			BigDecimal defaultMonthlyFee, String status, long studentCount, boolean routineUploaded, String routineFileName,
-			Instant routineUploadedAt) {
+			Instant routineUploadedAt, @JsonInclude(JsonInclude.Include.ALWAYS) String routineUploadedBy,
+			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified) {
 	}
 
 	/** A student admitted to the batch. The mobile is shown to staff only, since these routes are staff routes. */

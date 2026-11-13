@@ -1,5 +1,7 @@
 package com.coachingcenter.api.offline;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -58,9 +60,21 @@ public class OfflineAdmissionService {
 			String hallMess, String thana, String district, String presentAddress, String permanentAddress) {
 	}
 
-	/** What the student's own screens show: the state, the form, and why it was sent back, if it was. */
+	/**
+	 * What the student's own screens show: the state, the form, and why it was sent back, if it was. The batch, the fee and the dates
+	 * are filled only once the admission is onboarded or closed (plan 6.4); before that they are null, and hasRoutine is false.
+	 */
 	public record AdmissionView(UUID id, String state, String changesReason, Instant submittedAt, int submitCount,
-			boolean hasPhoto, Form form) {
+			boolean hasPhoto, Form form, String batchNameEn, String batchNameBn, BigDecimal monthlyFee, LocalDate admittedOn,
+			LocalDate courseEndsOn, boolean hasRoutine) {
+	}
+
+	/**
+	 * One exam or package the student has live access to through this admission. {@code packageExamCount} counts the active exams of
+	 * a package, and is null for an exam. {@code accessEndsAt} is the course-end cap of the grant (plan 4.4).
+	 */
+	public record AdmissionItemView(String scope, UUID examId, UUID moduleId, String titleEn, String titleBn,
+			Integer packageExamCount, Instant accessEndsAt) {
 	}
 
 	private final OfflineAdmissionRepository admissions;
@@ -114,10 +128,52 @@ public class OfflineAdmissionService {
 		return created;
 	}
 
-	/** The student's open admission. A student with none gets a 404, so the web never shows the page to anyone else (D22). */
+	/**
+	 * The student's open admission, or their latest closed one as read-only history (plan 6.4). A student with neither gets a 404, so
+	 * the web never shows the page to anyone else (D22). The gate and the form routes still use {@link #open} alone.
+	 */
 	@Transactional(readOnly = true)
 	public AdmissionView current(UUID studentId) {
-		return view(open(studentId));
+		return view(ownAdmission(studentId));
+	}
+
+	/** The student's live access through this admission: active items whose OFFLINE grant is not revoked and not past its end (plan 6.4). */
+	@Transactional(readOnly = true)
+	public List<AdmissionItemView> items(UUID studentId) {
+		OfflineAdmission admission = ownAdmission(studentId);
+		return jdbc.query("""
+				select i.scope, i.exam_id, i.module_id, coalesce(e.title_en, m.title_en) as title_en,
+				  coalesce(e.title_bn, m.title_bn) as title_bn,
+				  case when i.scope = 'MODULE' then (
+				    select count(*)::int from live_exam_package_exams pe
+				    join live_exams x on x.id = pe.exam_id and x.deleted_at is null
+				    where pe.module_id = i.module_id and pe.removed_at is null) end as package_exam_count,
+				  g.access_ends_at
+				from offline_admission_items i
+				join live_exam_grants g on g.id = i.grant_id
+				left join live_exams e on e.id = i.exam_id
+				left join live_exam_modules m on m.id = i.module_id
+				where i.admission_id = ? and i.removed_at is null
+				  and g.source = 'OFFLINE' and g.revoked_at is null
+				  and (g.access_ends_at is null or g.access_ends_at > ?)
+				order by i.added_at, i.id
+				""", (rs, row) -> {
+			Timestamp endsAt = rs.getTimestamp("access_ends_at");
+			return new AdmissionItemView(rs.getString("scope"), rs.getObject("exam_id", UUID.class),
+					rs.getObject("module_id", UUID.class), rs.getString("title_en"), rs.getString("title_bn"),
+					rs.getObject("package_exam_count", Integer.class), endsAt == null ? null : endsAt.toInstant());
+		}, admission.getId(), Timestamp.from(clock.instant()));
+	}
+
+	/** The batch of the student's routine: their own admission's batch, once onboarded. 404 when there is none (plan 5). */
+	@Transactional(readOnly = true)
+	public UUID ownBatchId(UUID studentId) {
+		OfflineAdmission admission = ownAdmission(studentId);
+		UUID batchId = afterOnboarding(admission) ? admission.getBatchId() : null;
+		if (batchId == null) {
+			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
+		}
+		return batchId;
 	}
 
 	/** Saves whatever fields the body names, without checking them (partial saves are allowed). */
@@ -177,6 +233,18 @@ public class OfflineAdmissionService {
 	private OfflineAdmission open(UUID studentId) {
 		return admissions.findFirstByStudentIdAndStatusNot(studentId, OfflineAdmission.CLOSED)
 			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found."));
+	}
+
+	/** The read path's admission: the open one, else the latest closed one. Only the read routes use it. */
+	private OfflineAdmission ownAdmission(UUID studentId) {
+		return admissions.findFirstByStudentIdAndStatusNot(studentId, OfflineAdmission.CLOSED)
+			.or(() -> admissions.findFirstByStudentIdAndStatusOrderByCreatedAtDesc(studentId, OfflineAdmission.CLOSED))
+			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found."));
+	}
+
+	/** The batch, fee and dates are shown to the student only once the admission is onboarded or closed (plan 6.4). */
+	private static boolean afterOnboarding(OfflineAdmission a) {
+		return OfflineAdmission.ONBOARDED.equals(a.getStatus()) || OfflineAdmission.CLOSED.equals(a.getStatus());
 	}
 
 	private static void requireFormOpen(OfflineAdmission admission) {
@@ -333,8 +401,29 @@ public class OfflineAdmissionService {
 	}
 
 	private AdmissionView view(OfflineAdmission a) {
+		boolean after = afterOnboarding(a);
+		BatchLabel batch = after ? batchLabel(a.getBatchId()) : BatchLabel.NONE;
 		return new AdmissionView(a.getId(), a.getStatus(), a.getChangesReason(), a.getSubmittedAt(), a.getSubmitCount(),
-				photos.existsById(a.getStudentId()), form(a));
+				photos.existsById(a.getStudentId()), form(a), batch.nameEn(), batch.nameBn(), after ? a.getMonthlyFee() : null,
+				after ? a.getAdmittedOn() : null, after ? a.getCourseEndsOn() : null, batch.hasRoutine());
+	}
+
+	/** The batch's names and whether it has a routine file. A null batch gives {@link BatchLabel#NONE}. */
+	private BatchLabel batchLabel(UUID batchId) {
+		if (batchId == null) {
+			return BatchLabel.NONE;
+		}
+		return jdbc.query("select name_en, name_bn, routine_stored_name is not null as has_routine from offline_batches where id = ?",
+				(rs, row) -> new BatchLabel(rs.getString("name_en"), rs.getString("name_bn"), rs.getBoolean("has_routine")), batchId)
+			.stream()
+			.findFirst()
+			.orElse(BatchLabel.NONE);
+	}
+
+	private record BatchLabel(String nameEn, String nameBn, boolean hasRoutine) {
+
+		static final BatchLabel NONE = new BatchLabel(null, null, false);
+
 	}
 
 	static Form form(OfflineAdmission a) {

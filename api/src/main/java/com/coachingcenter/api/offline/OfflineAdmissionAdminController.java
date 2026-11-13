@@ -3,6 +3,7 @@ package com.coachingcenter.api.offline;
 import static com.coachingcenter.api.offline.OfflineSupport.actorId;
 import static com.coachingcenter.api.offline.OfflineSupport.require;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.core.io.InputStreamResource;
@@ -44,11 +45,38 @@ public class OfflineAdmissionAdminController {
 
 	private final PermissionChecker permissions;
 
+	private final OfflineAdmissionReports reports;
+
 	public OfflineAdmissionAdminController(OfflineAdmissionAdminService admin, OfflineAdmissionOnboardingService onboarding,
-			PermissionChecker permissions) {
+			PermissionChecker permissions, OfflineAdmissionReports reports) {
 		this.admin = admin;
 		this.onboarding = onboarding;
 		this.permissions = permissions;
+		this.reports = reports;
+	}
+
+	/** The tab and dashboard counts (plan 5). Staff and the Master Admin both hold the read permission. */
+	@GetMapping("/api/v1/offline-admissions/counts")
+	public OfflineAdmissionReports.Counts counts() {
+		require(permissions, Permissions.OFFLINE_ADMISSION_READ);
+		return reports.counts();
+	}
+
+	/** The overdue list of the fee page: one row per admission, the oldest overdue due, most days late first (plan 6.3). */
+	@GetMapping("/api/v1/offline-admissions/overdue")
+	public PageResponse<OfflineAdmissionReports.OverdueRow> overdue(@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		if (!permissions.has(Permissions.OFFLINE_FEE_RECORD) && !permissions.has(Permissions.OFFLINE_ADMISSION_READ)) {
+			throw OfflineSupport.denied();
+		}
+		return reports.overdue(page, size);
+	}
+
+	/** The history of one admission: its audit events, payments and submissions, newest first (plan 6.3). */
+	@GetMapping("/api/v1/offline-admissions/{id}/history")
+	public List<OfflineAdmissionReports.HistoryRow> history(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_ADMISSION_READ);
+		return reports.history(id);
 	}
 
 	@GetMapping("/api/v1/offline-admissions")
