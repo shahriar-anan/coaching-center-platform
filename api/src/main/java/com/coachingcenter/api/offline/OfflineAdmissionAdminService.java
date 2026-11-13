@@ -217,7 +217,7 @@ public class OfflineAdmissionAdminService {
 		pageArgs.add(pageSize);
 		pageArgs.add((long) pageNumber * pageSize);
 		List<QueueRow> found = jdbc.query("""
-				select a.id, a.student_id, a.full_name, a.mobile, a.batch_id, b.name_en, b.name_bn, a.status, a.submit_count,
+				select a.id, a.student_id, a.full_name, coalesce(a.mobile, u.phone) as mobile, a.batch_id, b.name_en, b.name_bn, a.status, a.submit_count,
 				  a.submitted_at, a.created_at, (p.user_id is not null) as has_photo,
 				  (u.status <> 'PENDING_ACTIVATION') as activated,
 				  case when a.activation_code is not null and a.activation_code_expires_at > ? then a.activation_code_expires_at end

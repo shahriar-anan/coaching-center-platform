@@ -118,7 +118,7 @@ export function AdmissionQueue() {
       header: t("staffOffline.queue.columns.name"),
       cell: (row) => {
         // Until the form arrives the name is the phone number.
-        const name = row.status === "AWAITING_FORM" ? row.mobile : row.fullName;
+        const name = row.status === "AWAITING_FORM" ? row.mobile : row.fullName || row.mobile;
         return (
           <div className="flex min-w-0 items-center gap-3">
             <AdmissionPhoto admissionId={row.id} hasPhoto={row.hasPhoto} name={name} />

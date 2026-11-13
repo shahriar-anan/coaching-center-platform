@@ -18,7 +18,7 @@ export function AdmissionPhoto({
 }: {
   admissionId: string;
   hasPhoto: boolean;
-  name: string;
+  name: string | null;
   /** "lg" for the detail page, where the photo is large enough to check against the NID. */
   size?: "sm" | "lg";
 }) {
@@ -32,9 +32,9 @@ export function AdmissionPhoto({
       )}
     >
       {url ? (
-        <img src={url} alt={t("staffOffline.photoOf", { name })} className="size-full object-cover" />
+        <img src={url} alt={t("staffOffline.photoOf", { name: name ?? "" })} className="size-full object-cover" />
       ) : (
-        <span aria-hidden="true">{name.trim().charAt(0) || "?"}</span>
+        <span aria-hidden="true">{(name ?? "").trim().charAt(0) || "?"}</span>
       )}
     </span>
   );
