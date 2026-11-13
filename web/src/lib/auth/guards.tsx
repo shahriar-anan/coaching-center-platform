@@ -33,6 +33,18 @@ export type RoleInfo = {
   /** Category, module and exam authoring. */
   canAuthor: boolean;
   canSeeStudents: boolean;
+  /** Offline admissions: the queue and the review (send back, set up, mark ready). The Master Admin and the System Admin. */
+  canSeeAdmissions: boolean;
+  /** Onboard, change the terms after onboarding, close. The Master Admin only. */
+  canOnboardAdmission: boolean;
+  /** Create, edit and archive offline batches. The Master Admin only. */
+  canManageOfflineBatches: boolean;
+  /** Upload or replace a batch routine. Both admin roles. */
+  canUploadRoutine: boolean;
+  /** Record an offline fee payment (staff: pending until approved). Both admin roles. */
+  canRecordOfflineFee: boolean;
+  /** Approve, reject and void offline fee payments. The Master Admin only. */
+  canApproveOfflineFee: boolean;
 };
 
 type Capability = Exclude<keyof RoleInfo, "role" | `is${string}`>;
@@ -53,8 +65,21 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "canManageStaff",
     "canAuthor",
     "canSeeStudents",
+    "canSeeAdmissions",
+    "canOnboardAdmission",
+    "canManageOfflineBatches",
+    "canUploadRoutine",
+    "canRecordOfflineFee",
+    "canApproveOfflineFee",
   ],
-  SYSTEM_ADMIN: ["canSeePayments", "canAuthor", "canSeeStudents"],
+  SYSTEM_ADMIN: [
+    "canSeePayments",
+    "canAuthor",
+    "canSeeStudents",
+    "canSeeAdmissions",
+    "canUploadRoutine",
+    "canRecordOfflineFee",
+  ],
   INSTRUCTOR: ["canEvaluate"],
   STUDENT: [],
 };
@@ -82,6 +107,12 @@ export function roleInfo(role: Role | null | undefined): RoleInfo {
     canManageStaff: has("canManageStaff"),
     canAuthor: has("canAuthor"),
     canSeeStudents: has("canSeeStudents"),
+    canSeeAdmissions: has("canSeeAdmissions"),
+    canOnboardAdmission: has("canOnboardAdmission"),
+    canManageOfflineBatches: has("canManageOfflineBatches"),
+    canUploadRoutine: has("canUploadRoutine"),
+    canRecordOfflineFee: has("canRecordOfflineFee"),
+    canApproveOfflineFee: has("canApproveOfflineFee"),
   };
 }
 

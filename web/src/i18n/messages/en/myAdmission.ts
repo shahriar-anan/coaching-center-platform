@@ -1,0 +1,62 @@
+const myAdmission = {
+  title: "My admission",
+  menu: "My admission",
+  batch: "Batch",
+  admittedOn: "Admitted on",
+  courseEndsOn: "Course ends on",
+  homeCard: "My admission: next payment {amount} on {date}",
+  homeCardNone: "My admission: no payment is due now",
+  state: {
+    ONBOARDED: "Active",
+    CLOSED: "Course ended",
+  },
+  payments: {
+    title: "Payments",
+    next: "Next payment",
+    nextDue: "due on {date}",
+    monthlyFee: "Monthly fee",
+    allPaid: "No payment is due right now.",
+    overdue: "{amount} was due on {date}",
+    schedule: "Schedule",
+    installment: "Instalment {no}",
+    dueOn: "Due",
+    amount: "Instalment",
+    paid: "Paid",
+    owed: "Owed",
+    madeTitle: "Payments made",
+    none: "No payments yet.",
+    download: "Download receipt",
+    downloadFailed: "The receipt could not be downloaded. Try again.",
+    loadFailed: "Your payments could not be loaded.",
+  },
+  exams: {
+    title: "Exams",
+    empty: "Your exams will appear here.",
+  },
+  packages: {
+    title: "Packages",
+    empty: "Your packages will appear here.",
+  },
+  items: {
+    exam: "Exam",
+    package: "Package",
+    examCount: "{n} exams",
+    accessUntil: "Access until {date}",
+  },
+  routine: {
+    title: "Routine",
+    empty: "Your routine will appear here",
+  },
+  form: {
+    title: "My form",
+    name: "Full name",
+    mobile: "Mobile number",
+    university: "University",
+    semester: "Semester / batch",
+    submitted: "Submitted on {date}",
+    notSubmitted: "Not submitted yet",
+    view: "View / print my form",
+  },
+};
+
+export default myAdmission;

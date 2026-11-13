@@ -73,7 +73,8 @@ describe("students", () => {
 
     expect(await screen.findByText("482913")).toBeInTheDocument();
     const sent = api.calls.find((call) => call.method === "POST" && call.path === "/api/v1/students");
-    expect(sent?.body).toEqual({ fullName: "Nazma Akter", phone: "01711000002", email: "nazma@example.com" });
+    // The Offline admission checkbox is on by default for staff, so the desk account is made as an admission (plan 6.3).
+    expect(sent?.body).toEqual({ fullName: "Nazma Akter", phone: "01711000002", email: "nazma@example.com", offlineAdmission: true });
     expect(sent?.body).not.toHaveProperty("password");
   });
 

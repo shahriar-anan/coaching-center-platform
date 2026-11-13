@@ -14,6 +14,9 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { NewPersonDialog } from "@/components/staff/people/new-person-dialog";
+import { DeskActivationDialog } from "@/components/staff/offline/desk-activation-dialog";
+import { OfflineStudentBadge } from "@/components/staff/offline/offline-badge";
+import { useOfflineStudentStates } from "@/lib/api/exam/offline-admin";
 import { accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
 import { DeleteAccountDialog } from "@/components/staff/status/account-controls";
 import { RequireStaff, useRole } from "@/lib/auth/guards";
@@ -52,6 +55,9 @@ function StudentList() {
 
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState<{ code: string; name: string } | null>(null);
+  // A desk admission: the code comes with its steps to read out (plan 6.3).
+  const [desk, setDesk] = useState<{ code: string; name: string; phone: string } | null>(null);
+  const offlineStates = useOfflineStudentStates(true);
   const [deleting, setDeleting] = useState<StudentRow | null>(null);
 
   /**
@@ -89,9 +95,12 @@ function StudentList() {
       key: "name",
       header: t("staffPeople.students.columns.name"),
       cell: (row) => (
-        <Link href={`/staff/students/${row.id}`} className="font-medium text-text underline-offset-4 hover:underline">
-          {row.fullName}
-        </Link>
+        <div className="grid gap-1">
+          <Link href={`/staff/students/${row.id}`} className="font-medium text-text underline-offset-4 hover:underline">
+            {row.fullName}
+          </Link>
+          <OfflineStudentBadge admission={offlineStates.data?.get(row.id)} />
+        </div>
       ),
     },
     { key: "phone", header: t("staffPeople.students.columns.phone"), cell: (row) => <span className="font-latin">{row.phone}</span> },
@@ -148,7 +157,22 @@ function StudentList() {
         onOpenChange={setCreating}
         title={t("staffPeople.students.createTitle")}
         submit={(body) => create.mutateAsync(body)}
-        onCreated={(account: CreatedAccount) => setCode({ code: account.activationCode, name: account.fullName })}
+        onCreated={(account: CreatedAccount, offline: boolean) => {
+          if (offline) {
+            setDesk({ code: account.activationCode, name: account.fullName, phone: account.phone });
+          } else {
+            setCode({ code: account.activationCode, name: account.fullName });
+          }
+        }}
+        offlineOption
+      />
+
+      <DeskActivationDialog
+        open={desk !== null}
+        onClose={() => setDesk(null)}
+        name={desk?.name ?? ""}
+        phone={desk?.phone ?? ""}
+        code={desk?.code ?? ""}
       />
 
       <OneTimeCodeDialog

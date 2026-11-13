@@ -18,6 +18,7 @@ import { cn } from "@/components/ui/cn";
 import { usePendingChanges } from "@/lib/api/exam/staff-exams";
 import { usePendingReviewCount } from "@/lib/api/exam/staff-reviews";
 import { useStaffAttention } from "@/lib/api/exam/staff-attention";
+import { useOfflineAttention } from "@/lib/api/exam/offline-admin";
 import { canModerateReviews } from "@/components/staff/reviews/review-access";
 import { useRole } from "@/lib/auth/guards";
 import { StaffNotificationBell } from "@/components/staff/notifications/staff-notification-bell";
@@ -48,6 +49,9 @@ export function StaffShell({ children }: { children: ReactNode }) {
   const reviewsCount = reviewsPending.data?.count ?? 0;
   // Papers to mark, results to publish, retake requests and payments: each role is asked only for what it acts on.
   const attention = useStaffAttention(role);
+  // Offline admissions waiting for review, and fee payments waiting for the Master Admin's approval.
+  const offline = useOfflineAttention(role);
+  const staffCounts = { ...attention, admissions: offline.admissions, offlineFees: offline.offlineFees };
 
   function toggleCollapsed() {
     setNavCollapsed(!collapsed);
@@ -61,13 +65,13 @@ export function StaffShell({ children }: { children: ReactNode }) {
         collapsed ? "md:grid-cols-[80px_1fr]" : "md:grid-cols-[240px_1fr]",
       )}
     >
-      <StaffSidebar items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={attention} />
+      <StaffSidebar items={items} collapsed={collapsed} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={staffCounts} />
 
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen} title={t("common.nav.menu")}>
         <div className="grid gap-4 rounded-card bg-sidebar p-3 text-sidebar-text">
           {role ? <RoleChip role={role} /> : null}
           <nav aria-label={t("common.nav.main")}>
-            <StaffNavList items={items} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={attention} onNavigate={() => setDrawerOpen(false)} />
+            <StaffNavList items={items} pendingCount={pendingCount} reviewsCount={reviewsCount} counts={staffCounts} onNavigate={() => setDrawerOpen(false)} />
           </nav>
         </div>
         <div className="mt-5 grid gap-3 border-t border-border pt-4 min-[480px]:hidden">

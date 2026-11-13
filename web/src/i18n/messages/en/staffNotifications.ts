@@ -31,6 +31,7 @@ const staffNotifications = {
     other: "changed",
   },
   method: {
+    CASH: "cash",
     BANK: "bank transfer",
     BKASH: "bKash",
     NAGAD: "Nagad",
@@ -56,6 +57,15 @@ const staffNotifications = {
     INSTALLMENT_OVERDUE: "{student}'s installment of {amount} for {item} is overdue. It was due on {date}.",
     NO_NAME: "A student",
     NO_TITLE: "a direct enrolment",
+    ADMISSION_SUBMITTED: "{student} sent in an admission form. It is waiting for review.",
+    ADMISSION_RESUBMITTED: "{student} sent the corrected admission form again.",
+    ADMISSION_READY: "{student}'s admission is ready for you to onboard.",
+    ADMISSION_RETURNED: "{student}'s admission was taken back to review.",
+    ADMISSION_ONBOARDED: "{student} was onboarded.",
+    OFFLINE_PAYMENT_PENDING: "{student}'s payment of {amount} by {method} is waiting for your approval.",
+    OFFLINE_PAYMENT_APPROVED: "Your payment of {amount} by {method} from {student} was approved.",
+    OFFLINE_PAYMENT_REJECTED: "Your payment of {amount} by {method} from {student} was rejected. Reason: {reason}",
+    OFFLINE_FEE_OVERDUE: "{student}'s fee of {amount} was due on {date} and is still unpaid.",
     UNKNOWN: "You have a new notification.",
   },
 } satisfies MessageTree;

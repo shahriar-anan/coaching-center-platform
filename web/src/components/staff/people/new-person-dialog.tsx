@@ -22,17 +22,22 @@ export function NewPersonDialog({
   title,
   submit,
   onCreated,
+  offlineOption = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   submit: (body: NewPerson) => Promise<CreatedAccount>;
-  onCreated: (account: CreatedAccount) => void;
+  /** Told whether the account was made as an offline admission (the desk form), so the code is read out with its steps. */
+  onCreated: (account: CreatedAccount, offline: boolean) => void;
+  /** Shows the "Offline admission" checkbox, on by default (plan 6.3). Only the students page offers it. */
+  offlineOption?: boolean;
 }) {
   const { t } = useLocale();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [offline, setOffline] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<"name" | "phone" | "email" | "form", string>>>({});
   const [busy, setBusy] = useState(false);
 
@@ -54,12 +59,18 @@ export function NewPersonDialog({
     }
     setBusy(true);
     try {
-      const created = await submit({ fullName: name.trim(), phone: phone.trim(), email: email.trim() });
+      const asOffline = offlineOption && offline;
+      const created = await submit({
+        fullName: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        ...(offlineOption ? { offlineAdmission: asOffline } : {}),
+      });
       setName("");
       setPhone("");
       setEmail("");
       onOpenChange(false);
-      onCreated(created);
+      onCreated(created, asOffline);
     } catch (error) {
       const code = error instanceof ApiError ? error.code : null;
       if (code === "DUPLICATE_PHONE") {
@@ -99,6 +110,20 @@ export function NewPersonDialog({
             invalid={Boolean(errors.email)}
           />
         </Field>
+        {offlineOption ? (
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-control border border-border-control bg-card px-3.5 py-2.5">
+            <input
+              type="checkbox"
+              className="mt-1 size-5 shrink-0 accent-accent"
+              checked={offline}
+              onChange={(event) => setOffline(event.target.checked)}
+            />
+            <span className="grid gap-0.5">
+              <span className="text-body text-text">{t("staffOffline.desk.option")}</span>
+              <span className="text-meta text-muted">{t("staffOffline.desk.optionHint")}</span>
+            </span>
+          </label>
+        ) : null}
         {errors.form ? <p className="text-meta text-danger">{errors.form}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

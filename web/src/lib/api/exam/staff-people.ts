@@ -50,7 +50,8 @@ export type CreatedAccount = {
   studentCode: string | null;
 };
 
-export type NewPerson = { fullName: string; phone: string; email: string };
+/** `offlineAdmission` (students only) makes the desk account an admission: the student then fills in the form (plan 6.3). */
+export type NewPerson = { fullName: string; phone: string; email: string; offlineAdmission?: boolean };
 
 export type InstructorRow = {
   id: string;

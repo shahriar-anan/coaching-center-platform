@@ -18,6 +18,7 @@ import { staffHref } from "@/lib/config";
 import { examPath, isLive } from "@/components/student/catalog/catalog-helpers";
 import { ExamStatusPill, TypePill } from "@/components/student/catalog/status-pill";
 import { LandingPage } from "@/components/student/landing/landing-page";
+import { HomeAdmissionCard } from "@/components/student/my-admission/admission-links";
 
 const DISMISS_KEY = "exam-portal.home.dismissed";
 /** Set to "1" by WS2 on registration. Shown once, then cleared. */
@@ -219,6 +220,7 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
   return (
     <>
       <WelcomeCard name={name} />
+      <HomeAdmissionCard />
       <Nudges phoneRequired={phoneRequired} emailVerified={emailVerified} live={liveRow} />
 
       <ExamDoors />

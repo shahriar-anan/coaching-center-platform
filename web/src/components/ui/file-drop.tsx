@@ -10,6 +10,8 @@ import { formatNumber } from "@/lib/format";
 export type FileDropValue = { name: string; size: number; uploadedAt?: string };
 
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
+const JPEG_MAGIC = [0xff, 0xd8, 0xff];
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** A PDF header within the first kilobyte (readers accept a few bytes of junk before it). Throws if the phone cannot read the file. */
 async function hasPdfHeader(file: File): Promise<boolean> {
@@ -20,6 +22,14 @@ async function hasPdfHeader(file: File): Promise<boolean> {
     }
   }
   return false;
+}
+
+/** The first bytes of a JPEG, a PNG or a WebP file: a phone photo of the paper. */
+async function hasImageHeader(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const starts = (magic: number[]) => magic.every((byte, i) => head[i] === byte);
+  const webp = String.fromCharCode(...head.slice(0, 4)) === "RIFF" && String.fromCharCode(...head.slice(8, 12)) === "WEBP";
+  return starts(JPEG_MAGIC) || starts(PNG_MAGIC) || webp;
 }
 
 /** A file size in KB below one megabyte (so a small PDF is not shown as 0 MB), and in MB above it. */
@@ -35,7 +45,8 @@ function megabytes(bytes: number, locale: "bn" | "en"): string {
 /**
  * A PDF picker with drag and drop. It checks the file type by its first bytes
  * (not the name) and the size limit before `onFile` runs. Progress is shown
- * while `uploading`; `file` shows the file already on the server.
+ * while `uploading`; `file` shows the file already on the server. `accept="pdf-or-image"` also takes a JPEG, PNG or WebP photo
+ * of the paper.
  */
 export function FileDrop({
   accept,
@@ -47,7 +58,7 @@ export function FileDrop({
   error,
   id,
 }: {
-  accept: "pdf";
+  accept: "pdf" | "pdf-or-image";
   maxBytes: number;
   file?: FileDropValue;
   onFile: (file: File) => void;
@@ -70,14 +81,14 @@ export function FileDrop({
     }
     let pdf: boolean;
     try {
-      pdf = accept !== "pdf" || (await hasPdfHeader(candidate));
+      pdf = (await hasPdfHeader(candidate)) || (accept === "pdf-or-image" && (await hasImageHeader(candidate)));
     } catch {
       // The phone could not read the file (a cloud or messaging app that has not downloaded it). Say so, rather than fail silently.
       setLocalError(t("common.file.readFailed"));
       return;
     }
     if (!pdf) {
-      setLocalError(t("common.file.notPdf"));
+      setLocalError(t(accept === "pdf-or-image" ? "common.file.notPdfOrImage" : "common.file.notPdf"));
       return;
     }
     if (candidate.size > maxBytes) {
@@ -150,7 +161,7 @@ export function FileDrop({
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" disabled={uploading} onClick={() => inputRef.current?.click()}>
-            {file ? t("common.file.replace") : t("common.file.choose")}
+            {file ? t("common.file.replace") : t(accept === "pdf-or-image" ? "common.file.pdfOrImage" : "common.file.choose")}
           </Button>
           <span className="text-meta text-muted">{hint}</span>
         </div>
@@ -158,7 +169,7 @@ export function FileDrop({
           ref={inputRef}
           id={inputId}
           type="file"
-          accept="application/pdf,.pdf"
+          accept={accept === "pdf-or-image" ? "application/pdf,.pdf,image/jpeg,image/png,image/webp" : "application/pdf,.pdf"}
           className="sr-only"
           tabIndex={-1}
           onChange={(e) => {

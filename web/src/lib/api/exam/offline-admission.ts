@@ -49,6 +49,17 @@ export interface AdmissionView {
   submitCount: number;
   hasPhoto: boolean;
   form: AdmissionForm;
+  /** The batch, filled once the admission is onboarded or closed. */
+  batchNameEn?: string | null;
+  batchNameBn?: string | null;
+  /** The monthly fee (BDT), once onboarded or closed. */
+  monthlyFee?: number | null;
+  /** yyyy-MM-dd. Filled once onboarded or closed. */
+  admittedOn?: string | null;
+  /** yyyy-MM-dd. Filled once onboarded or closed. */
+  courseEndsOn?: string | null;
+  /** True when the batch has a routine PDF to show. */
+  hasRoutine?: boolean;
 }
 
 /** The student's own photo, the same picture as the profile photo (plan side effect 10). */

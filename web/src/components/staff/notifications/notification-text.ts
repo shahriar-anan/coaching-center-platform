@@ -5,7 +5,7 @@ import { formatDate, formatMoney, pickTitle } from "@/lib/format";
 /** The translate function the screens pass in: a key and its parameters. */
 export type Translate = (key: string, params?: Record<string, string | number>) => string;
 
-const METHODS = new Set(["BANK", "BKASH", "NAGAD", "ROCKET"]);
+const METHODS = new Set(["CASH", "BANK", "BKASH", "NAGAD", "ROCKET"]);
 const CHANGES = new Set(["ADDED", "UPDATED", "REMOVED", "PREFERRED"]);
 const KNOWN_KINDS = new Set([
   "PAYOUT_ACCOUNT_CHANGED",
@@ -23,6 +23,15 @@ const KNOWN_KINDS = new Set([
   "INSTALLMENT_PAYMENT_RECORDED",
   "INSTALLMENT_DUE_SOON",
   "INSTALLMENT_OVERDUE",
+  "ADMISSION_SUBMITTED",
+  "ADMISSION_RESUBMITTED",
+  "ADMISSION_READY",
+  "ADMISSION_RETURNED",
+  "ADMISSION_ONBOARDED",
+  "OFFLINE_PAYMENT_PENDING",
+  "OFFLINE_PAYMENT_APPROVED",
+  "OFFLINE_PAYMENT_REJECTED",
+  "OFFLINE_FEE_OVERDUE",
 ]);
 
 /** A payload value as text: empty for a missing value. */
@@ -90,9 +99,16 @@ function dayLabel(value: unknown, locale: Locale): string {
   return raw ? formatDate(raw, locale) : "";
 }
 
+/** The method as the API names it ("Bank transfer", "bKash"), read as a key. An unknown method is shown as it came. */
 function methodLabel(value: unknown, t: Translate): string {
-  const method = text(value).toUpperCase();
+  const key = text(value).toUpperCase().replace(/s+/g, "");
+  const method = key === "BANKTRANSFER" ? "BANK" : key;
   return METHODS.has(method) ? t(`staffNotifications.method.${method}`) : text(value);
+}
+
+/** The person in an admission or fee notice, or a plain word when the payload leaves the name out. */
+function personLabel(payload: StaffNotificationPayload, t: Translate): string {
+  return text(payload.personName) || t("staffNotifications.kind.NO_NAME");
 }
 
 function changeLabel(value: unknown, t: Translate): string {
@@ -175,6 +191,32 @@ export function notificationText(
       return t(`staffNotifications.kind.${kind}`, {
         student: studentLabel(payload, t),
         item: itemLabel(payload, locale, t),
+        amount: money(payload.amount, locale),
+        date: dayLabel(payload.dueOn, locale),
+      });
+    case "ADMISSION_SUBMITTED":
+    case "ADMISSION_RESUBMITTED":
+    case "ADMISSION_READY":
+    case "ADMISSION_RETURNED":
+    case "ADMISSION_ONBOARDED":
+      return t(`staffNotifications.kind.${kind}`, { student: personLabel(payload, t) });
+    case "OFFLINE_PAYMENT_PENDING":
+    case "OFFLINE_PAYMENT_APPROVED":
+      return t(`staffNotifications.kind.${kind}`, {
+        student: personLabel(payload, t),
+        amount: money(payload.amount, locale),
+        method: methodLabel(payload.method, t),
+      });
+    case "OFFLINE_PAYMENT_REJECTED":
+      return t("staffNotifications.kind.OFFLINE_PAYMENT_REJECTED", {
+        student: personLabel(payload, t),
+        amount: money(payload.amount, locale),
+        method: methodLabel(payload.method, t),
+        reason: text(payload.reason) || "—",
+      });
+    case "OFFLINE_FEE_OVERDUE":
+      return t("staffNotifications.kind.OFFLINE_FEE_OVERDUE", {
+        student: personLabel(payload, t),
         amount: money(payload.amount, locale),
         date: dayLabel(payload.dueOn, locale),
       });

@@ -25,10 +25,24 @@ function dateOfBirthText(value: string | null | undefined, locale: Locale): stri
   return locale === "bn" ? toBengaliDigits(text) : text;
 }
 
-/** The printable registration form for a student (plan 6.2). Bangla or English labels follow the page's language. */
-export function PrintSheet({ admission }: { admission: AdmissionView }) {
+/** What the sheet prints: the form, its date and whether a photo exists. Staff print the same sheet for any admission. */
+export type PrintableAdmission = Pick<AdmissionView, "form" | "hasPhoto" | "submittedAt">;
+
+/**
+ * The printable registration form (plan 6.2). Bangla or English labels follow the page's language. The student prints their own form
+ * (the defaults); staff pass the admission's photo path and the page to go back to.
+ */
+export function PrintSheet({
+  admission,
+  photoPath = ADMISSION_PHOTO_PATH,
+  backHref = "/admission",
+}: {
+  admission: PrintableAdmission;
+  photoPath?: string;
+  backHref?: string;
+}) {
   const { t, locale } = useLocale();
-  const photo = useAuthorizedObjectUrl(admission.hasPhoto ? ADMISSION_PHOTO_PATH : null);
+  const photo = useAuthorizedObjectUrl(admission.hasPhoto ? photoPath : null);
   // The day the sheet is printed, when the form has not been submitted yet.
   const [printedOn] = useState(() => Date.now());
   const form = admission.form;
@@ -54,7 +68,7 @@ export function PrintSheet({ admission }: { admission: AdmissionView }) {
     <div className="grid gap-4">
       <style>{SHEET_CSS}</style>
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <Button variant="secondary" href="/admission">
+        <Button variant="secondary" href={backHref}>
           {t("admission.print.back")}
         </Button>
         <Button onClick={() => window.print()}>{t("admission.print.print")}</Button>

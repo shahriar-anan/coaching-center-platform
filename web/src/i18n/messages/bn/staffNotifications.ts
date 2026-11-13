@@ -31,6 +31,7 @@ const staffNotifications = {
     other: "বদলেছেন",
   },
   method: {
+    CASH: "ক্যাশ",
     BANK: "ব্যাংক",
     BKASH: "বিকাশ",
     NAGAD: "নগদ",
@@ -56,6 +57,15 @@ const staffNotifications = {
     INSTALLMENT_OVERDUE: "{student}-এর {item}-এর {amount} কিস্তি পরিশোধ হয়নি। পরিশোধের তারিখ ছিল {date}।",
     NO_NAME: "একজন শিক্ষার্থী",
     NO_TITLE: "একটি সরাসরি ভর্তি",
+    ADMISSION_SUBMITTED: "{student} ভর্তির ফরম জমা দিয়েছেন। যাচাইয়ের অপেক্ষায় আছে।",
+    ADMISSION_RESUBMITTED: "{student} সংশোধিত ভর্তির ফরম আবার জমা দিয়েছেন।",
+    ADMISSION_READY: "{student}-এর ভর্তি অনুমোদনের জন্য প্রস্তুত।",
+    ADMISSION_RETURNED: "{student}-এর ভর্তি যাচাইয়ের জন্য আবার ফেরত এসেছে।",
+    ADMISSION_ONBOARDED: "{student}-এর ভর্তি অনুমোদন হয়েছে।",
+    OFFLINE_PAYMENT_PENDING: "{student}-এর {amount} ({method}) পেমেন্ট আপনার অনুমোদনের অপেক্ষায়।",
+    OFFLINE_PAYMENT_APPROVED: "{student}-এর {amount} ({method}) পেমেন্ট অনুমোদন হয়েছে।",
+    OFFLINE_PAYMENT_REJECTED: "{student}-এর {amount} ({method}) পেমেন্ট বাতিল হয়েছে। কারণ: {reason}",
+    OFFLINE_FEE_OVERDUE: "{student}-এর {amount} ফি {date} তারিখে পরিশোধের কথা ছিল, এখনও বাকি আছে।",
     UNKNOWN: "আপনার একটি নতুন নোটিফিকেশন আছে।",
   },
 } satisfies MessageTree;

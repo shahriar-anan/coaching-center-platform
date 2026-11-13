@@ -25,6 +25,7 @@ import { codeOf, CODE_DEAD, FormError, focusFirst } from "@/app/(auth)/_componen
 import { PasswordChangeForm } from "@/components/password-change-form";
 import { PhoneDialog } from "@/app/(site)/account/_components/phone-dialog";
 import { ProfilePhoto } from "@/app/(site)/account/_components/profile-photo";
+import { AccountAdmissionRow } from "@/components/student/my-admission/admission-links";
 
 export default function AccountPage() {
   return (
@@ -245,6 +246,7 @@ function AccountView() {
         <Card href="/account/payments">
           <span className="font-bold">{t("account.payments.link")}</span>
         </Card>
+        <AccountAdmissionRow />
       </div>
 
       <div className="mt-8">

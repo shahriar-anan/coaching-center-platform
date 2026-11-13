@@ -1,0 +1,62 @@
+const myAdmission = {
+  title: "আমার ভর্তি",
+  menu: "আমার ভর্তি",
+  batch: "ব্যাচ",
+  admittedOn: "ভর্তির তারিখ",
+  courseEndsOn: "কোর্স শেষ হবে",
+  homeCard: "আমার ভর্তি: পরের কিস্তি {amount}, {date} তারিখে",
+  homeCardNone: "আমার ভর্তি: এখন কোনো কিস্তি বকেয়া নেই",
+  state: {
+    ONBOARDED: "চালু",
+    CLOSED: "কোর্স শেষ",
+  },
+  payments: {
+    title: "কিস্তি ও পেমেন্ট",
+    next: "পরের কিস্তি",
+    nextDue: "{date} তারিখে পরিশোধ করতে হবে",
+    monthlyFee: "মাসিক ফি",
+    allPaid: "এখন কোনো কিস্তি বকেয়া নেই।",
+    overdue: "{amount} বকেয়া ছিল {date} তারিখে।",
+    schedule: "কিস্তির সূচি",
+    installment: "কিস্তি {no}",
+    dueOn: "তারিখ",
+    amount: "কিস্তি",
+    paid: "পরিশোধিত",
+    owed: "বকেয়া",
+    madeTitle: "পেমেন্ট ও রসিদ",
+    none: "এখনো কোনো পেমেন্ট নেই।",
+    download: "রসিদ নামান",
+    downloadFailed: "রসিদ নামানো যায়নি। আবার চেষ্টা করুন।",
+    loadFailed: "পেমেন্টের বিবরণ আনা যায়নি।",
+  },
+  exams: {
+    title: "পরীক্ষা",
+    empty: "আপনার পরীক্ষাগুলো এখানে দেখা যাবে।",
+  },
+  packages: {
+    title: "প্যাকেজ",
+    empty: "আপনার প্যাকেজগুলো এখানে দেখা যাবে।",
+  },
+  items: {
+    exam: "পরীক্ষা",
+    package: "প্যাকেজ",
+    examCount: "{n}টি পরীক্ষা",
+    accessUntil: "{date} পর্যন্ত অ্যাক্সেস আছে",
+  },
+  routine: {
+    title: "রুটিন",
+    empty: "আপনার রুটিন এখানে দেখা যাবে",
+  },
+  form: {
+    title: "আমার ফরম",
+    name: "পূর্ণ নাম",
+    mobile: "মোবাইল নম্বর",
+    university: "বিশ্ববিদ্যালয়",
+    semester: "সেমিস্টার / ব্যাচ",
+    submitted: "{date} তারিখে জমা দেওয়া হয়েছে",
+    notSubmitted: "এখনো জমা দেওয়া হয়নি",
+    view: "ফরম দেখুন ও ছাপুন",
+  },
+};
+
+export default myAdmission;
