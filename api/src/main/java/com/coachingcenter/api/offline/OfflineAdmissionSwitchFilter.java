@@ -29,7 +29,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class OfflineAdmissionSwitchFilter extends OncePerRequestFilter {
 
 	private static final List<String> ROUTES = List.of("/api/v1/offline-admissions", "/api/v1/offline-batches",
-			"/api/v1/offline-fee-payments", "/api/v1/me/admission");
+			"/api/v1/offline-fee-payments", "/api/v1/offline-instructors", "/api/v1/me/admission");
 
 	private final OfflineAdmissionSwitch admissionSwitch;
 
