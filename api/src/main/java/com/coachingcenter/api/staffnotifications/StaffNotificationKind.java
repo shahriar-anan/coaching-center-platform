@@ -71,4 +71,16 @@ public enum StaffNotificationKind {
 
 	/** To the Master Admin and every System Admin: a student sent a corrected offline admission form. Payload: personName. */
 	ADMISSION_RESUBMITTED
+
+	/** To the Master Admin: a staff payment is recorded and waits for approval. Payload: personName, amount, method. */
+	OFFLINE_PAYMENT_PENDING,
+
+	/** To the person who recorded an offline payment: the Master Admin approved it. Payload: personName, amount, method. */
+	OFFLINE_PAYMENT_APPROVED,
+
+	/** To the person who recorded an offline payment: the Master Admin rejected it. Payload: personName, amount, reason. */
+	OFFLINE_PAYMENT_REJECTED,
+
+	/** To every Master Admin and System Admin: an offline admission fee is 3 days overdue. Payload: personName, amount, dueOn. Sent weekly after that. */
+	OFFLINE_FEE_OVERDUE
 }
