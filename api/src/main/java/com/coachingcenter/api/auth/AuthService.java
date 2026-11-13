@@ -1,11 +1,13 @@
 package com.coachingcenter.api.auth;
 
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -72,12 +74,17 @@ public class AuthService {
 
 	private final StudentPhotoRepository photos;
 
+	private final ApplicationEventPublisher events;
+
+	private final Clock clock;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public AuthService(UserRepository users, StudentProfileRepository profiles, AdminProfileRepository adminProfiles,
 			RefreshTokenRepository refreshTokens, OneTimeCodeRepository codes, PasswordEncoder passwords,
 			SecretHasher hasher, JwtService jwt, EmailSender email, LoginLockout lockout, AppProperties properties,
-			RefreshTokenRevocation revocations, AuditRecorder audit, StudentPhotoRepository photos) {
+			RefreshTokenRevocation revocations, AuditRecorder audit, StudentPhotoRepository photos,
+			ApplicationEventPublisher events, Clock clock) {
 		this.users = users;
 		this.profiles = profiles;
 		this.adminProfiles = adminProfiles;
@@ -92,6 +99,8 @@ public class AuthService {
 		this.revocations = revocations;
 		this.audit = audit;
 		this.photos = photos;
+		this.events = events;
+		this.clock = clock;
 	}
 
 	@Transactional
@@ -116,12 +125,23 @@ public class AuthService {
 		profile.setFullName(fullName.trim());
 		profile.setStudentCode(nextStudentCode());
 		profiles.save(profile);
-		issueCode(user, EMAIL_VERIFY, null, Instant.now().plusSeconds(properties.auth().emailCodeMinutes() * 60L));
+		issueCode(user, EMAIL_VERIFY, null, clock.instant().plusSeconds(properties.auth().emailCodeMinutes() * 60L));
 		return user;
 	}
 
+	/** An activation code that lasts the configured number of days (the students and staff the admin makes). */
 	@Transactional
 	public String issueActivationCode(User user, UUID createdBy) {
+		return issueActivationCode(user, createdBy,
+				clock.instant().plusSeconds(properties.auth().activationCodeDays() * 24L * 60L * 60L));
+	}
+
+	/**
+	 * An activation code that expires at the given time (the desk's code lasts 10 minutes). Any earlier unused code of the account stops
+	 * working. The mail goes only to an account that has an address.
+	 */
+	@Transactional
+	public String issueActivationCode(User user, UUID createdBy, Instant expiresAt) {
 		if (user.getDeletedAt() != null) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 		}
@@ -129,10 +149,11 @@ public class AuthService {
 			throw new ApiException(ErrorCode.ACTIVATION_NOT_PENDING, HttpStatus.CONFLICT,
 					"Only a pending account can receive an activation code.");
 		}
-		String code = issueCode(user, ACTIVATION, createdBy,
-				Instant.now().plusSeconds(properties.auth().activationCodeDays() * 24L * 60L * 60L));
+		String code = issueCode(user, ACTIVATION, createdBy, expiresAt);
 		audit.record(AuditRecorder.ACTIVATION_CODE_ISSUED, user.getId());
-		sendQuietly(() -> email.sendActivation(recipient(user), code));
+		if (hasEmail(user)) {
+			sendQuietly(() -> email.sendActivation(recipient(user), code));
+		}
 		return code;
 	}
 
@@ -149,6 +170,7 @@ public class AuthService {
 		acceptCode(match);
 		user.setPasswordHash(passwords.encode(password));
 		user.setStatus(ACTIVE);
+		events.publishEvent(new UserActivated(user.getId()));
 	}
 
 	@Transactional
@@ -274,7 +296,9 @@ public class AuthService {
 			refreshTokens.revokeAllForUser(userId, Instant.now());
 		}
 		audit.record(AuditRecorder.PASSWORD_CHANGED, user.getId());
-		sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
+		if (hasEmail(user)) {
+			sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
+		}
 	}
 
 	@Transactional
@@ -299,7 +323,9 @@ public class AuthService {
 			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
 		}
 		audit.record(AuditRecorder.PHONE_CHANGED, user.getId());
-		sendQuietly(() -> email.sendPhoneChanged(recipient(user)));
+		if (hasEmail(user)) {
+			sendQuietly(() -> email.sendPhoneChanged(recipient(user)));
+		}
 	}
 
 	@Transactional
@@ -311,7 +337,7 @@ public class AuthService {
 				return;
 			}
 			String raw = issueCode(user, PASSWORD_RESET, null,
-					Instant.now().plusSeconds(properties.auth().resetCodeMinutes() * 60L));
+					clock.instant().plusSeconds(properties.auth().resetCodeMinutes() * 60L));
 			sendQuietly(() -> email.sendPasswordReset(recipient(user), raw));
 		}, () -> hasher.sha256(normalized));
 	}
@@ -345,7 +371,9 @@ public class AuthService {
 		user.setPasswordHash(passwords.encode(newPassword));
 		refreshTokens.revokeAllForUser(user.getId(), Instant.now());
 		audit.record(AuditRecorder.PASSWORD_RESET, user.getId());
-		sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
+		if (hasEmail(user)) {
+			sendQuietly(() -> email.sendPasswordChanged(recipient(user)));
+		}
 	}
 
 	@Transactional
@@ -364,7 +392,7 @@ public class AuthService {
 				return;
 			}
 			issueCode(user, EMAIL_VERIFY, null,
-					Instant.now().plusSeconds(properties.auth().emailCodeMinutes() * 60L));
+					clock.instant().plusSeconds(properties.auth().emailCodeMinutes() * 60L));
 		});
 	}
 
@@ -401,10 +429,12 @@ public class AuthService {
 		return new IssuedTokens(access, jwt.accessTokenSeconds(), rawRefresh, token.getId());
 	}
 
+	/** A new code of this purpose. Every earlier unused code of the same purpose is marked used, so only the newest one works. */
 	private String issueCode(User user, String purpose, UUID createdBy, Instant expiresAt) {
-		codes.findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc(user.getId(), purpose).ifPresent(existing -> {
-			existing.setUsedAt(Instant.now());
-		});
+		Instant now = clock.instant();
+		for (OneTimeCode existing : codes.findByUserIdAndPurposeAndUsedAtIsNull(user.getId(), purpose)) {
+			existing.setUsedAt(now);
+		}
 		String raw = randomCode();
 		OneTimeCode code = new OneTimeCode();
 		code.setUserId(user.getId());
@@ -413,12 +443,17 @@ public class AuthService {
 		code.setExpiresAt(expiresAt);
 		code.setFailedAttempts(0);
 		code.setCreatedBy(createdBy);
-		code.setCreatedAt(Instant.now());
+		code.setCreatedAt(now);
 		codes.save(code);
 		if (EMAIL_VERIFY.equals(purpose)) {
 			sendQuietly(() -> email.sendEmailVerification(recipient(user), raw));
 		}
 		return raw;
+	}
+
+	/** Whether the account has an address to mail. A desk account has none until its form is submitted (V87). */
+	public static boolean hasEmail(User user) {
+		return user.getEmail() != null && !user.getEmail().isBlank();
 	}
 
 	/** The address, name and role a mail needs to greet the person and link to the right site. */
@@ -452,10 +487,10 @@ public class AuthService {
 		if (code.getFailedAttempts() >= properties.auth().codeMaxAttempts()) {
 			throw new ApiException(ErrorCode.CODE_ATTEMPTS_EXCEEDED, HttpStatus.BAD_REQUEST, "Code is no longer valid.");
 		}
-		if (code.getExpiresAt().isBefore(Instant.now())) {
+		if (code.getExpiresAt().isBefore(clock.instant())) {
 			throw new ApiException(ErrorCode.CODE_EXPIRED, HttpStatus.BAD_REQUEST, "Code is no longer valid.");
 		}
-		code.setUsedAt(Instant.now());
+		code.setUsedAt(clock.instant());
 	}
 
 	private void recordFailedCode(UUID userId, String purpose) {
@@ -463,7 +498,7 @@ public class AuthService {
 			int attempts = code.getFailedAttempts() + 1;
 			code.setFailedAttempts(attempts);
 			if (attempts >= properties.auth().codeMaxAttempts()) {
-				code.setUsedAt(Instant.now());
+				code.setUsedAt(clock.instant());
 			}
 		});
 	}

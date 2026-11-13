@@ -210,13 +210,20 @@ public class OfflineAdmissionAdminService {
 		String whereSql = where.isEmpty() ? "" : " where " + String.join(" and ", where);
 		Long total = jdbc.queryForObject("select count(*) from offline_admissions a" + whereSql, Long.class, args.toArray());
 		long count = total == null ? 0L : total;
-		List<Object> pageArgs = new ArrayList<>(args);
+		// The clock's now comes first: it is the first placeholder, in the select list, for the live code's expiry (V87).
+		List<Object> pageArgs = new ArrayList<>();
+		pageArgs.add(Timestamp.from(clock.instant()));
+		pageArgs.addAll(args);
 		pageArgs.add(pageSize);
 		pageArgs.add((long) pageNumber * pageSize);
 		List<QueueRow> found = jdbc.query("""
 				select a.id, a.student_id, a.full_name, a.mobile, a.batch_id, b.name_en, b.name_bn, a.status, a.submit_count,
-				  a.submitted_at, a.created_at, (p.user_id is not null) as has_photo
+				  a.submitted_at, a.created_at, (p.user_id is not null) as has_photo,
+				  (u.status <> 'PENDING_ACTIVATION') as activated,
+				  case when a.activation_code is not null and a.activation_code_expires_at > ? then a.activation_code_expires_at end
+				    as code_expires_at
 				from offline_admissions a
+				join users u on u.id = a.student_id
 				left join offline_batches b on b.id = a.batch_id
 				left join student_photos p on p.user_id = a.student_id
 				""" + whereSql + """
@@ -225,7 +232,8 @@ public class OfflineAdmissionAdminService {
 				""", (rs, row) -> new QueueRow(rs.getObject("id", UUID.class), rs.getObject("student_id", UUID.class),
 				rs.getString("full_name"), rs.getString("mobile"), rs.getObject("batch_id", UUID.class), rs.getString("name_en"),
 				rs.getString("name_bn"), rs.getString("status"), rs.getInt("submit_count"), instant(rs.getTimestamp("submitted_at")),
-				instant(rs.getTimestamp("created_at")), rs.getBoolean("has_photo"), List.of(), null, null), pageArgs.toArray());
+				instant(rs.getTimestamp("created_at")), rs.getBoolean("has_photo"), List.of(), null, null,
+				rs.getBoolean("activated"), instant(rs.getTimestamp("code_expires_at"))), pageArgs.toArray());
 		// The money of the whole page in two queries, then each row's flags from it (plan 4.3).
 		Map<UUID, OfflineAdmissionMoney.Money> moneyByAdmission = money.page(found.stream().map(QueueRow::id).toList(), money.today());
 		List<QueueRow> rows = new ArrayList<>();
@@ -233,7 +241,7 @@ public class OfflineAdmissionAdminService {
 			OfflineAdmissionMoney.Money due = moneyByAdmission.getOrDefault(row.id(), OfflineAdmissionMoney.Money.NONE);
 			rows.add(new QueueRow(row.id(), row.studentId(), row.fullName(), row.mobile(), row.batchId(), row.batchNameEn(),
 					row.batchNameBn(), row.status(), row.submitCount(), row.submittedAt(), row.createdAt(), row.hasPhoto(),
-					due.flags(row.status()), due.owedTotal(), due.nextDueOn()));
+					due.flags(row.status()), due.owedTotal(), due.nextDueOn(), row.activated(), row.codeExpiresAt()));
 		}
 		int totalPages = (int) ((count + pageSize - 1) / pageSize);
 		return new PageResponse<>(rows, pageNumber, pageSize, count, totalPages);
@@ -865,11 +873,13 @@ public class OfflineAdmissionAdminService {
 
 	/**
 	 * One row of the queue. {@code flags} are NO_PAYMENT, OVERDUE and PENDING_APPROVAL (plan 4.3); {@code owedTotal} is the sum of the
-	 * unpaid live dues, and {@code nextDueOn} the earliest of them (both null or zero before onboarding).
+	 * unpaid live dues, and {@code nextDueOn} the earliest of them (both null or zero before onboarding). {@code activated} says the
+	 * student has set a password; {@code codeExpiresAt} is the expiry of the desk's live activation code, null when no code is live.
 	 */
 	public record QueueRow(UUID id, UUID studentId, String fullName, String mobile, UUID batchId, String batchNameEn,
 			String batchNameBn, String status, int submitCount, Instant submittedAt, Instant createdAt, boolean hasPhoto,
-			List<String> flags, BigDecimal owedTotal, @JsonInclude(JsonInclude.Include.ALWAYS) LocalDate nextDueOn) {
+			List<String> flags, BigDecimal owedTotal, @JsonInclude(JsonInclude.Include.ALWAYS) LocalDate nextDueOn,
+			boolean activated, @JsonInclude(JsonInclude.Include.ALWAYS) Instant codeExpiresAt) {
 	}
 
 	public record AdmissionDetail(UUID id, UUID studentId, String state, long version, int submitCount, Instant submittedAt,

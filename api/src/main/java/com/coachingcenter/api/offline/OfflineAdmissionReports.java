@@ -49,7 +49,7 @@ public class OfflineAdmissionReports {
 	 * unpaid due (plan 5, 6.1).
 	 */
 	public record Counts(long submitted, long changesRequested, long ready, long onboarded, long closed, long paymentsPending,
-			long overdue) {
+			long overdue, long awaitingForm) {
 	}
 
 	/**
@@ -78,9 +78,13 @@ public class OfflineAdmissionReports {
 				  (select count(*) from offline_admissions where status = 'ONBOARDED') as onboarded,
 				  (select count(*) from offline_admissions where status = 'CLOSED') as closed,
 				  (select count(*) from offline_fee_payments where status = 'PENDING') as payments_pending,
-				  (select count(*) from offline_admissions a where """ + " " + OfflineAdmissionMoney.unpaidDue(true) + ") as overdue",
+				  (select count(*) from offline_admissions a where """ + " " + OfflineAdmissionMoney.unpaidDue(true) + """
+				  ) as overdue,
+				  (select count(*) from offline_admissions where status = 'AWAITING_FORM') as awaiting_form
+				""",
 				(rs, row) -> new Counts(rs.getLong("submitted"), rs.getLong("changes_requested"), rs.getLong("ready"),
-						rs.getLong("onboarded"), rs.getLong("closed"), rs.getLong("payments_pending"), rs.getLong("overdue")),
+						rs.getLong("onboarded"), rs.getLong("closed"), rs.getLong("payments_pending"), rs.getLong("overdue"),
+						rs.getLong("awaiting_form")),
 				sqlDate(money.today()));
 	}
 

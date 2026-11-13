@@ -16,7 +16,8 @@ public class User extends BaseEntity {
 	@Column(length = 16)
 	private String phone;
 
-	@Column(nullable = false, length = 320)
+	/** Null for a desk account until the student's form is submitted (V87). Every read of it must allow for null. */
+	@Column(length = 320)
 	private String email;
 
 	@Column(name = "email_verified_at")

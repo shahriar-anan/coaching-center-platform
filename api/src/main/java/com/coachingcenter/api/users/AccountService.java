@@ -77,6 +77,23 @@ public class AccountService {
 				user.getStatus(), code, profile.getStudentCode());
 	}
 
+	/**
+	 * A student made at the desk from a phone number alone (plan, 13 November 2026): no email yet, the name is the phone number until the
+	 * student's form replaces it, and the activation code expires at the given time. The student's form supplies the name and email.
+	 */
+	@Transactional
+	public CreatedAccount createDeskStudent(String phone, UUID createdBy, Instant codeExpiresAt) {
+		User user = newPendingUser(null, phone, null, Role.STUDENT, createdBy);
+		StudentProfile profile = new StudentProfile();
+		profile.setUserId(user.getId());
+		profile.setFullName(user.getPhone());
+		profile.setStudentCode(nextStudentCode());
+		studentProfiles.save(profile);
+		String code = auth.issueActivationCode(user, createdBy, codeExpiresAt);
+		return new CreatedAccount(user.getId(), profile.getFullName(), user.getPhone(), null, user.getRole(),
+				user.getStatus(), code, profile.getStudentCode());
+	}
+
 	@Transactional
 	public CreatedAccount createInstructor(String fullName, String phone, String email, UUID createdBy) {
 		User user = newPendingUser(fullName, phone, email, Role.INSTRUCTOR, createdBy);
@@ -195,13 +212,14 @@ public class AccountService {
 		return auth.issueActivationCode(user, createdBy);
 	}
 
+	/** A pending account. A null email makes an account with no address yet (the desk); a given email must be unused. */
 	private User newPendingUser(String fullName, String phone, String email, Role role, UUID createdBy) {
 		String normalizedPhone = PhoneNumbers.normalize(phone);
-		String normalizedEmail = email.trim().toLowerCase();
+		String normalizedEmail = email == null ? null : email.trim().toLowerCase();
 		if (users.findByPhoneAndDeletedAtIsNull(normalizedPhone).isPresent()) {
 			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
 		}
-		if (users.findByEmailAndDeletedAtIsNull(normalizedEmail).isPresent()) {
+		if (normalizedEmail != null && users.findByEmailAndDeletedAtIsNull(normalizedEmail).isPresent()) {
 			throw new ApiException(ErrorCode.DUPLICATE_EMAIL, HttpStatus.CONFLICT, "Email is already in use.");
 		}
 		User user = new User();

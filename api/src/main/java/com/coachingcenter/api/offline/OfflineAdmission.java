@@ -173,6 +173,19 @@ public class OfflineAdmission {
 	@Column(name = "closed_reason", length = 500)
 	private String closedReason;
 
+	/** The plain activation code, kept only while the desk may read it out (V87). Cleared on activation and on expiry. */
+	@Column(name = "activation_code", length = 16)
+	private String activationCode;
+
+	@Column(name = "activation_code_expires_at")
+	private Instant activationCodeExpiresAt;
+
+	@Column(name = "activation_code_issued_by")
+	private UUID activationCodeIssuedBy;
+
+	@Column(name = "activated_at")
+	private Instant activatedAt;
+
 	public UUID getId() {
 		return id;
 	}
@@ -555,6 +568,38 @@ public class OfflineAdmission {
 
 	public void setClosedReason(String closedReason) {
 		this.closedReason = closedReason;
+	}
+
+	public String getActivationCode() {
+		return activationCode;
+	}
+
+	public void setActivationCode(String activationCode) {
+		this.activationCode = activationCode;
+	}
+
+	public Instant getActivationCodeExpiresAt() {
+		return activationCodeExpiresAt;
+	}
+
+	public void setActivationCodeExpiresAt(Instant activationCodeExpiresAt) {
+		this.activationCodeExpiresAt = activationCodeExpiresAt;
+	}
+
+	public UUID getActivationCodeIssuedBy() {
+		return activationCodeIssuedBy;
+	}
+
+	public void setActivationCodeIssuedBy(UUID activationCodeIssuedBy) {
+		this.activationCodeIssuedBy = activationCodeIssuedBy;
+	}
+
+	public Instant getActivatedAt() {
+		return activatedAt;
+	}
+
+	public void setActivatedAt(Instant activatedAt) {
+		this.activatedAt = activatedAt;
 	}
 
 }

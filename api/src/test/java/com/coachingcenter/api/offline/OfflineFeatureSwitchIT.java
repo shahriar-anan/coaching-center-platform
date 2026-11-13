@@ -59,6 +59,7 @@ class OfflineFeatureSwitchIT extends PostgresIntegrationTest {
 		assertNotFound(get("/api/v1/offline-fee-payments", masterToken));
 		assertNotFound(get("/api/v1/me/admission", studentToken));
 		assertNotFound(get("/api/v1/me/admission/fees", studentToken));
+		assertNotFound(get("/api/v1/offline-admissions/" + UUID.randomUUID() + "/activation-code", masterToken));
 	}
 
 	@Test

@@ -19,6 +19,9 @@ public class AuditRecorder {
 
 	public static final String ACTIVATION_CODE_ISSUED = "ACTIVATION_CODE_ISSUED";
 
+	/** A desk admission's live activation code was read out by staff. Not an issue: no new code is made by the read. */
+	public static final String ACTIVATION_CODE_SHOWN = "ACTIVATION_CODE_SHOWN";
+
 	public static final String PASSWORD_RESET = "PASSWORD_RESET";
 
 	public static final String PASSWORD_CHANGED = "PASSWORD_CHANGED";

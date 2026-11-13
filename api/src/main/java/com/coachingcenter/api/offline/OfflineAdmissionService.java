@@ -7,16 +7,19 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.coachingcenter.api.auth.AuthService;
 import com.coachingcenter.api.auth.PhoneNumbers;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
@@ -26,6 +29,10 @@ import com.coachingcenter.api.staffnotifications.StaffNotificationKind;
 import com.coachingcenter.api.staffnotifications.StaffNotificationWriter;
 import com.coachingcenter.api.users.AccountService;
 import com.coachingcenter.api.users.StudentPhotoRepository;
+import com.coachingcenter.api.users.StudentProfile;
+import com.coachingcenter.api.users.StudentProfileRepository;
+import com.coachingcenter.api.users.User;
+import com.coachingcenter.api.users.UserRepository;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -47,12 +54,14 @@ public class OfflineAdmissionService {
 	/** 10, 13 or 17 digits, the lengths of a Bangladeshi national ID. */
 	private static final Pattern NID = Pattern.compile("^(\\d{10}|\\d{13}|\\d{17})$");
 
-	/** The longest each text field may be, matching the column sizes in V82. */
+	/**
+	 * The longest each text field may be, matching the column sizes in V82. Thana and district are not on the form any more (13 November
+	 * 2026), so they have no limit here: the stored values of old forms are kept and never written again.
+	 */
 	private static final Map<String, Integer> MAX_LENGTH = Map.ofEntries(
 			Map.entry("fullName", 200), Map.entry("fatherName", 200), Map.entry("motherName", 200),
 			Map.entry("email", 255), Map.entry("university", 200), Map.entry("semesterBatch", 100),
-			Map.entry("hallMess", 300), Map.entry("thana", 100), Map.entry("district", 100),
-			Map.entry("presentAddress", 1000), Map.entry("permanentAddress", 1000));
+			Map.entry("hallMess", 300), Map.entry("presentAddress", 1000), Map.entry("permanentAddress", 1000));
 
 	/** The form as the student fills it in. A null field is not filled in yet. */
 	public record Form(String fullName, String fatherName, String motherName, LocalDate dateOfBirth, String email,
@@ -95,9 +104,13 @@ public class OfflineAdmissionService {
 
 	private final Clock clock;
 
+	private final UserRepository users;
+
+	private final StudentProfileRepository profiles;
+
 	public OfflineAdmissionService(OfflineAdmissionRepository admissions, OfflineAdmissionSubmissionRepository submissions,
 			AccountService accounts, StudentPhotoRepository photos, StaffNotificationWriter notices, JdbcTemplate jdbc,
-			ObjectMapper json, AuditRecorder audit, Clock clock) {
+			ObjectMapper json, AuditRecorder audit, Clock clock, UserRepository users, StudentProfileRepository profiles) {
 		this.admissions = admissions;
 		this.submissions = submissions;
 		this.accounts = accounts;
@@ -107,6 +120,8 @@ public class OfflineAdmissionService {
 		this.json = json;
 		this.audit = audit;
 		this.clock = clock;
+		this.users = users;
+		this.profiles = profiles;
 	}
 
 	/**
@@ -202,12 +217,20 @@ public class OfflineAdmissionService {
 		OfflineAdmission admission = open(studentId);
 		requireFormOpen(admission);
 		List<FieldErrorDetail> problems = formProblems(admission, photos.existsById(studentId));
+		User account = users.findByIdAndDeletedAtIsNull(studentId).orElseThrow(OfflineSupport::notFound);
+		// A desk account has no email until its form is submitted (V87): the form's email becomes the account's, unless it is taken.
+		boolean copyEmail = !AuthService.hasEmail(account) && admission.getEmail() != null;
+		String accountEmail = copyEmail ? admission.getEmail().trim().toLowerCase(Locale.ROOT) : null;
+		if (copyEmail && emailTakenByAnother(accountEmail, studentId)) {
+			problems.add(new FieldErrorDetail("email", "This email is already used by another account."));
+		}
 		if (!problems.isEmpty()) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.", problems);
 		}
 		// Every number has passed the check, so it is stored in the normal +880 form.
 		admission.setMobile(PhoneNumbers.normalize(admission.getMobile()));
 		admission.setEmergencyMobile(PhoneNumbers.normalize(admission.getEmergencyMobile()));
+		copyNameAndEmail(admission, account, studentId, accountEmail);
 		boolean resubmit = OfflineAdmission.CHANGES_REQUESTED.equals(admission.getStatus()) || admission.getSubmitCount() > 0;
 		Instant now = clock.instant();
 		admission.setStatus(OfflineAdmission.SUBMITTED);
@@ -271,8 +294,6 @@ public class OfflineAdmissionService {
 		required(problems, "mobile", a.getMobile());
 		required(problems, "emergencyMobile", a.getEmergencyMobile());
 		required(problems, "hallMess", a.getHallMess());
-		required(problems, "thana", a.getThana());
-		required(problems, "district", a.getDistrict());
 		required(problems, "presentAddress", a.getPresentAddress());
 		required(problems, "permanentAddress", a.getPermanentAddress());
 		if (a.getDateOfBirth() == null) {
@@ -324,7 +345,6 @@ public class OfflineAdmissionService {
 				Map.entry("fatherName", nz(a.getFatherName())), Map.entry("motherName", nz(a.getMotherName())),
 				Map.entry("email", nz(a.getEmail())), Map.entry("university", nz(a.getUniversity())),
 				Map.entry("semesterBatch", nz(a.getSemesterBatch())), Map.entry("hallMess", nz(a.getHallMess())),
-				Map.entry("thana", nz(a.getThana())), Map.entry("district", nz(a.getDistrict())),
 				Map.entry("presentAddress", nz(a.getPresentAddress())),
 				Map.entry("permanentAddress", nz(a.getPermanentAddress())));
 		for (Map.Entry<String, Integer> limit : MAX_LENGTH.entrySet()) {
@@ -355,8 +375,6 @@ public class OfflineAdmissionService {
 		if (body.has("mobile")) a.setMobile(text(body, "mobile"));
 		if (body.has("emergencyMobile")) a.setEmergencyMobile(text(body, "emergencyMobile"));
 		if (body.has("hallMess")) a.setHallMess(text(body, "hallMess"));
-		if (body.has("thana")) a.setThana(text(body, "thana"));
-		if (body.has("district")) a.setDistrict(text(body, "district"));
 		if (body.has("presentAddress")) a.setPresentAddress(text(body, "presentAddress"));
 		if (body.has("permanentAddress")) a.setPermanentAddress(text(body, "permanentAddress"));
 	}
@@ -381,6 +399,31 @@ public class OfflineAdmissionService {
 		catch (java.time.format.DateTimeParseException invalid) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
 					List.of(new FieldErrorDetail(key, "Enter the date as year-month-day.")));
+		}
+	}
+
+	/** Another live account already has this address. The student's own account is not another. */
+	private boolean emailTakenByAnother(String address, UUID studentId) {
+		return users.findByEmailAndDeletedAtIsNull(address).filter(other -> !other.getId().equals(studentId)).isPresent();
+	}
+
+	/**
+	 * The form's full name becomes the profile's name. The form's email becomes the account's, only when the account has none yet. A
+	 * unique-index race on the email is reported as the same field error as the check above, not as a server failure.
+	 */
+	private void copyNameAndEmail(OfflineAdmission admission, User account, UUID studentId, String accountEmail) {
+		StudentProfile profile = profiles.findById(studentId).orElseThrow(OfflineSupport::notFound);
+		profile.setFullName(admission.getFullName().trim());
+		if (accountEmail == null) {
+			return;
+		}
+		account.setEmail(accountEmail);
+		try {
+			users.saveAndFlush(account);
+		}
+		catch (DataIntegrityViolationException taken) {
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.",
+					List.of(new FieldErrorDetail("email", "This email is already used by another account.")));
 		}
 	}
 

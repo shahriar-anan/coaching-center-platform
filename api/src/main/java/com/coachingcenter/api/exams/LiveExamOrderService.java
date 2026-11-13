@@ -257,7 +257,7 @@ public class LiveExamOrderService {
 		String name = profile == null || profile.getFullName().isBlank() ? user.getPhone() : profile.getFullName();
 		return gateway()
 			.start(new LiveExamPaymentGateway.Checkout(order.getTranId(), order.getAmount(), LiveExamOrder.BDT,
-					productName, name, user.getEmail(), user.getPhone()))
+					productName, name, user.getEmail() == null ? "" : user.getEmail(), user.getPhone()))
 			.redirectUrl();
 	}
 

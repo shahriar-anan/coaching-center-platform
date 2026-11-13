@@ -140,6 +140,10 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 	}
 
 	private void dispatch(String to, RenderedEmail rendered, String secret) {
+		// A person with no address (a desk account before its form is submitted) gets no mail, and nothing is logged for them.
+		if (blank(to)) {
+			return;
+		}
 		Runnable job = () -> deliverNow(to, rendered, secret);
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
