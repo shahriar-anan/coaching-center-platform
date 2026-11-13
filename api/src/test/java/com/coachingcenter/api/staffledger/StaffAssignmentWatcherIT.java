@@ -87,7 +87,8 @@ class StaffAssignmentWatcherIT extends PostgresIntegrationTest {
 		watcher.watch();
 
 		assertThat(log(exam)).hasSize(2);
-		Map<String, Object> assigned = log(exam).get(1);
+		// Found by kind and instructor, not by position: a frozen test clock gives rows the same time, so the time order is a tie.
+		Map<String, Object> assigned = log(exam, "ASSIGNED", first);
 		assertThat(assigned).containsEntry("kind", "ASSIGNED").containsEntry("instructor_id", first)
 			.containsEntry("changed_by", master);
 		assertThat(notices(first, "EXAM_ASSIGNED", title)).isEqualTo(1);

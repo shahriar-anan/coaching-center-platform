@@ -15,6 +15,7 @@ import javax.sql.DataSource;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -39,6 +40,7 @@ import tools.jackson.databind.ObjectMapper;
  * use months in 2031 that no other test writes to, so their figures are exact.
  */
 @SpringBootTest
+@Transactional
 @AutoConfigureMockMvc
 @Import(CapturingEmailConfig.class)
 class StaffPayAnalyticsIT extends PostgresIntegrationTest {
