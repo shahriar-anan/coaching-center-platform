@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Bell, BookOpen, CalendarDays, CircleUserRound, Home, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
@@ -26,6 +26,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { cn } from "@/components/ui/cn";
+import { admissionRedirect, isPendingAdmission } from "@/lib/admission/gate";
+import { useMyAdmission } from "@/lib/api/exam/offline-admission";
 
 type TabItem = { href: string; key: "home" | "myExams" | "results" | "notices" | "account"; icon: typeof Home };
 
@@ -350,17 +352,30 @@ function WideNav({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
 export function StudentShell({ children }: { children: ReactNode }) {
   const { t } = useLocale();
   const { session } = useSession();
+  const router = useRouter();
   const pathname = usePathname() ?? "/";
   const signedIn = session.status === "authenticated";
-  const showTabs = signedIn && session.user.role === "STUDENT" && !hidesTabBar(pathname);
   const student = signedIn && session.user.role === "STUDENT";
+  // A student whose offline admission is not yet onboarded is pending: only the form and its print view are open (plan 4.5).
+  // Anyone else, and a student with no admission (the query gives null), is unaffected.
+  const admission = useMyAdmission({ enabled: student });
+  const admissionState = admission.data?.state;
+  const pending = isPendingAdmission(admissionState);
+  const gateTarget = admissionRedirect({ pathname, role: student ? "STUDENT" : null, state: admissionState });
+  useEffect(() => {
+    if (gateTarget) {
+      router.replace(gateTarget);
+    }
+  }, [gateTarget, router]);
+  const content = gateTarget ? null : children;
+  const showTabs = student && !hidesTabBar(pathname) && !pending;
   const wide = pathname === "/" && !student;
   const roomy = !wide && !DETAIL_PATH.test(pathname);
   const column = wide ? "max-w-6xl" : roomy ? "max-w-5xl" : "max-w-[760px]";
   // The top bar needs the wider header from large width up; the content column stays 760 px on detail pages.
   // The landing page's eight links need a wider bar than the content column, so its header takes the full 1280 px.
   // With the side menu showing, the header fills the column beside it, so its toggle sits at the menu's edge.
-  const sidebarApplies = student && !EXAM_PATH.test(pathname);
+  const sidebarApplies = student && !EXAM_PATH.test(pathname) && !pending;
   const headerColumn = student
     ? sidebarApplies
       ? "max-w-none"
@@ -411,7 +426,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
           {/* The side menu carries the logo from desktop width up, so the header shows it only where there is no menu. */}
           <Logo phoneMark className={cn(wide && "xl:shrink-0", sidebarApplies && "lg:hidden")} />
           {wide ? <WideNav onOpenChange={header.pin} /> : null}
-          {student ? <StudentLinks className={sidebarApplies ? "lg:hidden" : undefined} /> : null}
+          {student && !pending ? <StudentLinks className={sidebarApplies ? "lg:hidden" : undefined} /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             {/* From 640 px up. Below that the switches are in the account menu, or in the site menu for visitors. */}
@@ -435,7 +450,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
         )}
       >
         {/* Lists and cards sit in a centred 768 px column; the sitting paper keeps the full frame. */}
-        {roomy && !SITTING_PATH.test(pathname) ? <div className={cn("mx-auto w-full max-w-3xl", CATEGORY_PATH.test(pathname) && "lg:max-w-5xl")}>{children}</div> : children}
+        {roomy && !SITTING_PATH.test(pathname) ? <div className={cn("mx-auto w-full max-w-3xl", CATEGORY_PATH.test(pathname) && "lg:max-w-5xl")}>{content}</div> : content}
       </main>
       {footer !== "none" ? <SiteFooter tabBarInset={showTabs} /> : null}
       </div>
