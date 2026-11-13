@@ -10,4 +10,7 @@ public interface OfflineFeeDueRepository extends JpaRepository<OfflineFeeDue, UU
 	/** The dues that still count, in month order. */
 	List<OfflineFeeDue> findByAdmissionIdAndCancelledAtIsNullOrderBySeqAsc(UUID admissionId);
 
+	/** Every due of the admission, cancelled ones too, in month order. The terms change reads it to restore a cancelled month. */
+	List<OfflineFeeDue> findByAdmissionIdOrderBySeqAsc(UUID admissionId);
+
 }

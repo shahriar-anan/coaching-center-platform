@@ -64,6 +64,43 @@ public class AuditRecorder {
 
 	public static final String OFFLINE_ADMISSION_RESUBMITTED = "OFFLINE_ADMISSION_RESUBMITTED";
 
+	/** Offline admission, stage 3: the review, setup, items, onboarding, terms, close and signed copy. */
+	public static final String OFFLINE_ADMISSION_SETUP_CHANGED = "OFFLINE_ADMISSION_SETUP_CHANGED";
+
+	public static final String OFFLINE_ADMISSION_ITEM_ADDED = "OFFLINE_ADMISSION_ITEM_ADDED";
+
+	public static final String OFFLINE_ADMISSION_ITEM_REMOVED = "OFFLINE_ADMISSION_ITEM_REMOVED";
+
+	public static final String OFFLINE_ADMISSION_CHANGES_REQUESTED = "OFFLINE_ADMISSION_CHANGES_REQUESTED";
+
+	public static final String OFFLINE_ADMISSION_READY = "OFFLINE_ADMISSION_READY";
+
+	public static final String OFFLINE_ADMISSION_BACK_TO_REVIEW = "OFFLINE_ADMISSION_BACK_TO_REVIEW";
+
+	public static final String OFFLINE_ADMISSION_ONBOARDED = "OFFLINE_ADMISSION_ONBOARDED";
+
+	public static final String OFFLINE_ADMISSION_TERMS_CHANGED = "OFFLINE_ADMISSION_TERMS_CHANGED";
+
+	public static final String OFFLINE_ADMISSION_CLOSED = "OFFLINE_ADMISSION_CLOSED";
+
+	public static final String OFFLINE_ADMISSION_SIGNED_UPLOADED = "OFFLINE_ADMISSION_SIGNED_UPLOADED";
+
+	/** An access grant made by an offline admission (onboarding, an item added after it, or the close). */
+	public static final String OFFLINE_ACCESS_GRANTED = "OFFLINE_ACCESS_GRANTED";
+
+	public static final String OFFLINE_ACCESS_REVOKED = "OFFLINE_ACCESS_REVOKED";
+
+	/** Offline batch: one batch row and its routine PDF. */
+	public static final String OFFLINE_BATCH_ENTITY = "OFFLINE_BATCH";
+
+	public static final String OFFLINE_BATCH_CREATED = "OFFLINE_BATCH_CREATED";
+
+	public static final String OFFLINE_BATCH_UPDATED = "OFFLINE_BATCH_UPDATED";
+
+	public static final String OFFLINE_BATCH_ARCHIVED = "OFFLINE_BATCH_ARCHIVED";
+
+	public static final String OFFLINE_BATCH_ROUTINE_UPLOADED = "OFFLINE_BATCH_ROUTINE_UPLOADED";
+
 	public static final String BOOK_CATEGORY_ENTITY = "BOOK_CATEGORY";
 
 	public static final String PAYMENT_SUCCESS = "PAYMENT_SUCCESS";

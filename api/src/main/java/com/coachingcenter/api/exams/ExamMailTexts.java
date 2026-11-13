@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import com.coachingcenter.api.auth.Role;
 import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.mail.EmailTemplates;
+import com.coachingcenter.api.offline.OfflineFeeMails;
 import com.coachingcenter.api.common.mail.MailContext;
 import com.coachingcenter.api.common.mail.MailRecipient;
 import com.coachingcenter.api.common.mail.RenderedEmail;
@@ -37,6 +38,8 @@ class ExamMailTexts {
 
 	private final InstallmentPlanReader installments;
 
+	private final OfflineFeeMails offlineFeeMails;
+
 	private final LiveExamOrderRepository orders;
 
 	private final LiveExamGrantRepository grants;
@@ -58,8 +61,9 @@ class ExamMailTexts {
 	ExamMailTexts(LiveExamOrderRepository orders, LiveExamGrantRepository grants, LiveExamRepository exams,
 			LiveExamModuleRepository modules, LiveExamCatalogVisibility visibility, UserRepository users,
 			LiveExamAccess access, StudentProfileRepository profiles, AppProperties properties,
-			InstallmentPlanReader installments) {
+			InstallmentPlanReader installments, OfflineFeeMails offlineFeeMails) {
 		this.installments = installments;
+		this.offlineFeeMails = offlineFeeMails;
 		this.orders = orders;
 		this.grants = grants;
 		this.exams = exams;
@@ -71,7 +75,29 @@ class ExamMailTexts {
 		this.context = MailContext.from(properties);
 	}
 
+	/**
+	 * An offline admission mail (plan section 7): to the student's account email, which is used whether or not it is verified
+	 * (C6). Its values come from the row's payload, so the text is what was true when the mail was written.
+	 */
+	private Prepared admission(ExamOutboundMail row) {
+		User student = activeStudent(row.getUserId());
+		if (student == null || student.getEmail() == null || student.getEmail().isBlank()) {
+			return null;
+		}
+		String name = profiles.findById(student.getId()).map(StudentProfile::getFullName).orElse(null);
+		MailRecipient to = new MailRecipient(student.getEmail(), name, Role.STUDENT);
+		RenderedEmail mail = AdmissionMail.render(context, row.getKind(), to, AdmissionMail.parse(row.getPayload()));
+		return mail == null ? null : new Prepared(to.email(), mail.subject(), mail.text(), mail.html());
+	}
+
 	Prepared prepare(ExamOutboundMail row, Instant now) {
+		if (AdmissionMail.handles(row.getKind())) {
+			return admission(row);
+		}
+		if (OfflineFeeMails.handles(row.getKind())) {
+			OfflineFeeMails.Mail mail = offlineFeeMails.render(row.getKind(), row.getMessageKey(), row.getUserId());
+			return mail == null ? null : new Prepared(mail.to(), mail.subject(), mail.text(), mail.html());
+		}
 		if (ExamOutboundMail.PAYMENT_RECEIPT.equals(row.getKind())) {
 			return receipt(row);
 		}

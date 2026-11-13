@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -100,6 +101,13 @@ public class ApiExceptionHandler {
 	public ResponseEntity<ApiError> unsupportedMedia(HttpServletRequest request) {
 		return body(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Media type is not supported.",
 				null, request);
+	}
+
+	/** Two requests changed the same row (the @Version column): the second one is told to reload, not shown a server error. */
+	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+	public ResponseEntity<ApiError> staleVersion(HttpServletRequest request) {
+		return body(HttpStatus.CONFLICT, ErrorCode.STALE_VERSION,
+				"This was changed by someone else. Reload it and try again.", null, request);
 	}
 
 	@ExceptionHandler(Exception.class)

@@ -27,7 +27,7 @@ class SchemaIT extends PostgresIntegrationTest {
 	@Test
 	void examOutboundMailStoresTheQueueAndNotTheBody() throws Exception {
 		assertThat(columns("exam_outbound_mail")).containsExactlyInAnyOrder("id", "kind", "message_key", "user_id",
-				"attempt_count", "status", "created_at", "updated_at");
+				"attempt_count", "status", "created_at", "updated_at", "payload");
 	}
 
 	@Test

@@ -31,6 +31,18 @@ public class ExamOutboundMail {
 	/** A weekly reminder that an installment is overdue. Key: as due soon, plus the ISO week of the reminder. */
 	public static final String INSTALLMENT_OVERDUE = "INSTALLMENT_OVERDUE";
 
+	/** Offline admission: the form was approved and the admission is open. Key: student and admission. Payload: the summary. */
+	public static final String ADMISSION_APPROVED = "ADMISSION_APPROVED";
+
+	/** Offline admission: the form was sent back. Key: student, admission and the time. Payload: the reason. */
+	public static final String ADMISSION_CHANGES_REQUESTED = "ADMISSION_CHANGES_REQUESTED";
+
+	/** Offline admission: the fee or the course end, or the exams and packages, changed. Payload: the old and new values. */
+	public static final String ADMISSION_UPDATED = "ADMISSION_UPDATED";
+
+	/** Offline admission: the admission was closed. Payload: the reason and the close date. */
+	public static final String ADMISSION_CLOSED = "ADMISSION_CLOSED";
+
 	public static final String PENDING = "PENDING";
 
 	public static final String SENT = "SENT";
@@ -62,6 +74,18 @@ public class ExamOutboundMail {
 
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
+
+	/** The values an admission mail was written with (V85). Null for every other kind. */
+	@Column(name = "payload")
+	private String payload;
+
+	public String getPayload() {
+		return payload;
+	}
+
+	public void setPayload(String payload) {
+		this.payload = payload;
+	}
 
 	public UUID getId() {
 		return id;

@@ -145,10 +145,13 @@ public class OfflineAdmissionService {
 	public AdmissionView submit(UUID studentId) {
 		OfflineAdmission admission = open(studentId);
 		requireFormOpen(admission);
-		List<FieldErrorDetail> problems = validate(admission, studentId);
+		List<FieldErrorDetail> problems = formProblems(admission, photos.existsById(studentId));
 		if (!problems.isEmpty()) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.", problems);
 		}
+		// Every number has passed the check, so it is stored in the normal +880 form.
+		admission.setMobile(PhoneNumbers.normalize(admission.getMobile()));
+		admission.setEmergencyMobile(PhoneNumbers.normalize(admission.getEmergencyMobile()));
 		boolean resubmit = OfflineAdmission.CHANGES_REQUESTED.equals(admission.getStatus()) || admission.getSubmitCount() > 0;
 		Instant now = clock.instant();
 		admission.setStatus(OfflineAdmission.SUBMITTED);
@@ -184,10 +187,10 @@ public class OfflineAdmissionService {
 	}
 
 	/**
-	 * Every problem with the form, one entry per field. The phone numbers are normalised here when they are valid; the caller
-	 * saves them only when this returns nothing, and a refusal rolls the transaction back.
+	 * Every problem with the form, one entry per field. It changes nothing, so the admin ready check and the admin detail can call it
+	 * too. The submit normalises the phone numbers once this returns nothing (plan 6.2, 4.2).
 	 */
-	private List<FieldErrorDetail> validate(OfflineAdmission a, UUID studentId) {
+	List<FieldErrorDetail> formProblems(OfflineAdmission a, boolean hasPhoto) {
 		List<FieldErrorDetail> problems = new ArrayList<>();
 		required(problems, "fullName", a.getFullName());
 		required(problems, "fatherName", a.getFatherName());
@@ -219,9 +222,9 @@ public class OfflineAdmissionService {
 		if (a.getNid() != null && !NID.matcher(a.getNid()).matches()) {
 			problems.add(new FieldErrorDetail("nid", "The national ID number must have 10, 13 or 17 digits."));
 		}
-		a.setMobile(phone(problems, "mobile", a.getMobile()));
-		a.setEmergencyMobile(phone(problems, "emergencyMobile", a.getEmergencyMobile()));
-		if (!photos.existsById(studentId)) {
+		phone(problems, "mobile", a.getMobile());
+		phone(problems, "emergencyMobile", a.getEmergencyMobile());
+		if (!hasPhoto) {
 			problems.add(new FieldErrorDetail("photo", "Add your photo. Take one with the camera or choose one from the gallery."));
 		}
 		checkLengths(problems, a);
@@ -334,7 +337,7 @@ public class OfflineAdmissionService {
 				photos.existsById(a.getStudentId()), form(a));
 	}
 
-	private static Form form(OfflineAdmission a) {
+	static Form form(OfflineAdmission a) {
 		return new Form(a.getFullName(), a.getFatherName(), a.getMotherName(), a.getDateOfBirth(), a.getEmail(),
 				a.getGender(), a.getUniversity(), a.getSemesterBatch(), a.getNid(), a.getMobile(), a.getEmergencyMobile(),
 				a.getHallMess(), a.getThana(), a.getDistrict(), a.getPresentAddress(), a.getPermanentAddress());

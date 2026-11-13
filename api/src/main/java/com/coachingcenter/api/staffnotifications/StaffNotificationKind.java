@@ -70,7 +70,16 @@ public enum StaffNotificationKind {
 	ADMISSION_SUBMITTED,
 
 	/** To the Master Admin and every System Admin: a student sent a corrected offline admission form. Payload: personName. */
-	ADMISSION_RESUBMITTED
+	ADMISSION_RESUBMITTED,
+
+	/** To every Master Admin: staff marked an offline admission ready for onboarding. Payload: personName. */
+	ADMISSION_READY,
+
+	/** To whoever marked an offline admission ready, when someone else pressed "Back to review". Payload: personName. */
+	ADMISSION_RETURNED,
+
+	/** To whoever marked an offline admission ready, when the Master Admin onboarded it. Payload: personName. */
+	ADMISSION_ONBOARDED,
 
 	/** To the Master Admin: a staff payment is recorded and waits for approval. Payload: personName, amount, method. */
 	OFFLINE_PAYMENT_PENDING,

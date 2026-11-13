@@ -266,6 +266,113 @@ public final class EmailTemplates {
 				frame(ctx, "৳" + plainMoney(amount) + " · " + itemBn, html.toString()), text);
 	}
 
+	/**
+	 * The receipt of one approved monthly fee at an offline admission (plan section 7): the amount, how and when it was paid, the
+	 * receipt number and what is still owed. There is no attachment; the link opens the student's admission page.
+	 */
+	public static RenderedEmail offlineFeeReceipt(MailContext ctx, MailRecipient who, String amount, String method, String reference,
+			String paidOn, String receiptNo, String stillOwed, String link) {
+		String first = who == null ? null : who.firstName();
+		String greet = first == null ? "" : esc(first) + ", ";
+		String greetEn = first == null ? "" : first + ", ";
+		StringBuilder html = new StringBuilder();
+		html.append(hero("মাসিক ফি জমা হয়েছে", "Monthly fee received"));
+		html.append(para(greet + "আপনার পেমেন্ট পাওয়া গেছে। রসিদটি নিচে দেওয়া হলো।",
+				greetEn + "your payment was received. The receipt is below."));
+		html.append(facts(List.of(
+				new String[] { "পেমেন্টের মাধ্যম", "Paid with", esc(method) },
+				new String[] { "লেনদেন নম্বর", "Reference",
+						"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(reference) + "</span>" },
+				new String[] { "তারিখ", "Date", esc(paidOn) },
+				new String[] { "রসিদ নম্বর", "Receipt number",
+						"<span style=\"font-family:'Courier New',Courier,monospace;font-size:14px;\">" + esc(receiptNo) + "</span>" },
+				new String[] { "বাকি আছে", "Still owed", "<strong>" + money(stillOwed) + "</strong> BDT" })));
+		html.append(button("আমার পেমেন্ট দেখুন", "View my payments", link));
+		html.append(note("রসিদটি সংরক্ষণ করুন। কোনো প্রশ্ন থাকলে রসিদ নম্বরসহ আমাদের জানান।",
+				"Keep this receipt. If you have a question, quote the receipt number."));
+		String text = text("মাসিক ফি জমা হয়েছে / Monthly fee received", greetEn + "আপনার পেমেন্ট পাওয়া গেছে / your payment was received.",
+				"জমা / Received: " + plainMoney(amount) + " BDT", "পেমেন্টের মাধ্যম / Paid with: " + method,
+				"লেনদেন নম্বর / Reference: " + reference, "তারিখ / Date: " + paidOn, "রসিদ নম্বর / Receipt number: " + receiptNo,
+				"বাকি আছে / Still owed: " + plainMoney(stillOwed) + " BDT", "খুলুন / Open: " + link);
+		return new RenderedEmail("মাসিক ফি জমা হয়েছে · Monthly fee received: " + receiptNo,
+				frame(ctx, "৳" + plainMoney(amount) + " · " + receiptNo, html.toString()), text);
+	}
+
+	/**
+	 * A reminder about one monthly fee at an offline admission (plan section 7). {@code stage} is {@code DUE_SOON} (three days
+	 * before), {@code DUE_TODAY}, or {@code OVERDUE} (three days after, still unpaid). {@code amount} is what is still owed on that
+	 * due.
+	 */
+	public static RenderedEmail offlineFeeReminder(MailContext ctx, MailRecipient who, String stage, String amount, String dueOn,
+			String link) {
+		String first = who == null ? null : who.firstName();
+		String greet = first == null ? "" : esc(first) + ", ";
+		String greetEn = first == null ? "" : first + ", ";
+		String titleBn;
+		String titleEn;
+		String bodyBn;
+		String bodyEn;
+		switch (stage) {
+			case "DUE_SOON" -> {
+				titleBn = "মাসিক ফি আসছে";
+				titleEn = "Monthly fee due soon";
+				bodyBn = "আপনার মাসিক ফি পরিশোধের তারিখ আর ৩ দিন পরে। সময়মতো পরিশোধ করুন।";
+				bodyEn = "your monthly fee is due in 3 days. Please pay it on time.";
+			}
+			case "DUE_TODAY" -> {
+				titleBn = "আজ মাসিক ফি পরিশোধের দিন";
+				titleEn = "Monthly fee due today";
+				bodyBn = "আজ আপনার মাসিক ফি পরিশোধের তারিখ।";
+				bodyEn = "today is the due date for your monthly fee.";
+			}
+			default -> {
+				titleBn = "মাসিক ফি পরিশোধ হয়নি";
+				titleEn = "Monthly fee overdue";
+				bodyBn = "আপনার মাসিক ফি পরিশোধের তারিখ পেরিয়ে গেছে। যত দ্রুত সম্ভব পরিশোধ করুন।";
+				bodyEn = "your monthly fee is past its due date. Please pay it as soon as you can.";
+			}
+		}
+		StringBuilder html = new StringBuilder();
+		html.append(hero(titleBn, titleEn));
+		html.append(para(greet + bodyBn, greetEn + bodyEn));
+		html.append(facts(List.of(
+				new String[] { "মাসিক ফি", "Monthly fee", "<strong>" + money(amount) + "</strong> BDT" },
+				new String[] { "পরিশোধের তারিখ", "Due date", esc(dueOn) })));
+		html.append(button("পেমেন্টের বিবরণ", "View payments", link));
+		String text = text(titleBn + " / " + titleEn, greetEn + bodyBn + " / " + greetEn + bodyEn,
+				"মাসিক ফি / Monthly fee: " + plainMoney(amount) + " BDT", "পরিশোধের তারিখ / Due date: " + dueOn,
+				"খুলুন / Open: " + link);
+		return new RenderedEmail(titleBn + " · " + titleEn + ": " + dueOn, frame(ctx, "৳" + plainMoney(amount) + " · " + dueOn,
+				html.toString()), text);
+	}
+
+	/**
+	 * A short notice about an offline admission, to the student (plan section 7): a title in both languages, one line each, a table
+	 * of facts and one button. Each row is {label in Bangla, label in English, value}; the value is escaped here. The text version
+	 * repeats the same facts, so a mail client without HTML still shows them.
+	 */
+	public static RenderedEmail admissionNotice(MailContext ctx, MailRecipient who, String titleBn, String titleEn, String bodyBn,
+			String bodyEn, List<String[]> rows, String buttonBn, String buttonEn, String link) {
+		String first = who == null ? null : who.firstName();
+		String greet = first == null ? "" : esc(first) + ", ";
+		String greetEn = first == null ? "" : first + ", ";
+		List<String[]> shown = new java.util.ArrayList<>();
+		List<String> lines = new java.util.ArrayList<>();
+		lines.add(titleBn + " / " + titleEn);
+		lines.add(greetEn + bodyBn + " / " + greetEn + bodyEn);
+		for (String[] row : rows) {
+			shown.add(new String[] { row[0], row[1], esc(row[2]) });
+			lines.add(row[0] + " / " + row[1] + ": " + row[2]);
+		}
+		lines.add(buttonBn + " / " + buttonEn + ": " + link);
+		StringBuilder html = new StringBuilder();
+		html.append(hero(titleBn, titleEn));
+		html.append(para(greet + bodyBn, greetEn + bodyEn));
+		html.append(facts(shown));
+		html.append(button(buttonBn, buttonEn, link));
+		return new RenderedEmail(titleBn + " · " + titleEn, frame(ctx, titleEn, html.toString()), text(lines.toArray(String[]::new)));
+	}
+
 	/** The note the Master Admin gets for each paid order. */
 	public static RenderedEmail purchaseNotice(MailContext ctx, String studentName, String phone, String email, String itemBn,
 			String itemEn, String amount, String channel, String tranId, String when) {

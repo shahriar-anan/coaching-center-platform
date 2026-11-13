@@ -134,6 +134,8 @@ public enum ErrorCode {
 	ADMISSION_PENDING,
 	/** The admission form is not in a state that allows this change. */
 	ADMISSION_STATE,
+	/** Someone else changed the same row first (optimistic lock). The client reloads and tries again. */
+	STALE_VERSION,
 	INTERNAL_ERROR
 
 }
