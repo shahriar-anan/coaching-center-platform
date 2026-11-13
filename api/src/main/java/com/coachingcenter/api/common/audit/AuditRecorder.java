@@ -55,6 +55,15 @@ public class AuditRecorder {
 
 	public static final String BOOK_ENTITY = "BOOK";
 
+	/** Offline admission: one admission row. */
+	public static final String OFFLINE_ADMISSION_ENTITY = "OFFLINE_ADMISSION";
+
+	public static final String OFFLINE_ADMISSION_CREATED = "OFFLINE_ADMISSION_CREATED";
+
+	public static final String OFFLINE_ADMISSION_SUBMITTED = "OFFLINE_ADMISSION_SUBMITTED";
+
+	public static final String OFFLINE_ADMISSION_RESUBMITTED = "OFFLINE_ADMISSION_RESUBMITTED";
+
 	public static final String BOOK_CATEGORY_ENTITY = "BOOK_CATEGORY";
 
 	public static final String PAYMENT_SUCCESS = "PAYMENT_SUCCESS";

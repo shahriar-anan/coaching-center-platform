@@ -64,6 +64,11 @@ public enum StaffNotificationKind {
 	/**
 	 * To the Master Admin: an unpaid installment is past its date. Same payload as {@link #INSTALLMENT_DUE_SOON}. Sent weekly.
 	 */
-	INSTALLMENT_OVERDUE
+	INSTALLMENT_OVERDUE,
 
+	/** To the Master Admin and every System Admin: a student sent in an offline admission form. Payload: personName. */
+	ADMISSION_SUBMITTED,
+
+	/** To the Master Admin and every System Admin: a student sent a corrected offline admission form. Payload: personName. */
+	ADMISSION_RESUBMITTED
 }

@@ -1,5 +1,7 @@
 package com.coachingcenter.api.exams;
 
+import com.coachingcenter.api.offline.OfflineAdmissionGate;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -84,13 +86,16 @@ public class LiveExamSittingService {
 
 	private final McqAttemptSnapshot snapshots;
 
+	private final OfflineAdmissionGate admission;
+
 	public LiveExamSittingService(LiveExamService exams, LiveExamRepository examRepository,
 			LiveExamParticipantRepository participants, LiveExamAnswerRepository answers,
 			LiveExamAnswerConfirmationRepository confirmations, LiveExamQuestionPaperRepository papers,
 			LiveExamRetakeGrantRepository retakeGrants, LiveExamAccess access, LiveExamLeaderboardService leaderboards,
 			LiveExamStudentStanding standings, LocalFileStorage files, PdfCompressor pdfs, Clock clock,
 			StudentPhoneGuard phones, StudentNoticeWriter notices, LiveExamMemberships memberships,
-			LiveExamModuleRepository modules, McqAttemptSnapshot snapshots) {
+			LiveExamModuleRepository modules, McqAttemptSnapshot snapshots, OfflineAdmissionGate admission) {
+		this.admission = admission;
 		this.exams = exams;
 		this.examRepository = examRepository;
 		this.participants = participants;
@@ -167,6 +172,7 @@ public class LiveExamSittingService {
 	@Transactional
 	public TakeView take(UUID examId, UUID studentId, JsonNode ignored) {
 		phones.require(studentId);
+		admission.requireNotPending(studentId);
 		exams.get(examId, false, studentId);
 		return firstAttempt(lockedExam(examId), studentId);
 	}
@@ -179,6 +185,7 @@ public class LiveExamSittingService {
 	@Transactional
 	public TakeView retake(UUID examId, UUID studentId) {
 		phones.require(studentId);
+		admission.requireNotPending(studentId);
 		exams.get(examId, false, studentId);
 		LiveExam exam = lockedExam(examId);
 		boolean written = LiveExam.WRITTEN.equals(exam.getExamType());

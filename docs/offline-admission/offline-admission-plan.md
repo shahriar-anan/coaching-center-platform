@@ -5,7 +5,20 @@ Choices in section 1.2 were made while planning; say if any is wrong. Every open
 
 ## 0. Build log
 
-Empty until Stage 1 starts. Each stage adds: what was built, where it differs from this plan, and the test results (command, counts, failures and how they were fixed).
+Each stage adds: what was built, where it differs from this plan, and the test results (command, counts, failures and how they were fixed).
+
+### Stage 1: schema and course-end access (built, gate passed, committed 9b39e34)
+- V81 to V84, seven entities and repositories, the OFFLINE grant source, `access_ends_at`, the cap in exam and package access, seven permissions.
+- Gate: OfflineSchemaIT 4/4; AccessExpiryIT 18/18 (five new cap cases); LiveEnrolmentListIT 9/9; PackageEnrolmentRulesIT 6/6. Full API suite 194 classes, 1056 tests, all passing.
+
+### Stage 2: desk creation and the student's form API (built; backend only)
+- Desk: `POST /api/v1/students` with `offlineAdmission: true` creates the student and an AWAITING_FORM admission in one transaction.
+- Student API: `GET /api/v1/me/admission` (404 with no open admission), `PUT .../form` (partial saves), `PUT .../photo` (the admission photo is the profile photo, plan side effect 10), `POST .../submit` (validates every field, keeps a submission row, notifies each admin with ADMISSION_SUBMITTED or ADMISSION_RESUBMITTED).
+- Gate: `OfflineAdmissionGate` refuses take, retake and order creation with ADMISSION_PENDING while the admission is pending (plan 4.5).
+- Differences from the plan: the session flag (side effect 26) is not added yet; the web reads My admission state from GET /me/admission instead. Staff endpoints (queue, setup, onboarding) are Stage 3.
+- Gate results: OfflineAdmissionFormIT 14/14 (the test's own setup rows were fixed in the test); take, order and retake regressions LiveSittingIT 38/38, LiveExamIT 11/11, LiveExamPurchaseIT 16/16, WrittenRetakeGrantIT 3/3, DiscountOrderIT 8/8.
+- Full suite on a fresh database (coaching_it_stage2): 195 classes, 1070 tests, 1 failure. StaffAssignmentWatcherIT.aLaterChangeWritesItsRowsAndNoticesOnceWithTheActor fails only in the full run and passes alone on a fresh database, so it depends on what ran before it. Not yet explained; the test needs isolation.
+- Test-hygiene finding: StaffPayAnalyticsIT is not transactional and uses fixed 2031 dates, so a second run on the same database doubles its data (1000 against 500). Run the suite on a fresh database each time, and the test needs isolation.
 
 ## 1. What is being built
 

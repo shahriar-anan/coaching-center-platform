@@ -1,5 +1,7 @@
 package com.coachingcenter.api.exams;
 
+import com.coachingcenter.api.offline.OfflineAdmissionGate;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -69,11 +71,14 @@ public class LiveExamOrderService {
 
 	private final Clock clock;
 
+	private final OfflineAdmissionGate admission;
+
 	public LiveExamOrderService(LiveExamOrderRepository orders, LiveExamOrderTx tx, LiveExamModuleRepository modules,
 			LiveExamRepository exams, LiveExamCatalogVisibility visibility, UserRepository users,
 			StudentProfileRepository profiles, ObjectProvider<LiveExamPaymentGateway> gateways, StudentPhoneGuard phones,
 			LiveExamOrderBundle bundles, LiveExamMemberships memberships, LiveExamAccess access,
-			LiveExamGrantRepository grants, Clock clock) {
+			LiveExamGrantRepository grants, Clock clock, OfflineAdmissionGate admission) {
+		this.admission = admission;
 		this.grants = grants;
 		this.memberships = memberships;
 		this.orders = orders;
@@ -92,6 +97,7 @@ public class LiveExamOrderService {
 
 	public InitiateResult initiate(UUID studentId, JsonNode body) {
 		phones.require(studentId);
+		admission.requireNotPending(studentId);
 		Instant now = clock.instant();
 		// The receipt address is checked before anything is written, so an invalid one makes no order (Phase 4B).
 		String receiptEmail = readReceiptEmail(body);

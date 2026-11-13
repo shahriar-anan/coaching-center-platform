@@ -1,5 +1,7 @@
 package com.coachingcenter.api.users;
 
+import com.coachingcenter.api.offline.OfflineAdmissionService;
+
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -35,9 +37,12 @@ public class AccountController {
 
 	private final PermissionChecker permissions;
 
-	public AccountController(AccountService accounts, PermissionChecker permissions) {
+	private final OfflineAdmissionService offlineAdmissions;
+
+	public AccountController(AccountService accounts, PermissionChecker permissions, OfflineAdmissionService offlineAdmissions) {
 		this.accounts = accounts;
 		this.permissions = permissions;
+		this.offlineAdmissions = offlineAdmissions;
 	}
 
 	@PostMapping("/api/v1/instructors")
@@ -122,8 +127,11 @@ public class AccountController {
 		require(Permissions.STUDENT_CREATE);
 		rejectPassword(body);
 		NameRequest request = nameRequest(body);
-		AccountService.CreatedAccount created = accounts.createStudent(request.fullName(), request.phone(), request.email(),
-				actor().userId());
+		UUID createdBy = actor().userId();
+		// An offline admission (desk) student gets their admission form in the same transaction (plan D1, D3).
+		AccountService.CreatedAccount created = body.path("offlineAdmission").asBoolean(false)
+				? offlineAdmissions.createOfflineStudent(request.fullName(), request.phone(), request.email(), createdBy)
+				: accounts.createStudent(request.fullName(), request.phone(), request.email(), createdBy);
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);
 	}
 

@@ -130,6 +130,10 @@ public enum ErrorCode {
 	PACKAGE_HAS_INSTALLMENTS,
 	STUDENT_ON_ROSTER,
 	STUDENT_HAS_DIRECT_ENROLMENT,
+	/** The student's offline admission is not yet onboarded, so exams and checkout are closed to them (plan 4.5). */
+	ADMISSION_PENDING,
+	/** The admission form is not in a state that allows this change. */
+	ADMISSION_STATE,
 	INTERNAL_ERROR
 
 }
