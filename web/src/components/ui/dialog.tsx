@@ -80,10 +80,7 @@ export function Dialog({
             </RadixDialog.Close>
           </div>
           {children}
-          {/* Sticky, so the buttons stay in view when a long body scrolls inside the panel. */}
-          {footer ? (
-            <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 bg-card px-5 pb-5 pt-2">{footer}</div>
-          ) : null}
+          {footer ? <div className="flex flex-wrap justify-end gap-2">{footer}</div> : null}
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
