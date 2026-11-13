@@ -63,6 +63,10 @@ public class OfflineBatch {
 	@Column(nullable = false, length = 16)
 	private String status;
 
+	/** The length of a class when a routine gives only its start time (V91). */
+	@Column(name = "default_class_minutes", nullable = false)
+	private Integer defaultClassMinutes = 80;
+
 	@Column(name = "created_by", nullable = false)
 	private UUID createdBy;
 
@@ -186,6 +190,14 @@ public class OfflineBatch {
 
 	public void setStatus(String status) {
 		this.status = status;
+	}
+
+	public Integer getDefaultClassMinutes() {
+		return defaultClassMinutes;
+	}
+
+	public void setDefaultClassMinutes(Integer defaultClassMinutes) {
+		this.defaultClassMinutes = defaultClassMinutes;
 	}
 
 	public UUID getCreatedBy() {

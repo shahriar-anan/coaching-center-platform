@@ -49,6 +49,9 @@ public class OfflineBatchService {
 
 	private static final int MAX_NAME = 200;
 
+	/** The length of a class when a routine gives only its start time (plan section 5, step 3). */
+	private static final int DEFAULT_CLASS_MINUTES = 80;
+
 	private final OfflineBatchRepository batches;
 
 	private final PdfUploads uploads;
@@ -89,6 +92,7 @@ public class OfflineBatchService {
 		if (fee == null && !has(body, "defaultMonthlyFee")) {
 			problems.add(new FieldErrorDetail("defaultMonthlyFee", "Enter the default monthly fee."));
 		}
+		Integer classMinutes = has(body, "defaultClassMinutes") ? classMinutes(body, problems) : null;
 		if (startsOn != null && endsOn != null && endsOn.isBefore(startsOn)) {
 			problems.add(new FieldErrorDetail("endsOn", "The end date cannot be before the start date."));
 		}
@@ -103,6 +107,7 @@ public class OfflineBatchService {
 		batch.setStartsOn(startsOn);
 		batch.setEndsOn(endsOn);
 		batch.setDefaultMonthlyFee(fee);
+		batch.setDefaultClassMinutes(classMinutes == null ? DEFAULT_CLASS_MINUTES : classMinutes);
 		batch.setStatus(ACTIVE);
 		batch.setCreatedBy(actorId);
 		batch.setCreatedAt(now);
@@ -136,6 +141,12 @@ public class OfflineBatchService {
 			BigDecimal fee = fee(body, "defaultMonthlyFee", problems);
 			if (fee != null) {
 				batch.setDefaultMonthlyFee(fee);
+			}
+		}
+		if (has(body, "defaultClassMinutes")) {
+			Integer classMinutes = classMinutes(body, problems);
+			if (classMinutes != null) {
+				batch.setDefaultClassMinutes(classMinutes);
 			}
 		}
 		if (batch.getStartsOn() != null && batch.getEndsOn() != null && batch.getEndsOn().isBefore(batch.getStartsOn())) {
@@ -220,15 +231,29 @@ public class OfflineBatchService {
 		batch.setRoutineUploadedBy(actorId);
 		batch.setRoutineUploadedAt(now);
 		batch.setUpdatedAt(now);
-		List<UUID> students = jdbc.queryForList(
-				"select student_id from offline_admissions where batch_id = ? and status = 'ONBOARDED'", UUID.class, id);
-		batch.setRoutineStudentsNotified(students.size());
+		batch.setRoutineStudentsNotified(onboardedStudents(id).size());
 		batches.saveAndFlush(batch);
 		audit.record(AuditRecorder.OFFLINE_BATCH_ROUTINE_UPLOADED, AuditRecorder.OFFLINE_BATCH_ENTITY, id);
-		for (UUID student : students) {
-			notices.notice(student, OfflineAdmissionNotices.BATCH_ROUTINE_UPDATED, id + ":" + now.toEpochMilli() + ":" + student);
-		}
+		notifyOnboardedStudents(id, now);
 		return view(batch);
+	}
+
+	/** The students onboarded into the batch right now. */
+	List<UUID> onboardedStudents(UUID batchId) {
+		return jdbc.queryForList("select student_id from offline_admissions where batch_id = ? and status = 'ONBOARDED'", UUID.class,
+				batchId);
+	}
+
+	/**
+	 * Tells each onboarded student of the batch that its routine changed: one BATCH_ROUTINE_UPDATED notice each (plan section 7, F12).
+	 * Used by the routine upload and by the routine confirm. Returns how many students were onboarded.
+	 */
+	int notifyOnboardedStudents(UUID batchId, Instant now) {
+		List<UUID> students = onboardedStudents(batchId);
+		for (UUID student : students) {
+			notices.notice(student, OfflineAdmissionNotices.BATCH_ROUTINE_UPDATED, batchId + ":" + now.toEpochMilli() + ":" + student);
+		}
+		return students.size();
 	}
 
 	/** The routine PDF's bytes, or 404 when the batch has none. The caller holds the routine permission. */
@@ -263,7 +288,7 @@ public class OfflineBatchService {
 		return new BatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getStartsOn(), batch.getEndsOn(),
 				batch.getDefaultMonthlyFee(), batch.getStatus(), onboardedCount(batch.getId()),
 				batch.getRoutineStoredName() != null, batch.getRoutineOriginalName(), batch.getRoutineUploadedAt(),
-				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified());
+				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified(), batch.getDefaultClassMinutes());
 	}
 
 	/** The name of whoever uploaded the routine, from the staff or student profile. Null when there is no uploader or no name. */
@@ -339,6 +364,22 @@ public class OfflineBatchService {
 		}
 	}
 
+	/** The class length in minutes: a whole number from 15 to 300. A value that is not one is a problem for that field. */
+	private static Integer classMinutes(JsonNode body, List<FieldErrorDetail> problems) {
+		try {
+			int minutes = Integer.parseInt(body.get("defaultClassMinutes").asText().trim());
+			if (minutes < 15 || minutes > 300) {
+				problems.add(new FieldErrorDetail("defaultClassMinutes", "Enter a class length from 15 to 300 minutes."));
+				return null;
+			}
+			return minutes;
+		}
+		catch (NumberFormatException exception) {
+			problems.add(new FieldErrorDetail("defaultClassMinutes", "Enter the class length as a number of minutes."));
+			return null;
+		}
+	}
+
 	/** The browser's name without its folders, trimmed to the column's length. Blank becomes null. */
 	private static String originalName(String name) {
 		if (name == null) {
@@ -354,11 +395,12 @@ public class OfflineBatchService {
 	/**
 	 * One batch as the staff and the Master Admin see it. {@code studentCount} counts the onboarded students. {@code routineUploadedBy}
 	 * is the uploader's name, and {@code studentsNotified} is how many students the last routine upload notified (null when not known).
+	 * {@code defaultClassMinutes} is the length of a class that a routine gives only a start time for (plan section 5).
 	 */
 	public record BatchView(UUID id, String nameEn, String nameBn, LocalDate startsOn, LocalDate endsOn,
 			BigDecimal defaultMonthlyFee, String status, long studentCount, boolean routineUploaded, String routineFileName,
 			Instant routineUploadedAt, @JsonInclude(JsonInclude.Include.ALWAYS) String routineUploadedBy,
-			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified) {
+			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified, int defaultClassMinutes) {
 	}
 
 	/** A student admitted to the batch. The mobile is shown to staff only, since these routes are staff routes. */
