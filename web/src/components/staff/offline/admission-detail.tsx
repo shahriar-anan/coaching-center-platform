@@ -16,8 +16,7 @@ import { AfterOnboarding, parseAfterTab } from "./after-onboarding";
 import { FormReadOnly } from "./form-readonly";
 import { AdmissionMoneyPills } from "./money-pills";
 import { PrimaryActions } from "./primary-actions";
-import { ReadyChecklist } from "./ready-checklist";
-import { SetupPanel } from "./setup-panel";
+import { SetupSummary } from "./setup-summary";
 import { isAfterOnboarding, progressIndex, waitingFor } from "./offline-model";
 import { stateLabelKey } from "./labels";
 
@@ -38,7 +37,7 @@ const PROGRESS_KEYS = [
 ] as const;
 
 /**
- * One admission (plan 6.3). Before onboarding: the form on the left and, on the right, the setup, the ready checklist and the actions.
+ * One admission (plan 6.3). Before onboarding: the form on the left and, on the right, a summary of the setup (edited on its own screen), and the actions.
  * After onboarding: the tabs for the fees, the exams and packages, the form and the history.
  */
 export function AdmissionDetailView({ id }: { id: string }) {
@@ -97,12 +96,7 @@ export function AdmissionDetailView({ id }: { id: string }) {
           </div>
 
           <aside className="grid min-w-0 gap-6 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:pe-1">
-            <SetupPanel admission={a} editable={a.state === "SUBMITTED" && canReview} canEditItems={canReview} />
-            {a.state === "SUBMITTED" ? (
-              <ReadyChecklist problems={a.readyProblems} />
-            ) : a.state === "READY" ? (
-              <p className="text-meta text-muted">{t("staffOffline.checklist.readyNote")}</p>
-            ) : null}
+            <SetupSummary admission={a} editable={a.state === "SUBMITTED" && canReview} />
             <PrimaryActions admission={a} canReview={canReview} canOnboard={canOnboard} />
           </aside>
         </div>

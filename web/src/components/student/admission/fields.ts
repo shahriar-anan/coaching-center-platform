@@ -19,8 +19,6 @@ export const PERSONAL_FIELDS: AdmissionFormField[] = [
   "mobile",
   "emergencyMobile",
   "hallMess",
-  "thana",
-  "district",
 ];
 
 /** The address block, which takes several lines. */

@@ -32,8 +32,6 @@ export interface AdmissionForm {
   mobile?: string | null;
   emergencyMobile?: string | null;
   hallMess?: string | null;
-  thana?: string | null;
-  district?: string | null;
   presentAddress?: string | null;
   permanentAddress?: string | null;
 }

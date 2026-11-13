@@ -1,14 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/i18n/locale-context";
 import { ADMISSION_PHOTO_PATH, useUploadAdmissionPhoto } from "@/lib/api/exam/offline-admission";
 import { useAuthorizedObjectUrl } from "@/lib/hooks/use-authorized-object-url";
+import { CameraCaptureDialog, inPageCameraSupported } from "./camera-capture";
+
+/** Nothing changes after the first render on the client, so the device check never needs to subscribe. */
+function subscribeNever() {
+  return () => undefined;
+}
 
 /**
  * The admission photo: a camera button and a gallery button, a preview, and a new pick to retake it. The picture is sent as
  * soon as it is picked. The server keeps the profile photo, which is this same picture (plan side effect 10).
+ *
+ * On a phone, "Take a photo" opens the phone's camera through the capture input. On a laptop, which ignores that hint, it opens
+ * an in-page camera instead. Both send the photo to the same upload.
  */
 export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: string }) {
   const { t } = useLocale();
@@ -17,6 +26,9 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
   const galleryRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  // On the server there is no window, so the in-page camera is off until the browser answers.
+  const inPageCamera = useSyncExternalStore(subscribeNever, inPageCameraSupported, () => false);
   const saved = useAuthorizedObjectUrl(hasPhoto ? ADMISSION_PHOTO_PATH : null);
   const shown = preview ?? saved;
 
@@ -29,6 +41,15 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
     };
   }, [preview]);
 
+  /** Shows the picture and sends it: the same path for a gallery pick and a camera photo. */
+  function send(file: File) {
+    setLocalError(null);
+    setPreview(URL.createObjectURL(file));
+    upload.mutate(file, {
+      onError: () => setLocalError(t("admission.photo.failed")),
+    });
+  }
+
   function pick(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // Clear the input, so picking the same file again still sends a change.
@@ -40,11 +61,15 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
       setLocalError(t("admission.photo.wrongType"));
       return;
     }
-    setLocalError(null);
-    setPreview(URL.createObjectURL(file));
-    upload.mutate(file, {
-      onError: () => setLocalError(t("admission.photo.failed")),
-    });
+    send(file);
+  }
+
+  function takePhoto() {
+    if (inPageCamera) {
+      setCameraOpen(true);
+      return;
+    }
+    cameraRef.current?.click();
   }
 
   const message = localError ?? error ?? null;
@@ -69,7 +94,7 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
         </div>
         <div className="grid flex-1 gap-3">
           <p className="text-meta text-muted">{t("admission.photo.help")}</p>
-          <Button type="button" variant="secondary" size="lg" fullWidth onClick={() => cameraRef.current?.click()}>
+          <Button type="button" variant="secondary" size="lg" fullWidth onClick={takePhoto}>
             {t("admission.photo.takePhoto")}
           </Button>
           <Button type="button" variant="secondary" size="lg" fullWidth onClick={() => galleryRef.current?.click()}>
@@ -107,6 +132,19 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
           ) : null}
         </div>
       </div>
+      {cameraOpen ? (
+        <CameraCaptureDialog
+          onUse={(file) => {
+            setCameraOpen(false);
+            send(file);
+          }}
+          onClose={() => setCameraOpen(false)}
+          onFallback={() => {
+            setCameraOpen(false);
+            galleryRef.current?.click();
+          }}
+        />
+      ) : null}
     </section>
   );
 }

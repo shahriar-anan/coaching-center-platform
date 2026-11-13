@@ -14,8 +14,6 @@ export const completeForm: AdmissionForm = {
   mobile: "01711000012",
   emergencyMobile: "01811000013",
   hallMess: "Shah Mokhdum Hall, room 204",
-  thana: "Motihar",
-  district: "Rajshahi",
   presentAddress: "House 4, Road 2, Motihar",
   permanentAddress: "Village Kalikapur, Godagari, Rajshahi",
 };

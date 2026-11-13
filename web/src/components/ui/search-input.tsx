@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { IconButton } from "@/components/ui/icon-button";
 import { TextInput } from "@/components/ui/text-input";
+import { cn } from "@/components/ui/cn";
 
 const DEBOUNCE_MS = 300;
 
@@ -17,11 +18,13 @@ export function SearchInput({
   onChange,
   placeholder,
   id,
+  className,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   id?: string;
+  className?: string;
 }) {
   const { t } = useLocale();
   const [draft, setDraft] = useState(value);
@@ -42,7 +45,7 @@ export function SearchInput({
   }, [draft, value, onChange]);
 
   return (
-    <div className="relative">
+    <div className={cn("relative", className)}>
       <Search aria-hidden="true" className="pointer-events-none absolute start-3.5 top-1/2 size-5 -translate-y-1/2 text-muted" />
       <TextInput
         id={id}

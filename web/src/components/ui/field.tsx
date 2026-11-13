@@ -8,6 +8,8 @@ type FieldProps = {
   hint?: string;
   error?: string;
   required?: boolean;
+  /** Keeps the hint line even when there is no hint, so fields in one row line up. */
+  reserveHint?: boolean;
   children: ReactElement<{ id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean; "aria-required"?: boolean }>;
 };
 
@@ -15,7 +17,7 @@ type FieldProps = {
  * One label, one hint and one error around a single input. The label is always
  * visible; the error sits under the field that failed.
  */
-export function Field({ label, hint, error, required, children }: FieldProps) {
+export function Field({ label, hint, error, required, reserveHint, children }: FieldProps) {
   const { t } = useLocale();
   const reactId = useId();
   const id = (isValidElement(children) && children.props.id) || `f-${reactId}`;
@@ -47,6 +49,10 @@ export function Field({ label, hint, error, required, children }: FieldProps) {
       {hint && !error ? (
         <p id={hintId} className="text-meta text-muted">
           {hint}
+        </p>
+      ) : reserveHint ? (
+        <p aria-hidden="true" className="min-h-5 text-meta text-muted">
+          {" "}
         </p>
       ) : null}
       {error ? (

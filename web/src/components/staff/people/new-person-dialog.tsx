@@ -7,14 +7,18 @@ import { Field } from "@/components/ui/field";
 import { TextInput } from "@/components/ui/text-input";
 import { useLocale } from "@/i18n/locale-context";
 import type { CreatedAccount, NewPerson } from "@/lib/api/exam/staff-people";
+import type { DeskStart } from "@/lib/api/exam/offline-admin";
 import { ApiError } from "@/lib/api/errors";
 
 /** Bangladeshi mobile: 01 and nine digits. The server checks the same rule. */
-const PHONE = /^01\d{9}$/;
+export const PHONE_PATTERN = /^01\d{9}$/;
 
 /**
  * Creates a person from name, phone and email. There is never a password field:
  * the account is pending and the one-time code comes back in the response.
+ *
+ * With `submitDesk` (the students page only), the "Offline admission" box is shown, on by default. Ticked, the dialog asks for the phone
+ * alone and sends it to the desk route (plan 6.3). Unticked, it is the full form on the old endpoint.
  */
 export function NewPersonDialog({
   open,
@@ -22,16 +26,18 @@ export function NewPersonDialog({
   title,
   submit,
   onCreated,
-  offlineOption = false,
+  submitDesk,
+  onDeskCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   submit: (body: NewPerson) => Promise<CreatedAccount>;
-  /** Told whether the account was made as an offline admission (the desk form), so the code is read out with its steps. */
-  onCreated: (account: CreatedAccount, offline: boolean) => void;
-  /** Shows the "Offline admission" checkbox, on by default (plan 6.3). Only the students page offers it. */
-  offlineOption?: boolean;
+  onCreated: (account: CreatedAccount) => void;
+  /** Starts an offline admission from the phone alone. Its presence shows the "Offline admission" checkbox. */
+  submitDesk?: (phone: string) => Promise<DeskStart>;
+  /** Told the desk start (its code and expiry) once the student exists, so the code is read out. */
+  onDeskCreated?: (desk: DeskStart) => void;
 }) {
   const { t } = useLocale();
   const [name, setName] = useState("");
@@ -40,17 +46,25 @@ export function NewPersonDialog({
   const [offline, setOffline] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<"name" | "phone" | "email" | "form", string>>>({});
   const [busy, setBusy] = useState(false);
+  // The desk start is used only while the box is ticked.
+  const deskStart = offline ? submitDesk : undefined;
+
+  function reset() {
+    setName("");
+    setPhone("");
+    setEmail("");
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     const next: typeof errors = {};
-    if (!name.trim()) {
+    if (!deskStart && !name.trim()) {
       next.name = t("staffPeople.form.required");
     }
-    if (!PHONE.test(phone.trim())) {
+    if (!PHONE_PATTERN.test(phone.trim())) {
       next.phone = t("staffPeople.form.phoneHint");
     }
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+    if (!deskStart && !/^\S+@\S+\.\S+$/.test(email.trim())) {
       next.email = t("staffPeople.form.emailHint");
     }
     setErrors(next);
@@ -59,18 +73,22 @@ export function NewPersonDialog({
     }
     setBusy(true);
     try {
-      const asOffline = offlineOption && offline;
+      if (deskStart) {
+        const desk = await deskStart(phone.trim());
+        reset();
+        onOpenChange(false);
+        onDeskCreated?.(desk);
+        return;
+      }
       const created = await submit({
         fullName: name.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        ...(offlineOption ? { offlineAdmission: asOffline } : {}),
+        ...(submitDesk ? { offlineAdmission: false } : {}),
       });
-      setName("");
-      setPhone("");
-      setEmail("");
+      reset();
       onOpenChange(false);
-      onCreated(created, asOffline);
+      onCreated(created);
     } catch (error) {
       const code = error instanceof ApiError ? error.code : null;
       if (code === "DUPLICATE_PHONE") {
@@ -88,9 +106,11 @@ export function NewPersonDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={title} description={t("staffPeople.form.noPassword")}>
       <form className="grid gap-4" onSubmit={onSubmit} noValidate>
-        <Field label={t("staffPeople.form.name")} error={errors.name} required>
-          <TextInput autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} invalid={Boolean(errors.name)} />
-        </Field>
+        {deskStart ? null : (
+          <Field label={t("staffPeople.form.name")} error={errors.name} required>
+            <TextInput autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} invalid={Boolean(errors.name)} />
+          </Field>
+        )}
         <Field label={t("staffPeople.form.phone")} hint={t("staffPeople.form.phoneFormat")} error={errors.phone} required>
           <TextInput
             type="tel"
@@ -101,16 +121,18 @@ export function NewPersonDialog({
             invalid={Boolean(errors.phone)}
           />
         </Field>
-        <Field label={t("staffPeople.form.email")} error={errors.email} required>
-          <TextInput
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            invalid={Boolean(errors.email)}
-          />
-        </Field>
-        {offlineOption ? (
+        {deskStart ? null : (
+          <Field label={t("staffPeople.form.email")} error={errors.email} required>
+            <TextInput
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              invalid={Boolean(errors.email)}
+            />
+          </Field>
+        )}
+        {submitDesk ? (
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-control border border-border-control bg-card px-3.5 py-2.5">
             <input
               type="checkbox"

@@ -113,6 +113,8 @@ const auth = {
     code: "Code",
     password: "New password",
     passwordHelp: "8 to 72 characters.",
+    confirmPassword: "Confirm password",
+    passwordMismatch: "The passwords do not match.",
     submit: "Activate account",
     invalidCode: "This code no longer works.",
     successTitle: "Account activated",

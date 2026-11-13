@@ -14,9 +14,9 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, type Column } from "@/components/ui/table";
 import { NewPersonDialog } from "@/components/staff/people/new-person-dialog";
-import { DeskActivationDialog } from "@/components/staff/offline/desk-activation-dialog";
+import { DeskActivationDialog, type ShownCode } from "@/components/staff/offline/desk-activation-dialog";
 import { OfflineStudentBadge } from "@/components/staff/offline/offline-badge";
-import { useOfflineStudentStates } from "@/lib/api/exam/offline-admin";
+import { useDeskStart, useOfflineStudentStates } from "@/lib/api/exam/offline-admin";
 import { accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
 import { DeleteAccountDialog } from "@/components/staff/status/account-controls";
 import { RequireStaff, useRole } from "@/lib/auth/guards";
@@ -57,7 +57,8 @@ function StudentList() {
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState<{ code: string; name: string } | null>(null);
   // A desk admission: the code comes with its steps to read out (plan 6.3).
-  const [desk, setDesk] = useState<{ code: string; name: string; phone: string } | null>(null);
+  const [shown, setShown] = useState<ShownCode | null>(null);
+  const deskStart = useDeskStart();
   const offlineStates = useOfflineStudentStates(true);
   const [deleting, setDeleting] = useState<StudentRow | null>(null);
 
@@ -158,23 +159,22 @@ function StudentList() {
         onOpenChange={setCreating}
         title={t("staffPeople.students.createTitle")}
         submit={(body) => create.mutateAsync(body)}
-        onCreated={(account: CreatedAccount, offline: boolean) => {
-          if (offline) {
-            setDesk({ code: account.activationCode, name: account.fullName, phone: account.phone });
-          } else {
-            setCode({ code: account.activationCode, name: account.fullName });
-          }
-        }}
-        offlineOption={offlineAdmissionEnabled}
+        onCreated={(account: CreatedAccount) => setCode({ code: account.activationCode, name: account.fullName })}
+        submitDesk={offlineAdmissionEnabled ? (phone) => deskStart.mutateAsync(phone) : undefined}
+        onDeskCreated={(desk) =>
+          setShown({ admissionId: desk.admissionId, phone: desk.phone, initial: { code: desk.code, expiresAt: desk.expiresAt } })
+        }
       />
 
-      <DeskActivationDialog
-        open={desk !== null}
-        onClose={() => setDesk(null)}
-        name={desk?.name ?? ""}
-        phone={desk?.phone ?? ""}
-        code={desk?.code ?? ""}
-      />
+      {shown ? (
+        <DeskActivationDialog
+          key={`${shown.admissionId}-${shown.initial?.code ?? "live"}`}
+          admissionId={shown.admissionId}
+          phone={shown.phone}
+          initial={shown.initial}
+          onClose={() => setShown(null)}
+        />
+      ) : null}
 
       <OneTimeCodeDialog
         open={code !== null}

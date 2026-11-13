@@ -19,7 +19,7 @@ import type { Role } from "@/lib/api/exam/types";
 
 // ---- the queue tabs ----------------------------------------------------------------------------------------------------
 
-export const QUEUE_TABS = ["SUBMITTED", "CHANGES_REQUESTED", "READY", "ONBOARDED", "CLOSED"] as const;
+export const QUEUE_TABS = ["AWAITING_FORM", "SUBMITTED", "CHANGES_REQUESTED", "READY", "ONBOARDED", "CLOSED"] as const;
 export type QueueTab = (typeof QUEUE_TABS)[number];
 
 /** The money filters of the queue, in the order the select shows them. The server applies each one. */
@@ -256,7 +256,7 @@ export const FORM_GROUPS: { key: "personal" | "education" | "contact" | "address
   { key: "personal", fields: ["fullName", "fatherName", "motherName", "dateOfBirth", "gender", "nid"] },
   { key: "education", fields: ["university", "semesterBatch"] },
   { key: "contact", fields: ["mobile", "emergencyMobile", "email"] },
-  { key: "addresses", fields: ["hallMess", "thana", "district", "presentAddress", "permanentAddress"] },
+  { key: "addresses", fields: ["hallMess", "presentAddress", "permanentAddress"] },
 ];
 
 /** Today as yyyy-MM-dd in Dhaka: the default paid-on date of a payment (plan 4.3 uses Dhaka dates). */

@@ -113,6 +113,8 @@ const auth = {
     code: "কোড",
     password: "নতুন পাসওয়ার্ড",
     passwordHelp: "৮ থেকে ৭২ অক্ষর।",
+    confirmPassword: "পাসওয়ার্ড নিশ্চিত করুন",
+    passwordMismatch: "পাসওয়ার্ড দুটি মেলেনি।",
     submit: "অ্যাকাউন্ট চালু করুন",
     invalidCode: "কোডটি আর কাজ করবে না।",
     successTitle: "অ্যাকাউন্ট চালু হয়েছে",

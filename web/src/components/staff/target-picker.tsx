@@ -6,6 +6,7 @@ import { useFormat } from "@/lib/format/use-format";
 import { useCategoryTree, type CategoryTreeNode } from "@/lib/api/exam/staff-catalog";
 import { useTargetSearch, type TargetKind, type TargetRow } from "@/lib/api/exam/target-search";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { ErrorState } from "@/components/ui/error-state";
 import { Field } from "@/components/ui/field";
 import { Pill } from "@/components/ui/pill";
@@ -17,15 +18,13 @@ import { TextInput } from "@/components/ui/text-input";
 /** The package or exam the picker has chosen. `title` is empty while it is still loading. */
 export type PickedTarget = { kind: TargetKind; id: string; title: string };
 
-export type TargetPickerProps = {
+type TargetPickerCommon = {
   /** "either" shows the Package / Exam switch inside the picker. */
   kind: TargetKind | "either";
   /** One server-side status filter such as "PUBLISHED". Undefined means any status, archived ones included. */
   status?: string;
   /** Statuses removed on the client after the server answers, such as ["DRAFT"]. */
   hide?: string[];
-  value: PickedTarget | null;
-  onChange: (next: PickedTarget | null) => void;
   /** Called when the user switches between Package and Exam ("either" only). */
   onKindChange?: (kind: TargetKind) => void;
   invalid?: boolean;
@@ -35,6 +34,27 @@ export type TargetPickerProps = {
   /** Keeps the label for screen readers only, for a dialog whose title already says it. */
   hideLabel?: boolean;
 };
+
+/** One target, chosen once. The chosen line replaces the list until Change is pressed. */
+export type SingleTargetPickerProps = TargetPickerCommon & {
+  multiple?: false;
+  value: PickedTarget | null;
+  onChange: (next: PickedTarget | null) => void;
+};
+
+/** Several targets, each row a checkbox. The list stays open; the caller keeps the selection. */
+export type MultiTargetPickerProps = TargetPickerCommon & {
+  multiple: true;
+  /** The targets ticked so far, in the order they were ticked. */
+  selected: PickedTarget[];
+  onSelectedChange: (next: PickedTarget[]) => void;
+  /** Ids that are already taken. They show ticked and cannot be changed here. */
+  disabledIds?: string[];
+  /** A short note beside a disabled row, such as "Already added". */
+  disabledNote?: string;
+};
+
+export type TargetPickerProps = SingleTargetPickerProps | MultiTargetPickerProps;
 
 /** The search waits this long after typing stops, so the list is not requested on every key. */
 const SEARCH_DEBOUNCE_MS = 250;
@@ -63,23 +83,24 @@ function flattenCategories(nodes: CategoryTreeNode[], title: (node: CategoryTree
 }
 
 /**
- * Picks one package or one exam. A search box (sent as `q`), a category and, for exams, a type narrow the list. The
- * list is requested 10 rows at a time with "Load more". Once a target is chosen the list collapses to a chosen line
- * with a Change button, so the card stays short. The rows are radio buttons: the arrow keys move between them, and
- * Enter or Space (or a click) chooses the row in focus.
+ * Picks packages or exams. A search box (sent as `q`), a category and, for exams, a type narrow the list. The list is
+ * requested 10 rows at a time with "Load more".
+ *
+ * Single (the default): one target. Once it is chosen the list collapses to a chosen line with a Change button.
+ * Multiple (`multiple`): a checkbox on each row, the list stays open, and the caller keeps the selection.
+ *
+ * The rows are buttons in a radio or checkbox group: the arrow keys move between them, and Enter, Space or a click
+ * chooses (or ticks) the row in focus.
  */
-export function TargetPicker({
-  kind,
-  status,
-  hide,
-  value,
-  onChange,
-  onKindChange,
-  invalid,
-  errorText,
-  label,
-  hideLabel = false,
-}: TargetPickerProps) {
+export function TargetPicker(props: TargetPickerProps) {
+  const { kind, status, hide, onKindChange, invalid, errorText, label, hideLabel = false } = props;
+  const multi = props.multiple === true;
+  // The chosen value and the ticked selection belong to one mode each; the other is empty.
+  const value: PickedTarget | null = props.multiple === true ? null : props.value;
+  const selected: PickedTarget[] = props.multiple === true ? props.selected : [];
+  const disabledIds: string[] = props.multiple === true ? (props.disabledIds ?? []) : [];
+  const disabledNote = props.multiple === true ? props.disabledNote : undefined;
+
   const { t } = useLocale();
   const { pickTitle, formatNumber } = useFormat();
   const categories = useCategoryTree();
@@ -146,24 +167,38 @@ export function TargetPicker({
     setDraftKind(next);
     setType("");
     setActive(0);
-    if (value) {
-      onChange(null);
+    if (value && props.multiple !== true) {
+      props.onChange(null);
     }
     onKindChange?.(next);
   }
 
   function change() {
-    if (!value) {
+    if (!value || props.multiple === true) {
       return;
     }
     setDraftKind(value.kind);
     focusAfter.current = "search";
-    onChange(null);
+    props.onChange(null);
   }
 
   function choose(row: TargetRow) {
+    if (props.multiple === true) {
+      return;
+    }
     focusAfter.current = "chosen";
-    onChange({ kind: tab, id: row.id, title: pickTitle(row) });
+    props.onChange({ kind: tab, id: row.id, title: pickTitle(row) });
+  }
+
+  /** Ticks or unticks a row in multiple mode. A row that is already taken cannot change. */
+  function toggle(row: TargetRow) {
+    if (props.multiple !== true || disabledIds.includes(row.id)) {
+      return;
+    }
+    const isOn = selected.some((item) => item.id === row.id);
+    props.onSelectedChange(
+      isOn ? selected.filter((item) => item.id !== row.id) : [...selected, { kind: tab, id: row.id, title: pickTitle(row) }],
+    );
   }
 
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -256,7 +291,7 @@ export function TargetPicker({
                 <option value="">{t("staffAdmin.picker.allCategories")}</option>
                 {categoryOptions.map((option) => (
                   <option key={option.id} value={option.id}>
-                    {"  ".repeat(option.depth) + option.title}
+                    {"  ".repeat(option.depth) + option.title}
                   </option>
                 ))}
               </Select>
@@ -290,46 +325,67 @@ export function TargetPicker({
               )
             ) : (
               <div
-                role="radiogroup"
+                role={multi ? "group" : "radiogroup"}
                 aria-label={t("staffAdmin.picker.results")}
                 ref={listRef}
                 onScroll={updateEdges}
                 style={fadeStyle(edges)}
                 className="scroll-clean max-h-[min(20rem,45dvh)] overflow-y-auto overscroll-contain rounded-control border border-border-control bg-card"
               >
-                {rows.map((row, index) => (
-                  <button
-                    key={row.id}
-                    ref={(element) => {
-                      rowRefs.current[index] = element;
-                    }}
-                    type="button"
-                    role="radio"
-                    aria-checked={index === focusIndex}
-                    tabIndex={index === focusIndex ? 0 : -1}
-                    onClick={() => choose(row)}
-                    onFocus={() => setActive(index)}
-                    onKeyDown={(event) => moveFocus(event, index)}
-                    className="flex min-h-11 w-full items-center justify-between gap-3 border-b border-border px-4 py-2 text-start transition-colors last:border-b-0 hover:bg-bg focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent aria-checked:bg-accent/10"
-                  >
-                    <span className="grid min-w-0 gap-0.5">
-                      <span className="font-bold text-text">{pickTitle(row)}</span>
-                      <span className="text-meta text-muted">{categoryTitles.get(row.categoryId ?? "") ?? ""}</span>
-                    </span>
-                    <span className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-meta">
-                      {row.examType ? (
-                        <Pill tone={row.examType === "MCQ" ? "accent" : "muted"}>
-                          {t(row.examType === "MCQ" ? "staffAdmin.picker.typeMcq" : "staffAdmin.picker.typeWritten")}
-                        </Pill>
-                      ) : null}
-                      {row.examCount !== null ? (
-                        <span className="tabular-nums text-muted">
-                          {t("staffAdmin.picker.examCount", { count: formatNumber(row.examCount) })}
+                {rows.map((row, index) => {
+                  const held = multi && disabledIds.includes(row.id);
+                  const on = multi && (held || selected.some((item) => item.id === row.id));
+                  return (
+                    <button
+                      key={row.id}
+                      ref={(element) => {
+                        rowRefs.current[index] = element;
+                      }}
+                      type="button"
+                      role={multi ? "checkbox" : "radio"}
+                      aria-checked={multi ? on : index === focusIndex}
+                      aria-disabled={held || undefined}
+                      tabIndex={index === focusIndex ? 0 : -1}
+                      onClick={() => (multi ? toggle(row) : choose(row))}
+                      onFocus={() => setActive(index)}
+                      onKeyDown={(event) => moveFocus(event, index)}
+                      className={cn(
+                        "flex min-h-11 w-full items-center justify-between gap-3 border-b border-border px-4 py-2 text-start transition-colors last:border-b-0 hover:bg-bg focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent",
+                        multi ? "gap-3" : "aria-checked:bg-accent/10",
+                        held && "cursor-default opacity-80 hover:bg-card",
+                      )}
+                    >
+                      {multi ? (
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "grid size-5 shrink-0 place-items-center rounded-control border text-meta font-bold",
+                            on ? "border-accent bg-accent/15 text-text-accent" : "border-border-control bg-card",
+                          )}
+                        >
+                          {on ? "✓" : null}
                         </span>
                       ) : null}
-                    </span>
-                  </button>
-                ))}
+                      <span className="grid min-w-0 flex-1 gap-0.5">
+                        <span className="font-bold text-text">{pickTitle(row)}</span>
+                        <span className="text-meta text-muted">{categoryTitles.get(row.categoryId ?? "") ?? ""}</span>
+                      </span>
+                      <span className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-meta">
+                        {held && disabledNote ? <span className="text-muted">{disabledNote}</span> : null}
+                        {row.examType ? (
+                          <Pill tone={row.examType === "MCQ" ? "accent" : "muted"}>
+                            {t(row.examType === "MCQ" ? "staffAdmin.picker.typeMcq" : "staffAdmin.picker.typeWritten")}
+                          </Pill>
+                        ) : null}
+                        {row.examCount !== null ? (
+                          <span className="tabular-nums text-muted">
+                            {t("staffAdmin.picker.examCount", { count: formatNumber(row.examCount) })}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
             {results.hasNextPage ? (

@@ -39,8 +39,6 @@ export function detail(overrides: Partial<AdmissionDetail> = {}): AdmissionDetai
       mobile: "01711000001",
       emergencyMobile: "01711000002",
       hallMess: "H-12",
-      thana: "Motihar",
-      district: "Rajshahi",
       presentAddress: "Motihar, Rajshahi",
       permanentAddress: "Godagari, Rajshahi",
     },
@@ -89,6 +87,8 @@ export function queueRow(overrides: Partial<AdmissionQueueRow> = {}): AdmissionQ
     flags: [],
     owedTotal: 0,
     nextDueOn: null,
+    activated: true,
+    codeExpiresAt: null,
     ...overrides,
   };
 }
@@ -134,6 +134,7 @@ export function schedule(overrides: Partial<FeeSchedule> = {}): FeeSchedule {
 /** The counts endpoint's answer: the tab counts, the nav badges and the dashboard cards. */
 export function counts(overrides: Partial<OfflineCounts> = {}): OfflineCounts {
   return {
+    awaitingForm: 2,
     submitted: 3,
     changesRequested: 1,
     ready: 2,

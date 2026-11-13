@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,6 +29,8 @@ import {
 import type { AdmissionState } from "@/lib/api/exam/offline-admission";
 import type { Role } from "@/lib/api/exam/types";
 import { AdmissionPhoto } from "./admission-photo";
+import { DeskActivationDialog, type ShownCode } from "./desk-activation-dialog";
+import { DeskStartDialog } from "./desk-start-dialog";
 import { QueueMoneyPills } from "./money-pills";
 import {
   QUEUE_MONEY_FILTERS,
@@ -41,6 +44,7 @@ import { stateLabelKey } from "./labels";
 
 /** The count each queue tab shows, from the counts endpoint. */
 const TAB_COUNT: Record<QueueTab, keyof OfflineCounts> = {
+  AWAITING_FORM: "awaitingForm",
   SUBMITTED: "submitted",
   CHANGES_REQUESTED: "changesRequested",
   READY: "ready",
@@ -60,6 +64,8 @@ const STATE_TONE: Record<AdmissionState, PillTone> = {
 /** The copy for an empty tab: what the state means and what to do next. */
 function emptyCopy(tab: QueueTab): { title: string; body: string } {
   switch (tab) {
+    case "AWAITING_FORM":
+      return { title: "staffOffline.queue.empty.AWAITING_FORM.title", body: "staffOffline.queue.empty.AWAITING_FORM.body" };
     case "SUBMITTED":
       return { title: "staffOffline.queue.empty.SUBMITTED.title", body: "staffOffline.queue.empty.SUBMITTED.body" };
     case "CHANGES_REQUESTED":
@@ -85,6 +91,9 @@ export function AdmissionQueue() {
   const tab = parseQueueTab(params.tab, role.role);
   const isMaster = role.role === "MASTER_ADMIN";
   const reviewer = isMaster || role.role === "SYSTEM_ADMIN";
+  // A new student made here is always a desk admission: the phone, then the code to read out.
+  const [creating, setCreating] = useState(false);
+  const [shown, setShown] = useState<ShownCode | null>(null);
 
   const counts = useOfflineCounts(reviewer);
   const batches = useBatches("");
@@ -107,16 +116,20 @@ export function AdmissionQueue() {
     {
       key: "name",
       header: t("staffOffline.queue.columns.name"),
-      cell: (row) => (
-        <div className="flex min-w-0 items-center gap-3">
-          <AdmissionPhoto admissionId={row.id} hasPhoto={row.hasPhoto} name={row.fullName} />
-          <div className="min-w-0">
-            <Link href={`/staff/admissions/${row.id}`} className="font-medium text-text underline-offset-4 hover:underline">
-              {row.fullName}
-            </Link>
+      cell: (row) => {
+        // Until the form arrives the name is the phone number.
+        const name = row.status === "AWAITING_FORM" ? row.mobile : row.fullName;
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            <AdmissionPhoto admissionId={row.id} hasPhoto={row.hasPhoto} name={name} />
+            <div className="min-w-0">
+              <Link href={`/staff/admissions/${row.id}`} className="font-medium text-text underline-offset-4 hover:underline">
+                {name}
+              </Link>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "mobile",
@@ -139,6 +152,11 @@ export function AdmissionQueue() {
           <span>
             <Pill tone={STATE_TONE[row.status]}>{t(stateLabelKey(row.status))}</Pill>
           </span>
+          {row.status === "AWAITING_FORM" ? (
+            <span className="text-meta text-muted">
+              {t(row.activated ? "staffOffline.activation.activated" : "staffOffline.activation.notActivated")}
+            </span>
+          ) : null}
           <span className="text-meta text-muted">
             {t("staffOffline.queue.sinceAgo", { time: formatRelative(Date.now() - Date.parse(row.submittedAt ?? row.createdAt)) })}
           </span>
@@ -155,7 +173,7 @@ export function AdmissionQueue() {
       key: "action",
       header: "",
       align: "end",
-      cell: (row) => <RowAction row={row} role={role.role} />,
+      cell: (row) => <RowAction row={row} role={role.role} onShowCode={(next) => setShown({ admissionId: next.id, phone: next.mobile })} />,
     },
   ];
 
@@ -170,6 +188,7 @@ export function AdmissionQueue() {
       <PageHeader
         title={t("staffOffline.queue.title")}
         breadcrumbs={[{ label: t("common.staffNav.dashboard"), href: "/staff" }, { label: t("staffOffline.queue.title") }]}
+        actions={<Button onClick={() => setCreating(true)}>{t("staffOffline.queue.addStudent")}</Button>}
       />
       {reviewer ? <SummaryCards counts={counts.data} isMaster={isMaster} /> : null}
       <Tabs
@@ -181,6 +200,7 @@ export function AdmissionQueue() {
       />
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,auto)_minmax(12rem,auto)]">
         <SearchInput
+          className="self-end"
           id="admissions-q"
           value={params.q}
           onChange={(q) => setParams({ q })}
@@ -233,6 +253,22 @@ export function AdmissionQueue() {
           ) : null}
         </>
       )}
+      <DeskStartDialog
+        open={creating}
+        onOpenChange={setCreating}
+        onCreated={(desk) =>
+          setShown({ admissionId: desk.admissionId, phone: desk.phone, initial: { code: desk.code, expiresAt: desk.expiresAt } })
+        }
+      />
+      {shown ? (
+        <DeskActivationDialog
+          key={`${shown.admissionId}-${shown.initial?.code ?? "live"}`}
+          admissionId={shown.admissionId}
+          phone={shown.phone}
+          initial={shown.initial}
+          onClose={() => setShown(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -272,9 +308,24 @@ function SummaryCards({ counts, isMaster }: { counts: OfflineCounts | undefined;
 }
 
 /** The one next action on a row for this role, or what the row waits for. Staff never see Onboard. */
-function RowAction({ row, role }: { row: AdmissionQueueRow; role: Role | null }) {
+function RowAction({
+  row,
+  role,
+  onShowCode,
+}: {
+  row: AdmissionQueueRow;
+  role: Role | null;
+  onShowCode: (row: AdmissionQueueRow) => void;
+}) {
   const { t } = useLocale();
   const wait = waitingFor(row.status, role);
+  if (row.status === "AWAITING_FORM" && !row.activated) {
+    return (
+      <Button size="sm" variant="secondary" onClick={() => onShowCode(row)}>
+        {t("staffOffline.activation.showCode")}
+      </Button>
+    );
+  }
   if (row.status === "SUBMITTED") {
     return <Button href={`/staff/admissions/${row.id}`} size="sm">{t("staffOffline.actions.review")}</Button>;
   }

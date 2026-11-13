@@ -66,6 +66,8 @@ describe("students", () => {
     renderWithProviders(<StudentsPage />, { user: fixtures.systemAdmin, route: "/staff/students" });
 
     await user.click(await screen.findByRole("button", { name: "নতুন শিক্ষার্থী" }));
+    // The offline admission box is on by default and hides name and email; this test covers the normal form.
+    await user.click(screen.getByRole("checkbox"));
     await user.type(screen.getByLabelText(/^নাম/), "Nazma Akter");
     await user.type(screen.getByLabelText(/^ফোন/), "01711000002");
     await user.type(screen.getByLabelText(/^ইমেইল/), "nazma@example.com");
@@ -73,8 +75,8 @@ describe("students", () => {
 
     expect(await screen.findByText("482913")).toBeInTheDocument();
     const sent = api.calls.find((call) => call.method === "POST" && call.path === "/api/v1/students");
-    // The Offline admission checkbox is on by default for staff, so the desk account is made as an admission (plan 6.3).
-    expect(sent?.body).toEqual({ fullName: "Nazma Akter", phone: "01711000002", email: "nazma@example.com", offlineAdmission: true });
+    // The offline box was unticked above, so this is the normal form and the body carries offlineAdmission false.
+    expect(sent?.body).toEqual({ fullName: "Nazma Akter", phone: "01711000002", email: "nazma@example.com", offlineAdmission: false });
     expect(sent?.body).not.toHaveProperty("password");
   });
 
@@ -84,6 +86,8 @@ describe("students", () => {
     renderWithProviders(<StudentsPage />, { user: fixtures.systemAdmin, route: "/staff/students" });
 
     await user.click(await screen.findByRole("button", { name: "নতুন শিক্ষার্থী" }));
+    // The offline admission box is on by default and hides name and email; this test covers the normal form.
+    await user.click(screen.getByRole("checkbox"));
     await user.type(screen.getByLabelText(/^নাম/), "Nazma");
     await user.type(screen.getByLabelText(/^ফোন/), "0171");
     await user.type(screen.getByLabelText(/^ইমেইল/), "nazma@example.com");

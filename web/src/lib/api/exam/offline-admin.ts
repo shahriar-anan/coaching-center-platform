@@ -36,6 +36,10 @@ export type AdmissionQueueRow = {
   owedTotal: number | string | null;
   /** The next due that is still owed, or null when nothing is owed. */
   nextDueOn: string | null;
+  /** Waiting for the form only: the student has used the activation code. */
+  activated: boolean;
+  /** Waiting for the form only: when the activation code stops working, or null when there is none. */
+  codeExpiresAt: string | null;
 };
 
 export type AdmissionFlag = "NO_PAYMENT" | "OVERDUE" | "PENDING_APPROVAL";
@@ -129,8 +133,29 @@ export type AdmissionDetail = {
 
 export type ItemAdded = { admission: AdmissionDetail; overlaps: ItemOverlap[]; alreadyHeld: boolean };
 
+/** The answer to a desk start: the student exists, and this is the one-time code to read out (10 minutes). */
+export type DeskStart = {
+  admissionId: string;
+  studentId: string;
+  phone: string;
+  code: string;
+  expiresAt: string;
+};
+
+/**
+ * The activation code of a desk admission. While live: the code. Expired: no code, `expired` is true. Activated: no code, the student
+ * has used it. `code` and `expiresAt` are null when there is none.
+ */
+export type ActivationCodeView = {
+  code: string | null;
+  expiresAt: string | null;
+  activated: boolean;
+  expired?: boolean;
+};
+
 /** The tab and dashboard counts (plan 5). */
 export type OfflineCounts = {
+  awaitingForm: number;
   submitted: number;
   changesRequested: number;
   ready: number;
@@ -318,6 +343,20 @@ export function useAdmission(id: string) {
   });
 }
 
+/**
+ * The activation code of a desk admission that has not been activated yet. Read each time the code dialog opens, so the code shown is the
+ * live one. Pass `enabled: false` when the dialog already holds a code.
+ */
+export function useActivationCode(id: string, enabled = true) {
+  return useQuery({
+    queryKey: [...offlineAdminKeys.all, "activationCode", id],
+    queryFn: ({ signal }) => apiRequest<ActivationCodeView>(`/api/v1/offline-admissions/${id}/activation-code`, { signal }),
+    enabled: enabled && Boolean(id),
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
 /** An admission's dues and payments. Only meaningful once it is onboarded. */
 export function useAdmissionFees(id: string, enabled = true) {
   return useQuery({
@@ -435,6 +474,33 @@ function useOfflineCall<TVars, TResult = AdmissionDetail>(build: (vars: TVars) =
       return apiRequest<TResult>(call.path, { method: call.method, body: call.body });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: offlineAdminKeys.all }),
+  });
+}
+
+/**
+ * Starts a desk admission from the phone number alone: the student is made, and the code comes back to read out. The student fills in
+ * the rest of the form after activating. The API refuses a phone already in use (DUPLICATE_PHONE).
+ */
+export function useDeskStart() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phone: string) => apiRequest<DeskStart>("/api/v1/offline-admissions/desk", { method: "POST", body: { phone } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: offlineAdminKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ["staffPeople"] });
+    },
+  });
+}
+
+/** A new 10-minute code for a desk admission. The old code stops working at once. */
+export function useRenewActivationCode(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ code: string; expiresAt: string }>(`/api/v1/offline-admissions/${id}/activation-code`, { method: "POST" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: offlineAdminKeys.all });
+    },
   });
 }
 

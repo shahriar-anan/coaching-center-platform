@@ -127,7 +127,7 @@ function NotificationRow({ notification, onOpen }: { notification: StaffNotifica
       href={notificationHref(notification.link)}
       onClick={onOpen}
       className={cn(
-        "flex min-h-14 items-start gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:bg-bg",
+        "flex min-h-14 items-start gap-3 rounded-card border border-border bg-card p-4 transition-colors hover:bg-text/[0.06]",
         isUnread && "border-accent/40",
       )}
     >

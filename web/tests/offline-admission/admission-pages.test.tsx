@@ -74,8 +74,6 @@ describe("the print view (plan 6.2, the paper registration form)", () => {
       "Mobile number",
       "Emergency mobile number",
       "Holding no. / hall / mess",
-      "Thana",
-      "District",
       "Present address",
       "Permanent address",
     ]) {

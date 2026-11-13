@@ -38,16 +38,22 @@ describe("Students → New student (plan 6.3, desk creation)", () => {
 describe("the activation code of a desk admission", () => {
   it("shows the code in large type with the steps to read out", () => {
     renderWithProviders(
-      <DeskActivationDialog open onClose={() => undefined} name="Rahim Uddin" phone="01711000001" code="K7Q2-9PXA" />,
+      <DeskActivationDialog
+        admissionId="adm-1"
+        phone="01711000001"
+        initial={{ code: "K7Q2-9PXA", expiresAt: new Date(Date.now() + 600_000).toISOString() }}
+        onClose={() => undefined}
+      />,
       { user: fixtures.masterAdmin, locale: "en" },
     );
 
     expect(screen.getByText("K7Q2-9PXA", { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByText("Say these steps to the student")).toBeInTheDocument();
+    expect(screen.getByText("Read these steps to the student")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Open the site on the student's phone and tap Activate.",
-      "Enter this code, then set a password.",
-      "Fill in the admission form, take or choose a photo, and submit it.",
+      "Open the site on the student's phone.",
+      'Tap "Activate account".',
+      "Enter this mobile number and the code.",
+      "Choose a password.",
     ]);
   });
 });

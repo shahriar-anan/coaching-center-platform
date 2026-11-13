@@ -18,7 +18,7 @@ import { isPasswordLength, isPhone, normalizePhone } from "@/app/(auth)/_compone
 /** For a student an admin created. Success does not sign them in; they go to the login page. */
 export default function ActivatePage() {
   const { t } = useLocale();
-  const [values, setValues] = useState({ phone: "", code: "", password: "" });
+  const [values, setValues] = useState({ phone: "", code: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof values, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -63,9 +63,12 @@ export default function ActivatePage() {
     if (!values.code.trim()) next.code = t("auth.register.fieldRequired");
     if (!values.password) next.password = t("auth.register.fieldRequired");
     else if (!isPasswordLength(values.password)) next.password = t("auth.register.passwordLength");
+    // The match is checked here, in the browser: a mismatch sends no request.
+    if (!values.confirmPassword) next.confirmPassword = t("auth.register.fieldRequired");
+    else if (values.confirmPassword !== values.password) next.confirmPassword = t("auth.activate.passwordMismatch");
     setErrors(next);
     setFormError(null);
-    const first = (["phone", "code", "password"] as const).find((key) => next[key]);
+    const first = (["phone", "code", "password", "confirmPassword"] as const).find((key) => next[key]);
     if (first) {
       focusFirst([`activate-${first}`]);
       return;
@@ -126,6 +129,16 @@ export default function ActivatePage() {
               value={values.password}
               onChange={(e) => set("password", e.target.value)}
               invalid={Boolean(errors.password)}
+            />
+          </Field>
+          <Field label={t("auth.activate.confirmPassword")} error={errors.confirmPassword} required>
+            <PasswordInput
+              id="activate-confirmPassword"
+              name="confirmPassword"
+              autoComplete="new-password"
+              value={values.confirmPassword}
+              onChange={(e) => set("confirmPassword", e.target.value)}
+              invalid={Boolean(errors.confirmPassword)}
             />
           </Field>
           {formError ? <FormError>{formError}</FormError> : null}

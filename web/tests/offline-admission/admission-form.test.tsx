@@ -31,8 +31,6 @@ const FIELD_LABELS = [
   "Mobile number",
   "Emergency mobile number",
   "Holding no. / hall / mess",
-  "Thana",
-  "District",
   "Present address",
   "Permanent address",
 ];

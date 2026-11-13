@@ -1,18 +1,27 @@
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AdmissionDetailView } from "@/components/staff/offline/admission-detail";
+import { AdmissionSetupView } from "@/components/staff/offline/admission-setup";
 import { ReadyChecklist } from "@/components/staff/offline/ready-checklist";
 import { canMarkReady, checklistRows } from "@/components/staff/offline/offline-model";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { ADMISSION_ID, detail, page } from "./fixtures";
 
-/** The routes the detail page reads: the admission, the batches for the setup, and the catalogue for the exams and packages. */
-function detailRoutes(admission: ReturnType<typeof detail>) {
+/** The routes the detail page and the setup screen read: the admission, the batches for the setup, and the catalogue for the exams and packages. */
+function admissionRoutes(admission: ReturnType<typeof detail>) {
   return mockApi({
     [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: admission,
     "GET /api/v1/offline-batches": [],
     "GET /api/v1/live-exams": page([]),
     "GET /api/v1/live-exam-modules": page([]),
+  });
+}
+
+function renderSetup() {
+  renderWithProviders(<AdmissionSetupView id={ADMISSION_ID} />, {
+    user: fixtures.systemAdmin,
+    locale: "en",
+    route: `/staff/admissions/${ADMISSION_ID}/setup`,
   });
 }
 
@@ -57,21 +66,18 @@ describe("the ready checklist (plan 6.3, principle 2)", () => {
     });
   });
 
-  it("disables Ready for approval on the detail page while the checklist has a gap", async () => {
-    detailRoutes(detail({ readyProblems: [{ field: "batchId", message: "Choose a batch." }] }));
-    renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, {
-      user: fixtures.systemAdmin,
-      locale: "en",
-      route: `/staff/admissions/${ADMISSION_ID}`,
-    });
+  it("disables Ready for approval on the setup screen while the checklist has a gap", async () => {
+    admissionRoutes(detail({ readyProblems: [{ field: "batchId", message: "Choose a batch." }] }));
+    renderSetup();
 
-    const ready = await screen.findByRole("button", { name: "Ready for approval" });
+    const ready = await screen.findByRole("button", { name: "Mark ready" });
     expect(ready).toBeDisabled();
+    expect(screen.getByText("1 still missing")).toBeInTheDocument();
     expect(screen.getByText("Choose a batch.")).toBeInTheDocument();
   });
 
   it("turns Ready for approval on once every line is ticked", async () => {
-    detailRoutes(detail({ readyProblems: [] }));
+    admissionRoutes(detail({ readyProblems: [] }));
     renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, {
       user: fixtures.systemAdmin,
       locale: "en",
@@ -84,7 +90,7 @@ describe("the ready checklist (plan 6.3, principle 2)", () => {
 
 describe("the setup shows the overlaps the detail reports (plan 4.4)", () => {
   it("lists what the student already holds that overlaps an item, from the admission itself", async () => {
-    detailRoutes(
+    admissionRoutes(
       detail({
         items: [
           { id: "item-1", scope: "EXAM", examId: "exam-9", moduleId: null, titleEn: "Physics Mock 2", titleBn: "পদার্থ মক ২", grantId: null, addedAt: "2026-11-10T04:00:00Z" },
@@ -112,27 +118,19 @@ describe("the setup shows the overlaps the detail reports (plan 4.4)", () => {
         ],
       }),
     );
-    renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, {
-      user: fixtures.systemAdmin,
-      locale: "en",
-      route: `/staff/admissions/${ADMISSION_ID}`,
-    });
+    renderSetup();
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("The student already has access to this:");
+    const heading = await screen.findByText("Already holds this from an online order");
+    const alert = heading.parentElement as HTMLElement;
     expect(alert).toHaveTextContent("Physics Mock 1");
     expect(alert).toHaveTextContent("Physics Package");
   });
 
   it("shows no overlap notice when the detail reports none", async () => {
-    detailRoutes(detail({ overlaps: [] }));
-    renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, {
-      user: fixtures.systemAdmin,
-      locale: "en",
-      route: `/staff/admissions/${ADMISSION_ID}`,
-    });
+    admissionRoutes(detail({ overlaps: [] }));
+    renderSetup();
 
-    await screen.findByRole("button", { name: "Ready for approval" });
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "Mark ready" });
+    expect(screen.queryByText("Already holds this from an online order")).not.toBeInTheDocument();
   });
 });
