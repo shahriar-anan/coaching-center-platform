@@ -1,6 +1,7 @@
 package com.coachingcenter.api.users;
 
 import com.coachingcenter.api.offline.OfflineAdmissionService;
+import com.coachingcenter.api.offline.OfflineAdmissionSwitch;
 
 import java.util.UUID;
 
@@ -39,10 +40,14 @@ public class AccountController {
 
 	private final OfflineAdmissionService offlineAdmissions;
 
-	public AccountController(AccountService accounts, PermissionChecker permissions, OfflineAdmissionService offlineAdmissions) {
+	private final OfflineAdmissionSwitch admissionSwitch;
+
+	public AccountController(AccountService accounts, PermissionChecker permissions, OfflineAdmissionService offlineAdmissions,
+			OfflineAdmissionSwitch admissionSwitch) {
 		this.accounts = accounts;
 		this.permissions = permissions;
 		this.offlineAdmissions = offlineAdmissions;
+		this.admissionSwitch = admissionSwitch;
 	}
 
 	@PostMapping("/api/v1/instructors")
@@ -128,8 +133,10 @@ public class AccountController {
 		rejectPassword(body);
 		NameRequest request = nameRequest(body);
 		UUID createdBy = actor().userId();
-		// An offline admission (desk) student gets their admission form in the same transaction (plan D1, D3).
-		AccountService.CreatedAccount created = body.path("offlineAdmission").asBoolean(false)
+		// An offline admission (desk) student gets their admission form in the same transaction (plan D1, D3). While the feature
+		// switch is off, offlineAdmission is ignored and the student is created as an ordinary one.
+		boolean offline = admissionSwitch.isEnabled() && body.path("offlineAdmission").asBoolean(false);
+		AccountService.CreatedAccount created = offline
 				? offlineAdmissions.createOfflineStudent(request.fullName(), request.phone(), request.email(), createdBy)
 				: accounts.createStudent(request.fullName(), request.phone(), request.email(), createdBy);
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);

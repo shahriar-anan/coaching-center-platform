@@ -32,6 +32,7 @@ import { useListParams } from "@/lib/url/list-params";
 import { useLocale } from "@/i18n/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { adminErrorText } from "@/components/staff/access/admin-error";
+import { offlineAdmissionEnabled } from "@/lib/config";
 
 export default function StaffStudentsPage() {
   return (
@@ -164,7 +165,7 @@ function StudentList() {
             setCode({ code: account.activationCode, name: account.fullName });
           }
         }}
-        offlineOption
+        offlineOption={offlineAdmissionEnabled}
       />
 
       <DeskActivationDialog

@@ -7,7 +7,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Bell, BookOpen, CalendarDays, CircleUserRound, GraduationCap, Home, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
-import { staffHome } from "@/lib/config";
+import { offlineAdmissionEnabled, staffHome } from "@/lib/config";
 import { Logo } from "@/components/shell/logo";
 import {
   currentStudentNavCollapsed,
@@ -142,7 +142,9 @@ function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
   const { session, logout } = useSession();
   // The same admission query the shell already holds, so this costs no request (students only).
-  const admission = useMyAdmission({ enabled: session.status === "authenticated" && session.user.role === "STUDENT" });
+  const admission = useMyAdmission({
+    enabled: offlineAdmissionEnabled && session.status === "authenticated" && session.user.role === "STUDENT",
+  });
   if (session.status !== "authenticated") {
     // The old site's single pill: log in, a divider, sign up.
     const half = "inline-flex h-full items-center px-3 hover:bg-white/15 max-[379px]:px-2.5 sm:px-4";
@@ -187,7 +189,7 @@ function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
           <MenuLink href="/wishlist" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
           <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />
-          {user.role === "STUDENT" && showsMyAdmissionLinks(admission.data?.state) ? (
+          {offlineAdmissionEnabled && user.role === "STUDENT" && showsMyAdmissionLinks(admission.data?.state) ? (
             <MenuLink href={MY_ADMISSION_HREF} icon={GraduationCap} label={t("myAdmission.menu")} />
           ) : null}
           {user.role !== "STUDENT" ? (
@@ -365,10 +367,13 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const student = signedIn && session.user.role === "STUDENT";
   // A student whose offline admission is not yet onboarded is pending: only the form and its print view are open (plan 4.5).
   // Anyone else, and a student with no admission (the query gives null), is unaffected.
-  const admission = useMyAdmission({ enabled: student });
+  // While the offline admission switch is off no admission can be pending, so the gate and the query stay idle.
+  const admission = useMyAdmission({ enabled: student && offlineAdmissionEnabled });
   const admissionState = admission.data?.state;
-  const pending = isPendingAdmission(admissionState);
-  const gateTarget = admissionRedirect({ pathname, role: student ? "STUDENT" : null, state: admissionState });
+  const pending = offlineAdmissionEnabled && isPendingAdmission(admissionState);
+  const gateTarget = offlineAdmissionEnabled
+    ? admissionRedirect({ pathname, role: student ? "STUDENT" : null, state: admissionState })
+    : null;
   useEffect(() => {
     if (gateTarget) {
       router.replace(gateTarget);

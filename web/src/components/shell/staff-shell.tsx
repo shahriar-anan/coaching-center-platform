@@ -19,6 +19,7 @@ import { usePendingChanges } from "@/lib/api/exam/staff-exams";
 import { usePendingReviewCount } from "@/lib/api/exam/staff-reviews";
 import { useStaffAttention } from "@/lib/api/exam/staff-attention";
 import { useOfflineAttention } from "@/lib/api/exam/offline-admin";
+import { offlineAdmissionEnabled } from "@/lib/config";
 import { canModerateReviews } from "@/components/staff/reviews/review-access";
 import { useRole } from "@/lib/auth/guards";
 import { StaffNotificationBell } from "@/components/staff/notifications/staff-notification-bell";
@@ -50,7 +51,8 @@ export function StaffShell({ children }: { children: ReactNode }) {
   // Papers to mark, results to publish, retake requests and payments: each role is asked only for what it acts on.
   const attention = useStaffAttention(role);
   // Offline admissions waiting for review, and fee payments waiting for the Master Admin's approval.
-  const offline = useOfflineAttention(role);
+  // While the offline admission switch is off the counts are not asked for (the API answers 404).
+  const offline = useOfflineAttention(offlineAdmissionEnabled ? role : null);
   const staffCounts = { ...attention, admissions: offline.admissions, offlineFees: offline.offlineFees };
 
   function toggleCollapsed() {

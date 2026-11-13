@@ -23,6 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.TestPropertySource;
 
 import com.coachingcenter.api.PostgresIntegrationTest;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
@@ -34,6 +35,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(CapturingEmailConfig.class)
+@TestPropertySource(properties = "app.offline-admission.enabled=true")
 class AuditLogIT extends PostgresIntegrationTest {
 
 	private static final Set<String> API_OPERATIONS = Set.of(
@@ -290,6 +292,7 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"DELETE /api/v1/live-exams/{id}/questions/{questionId}",
 			"GET /api/v1/live-exam-participation",
 			"GET /api/v1/live-exam-participation/summary",
+			"GET /api/v1/public/offline-admission/status",
 			"GET /api/v1/me/admission",
 			"GET /api/v1/offline-admissions/overdue",
 			"GET /api/v1/me/admission/batch-routine.pdf",

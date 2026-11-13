@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.TestPropertySource;
 
 import com.coachingcenter.api.PostgresIntegrationTest;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
@@ -30,6 +31,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(CapturingEmailConfig.class)
+@TestPropertySource(properties = "app.offline-admission.enabled=true")
 class OfflineAdmissionIT extends PostgresIntegrationTest {
 
 	@Autowired

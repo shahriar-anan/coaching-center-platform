@@ -9,6 +9,7 @@ import { Logo } from "@/components/shell/logo";
 import { activeNavFor, groupStaffNav, type StaffNavChild, type StaffNavItem, type StaffNavKey } from "@/components/shell/staff-nav";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
+import { offlineAdmissionEnabled } from "@/lib/config";
 
 const ROW =
   "relative flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-label text-sidebar-text transition-colors hover:bg-sidebar-hover";
@@ -144,7 +145,10 @@ export function StaffNavList({
 
   return (
     <div className="grid gap-4">
-      {groupStaffNav(items).map(({ group, items: groupItems }) => (
+      {groupStaffNav(items)
+        // The offline admission group is hidden while the feature switch is off (its pages answer 404 then).
+        .filter(({ group }) => offlineAdmissionEnabled || group !== "offline")
+        .map(({ group, items: groupItems }) => (
         <section key={group} aria-labelledby={`staff-nav-${group}`} className="grid gap-1">
           <h2
             id={`staff-nav-${group}`}

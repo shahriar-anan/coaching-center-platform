@@ -35,6 +35,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.TestPropertySource;
 
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
@@ -52,6 +53,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import({ CapturingEmailConfig.class, OfflineMyAdmissionIT.ClockConfig.class })
+@TestPropertySource(properties = "app.offline-admission.enabled=true")
 class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 
 	private static final Instant NOW = Instant.parse("2026-10-20T04:00:00Z");

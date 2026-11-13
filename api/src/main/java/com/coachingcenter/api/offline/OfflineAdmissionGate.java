@@ -22,12 +22,21 @@ public class OfflineAdmissionGate {
 
 	private final OfflineAdmissionRepository admissions;
 
-	public OfflineAdmissionGate(OfflineAdmissionRepository admissions) {
+	private final OfflineAdmissionSwitch admissionSwitch;
+
+	public OfflineAdmissionGate(OfflineAdmissionRepository admissions, OfflineAdmissionSwitch admissionSwitch) {
 		this.admissions = admissions;
+		this.admissionSwitch = admissionSwitch;
 	}
 
-	/** Refuses the student with {@code ADMISSION_PENDING} while their admission is not yet onboarded. */
+	/**
+	 * Refuses the student with {@code ADMISSION_PENDING} while their admission is not yet onboarded. Does nothing while the feature
+	 * switch is off, because no admission can be pending then.
+	 */
 	public void requireNotPending(UUID studentId) {
+		if (!admissionSwitch.isEnabled()) {
+			return;
+		}
 		admissions.findFirstByStudentIdAndStatusNot(studentId, OfflineAdmission.CLOSED)
 			.filter(admission -> PENDING.contains(admission.getStatus()))
 			.ifPresent(admission -> {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/i18n/locale-context";
+import { offlineAdmissionEnabled } from "@/lib/config";
 import { isPendingAdmission } from "@/lib/admission/gate";
 import { useMyAdmission } from "@/lib/api/exam/offline-admission";
 import { AdmissionFormView } from "./admission-form";
@@ -27,9 +28,10 @@ function Loading() {
  */
 export function AdmissionPage() {
   const router = useRouter();
-  const admission = useMyAdmission();
+  const admission = useMyAdmission({ enabled: offlineAdmissionEnabled });
   const data = admission.data;
-  const leave = admission.isSuccess && !isPendingAdmission(data?.state);
+  // While the offline admission switch is off this page has nothing to show, so it goes home.
+  const leave = !offlineAdmissionEnabled || (admission.isSuccess && !isPendingAdmission(data?.state));
 
   useEffect(() => {
     if (leave) {
@@ -37,6 +39,9 @@ export function AdmissionPage() {
     }
   }, [leave, router]);
 
+  if (!offlineAdmissionEnabled) {
+    return null;
+  }
   if (admission.isPending) {
     return <Loading />;
   }

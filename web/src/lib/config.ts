@@ -62,6 +62,13 @@ export const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true";
 /** One payment for several exams (plan decision D1). Off until the API has bundle orders. */
 export const bundleOrders = process.env.NEXT_PUBLIC_BUNDLE_ORDERS === "true";
 
+/**
+ * The offline admission (desk) feature. Off unless NEXT_PUBLIC_OFFLINE_ADMISSION is "1" or "true" at build time. Must match the API
+ * switch (OFFLINE_ADMISSION_ENABLED): while the API has it off, its routes answer 404.
+ */
+const offlineAdmissionFlag = process.env.NEXT_PUBLIC_OFFLINE_ADMISSION;
+export const offlineAdmissionEnabled = offlineAdmissionFlag === "1" || offlineAdmissionFlag === "true";
+
 function currentOrigin(): string | null {
   if (typeof window === "undefined") {
     return null;
