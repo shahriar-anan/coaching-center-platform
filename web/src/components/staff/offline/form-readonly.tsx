@@ -33,7 +33,7 @@ export function FormReadOnly({ form }: { form: AdmissionForm }) {
           <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
             {group.fields.map((key) => (
               <div key={key} className="grid min-w-0 gap-0.5 border-b border-border-control/60 pb-2">
-                <dt className="text-meta text-muted">{t(`admission.field.${key}`)}</dt>
+                <dt className="text-meta font-semibold text-text-accent">{t(`admission.field.${key}`)}</dt>
                 <dd className="whitespace-pre-line break-words text-body text-text">{valueText(form, key, t, locale)}</dd>
               </div>
             ))}
