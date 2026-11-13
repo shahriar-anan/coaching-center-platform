@@ -1,4 +1,14 @@
 const admission = {
+  verifyEmail: {
+    title: "Confirm your email",
+    body: "We will send a 6-digit code to {email}. Enter it here to confirm the address.",
+    send: "Send me a code",
+    code: "Code from the email",
+    verify: "Confirm",
+    wrongCode: "That code is wrong or has expired. Send a new one and try again.",
+    sendFailed: "We could not send the code. Please try again.",
+    done: "Your email is confirmed.",
+  },
   title: "Admission form",
   lead: "Fill in every box, add your photo, then submit. Your answers are saved as you type.",
   section: {

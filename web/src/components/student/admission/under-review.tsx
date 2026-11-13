@@ -8,6 +8,8 @@ import { formatDate } from "@/lib/format";
 import { useSession } from "@/lib/auth/session-context";
 
 /** What a student sees after the form is submitted, until the office asks for changes or admits them (plan 6.2). */
+import { VerifyEmailCard } from "./verify-email-card";
+
 export function UnderReview({ admission }: { admission: AdmissionView }) {
   const { t, locale } = useLocale();
   const { logout } = useSession();
@@ -16,6 +18,7 @@ export function UnderReview({ admission }: { admission: AdmissionView }) {
       <header className="grid gap-2">
         <h1 className="text-title tracking-tight text-text">{t("admission.review.title")}</h1>
       </header>
+      <VerifyEmailCard email={admission.form?.email ?? null} />
       <Card padding="lg" className="grid gap-3">
         <p className="text-body text-text">{t("admission.review.body")}</p>
         {admission.submittedAt ? (
