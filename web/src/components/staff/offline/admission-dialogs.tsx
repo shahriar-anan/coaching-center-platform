@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { Pill } from "@/components/ui/pill";
 import { TextInput } from "@/components/ui/text-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
@@ -15,8 +16,14 @@ import {
   useOnboard,
   useSaveTerms,
   type AdmissionDetail,
+  type AdmissionItem,
 } from "@/lib/api/exam/offline-admin";
+import { useAllModuleOptions } from "@/lib/api/exam/staff-catalog";
 import { offlineErrorText } from "./offline-error";
+import { draftOf, setupTotals } from "./setup-draft";
+
+/** How many exams and packages the onboarding list shows before "Show all". */
+const ITEMS_SHOWN = 6;
 
 /** The name the dialogs show for the student: the form's full name. */
 function studentName(admission: AdmissionDetail): string {
@@ -29,10 +36,8 @@ function studentName(admission: AdmissionDetail): string {
  */
 export function OnboardDialog({ admission, open, onOpenChange }: { admission: AdmissionDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
-  const { formatDate, formatMoney, pickTitle } = useFormat();
   const { toast } = useToast();
   const onboard = useOnboard(admission.id);
-  const items = admission.items.map((item) => pickTitle({ titleEn: item.titleEn, titleBn: item.titleBn })).filter(Boolean);
   return (
     <ConfirmDialog
       open={open}
@@ -50,15 +55,94 @@ export function OnboardDialog({ admission, open, onOpenChange }: { admission: Ad
         }
       }}
     >
+      <OnboardSummary admission={admission} />
+    </ConfirmDialog>
+  );
+}
+
+/**
+ * What onboarding will do: the setup as a list of facts, then the exams and packages. It is mounted only while the dialog is open, so
+ * the package list is read only then. Long lists scroll inside their own box and show the first few until "Show all".
+ */
+function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
+  const { t } = useLocale();
+  const { formatDate, formatMoney, pickTitle } = useFormat();
+  const [showAll, setShowAll] = useState(false);
+  const modules = useAllModuleOptions();
+  const totals = setupTotals(draftOf(admission.setup));
+  const packages = admission.items.filter((item) => item.scope === "MODULE").length;
+  const exams = admission.items.length - packages;
+  // A package's exam count is in the module list (the exams of each type). Until that list is read, no count is shown.
+  const examCounts = new Map<string, number>(
+    (modules.data ?? []).map((pkg): [string, number] => [pkg.id, (pkg.mcqCount ?? 0) + (pkg.writtenCount ?? 0)]),
+  );
+  const shown = showAll ? admission.items : admission.items.slice(0, ITEMS_SHOWN);
+  const countHeading = [
+    packages > 0 ? (packages === 1 ? t("staffOffline.onboard.packagesOne", { count: 1 }) : t("staffOffline.onboard.packagesMany", { count: packages })) : null,
+    exams > 0 ? (exams === 1 ? t("staffOffline.onboard.examsOne", { count: 1 }) : t("staffOffline.onboard.examsMany", { count: exams })) : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <div className="grid min-w-0 gap-4">
       <dl className="grid gap-2 text-body">
         <Row label={t("staffOffline.onboard.student")} value={studentName(admission)} />
-        <Row label={t("staffOffline.onboard.items")} value={items.length > 0 ? items.join(", ") : t("staffOffline.onboard.none")} />
+        <Row
+          label={t("staffOffline.setup.batch")}
+          value={pickTitle({ titleEn: admission.setup.batchNameEn, titleBn: admission.setup.batchNameBn }) || "—"}
+        />
         <Row label={t("staffOffline.onboard.fee")} value={formatMoney(admission.setup.monthlyFee) ?? "—"} />
         <Row label={t("staffOffline.onboard.firstDue")} value={admission.setup.firstDueOn ? formatDate(admission.setup.firstDueOn) : "—"} />
         <Row label={t("staffOffline.onboard.courseEnds")} value={admission.setup.courseEndsOn ? formatDate(admission.setup.courseEndsOn) : "—"} />
+        <Row label={t("staffOffline.onboard.payments")} value={String(totals.months)} />
+        <Row label={t("staffOffline.onboard.total")} value={formatMoney(totals.total) ?? "—"} />
         <Row label={t("staffOffline.onboard.emailed")} value={t("staffOffline.onboard.emailedValue")} />
       </dl>
-    </ConfirmDialog>
+
+      <section aria-labelledby="onboard-items" className="grid min-w-0 gap-2">
+        <h3 id="onboard-items" className="text-meta font-semibold text-text">
+          {countHeading || t("staffOffline.onboard.items")}
+        </h3>
+        {admission.items.length === 0 ? (
+          <p className="text-meta text-muted">{t("staffOffline.onboard.none")}</p>
+        ) : (
+          <>
+            <ul
+              aria-label={t("staffOffline.onboard.items")}
+              className="grid max-h-[40vh] divide-y divide-border overflow-y-auto rounded-control border border-border-control"
+            >
+              {shown.map((item) => (
+                <OnboardItemRow key={item.id} item={item} examCount={item.moduleId ? examCounts.get(item.moduleId) : undefined} />
+              ))}
+            </ul>
+            {admission.items.length > ITEMS_SHOWN ? (
+              <Button variant="ghost" size="sm" className="justify-self-start" onClick={() => setShowAll((current) => !current)}>
+                {showAll ? t("staffOffline.onboard.showFewer") : t("staffOffline.onboard.showAll", { count: admission.items.length })}
+              </Button>
+            ) : null}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/** One exam or package of the onboarding list: its type, its title and, for a package, how many exams it holds. */
+function OnboardItemRow({ item, examCount }: { item: AdmissionItem; examCount: number | undefined }) {
+  const { t } = useLocale();
+  const { pickTitle } = useFormat();
+  const isPackage = item.scope === "MODULE";
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+      <Pill tone={isPackage ? "accent" : "muted"}>{t(isPackage ? "staffOffline.items.package" : "staffOffline.items.exam")}</Pill>
+      <span className="min-w-0 flex-1 break-words text-text">{pickTitle({ titleEn: item.titleEn, titleBn: item.titleBn }) || "—"}</span>
+      {isPackage && examCount !== undefined ? (
+        <span className="text-meta text-muted">
+          {examCount === 1 ? t("staffOffline.onboard.examsOne", { count: 1 }) : t("staffOffline.onboard.examsMany", { count: examCount })}
+        </span>
+      ) : null}
+    </li>
   );
 }
 

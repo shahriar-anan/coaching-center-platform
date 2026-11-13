@@ -47,10 +47,14 @@ export function SetupForm({
   const chosen = batchOptions.find((batch) => batch.id === draft.batchId) ?? null;
   const disabled = !editable;
 
-  function batchDetails(batch: BatchView) {
-    const fee = formatMoney(batch.defaultMonthlyFee) ?? "";
-    const routine = t(batch.routineUploaded ? "staffOffline.setupScreen.batch.routineYes" : "staffOffline.setupScreen.batch.routineNo");
-    return { fee, end: formatDate(batch.endsOn), routine };
+  /** The routine as the details block shows it: the upload date when there is one, else the plain word. */
+  function routineText(batch: BatchView): string {
+    if (!batch.routineUploaded) {
+      return t("staffOffline.batches.noRoutine");
+    }
+    return batch.routineUploadedAt
+      ? t("staffOffline.batches.routineOn", { date: formatDate(batch.routineUploadedAt) })
+      : t("staffOffline.setupScreen.batch.routineUploaded");
   }
 
   function chooseBatch(batch: BatchView | undefined) {
@@ -72,13 +76,9 @@ export function SetupForm({
   const shownDates = totals.dueDates.slice(0, PAYMENT_DATES_SHOWN).map((date) => formatDate(date));
   const moreDates = totals.dueDates.length - shownDates.length;
 
-  const hint = chosen
-    ? t("staffOffline.setupScreen.batch.line", batchDetails(chosen))
-    : t("staffOffline.setup.batchHint");
-
   return (
     <SetupCard id={id} step={step} title={t("staffOffline.setupScreen.cards.batchFees")}>
-      <Field label={t("staffOffline.setup.batch")} hint={hint} error={errors.batchId} required>
+      <Field label={t("staffOffline.setup.batch")} error={errors.batchId} required>
         <Select
           className="h-11"
           value={draft.batchId}
@@ -90,16 +90,26 @@ export function SetupForm({
           {currentBatchMissing ? (
             <option value={draft.batchId}>{pickTitle({ titleEn: savedBatch.batchNameEn, titleBn: savedBatch.batchNameBn }) || ""}</option>
           ) : null}
-          {batchOptions.map((batch) => {
-            const details = batchDetails(batch);
-            return (
-              <option key={batch.id} value={batch.id}>
-                {t("staffOffline.setupScreen.batch.option", { name: `${batch.nameEn} / ${batch.nameBn}`, ...details })}
-              </option>
-            );
-          })}
+          {batchOptions.map((batch) => (
+            <option key={batch.id} value={batch.id}>
+              {pickTitle({ titleEn: batch.nameEn, titleBn: batch.nameBn })}
+            </option>
+          ))}
         </Select>
       </Field>
+
+      <div className="rounded-control border border-border-control bg-bg p-3">
+        {chosen ? (
+          <dl className="grid gap-x-4 gap-y-3 text-body sm:grid-cols-2">
+            <BatchFact label={t("staffOffline.setup.monthlyFee")} value={formatMoney(chosen.defaultMonthlyFee) ?? "—"} />
+            <BatchFact label={t("staffOffline.setupScreen.batch.endsOn")} value={formatDate(chosen.endsOn)} />
+            <BatchFact label={t("staffOffline.batches.routine")} value={routineText(chosen)} />
+            <BatchFact label={t("staffOffline.setupScreen.batch.students")} value={String(chosen.studentCount)} />
+          </dl>
+        ) : (
+          <p className="text-meta text-muted">{t("staffOffline.setupScreen.batch.choose")}</p>
+        )}
+      </div>
 
       {!batches.isPending && batchOptions.length === 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-dashed border-border p-3">
@@ -165,5 +175,15 @@ export function SetupForm({
             })}
       </p>
     </SetupCard>
+  );
+}
+
+/** One fact of the chosen batch: a label above its value, one column on a phone. */
+function BatchFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid min-w-0 gap-0.5">
+      <dt className="text-meta text-muted">{label}</dt>
+      <dd className="min-w-0 break-words text-text">{value}</dd>
+    </div>
   );
 }

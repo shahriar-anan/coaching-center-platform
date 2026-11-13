@@ -1,8 +1,9 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import SetupPage from "@/app/(staff)/staff/admissions/[id]/setup/page";
 import { AdmissionDetailView } from "@/components/staff/offline/admission-detail";
-import type { AdmissionDetail, AdmissionItem } from "@/lib/api/exam/offline-admin";
+import type { AdmissionDetail, AdmissionItem, BatchView } from "@/lib/api/exam/offline-admin";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { categoryTree } from "../staff-admin/picker-data";
 import { ADMISSION_ID, detail, page } from "./fixtures";
@@ -30,16 +31,34 @@ const EXAM_ITEM: AdmissionItem = {
 };
 
 /** The routes the detail page and the setup screen read. */
-function routes(admission: AdmissionDetail) {
+function routes(admission: AdmissionDetail, batches: BatchView[] = []) {
   return mockApi({
     [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: admission,
     [`GET /api/v1/offline-admissions/${ADMISSION_ID}/history`]: [],
-    "GET /api/v1/offline-batches": [],
+    "GET /api/v1/offline-batches": batches,
+    [`PATCH /api/v1/offline-admissions/${ADMISSION_ID}/setup`]: admission,
     "GET /api/v1/live-exams": page([]),
     "GET /api/v1/live-exam-modules": page([]),
     "GET /api/v1/live-exam-categories": categoryTree,
   });
 }
+
+/** A batch as the batch list returns it: 1,500 a month, ending 31 December 2026, routine uploaded, 14 students. */
+const TEST_BATCH: BatchView = {
+  id: "batch-test",
+  nameEn: "Test batch",
+  nameBn: "টেস্ট ব্যাচ",
+  startsOn: null,
+  endsOn: "2026-12-31",
+  defaultMonthlyFee: 1500,
+  status: "ACTIVE",
+  studentCount: 14,
+  routineUploaded: true,
+  routineFileName: "routine.pdf",
+  routineUploadedAt: "2026-11-02T04:00:00Z",
+  routineUploadedBy: "Master Admin",
+  studentsNotified: 3,
+};
 
 /** A promise React reads at once, as Next does for route params, so `use()` does not suspend in a test. */
 function resolved<T>(value: T): Promise<T> {
@@ -122,6 +141,39 @@ describe("the setup on its own screen", () => {
     expect(screen.queryByRole("button", { name: "+ Add" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mark ready" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the batch picker shows the name, and the details below it", () => {
+  it("lists the batch by its name alone, and says what to choose while no batch is chosen", async () => {
+    routes(detail({ state: "SUBMITTED", setup: EMPTY_SETUP }), [TEST_BATCH]);
+    renderSetupRoute();
+
+    const option = await screen.findByRole("option", { name: "Test batch" });
+    expect(option.textContent).toBe("Test batch");
+    expect(screen.getByText("Choose a batch to fill in the fee and the end date.")).toBeInTheDocument();
+  });
+
+  it("fills the fee and the end date when a batch is chosen, and shows its details in a list", async () => {
+    routes(detail({ state: "SUBMITTED", setup: EMPTY_SETUP }), [TEST_BATCH]);
+    renderSetupRoute();
+    const user = userEvent.setup();
+
+    // The options arrive with the batch list, so wait for the batch before choosing it.
+    await screen.findByRole("option", { name: "Test batch" });
+    await user.selectOptions(screen.getByRole("combobox", { name: /Batch/ }), TEST_BATCH.id);
+
+    expect(screen.getByLabelText(/Monthly fee/)).toHaveValue("1500");
+    expect(screen.getByLabelText(/Course end date/)).toHaveValue("2026-12-31");
+    const details = screen.getByText("Ends on").closest("dl");
+    if (!details) {
+      throw new Error("The batch details are not a list");
+    }
+    expect(within(details).getByText("Monthly fee")).toBeInTheDocument();
+    expect(within(details).getByText("31 December 2026")).toBeInTheDocument();
+    expect(within(details).getByText("Uploaded 2 November 2026")).toBeInTheDocument();
+    expect(within(details).getByText("Students in this batch").nextElementSibling).toHaveTextContent("14");
+    expect(screen.queryByText("Choose a batch to fill in the fee and the end date.")).not.toBeInTheDocument();
   });
 });
 
