@@ -110,7 +110,7 @@ function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
           <>
             <ul
               aria-label={t("staffOffline.onboard.items")}
-              className="grid max-h-[40vh] divide-y divide-border overflow-y-auto rounded-control border border-border-control"
+              className="grid divide-y divide-border rounded-control border border-border-control"
             >
               {shown.map((item) => (
                 <OnboardItemRow key={item.id} item={item} examCount={item.moduleId ? examCounts.get(item.moduleId) : undefined} />
