@@ -7,6 +7,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.coachingcenter.api.auth.permission.CurrentActor;
 import com.coachingcenter.api.common.error.ApiException;
@@ -22,7 +22,9 @@ import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.files.FileResponses;
 import com.coachingcenter.api.offline.OfflineAdmissionService.AdmissionItemView;
 import com.coachingcenter.api.offline.OfflineAdmissionService.AdmissionView;
+import com.coachingcenter.api.offline.OfflineClassService.StudentClassView;
 import com.coachingcenter.api.users.StudentPhotoService;
+
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -36,13 +38,16 @@ public class OfflineAdmissionStudentController {
 
 	private final StudentPhotoService photos;
 
-	private final OfflineBatchService batches;
+	private final OfflineRoutineService routines;
+
+	private final OfflineClassService classes;
 
 	public OfflineAdmissionStudentController(OfflineAdmissionService admissions, StudentPhotoService photos,
-			OfflineBatchService batches) {
+			OfflineRoutineService routines, OfflineClassService classes) {
 		this.admissions = admissions;
 		this.photos = photos;
-		this.batches = batches;
+		this.routines = routines;
+		this.classes = classes;
 	}
 
 	@GetMapping("/api/v1/me/admission")
@@ -57,14 +62,27 @@ public class OfflineAdmissionStudentController {
 	}
 
 	/**
-	 * The routine of the student's own batch, the same bytes as the staff route. The student names no batch, so they can only ever
-	 * read their own. Private, like the staff route: the browser may keep it, no shared cache may.
+	 * The student copy of the latest confirmed routine of the student's batch (or of {@code month}, yyyy-MM). It has no instructor column
+	 * and carries the SYMAM LAW watermark (plan F11, G2). A routine uploaded before the new flow has no student copy and is never served.
+	 * Private: the browser may keep it, no shared cache may.
 	 */
 	@GetMapping("/api/v1/me/admission/batch-routine.pdf")
-	public ResponseEntity<InputStreamResource> batchRoutine() {
-		OfflineBatchService.RoutineFile file = batches.openRoutine(admissions.ownBatchId(studentId()));
+	public ResponseEntity<InputStreamResource> batchRoutine(@RequestParam(required = false) String month) {
+		UUID batchId = admissions.ownBatchId(studentId());
+		OfflineBatchService.RoutineFile file = routines.studentCopy(batchId, OfflineClassService.month(month));
 		return FileResponses.inline(file.body(), MediaType.APPLICATION_PDF_VALUE, file.byteSize(), file.fileName(),
 				"private, no-cache");
+	}
+
+	/**
+	 * The classes of the student's batch for one month (yyyy-MM, the current month in Dhaka when none is given): date, day, time, subject,
+	 * topic and kind. Never an instructor, an amount or a pay field.
+	 */
+	@GetMapping("/api/v1/me/admission/routine")
+	public List<StudentClassView> routine(@RequestParam(required = false) String month) {
+		UUID batchId = admissions.ownBatchId(studentId());
+		var requested = OfflineClassService.month(month);
+		return classes.studentClasses(batchId, requested == null ? classes.currentMonth() : requested);
 	}
 
 	@PutMapping("/api/v1/me/admission/form")

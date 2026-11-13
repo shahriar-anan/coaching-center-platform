@@ -411,6 +411,27 @@ public class OfflineRoutineService {
 		}
 	}
 
+	/**
+	 * The student copy of the latest confirmed routine of a batch, or of one month. A routine with no student copy (the old single routine,
+	 * which carries names) is never served to a student: the answer is 404.
+	 */
+	@Transactional(readOnly = true)
+	public RoutineFile studentCopy(UUID batchId, YearMonth month) {
+		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByMonthDescRevisionDesc(batchId)) {
+			if (!OfflineBatchRoutine.STATUS_CONFIRMED.equals(routine.getStatus())) {
+				continue;
+			}
+			if (month != null && !month.equals(YearMonth.from(routine.getMonth()))) {
+				continue;
+			}
+			if (routine.isLegacyOriginal() || routine.getStudentFile() == null) {
+				throw notFound();
+			}
+			return openFile(routine.getId(), true);
+		}
+		throw notFound();
+	}
+
 	// ---- the view ---------------------------------------------------------------------------------------------------------
 
 	private RoutineView view(OfflineBatchRoutine routine) {

@@ -215,7 +215,9 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 		uploadRoutine(batch, "%PDF-1.4\nroutine with no students yet\n");
 
 		assertThat(view(studentToken).get("hasRoutine").asBoolean()).isTrue();
-		assertThat(routineBytes(studentToken)).isEqualTo("%PDF-1.4\nroutine with no students yet\n".getBytes());
+		// The uploaded file is never served to a student: only a confirmed routine's student copy is (plan side effect 1).
+		mockMvc.perform(get("/api/v1/me/admission/batch-routine.pdf").header("Authorization", "Bearer " + studentToken))
+			.andExpect(status().isNotFound());
 	}
 
 	@Test
@@ -233,8 +235,11 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 		uploadRoutine(batchA, routineA);
 		uploadRoutine(batchB, routineB);
 
-		assertThat(routineBytes(token(studentA))).isEqualTo(routineA.getBytes());
-		assertThat(routineBytes(token(studentB))).isEqualTo(routineB.getBytes());
+		// Neither student gets the uploaded file (plan side effect 1); the staff route still serves it.
+		mockMvc.perform(get("/api/v1/me/admission/batch-routine.pdf").header("Authorization", "Bearer " + token(studentA)))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/me/admission/batch-routine.pdf").header("Authorization", "Bearer " + token(studentB)))
+			.andExpect(status().isNotFound());
 
 		MvcResult staff = mockMvc.perform(get("/api/v1/offline-batches/" + batchA + "/routine.pdf")
 			.header("Authorization", "Bearer " + token(master())))
@@ -244,21 +249,15 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void theRoutineResponseIsAPrivatePdfWithTheStaffFileName() throws Exception {
+	void theUploadedRoutineIsNotServedToAStudentWithoutACopy() throws Exception {
 		UUID batch = batch("Header Batch", "হেডার ব্যাচ");
 		UUID student = seed("STUDENT", "Header Student");
 		admission(student, OfflineAdmission.ONBOARDED, batch, "2500", LocalDate.parse("2026-10-01"),
 				LocalDate.parse("2027-03-31"), EARLIER);
 		uploadRoutine(batch, "%PDF-1.4\nheaders\n");
 
-		MvcResult result = mockMvc.perform(get("/api/v1/me/admission/batch-routine.pdf")
-			.header("Authorization", "Bearer " + token(student)))
-			.andExpect(status().isOk())
-			.andExpect(content().contentType(MediaType.APPLICATION_PDF))
-			.andReturn();
-
-		assertThat(result.getResponse().getHeader("Cache-Control")).contains("private");
-		assertThat(result.getResponse().getHeader("Content-Disposition")).contains("routine.pdf");
+		mockMvc.perform(get("/api/v1/me/admission/batch-routine.pdf").header("Authorization", "Bearer " + token(student)))
+			.andExpect(status().isNotFound());
 	}
 
 	// ---- helpers -----------------------------------------------------------------------------------------------------------
@@ -360,13 +359,6 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + token(master())))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.routineUploaded").value(true));
-	}
-
-	private byte[] routineBytes(String token) throws Exception {
-		MvcResult result = mockMvc.perform(get("/api/v1/me/admission/batch-routine.pdf").header("Authorization", "Bearer " + token))
-			.andExpect(status().isOk())
-			.andReturn();
-		return result.getResponse().getContentAsByteArray();
 	}
 
 	private JsonNode view(String token) throws Exception {
