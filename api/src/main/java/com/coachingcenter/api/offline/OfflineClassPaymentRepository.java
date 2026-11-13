@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface OfflineClassPaymentRepository extends JpaRepository<OfflineClassPayment, UUID> {
 
-	/** The payments of one class, newest first. */
 	List<OfflineClassPayment> findByClassIdOrderByRecordedAtDesc(UUID classId);
+
+	/** How many payments have this status (the digest counts the ones waiting for approval). */
+	long countByStatus(String status);
 
 }

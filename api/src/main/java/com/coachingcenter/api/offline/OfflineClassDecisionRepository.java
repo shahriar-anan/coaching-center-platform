@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface OfflineClassDecisionRepository extends JpaRepository<OfflineClassDecision, UUID> {
 
-	/** The "not taken" requests of one class, newest first. */
 	List<OfflineClassDecision> findByClassIdOrderByRequestedAtDesc(UUID classId);
+
+	/** How many not-taken requests have this status (the digest counts the ones waiting for approval). */
+	long countByStatus(String status);
 
 }

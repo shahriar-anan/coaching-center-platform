@@ -91,5 +91,24 @@ public enum StaffNotificationKind {
 	OFFLINE_PAYMENT_REJECTED,
 
 	/** To every Master Admin and System Admin: an offline admission fee is 3 days overdue. Payload: personName, amount, dueOn. Sent weekly after that. */
-	OFFLINE_FEE_OVERDUE
+	OFFLINE_FEE_OVERDUE,
+
+	/**
+	 * To every Master Admin and System Admin: offline classes are waiting for a payment or a not-taken mark (plan section 7, daily at 21:00
+	 * Dhaka). Payload: count (the unsettled classes). The Master Admin also gets waiting (the entries that wait for approval) when there
+	 * are any. Sent once per person per day.
+	 */
+	OFFLINE_CLASSES_TO_SETTLE,
+
+	/**
+	 * To every Master Admin and System Admin: held offline classes have waited more than a week, sent on Sunday at 21:00 Dhaka. Payload:
+	 * count. Sent once per person per ISO week.
+	 */
+	OFFLINE_CLASSES_OVERDUE,
+
+	/**
+	 * To the person who recorded offline payments or not-taken marks: the Master Admin approved or rejected them. One notice per decision
+	 * batch. Payload: approved, rejected (the counts in that batch).
+	 */
+	OFFLINE_ENTRIES_DECIDED
 }

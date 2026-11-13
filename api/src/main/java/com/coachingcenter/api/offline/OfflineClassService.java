@@ -6,6 +6,7 @@ import static com.coachingcenter.api.offline.OfflineSupport.validation;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -105,11 +106,14 @@ public class OfflineClassService {
 
 	private final AuditRecorder audit;
 
+	private final OfflineClassNotices notices;
+
 	private final Clock clock;
 
 	public OfflineClassService(OfflineBatchRepository batches, OfflineClassRepository classes, OfflineClassPaymentRepository payments,
 			OfflineClassDecisionRepository decisions, OfflineInstructorRepository instructors, OfflineBatchInstructorRateRepository rates,
-			AuditRecorder audit, Clock clock) {
+			AuditRecorder audit, OfflineClassNotices notices, Clock clock) {
+		this.notices = notices;
 		this.batches = batches;
 		this.classes = classes;
 		this.payments = payments;
@@ -468,6 +472,12 @@ public class OfflineClassService {
 	/** Approves a waiting payment: the class becomes PAID. */
 	@Transactional
 	public ClassView approvePayment(UUID paymentId, UUID actorId) {
+		ClassView view = approvePaymentRecord(paymentId, actorId);
+		notices.decided(findPayment(paymentId).getRecordedBy(), 1, 0);
+		return view;
+	}
+
+	ClassView approvePaymentRecord(UUID paymentId, UUID actorId) {
 		OfflineClassPayment payment = findPayment(paymentId);
 		if (!PENDING.equals(payment.getStatus())) {
 			throw state("This payment is not waiting for approval.");
@@ -491,6 +501,12 @@ public class OfflineClassService {
 	/** Rejects a waiting payment with a reason: the class returns to HELD. */
 	@Transactional
 	public ClassView rejectPayment(UUID paymentId, UUID actorId, JsonNode body) {
+		ClassView view = rejectPaymentRecord(paymentId, actorId, body);
+		notices.decided(findPayment(paymentId).getRecordedBy(), 0, 1);
+		return view;
+	}
+
+	ClassView rejectPaymentRecord(UUID paymentId, UUID actorId, JsonNode body) {
 		OfflineClassPayment payment = findPayment(paymentId);
 		String reason = reasonOf(body);
 		if (!PENDING.equals(payment.getStatus())) {
@@ -538,6 +554,12 @@ public class OfflineClassService {
 	/** Approves a waiting not-taken request: the class becomes NOT_TAKEN and is locked. */
 	@Transactional
 	public ClassView approveNotTaken(UUID decisionId, UUID actorId) {
+		ClassView view = approveNotTakenRecord(decisionId, actorId);
+		notices.decided(findDecision(decisionId).getRequestedBy(), 1, 0);
+		return view;
+	}
+
+	ClassView approveNotTakenRecord(UUID decisionId, UUID actorId) {
 		OfflineClassDecision decision = findDecision(decisionId);
 		if (!PENDING.equals(decision.getStatus())) {
 			throw state("This request is not waiting for approval.");
@@ -561,6 +583,12 @@ public class OfflineClassService {
 	/** Rejects a waiting not-taken request with a reason: the class returns to HELD. */
 	@Transactional
 	public ClassView rejectNotTaken(UUID decisionId, UUID actorId, JsonNode body) {
+		ClassView view = rejectNotTakenRecord(decisionId, actorId, body);
+		notices.decided(findDecision(decisionId).getRequestedBy(), 0, 1);
+		return view;
+	}
+
+	ClassView rejectNotTakenRecord(UUID decisionId, UUID actorId, JsonNode body) {
 		OfflineClassDecision decision = findDecision(decisionId);
 		String reason = reasonOf(body);
 		if (!PENDING.equals(decision.getStatus())) {
@@ -580,36 +608,75 @@ public class OfflineClassService {
 		return view(classItem, instructorNames());
 	}
 
-	/** Approves several waiting payments; each id is handled on its own and reported. */
+	/** Approves several waiting payments; each id is handled on its own and reported. Each recorder gets one notice for the batch. */
 	@Transactional
 	public List<BulkResult> approvePayments(UUID actorId, JsonNode body) {
-		List<BulkResult> results = new ArrayList<>();
-		for (UUID id : ids(body)) {
-			results.add(bulk(id, () -> approvePayment(id, actorId)));
-		}
-		return results;
+		return bulkDecide(body, id -> {
+			approvePaymentRecord(id, actorId);
+			return findPayment(id).getRecordedBy();
+		});
 	}
 
 	/** Approves several waiting not-taken requests; each id is handled on its own and reported. */
 	@Transactional
 	public List<BulkResult> approveNotTakenMany(UUID actorId, JsonNode body) {
-		List<BulkResult> results = new ArrayList<>();
-		for (UUID id : ids(body)) {
-			results.add(bulk(id, () -> approveNotTaken(id, actorId)));
-		}
-		return results;
+		return bulkDecide(body, id -> {
+			approveNotTakenRecord(id, actorId);
+			return findDecision(id).getRequestedBy();
+		});
 	}
 
-	// ---- helpers --------------------------------------------------------------------------------------------------------
+	/** The figures the notice jobs read at {@code now}: the unsettled classes, the entries waiting for approval, and the held classes past a week. */
+	@Transactional(readOnly = true)
+	public Snapshot snapshot(Instant now) {
+		Instant weekAgo = now.minus(Duration.ofDays(7));
+		long unsettled = 0;
+		long overWeek = 0;
+		for (OfflineClass classItem : classes.findByStatusIn(UNSETTLED_STORED)) {
+			String status = statusAt(classItem, now);
+			if (HELD.equals(status)) {
+				unsettled++;
+				Instant end = endsAt(classItem);
+				if (end != null && end.isBefore(weekAgo)) {
+					overWeek++;
+				}
+			}
+			else if (OfflineClass.STATUS_PAID_PENDING.equals(status) || OfflineClass.STATUS_NOT_TAKEN_PENDING.equals(status)) {
+				unsettled++;
+			}
+		}
+		long pending = payments.countByStatus(PENDING) + decisions.countByStatus(PENDING);
+		return new Snapshot(unsettled, pending, overWeek);
+	}
 
-	private BulkResult bulk(UUID id, Runnable action) {
-		try {
-			action.run();
-			return new BulkResult(id, true, null);
+	private static Instant endsAt(OfflineClass classItem) {
+		LocalTime end = classItem.getEndsAt() != null ? classItem.getEndsAt() : classItem.getStartsAt();
+		return end == null ? null : ZonedDateTime.of(classItem.getHeldOn(), end, DHAKA).toInstant();
+	}
+
+	// ---- helpers -	// ---- helpers --------------------------------------------------------------------------------------------------------
+
+	/** One decision of a bulk approval: it returns who recorded the entry, and throws when the entry cannot be approved. */
+	private interface Step {
+		UUID run(UUID id);
+	}
+
+	/** Runs the step for each id. A failure is reported for its id; each recorder gets one notice with the counts of this batch. */
+	private List<BulkResult> bulkDecide(JsonNode body, Step step) {
+		List<BulkResult> results = new ArrayList<>();
+		Map<UUID, int[]> tally = new HashMap<>();
+		for (UUID id : ids(body)) {
+			try {
+				UUID recorder = step.run(id);
+				tally.computeIfAbsent(recorder, ignored -> new int[2])[0]++;
+				results.add(new BulkResult(id, true, null));
+			}
+			catch (ApiException exception) {
+				results.add(new BulkResult(id, false, exception.getMessage()));
+			}
 		}
-		catch (ApiException exception) {
-			return new BulkResult(id, false, exception.getMessage());
-		}
+		notices.decidedBatch(tally);
+		return results;
 	}
 
 	private static List<UUID> ids(JsonNode body) {
@@ -631,6 +698,11 @@ public class OfflineClassService {
 
 	/** The status a class has now: SCHEDULED after its end is HELD; any other stored status is as stored. */
 	String statusOf(OfflineClass classItem) {
+		return statusAt(classItem, clock.instant());
+	}
+
+	/** The status a class has at {@code now}. */
+	String statusAt(OfflineClass classItem, Instant now) {
 		if (!OfflineClass.STATUS_SCHEDULED.equals(classItem.getStatus())) {
 			return classItem.getStatus();
 		}
@@ -639,7 +711,7 @@ public class OfflineClassService {
 			return OfflineClass.STATUS_SCHEDULED;
 		}
 		Instant endsAt = ZonedDateTime.of(classItem.getHeldOn(), end, DHAKA).toInstant();
-		return endsAt.isBefore(clock.instant()) ? HELD : OfflineClass.STATUS_SCHEDULED;
+		return endsAt.isBefore(now) ? HELD : OfflineClass.STATUS_SCHEDULED;
 	}
 
 	private static boolean isUnsettled(String status) {
@@ -814,6 +886,10 @@ public class OfflineClassService {
 
 	/** The counts the unsettled page shows. */
 	public record UnsettledCounts(long held, long waitingApproval, BigDecimal heldAmount) {
+	}
+
+	/** The figures the notice jobs read: unsettled classes, entries waiting for approval, and held classes past a week. */
+	public record Snapshot(long unsettled, long pendingEntries, long heldOverAWeek) {
 	}
 
 	/** One class on the student's routine: no instructor, amount or pay. */

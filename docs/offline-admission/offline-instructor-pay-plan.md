@@ -4,7 +4,15 @@ Status: plan, 13 November 2026. Nothing is built. Decisions are Shahriar's, from
 
 ## 0. Build log
 
-Empty until Stage 1 starts. Each stage adds what was built, where it differs from this plan, and the test results.
+Each stage adds what was built, where it differs from this plan, and the test results.
+
+**Stage 4 (notifications).** Built: `OfflineClassDigestJob` (21:00 Dhaka daily digest of unsettled classes, one notice per active Master Admin or System Admin per person per day; 21:00 Dhaka every Sunday, the weekly reminder for held classes over a week, one per person per ISO week), `OfflineClassNotices`, and one OFFLINE_ENTRIES_DECIDED notice per recorder per decision batch, written inside the approve and reject transactions. Kinds added to `StaffNotificationKind`: OFFLINE_CLASSES_TO_SETTLE, OFFLINE_CLASSES_OVERDUE, OFFLINE_ENTRIES_DECIDED. The routine-confirm student notice is unchanged (BATCH_ROUTINE_UPDATED, once per confirm, and it carries no instructor). Differs from the plan: the digest and the weekly reminder share one job class, and the Master Admin's waiting line is sent only when pending entries exist. Tests: 15 offline and staff-notification suites green on two passes on a new database (coaching_it_stage4b); OfflineClassNoticesIT 7, StaffNotificationWriterTest 8.
+
+**Note for the web agent (text, not built here).** Add these three kinds to the staff notification text in both languages (`web/src/i18n/messages/en/staffNotifications.ts`, `web/src/i18n/messages/bn/staffNotifications.ts` and `web/src/components/staff/notifications/notification-text.ts`). Write the bn text in natural Bangla.
+- OFFLINE_CLASSES_TO_SETTLE, payload `count` (and `waiting` for the Master Admin only). Text: "{count} offline classes are waiting for payment or a not-taken mark." When `waiting` is present, add a second line: "{waiting} entries wait for your approval." Link: /staff/offline-instructor-payments.
+- OFFLINE_CLASSES_OVERDUE, payload `count`. Text: "{count} offline classes have waited more than a week." Link: /staff/offline-instructor-payments.
+- OFFLINE_ENTRIES_DECIDED, payload `approved` and `rejected`. Text: "{approved} of your entries were approved, {rejected} rejected." Link: /staff/offline-instructor-payments.
+
 
 ## 1. What is being built
 
