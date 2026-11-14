@@ -333,7 +333,14 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 
 	static final class JavaMailOutbound implements OutboundMail {
 
+		/** A session idle longer than this is not reused. */
+		private static final long IDLE_REUSE_MS = 20_000;
+
 		private final JavaMailSenderImpl sender;
+
+		private Transport open;
+
+		private long lastUsedAt;
 
 		private JavaMailOutbound(JavaMailSenderImpl sender) {
 			this.sender = sender;
@@ -344,17 +351,45 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 			return sender.createMimeMessage();
 		}
 
+		/**
+		 * Sends over one kept-open session, so a batch of mails pays for one connect and login. Calls are serial: the session is one
+		 * socket. A session idle too long is closed first, since servers drop idle sessions. When a reused session fails, the mail is
+		 * tried once more on a new session, because the failure may only be the server having dropped it.
+		 */
 		@Override
-		public String send(MimeMessage message) throws MessagingException {
-			Transport transport = sender.getSession().getTransport("smtp");
-			try {
-				connect(transport, sender);
-				Address[] recipients = message.getAllRecipients();
-				transport.sendMessage(message, recipients);
-				return lastResponse(transport);
+		public synchronized String send(MimeMessage message) throws MessagingException {
+			Address[] recipients = message.getAllRecipients();
+			if (open != null && (System.currentTimeMillis() - lastUsedAt > IDLE_REUSE_MS || !open.isConnected())) {
+				closeOpen();
 			}
-			finally {
-				close(transport);
+			boolean reused = open != null;
+			if (open == null) {
+				open = openTransport();
+			}
+			try {
+				open.sendMessage(message, recipients);
+				lastUsedAt = System.currentTimeMillis();
+				return lastResponse(open);
+			}
+			catch (MessagingException | RuntimeException exception) {
+				closeOpen();
+				if (reused) {
+					return send(message);
+				}
+				throw exception;
+			}
+		}
+
+		private Transport openTransport() throws MessagingException {
+			Transport transport = sender.getSession().getTransport("smtp");
+			connect(transport, sender);
+			return transport;
+		}
+
+		private void closeOpen() {
+			if (open != null) {
+				close(open);
+				open = null;
 			}
 		}
 

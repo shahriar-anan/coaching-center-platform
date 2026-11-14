@@ -48,6 +48,8 @@ public abstract class PostgresIntegrationTest {
 		registry.add("app.payout.encryption-key", () -> PAYOUT_KEY);
 		registry.add("app.payout.key-version", () -> "1");
 		registry.add("app.exam-jobs.scheduled", () -> "false");
+		// Tests assert that mail is sent by the time the publish returns, so the exam mail worker runs on the calling thread here.
+		registry.add("app.exam-mail.async", () -> "false");
 		registry.add("app.staff-pay.jobs-enabled", () -> "false");
 		registry.add("MATERIAL_MAX_BYTES", () -> "1024");
 		registry.add("PAYMENT_BKASH_NUMBER", () -> "01700000001");
