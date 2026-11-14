@@ -216,16 +216,14 @@ class ExamMailQueue {
 		return mail.findPendingIds();
 	}
 
+	/**
+	 * Exam-time and hour-before mail is off (client decision, 14 Nov 2026). Exam times reach students through the in-app notices
+	 * only. Nothing is queued here, so publish, package publish, roster add, direct enrolment and a paid exam order send no
+	 * exam-time mail. Receipts and purchase notices are still queued by the callers above. The hour-before scan keeps its own
+	 * switch, which is off by default. To turn this back on, restore the two inserts that were here.
+	 */
 	private List<UUID> consider(UUID studentId, LiveExam exam, Instant now) {
-		if (!mailable(exam) || activeStudent(studentId) == null) {
-			return List.of();
-		}
-		List<UUID> ids = new ArrayList<>();
-		add(ids, insert(ExamOutboundMail.EXAM_TIME, ExamMailTexts.examKey(studentId, exam), studentId));
-		if (ExamMailTexts.inHourWindow(exam.getLiveAt(), now)) {
-			add(ids, insert(ExamOutboundMail.HOUR_BEFORE, ExamMailTexts.examKey(studentId, exam), studentId));
-		}
-		return ids;
+		return List.of();
 	}
 
 	private boolean mailable(LiveExam exam) {
