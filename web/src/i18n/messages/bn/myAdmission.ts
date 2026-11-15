@@ -1,11 +1,6 @@
 const myAdmission = {
   title: "আমার ভর্তি",
   batchUnnamed: "ব্যাচ",
-  pending: {
-    review: "যাচাই চলছে। সিদ্ধান্ত হলে দপ্তর জানাবে।",
-    form: "আপনার ফরম এখনও পাঠানো হয়নি।",
-    changes: "দপ্তর সংশোধন চেয়েছে। ফরম খুলে হালনাগাদ করুন।",
-  },
   menu: "আমার ভর্তি",
   batch: "ব্যাচ",
   roll: "রোল নম্বর",
@@ -53,7 +48,7 @@ const myAdmission = {
     progress: "এ পর্যন্ত কত ফি দেওয়া হয়েছে",
     paidSoFar: "দেওয়া হয়েছে",
     stillOwed: "বাকি আছে",
-    monthlyFee: "কোর্স ফি (প্রতি মাসে)",
+    courseFee: "কোর্স ফি",
     overdue: "{date} তারিখের {amount} এখনো পরিশোধ হয়নি।",
     schedule: "কিস্তির সূচি",
     installment: "কিস্তি {no}",

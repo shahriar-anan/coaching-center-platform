@@ -20,6 +20,8 @@ import {
 } from "@/lib/api/exam/offline-admin";
 import { BatchPhotoField, type BatchPhotoChange } from "./batch-photo-field";
 import { offlineErrorText } from "./offline-error";
+import { fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
+import { dhakaToday } from "@/lib/api/exam/offline-results";
 
 /** The description limit of the API (plan 3.1). */
 const DESCRIPTION_MAX = 2000;
@@ -51,7 +53,12 @@ export function BatchFormDialog({
   const [nameBn, setNameBn] = useState(batch?.nameBn ?? "");
   const [startsOn, setStartsOn] = useState(batch?.startsOn ?? "");
   const [endsOn, setEndsOn] = useState(batch?.endsOn ?? "");
-  const [fee, setFee] = useState(batch ? String(batch.defaultMonthlyFee) : "");
+  const [fee, setFee] = useState(batch ? String(batch.courseFee) : "");
+  // The number of instalments follows the batch's dates until the admin types one (course-fee-plan.md).
+  const [installments, setInstallments] = useState(batch ? String(batch.defaultInstallments) : "");
+  const [installmentsTyped, setInstallmentsTyped] = useState(Boolean(batch));
+  const suggestedInstallments = endsOn ? String(fittingInstallments(startsOn || dhakaToday(), endsOn)) : "";
+  const shownInstallments = installmentsTyped ? installments : suggestedInstallments;
   const [rollStart, setRollStart] = useState(batch?.rollStart ?? "");
   const [whatsappUrl, setWhatsappUrl] = useState(batch?.whatsappUrl ?? "");
   const [descriptionEn, setDescriptionEn] = useState(batch?.descriptionEn ?? "");
@@ -68,7 +75,11 @@ export function BatchFormDialog({
     if (!nameBn.trim()) problems.nameBn = t("staffOffline.batches.errors.name");
     if (!endsOn) problems.endsOn = t("staffOffline.batches.errors.endsOn");
     const value = Number(fee);
-    if (!fee.trim() || !Number.isFinite(value) || value <= 0) problems.defaultMonthlyFee = t("staffOffline.batches.errors.fee");
+    if (!fee.trim() || !Number.isFinite(value) || value <= 0) problems.courseFee = t("staffOffline.batches.errors.fee");
+    const count = Number(shownInstallments);
+    if (!/^\d+$/.test(shownInstallments.trim()) || count < 1 || count > MAX_INSTALLMENTS) {
+      problems.defaultInstallments = t("staffOffline.batches.errors.installments");
+    }
     if (startsOn && endsOn && startsOn > endsOn) problems.endsOn = t("staffOffline.batches.errors.order");
     if (descriptionEn.length > DESCRIPTION_MAX || descriptionBn.length > DESCRIPTION_MAX) {
       problems.description = t("staffOffline.batches.catalogue.errors.description");
@@ -88,7 +99,8 @@ export function BatchFormDialog({
       nameBn: nameBn.trim(),
       startsOn: startsOn || null,
       endsOn,
-      defaultMonthlyFee: fee.trim(),
+      courseFee: fee.trim(),
+      defaultInstallments: Number(shownInstallments.trim()),
       descriptionEn: descriptionEn.trim() || null,
       descriptionBn: descriptionBn.trim() || null,
       admissionsOpen,
@@ -159,8 +171,23 @@ export function BatchFormDialog({
           <Field label={t("staffOffline.batches.endsOn")} error={errors.endsOn} required>
             <TextInput type="date" value={endsOn} onChange={(event) => setEndsOn(event.target.value)} invalid={Boolean(errors.endsOn)} />
           </Field>
-          <Field label={t("staffOffline.batches.fee")} hint={t("staffOffline.batches.feeHint")} error={errors.defaultMonthlyFee} required>
-            <TextInput inputMode="decimal" value={fee} onChange={(event) => setFee(event.target.value)} invalid={Boolean(errors.defaultMonthlyFee)} />
+          <Field label={t("staffOffline.batches.fee")} hint={t("staffOffline.batches.feeHint")} error={errors.courseFee} required>
+            <TextInput inputMode="decimal" value={fee} onChange={(event) => setFee(event.target.value)} invalid={Boolean(errors.courseFee)} />
+          </Field>
+          <Field label={t("staffOffline.batches.installments")} hint={t("staffOffline.batches.installmentsHint")} error={errors.defaultInstallments} required>
+            <TextInput
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_INSTALLMENTS}
+              step={1}
+              value={shownInstallments}
+              onChange={(event) => {
+                setInstallments(event.target.value);
+                setInstallmentsTyped(true);
+              }}
+              invalid={Boolean(errors.defaultInstallments)}
+            />
           </Field>
           <Field label={t("staffOffline.batches.whatsapp")} hint={t("staffOffline.batches.whatsappHelp")} error={errors.whatsappUrl}>
             <TextInput type="url" inputMode="url" placeholder="https://chat.whatsapp.com/..." value={whatsappUrl} onChange={(event) => setWhatsappUrl(event.target.value)} invalid={Boolean(errors.whatsappUrl)} />

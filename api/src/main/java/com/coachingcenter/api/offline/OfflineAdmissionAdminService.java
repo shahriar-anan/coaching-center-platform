@@ -306,7 +306,8 @@ public class OfflineAdmissionAdminService {
 		}
 		List<FieldErrorDetail> problems = new ArrayList<>();
 		UUID batchId = uuid(body, "batchId", problems);
-		BigDecimal fee = money(body, "monthlyFee", problems);
+		BigDecimal fee = money(body, "courseFee", problems);
+		Integer installments = OfflineSupport.installments(body, "installments", problems);
 		LocalDate admittedOn = day(body, "admittedOn", problems);
 		LocalDate firstDueOn = day(body, "firstDueOn", problems);
 		LocalDate courseEndsOn = day(body, "courseEndsOn", problems);
@@ -345,24 +346,37 @@ public class OfflineAdmissionAdminService {
 		}
 		if (batch != null) {
 			a.setBatchId(batch.getId());
-			if (fee == null && a.getMonthlyFee() == null) {
-				a.setMonthlyFee(batch.getDefaultMonthlyFee());
+			if (fee == null && a.getCourseFee() == null) {
+				a.setCourseFee(batch.getCourseFee());
 			}
 			if (courseEndsOn == null && a.getCourseEndsOn() == null) {
 				a.setCourseEndsOn(batch.getEndsOn());
 			}
 		}
 		if (fee != null) {
-			a.setMonthlyFee(fee);
+			a.setCourseFee(fee);
 		}
 		if (courseEndsOn != null) {
 			a.setCourseEndsOn(courseEndsOn);
 		}
+		if (installments != null) {
+			a.setInstallments(installments);
+		}
+		else if (a.getInstallments() == null && a.getCourseEndsOn() != null) {
+			// The batch's number, cut down to what fits before the course end (course-fee-plan.md section 3).
+			int fitting = OfflineFeeSchedule.fittingInstallments(a.getFirstDueOn(), a.getCourseEndsOn());
+			OfflineBatch chosen = batch != null ? batch : a.getBatchId() == null ? null : batches.findById(a.getBatchId()).orElse(null);
+			a.setInstallments(chosen == null ? fitting : Math.min(chosen.getDefaultInstallments(), fitting));
+		}
+		a.setMonthlyFee(firstInstallment(a));
 		if (a.getFirstDueOn().isBefore(a.getAdmittedOn())) {
 			problems.add(new FieldErrorDetail("firstDueOn", "The first due date cannot be before the admitted-on date."));
 		}
 		if (a.getCourseEndsOn() != null && !a.getCourseEndsOn().isAfter(a.getFirstDueOn())) {
 			problems.add(new FieldErrorDetail("courseEndsOn", "The course end date must be after the first due date."));
+		}
+		else {
+			installmentProblems(a, problems);
 		}
 		if (!problems.isEmpty()) {
 			throw validation(problems);
@@ -766,8 +780,11 @@ public class OfflineAdmissionAdminService {
 		else if (batches.findById(a.getBatchId()).filter(batch -> OfflineBatchService.ACTIVE.equals(batch.getStatus())).isEmpty()) {
 			problems.add(new FieldErrorDetail("batchId", "The batch is archived. Choose another batch."));
 		}
-		if (a.getMonthlyFee() == null || a.getMonthlyFee().signum() <= 0) {
-			problems.add(new FieldErrorDetail("monthlyFee", "Enter a monthly fee above zero."));
+		if (a.getCourseFee() == null || a.getCourseFee().signum() <= 0) {
+			problems.add(new FieldErrorDetail("courseFee", "Enter a course fee above zero."));
+		}
+		if (a.getInstallments() == null) {
+			problems.add(new FieldErrorDetail("installments", "Choose the number of instalments."));
 		}
 		if (a.getAdmittedOn() == null) {
 			problems.add(new FieldErrorDetail("admittedOn", "Enter the date the student was admitted."));
@@ -784,7 +801,50 @@ public class OfflineAdmissionAdminService {
 		else if (a.getFirstDueOn() != null && !a.getCourseEndsOn().isAfter(a.getFirstDueOn())) {
 			problems.add(new FieldErrorDetail("courseEndsOn", "The course end date must be after the first due date."));
 		}
+		else {
+			installmentProblems(a, problems);
+		}
 		return problems;
+	}
+
+	/**
+	 * The instalments must end by the course end, and each must be at least one taka (course-fee-plan.md section 3). Nothing to check
+	 * until the fee, the count and both dates are there.
+	 */
+	static void installmentProblems(OfflineAdmission a, List<FieldErrorDetail> problems) {
+		Integer count = a.getInstallments();
+		if (count == null || a.getFirstDueOn() == null || a.getCourseEndsOn() == null) {
+			return;
+		}
+		LocalDate last = OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), count);
+		if (last.isAfter(a.getCourseEndsOn())) {
+			problems.add(new FieldErrorDetail("installments", "The last instalment would be due on " + last + ", after the course ends on "
+					+ a.getCourseEndsOn() + ". Choose fewer instalments, an earlier first due date or a later course end."));
+		}
+		if (a.getCourseFee() != null && a.getCourseFee().signum() > 0 && a.getCourseFee().compareTo(BigDecimal.valueOf(count)) < 0) {
+			problems.add(new FieldErrorDetail("installments", "Each instalment must be at least ৳1. Choose fewer instalments."));
+		}
+	}
+
+	/** The first instalment of the admission's course fee, or null without a fee or a count: the previous release's monthly fee (V100). */
+	static BigDecimal firstInstallment(OfflineAdmission a) {
+		if (a.getCourseFee() == null || a.getInstallments() == null) {
+			return a.getCourseFee();
+		}
+		return OfflineFeeSchedule.split(a.getCourseFee(), a.getInstallments()).get(0);
+	}
+
+	/** The instalments the setup would create, or an empty list until the fee, the count and the first due date are set. */
+	static List<InstallmentPreview> installmentPlan(OfflineAdmission a) {
+		if (a.getCourseFee() == null || a.getInstallments() == null || a.getFirstDueOn() == null) {
+			return List.of();
+		}
+		List<BigDecimal> amounts = OfflineFeeSchedule.split(a.getCourseFee(), a.getInstallments());
+		List<InstallmentPreview> plan = new ArrayList<>(amounts.size());
+		for (int index = 0; index < amounts.size(); index++) {
+			plan.add(new InstallmentPreview(index + 1, OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), index + 1), amounts.get(index)));
+		}
+		return plan;
 	}
 
 	/** The English titles of the active exams and packages, joined with a comma. "-" when there are none. */
@@ -866,7 +926,7 @@ public class OfflineAdmissionAdminService {
 				: batches.findById(a.getBatchId()).map(found -> new BatchInfo(found.getId(), found.getNameEn(), found.getNameBn()))
 					.orElse(null);
 		Setup setup = new Setup(a.getBatchId(), batch == null ? null : batch.nameEn(), batch == null ? null : batch.nameBn(),
-				a.getMonthlyFee(), a.getAdmittedOn(), a.getFirstDueOn(), a.getCourseEndsOn());
+				a.getCourseFee(), a.getInstallments(), installmentPlan(a), a.getAdmittedOn(), a.getFirstDueOn(), a.getCourseEndsOn());
 		List<FieldErrorDetail> readyProblems = SUBMITTED.equals(a.getStatus()) || CHANGES_REQUESTED.equals(a.getStatus())
 				? readyProblems(a, hasPhoto) : List.of();
 		SignedCopy signed = a.getSignedStoredName() == null ? null
@@ -1040,8 +1100,16 @@ public class OfflineAdmissionAdminService {
 	public record ItemOverlaps(UUID itemId, String titleEn, String titleBn, List<LiveExamGrantAdminService.QuoteOverlap> warnings) {
 	}
 
-	public record Setup(UUID batchId, String batchNameEn, String batchNameBn, BigDecimal monthlyFee, LocalDate admittedOn,
-			LocalDate firstDueOn, LocalDate courseEndsOn) {
+	/**
+	 * The batch, the course fee and the dates of an admission. {@code installmentPlan} is each instalment the onboarding would write, or,
+	 * once onboarded, would have written at the start; the Fees tab lists the real ones.
+	 */
+	public record Setup(UUID batchId, String batchNameEn, String batchNameBn, BigDecimal courseFee, Integer installments,
+			List<InstallmentPreview> installmentPlan, LocalDate admittedOn, LocalDate firstDueOn, LocalDate courseEndsOn) {
+	}
+
+	/** One instalment of a course fee: its number (1 first), its due date and its amount. */
+	public record InstallmentPreview(int seq, LocalDate dueOn, BigDecimal amount) {
 	}
 
 	public record ItemView(UUID id, String scope, UUID examId, UUID moduleId, String titleEn, String titleBn, UUID grantId,

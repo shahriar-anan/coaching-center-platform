@@ -108,7 +108,11 @@ function OverviewPanel({ admission, canOnboard }: { admission: AdmissionDetail; 
         />
         <Item label={t("staffOffline.overview.admittedOn")} value={admission.setup.admittedOn ? formatDate(admission.setup.admittedOn) : "—"} />
         <Item label={t("staffOffline.overview.courseEnds")} value={admission.setup.courseEndsOn ? formatDate(admission.setup.courseEndsOn) : "—"} />
-        <Item label={t("staffOffline.overview.fee")} value={formatMoney(toNumber(admission.setup.monthlyFee)) ?? "—"} />
+        <Item label={t("staffOffline.overview.fee")} value={formatMoney(toNumber(admission.setup.courseFee)) ?? "—"} />
+        <Item
+          label={t("staffOffline.setup.installments")}
+          value={admission.setup.installments == null ? "—" : String(admission.setup.installments)}
+        />
         <Item
           label={t("staffOffline.overview.nextDue")}
           value={next ? `${formatMoney(toNumber(next.owed))} · ${formatDate(next.dueOn)}` : t("staffOffline.overview.noneDue")}

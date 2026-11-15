@@ -122,13 +122,13 @@ describe("the onboard dialog lists the exams and packages as rows (plan 6.3)", (
     expect(within(dialog).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument();
   });
 
-  it("states the batch, the fee, the dates, the number of payments and the total", async () => {
+  it("states the batch, the course fee, the dates, the instalments and the total", async () => {
     const { dialog } = await openOnboard([examItem(1)]);
 
     expect(factValue(dialog, "Batch")).toHaveTextContent("BJS Evening");
-    expect(factValue(dialog, "Monthly fee")).toHaveTextContent("3,000");
-    expect(factValue(dialog, "Number of payments")).toHaveTextContent(/^3$/);
-    // 3,000 a month for three dues from 9 December 2026 to 9 February 2027.
+    expect(factValue(dialog, "Course fee")).toHaveTextContent("9,000");
+    // 9,000 in three instalments of 3,000, from 9 December 2026 to 9 February 2027.
+    expect(factValue(dialog, "Instalments")).toHaveTextContent(/^3 · .*3,000.* × 3$/);
     expect(factValue(dialog, "Total")).toHaveTextContent("9,000");
     expect(factValue(dialog, "Email")).toHaveTextContent("The student is emailed.");
   });

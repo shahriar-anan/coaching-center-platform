@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Optional;
@@ -300,7 +301,7 @@ public class OfflineAdmissionOnboardingService {
 			items.saveAndFlush(item);
 			audit.record(AuditRecorder.OFFLINE_ACCESS_GRANTED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grantId);
 		}
-		writeSchedule(a, a.getFirstDueOn(), courseEndsOn, a.getMonthlyFee(), now);
+		writeSchedule(a, now);
 		if (renameProfile) {
 			jdbc.update("update student_profiles set full_name = ? where user_id = ?", a.getFullName(), a.getStudentId());
 		}
@@ -509,9 +510,11 @@ public class OfflineAdmissionOnboardingService {
 	}
 
 	/**
-	 * Changes the monthly fee and the course end after onboarding (plan 4.3, D16). A new fee applies from the next unpaid future due on;
-	 * paid dues keep their amounts. A new end cancels the unpaid future dues beyond it, or adds the dues it now covers, and moves the cap
-	 * of every live OFFLINE grant. A due with an approved payment is never cancelled, and the change is refused with the reason.
+	 * Changes the course fee, the number of instalments and the course end after onboarding (plan 4.3, D16, course-fee-plan.md). Instalments
+	 * already paid (in part or in full) and instalments whose date has come are kept as they are. A new fee or count spreads what is left of
+	 * the fee over the other instalments, whole taka with the rest on the last, and cancels unpaid instalments beyond the new count. A new
+	 * end moves the cap of every live OFFLINE grant; the last instalment must fall on or before it. Refused, with the reason, when the fee
+	 * is less than what is kept, or when the kept instalments leave no room for the rest.
 	 */
 	@Transactional
 	public AdmissionDetail terms(UUID actorId, UUID id, JsonNode body) {
@@ -520,60 +523,41 @@ public class OfflineAdmissionOnboardingService {
 			throw state("The fee and the end date can be changed only after onboarding. This admission is " + a.getStatus() + ".");
 		}
 		List<FieldErrorDetail> problems = new ArrayList<>();
-		BigDecimal fee = money(body, "monthlyFee", problems);
+		BigDecimal fee = money(body, "courseFee", problems);
+		Integer count = OfflineSupport.installments(body, "installments", problems);
 		LocalDate courseEndsOn = day(body, "courseEndsOn", problems);
 		if (!problems.isEmpty()) {
 			throw validation(problems);
 		}
-		boolean feeChanged = fee != null && (a.getMonthlyFee() == null || fee.compareTo(a.getMonthlyFee()) != 0);
-		boolean endChanged = courseEndsOn != null && !courseEndsOn.equals(a.getCourseEndsOn());
-		if (!feeChanged && !endChanged) {
+		// An admission onboarded before V100 that the backfill could not fill reads its fee and count from its live instalments.
+		List<OfflineFeeDue> live = dues.findByAdmissionIdAndCancelledAtIsNullOrderBySeqAsc(a.getId());
+		BigDecimal oldFee = a.getCourseFee() != null ? a.getCourseFee()
+				: live.stream().map(OfflineFeeDue::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+		Integer oldCount = a.getInstallments() != null ? a.getInstallments() : Math.max(1, live.size());
+		LocalDate oldEnd = a.getCourseEndsOn();
+		boolean feeChanged = fee != null && (oldFee == null || fee.compareTo(oldFee) != 0);
+		boolean countChanged = count != null && !count.equals(oldCount);
+		boolean endChanged = courseEndsOn != null && !courseEndsOn.equals(oldEnd);
+		if (!feeChanged && !countChanged && !endChanged) {
 			return admin.view(a);
 		}
-		BigDecimal oldFee = a.getMonthlyFee();
-		LocalDate oldEnd = a.getCourseEndsOn();
 		BigDecimal newFee = fee != null ? fee : oldFee;
+		int newCount = count != null ? count : oldCount;
 		LocalDate newEnd = courseEndsOn != null ? courseEndsOn : oldEnd;
 		if (!newEnd.isAfter(a.getFirstDueOn())) {
 			throw validation(List.of(new FieldErrorDetail("courseEndsOn", "The course end date must be after the first due date.")));
 		}
-		Instant now = clock.instant();
-		LocalDate today = OfflineFeeSchedule.today(now);
-		Set<UUID> paid = paidDueIds(a.getId());
-		List<LocalDate> target = OfflineFeeSchedule.dueDates(a.getFirstDueOn(), newEnd);
-		List<OfflineFeeDue> rows = dues.findByAdmissionIdOrderBySeqAsc(a.getId());
-		if (endChanged) {
-			for (OfflineFeeDue due : rows) {
-				if (due.getCancelledAt() == null && !target.contains(due.getDueOn())) {
-					if (paid.contains(due.getId())) {
-						throw validation(List.of(new FieldErrorDetail("courseEndsOn",
-								"The due on " + due.getDueOn() + " has a payment, so the course cannot end before it.")));
-					}
-					due.setCancelledAt(now);
-					dues.saveAndFlush(due);
-				}
-			}
-			for (int index = 0; index < target.size(); index++) {
-				short seq = (short) (index + 1);
-				OfflineFeeDue existing = rows.stream().filter(row -> row.getSeq() == seq).findFirst().orElse(null);
-				if (existing == null) {
-					dues.saveAndFlush(newDue(a.getId(), seq, target.get(index), newFee, now));
-				}
-				else if (existing.getCancelledAt() != null) {
-					existing.setCancelledAt(null);
-					existing.setDueOn(target.get(index));
-					dues.saveAndFlush(existing);
-				}
-			}
+		LocalDate last = OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), newCount);
+		if (last.isAfter(newEnd)) {
+			throw validation(List.of(new FieldErrorDetail(countChanged ? "installments" : "courseEndsOn", "The last instalment would be due on "
+					+ last + ", after the course ends on " + newEnd + ". Choose fewer instalments or a later course end.")));
 		}
-		if (feeChanged) {
-			for (OfflineFeeDue due : dues.findByAdmissionIdAndCancelledAtIsNullOrderBySeqAsc(a.getId())) {
-				if (due.getDueOn().isAfter(today) && !paid.contains(due.getId())) {
-					due.setAmount(newFee);
-					dues.saveAndFlush(due);
-				}
-			}
-			a.setMonthlyFee(newFee);
+		Instant now = clock.instant();
+		if (feeChanged || countChanged) {
+			respread(a, newFee, newCount, now);
+			a.setCourseFee(newFee);
+			a.setInstallments(newCount);
+			a.setMonthlyFee(OfflineAdmissionAdminService.firstInstallment(a));
 		}
 		if (endChanged) {
 			a.setCourseEndsOn(newEnd);
@@ -586,9 +570,75 @@ public class OfflineAdmissionOnboardingService {
 		}
 		admissions.saveAndFlush(a);
 		audit.record(AuditRecorder.OFFLINE_ADMISSION_TERMS_CHANGED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, id);
-		notifyTerms(a, now, feeChanged ? oldFee : null, feeChanged ? newFee : null, endChanged ? oldEnd : null,
-				endChanged ? newEnd : null);
+		notifyTerms(a, now, feeChanged ? oldFee : null, feeChanged ? newFee : null, countChanged ? oldCount : null,
+				countChanged ? newCount : null, endChanged ? oldEnd : null, endChanged ? newEnd : null);
 		return admin.view(a);
+	}
+
+	/**
+	 * Spreads what is left of a new course fee over the instalments that are still open (course-fee-plan.md section 3). An instalment with
+	 * an approved payment, or whose date has come, is kept with its amount; the others, up to {@code count}, share the rest; open ones
+	 * beyond {@code count} are cancelled.
+	 */
+	private void respread(OfflineAdmission a, BigDecimal fee, int count, Instant now) {
+		LocalDate today = OfflineFeeSchedule.today(now);
+		Set<UUID> paid = paidDueIds(a.getId());
+		List<OfflineFeeDue> rows = dues.findByAdmissionIdOrderBySeqAsc(a.getId());
+		Map<Integer, OfflineFeeDue> bySeq = new HashMap<>();
+		BigDecimal keptSum = BigDecimal.ZERO;
+		Set<Integer> keptSeqs = new HashSet<>();
+		for (OfflineFeeDue due : rows) {
+			bySeq.put((int) due.getSeq(), due);
+			if (due.getCancelledAt() != null || (!paid.contains(due.getId()) && due.getDueOn().isAfter(today))) {
+				continue;
+			}
+			if (due.getSeq() > count) {
+				throw validation(List.of(new FieldErrorDetail("installments", "Instalment " + due.getSeq() + " (due " + due.getDueOn()
+						+ ") is already paid or due, so the course fee needs at least " + due.getSeq() + " instalments.")));
+			}
+			keptSeqs.add((int) due.getSeq());
+			keptSum = keptSum.add(due.getAmount());
+		}
+		BigDecimal rest = fee.subtract(keptSum);
+		if (rest.signum() < 0) {
+			throw validation(List.of(new FieldErrorDetail("courseFee", "৳" + keptSum.toPlainString()
+					+ " is already paid or due, so the course fee cannot be less than that.")));
+		}
+		List<Integer> open = new ArrayList<>();
+		for (int seq = 1; seq <= count; seq++) {
+			if (!keptSeqs.contains(seq)) {
+				open.add(seq);
+			}
+		}
+		if (open.isEmpty() && rest.signum() > 0) {
+			throw validation(List.of(new FieldErrorDetail("installments", "Every instalment is already paid or due. Add an instalment for the ৳"
+					+ rest.toPlainString() + " that is left.")));
+		}
+		if (!open.isEmpty() && rest.compareTo(BigDecimal.valueOf(open.size())) < 0) {
+			throw validation(List.of(new FieldErrorDetail("installments", "Only ৳" + rest.toPlainString() + " is left for " + open.size()
+					+ " instalments. Choose fewer instalments.")));
+		}
+		List<BigDecimal> amounts = OfflineFeeSchedule.split(rest, open.size());
+		for (int index = 0; index < open.size(); index++) {
+			int seq = open.get(index);
+			LocalDate dueOn = OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), seq);
+			OfflineFeeDue existing = bySeq.get(seq);
+			if (existing == null) {
+				dues.saveAndFlush(newDue(a.getId(), (short) seq, dueOn, amounts.get(index), now));
+			}
+			else {
+				existing.setCancelledAt(null);
+				existing.setDueOn(dueOn);
+				existing.setAmount(amounts.get(index));
+				dues.saveAndFlush(existing);
+			}
+		}
+		for (OfflineFeeDue due : rows) {
+			if (due.getSeq() > count && due.getCancelledAt() == null) {
+				due.setCancelledAt(now);
+				dues.saveAndFlush(due);
+			}
+		}
 	}
 
 	/**
@@ -643,12 +693,14 @@ public class OfflineAdmissionOnboardingService {
 	}
 
 	/**
-	 * Writes one row per due date, seq 1 first (plan 4.3). Each row is a fixed amount of the monthly fee.
+	 * Writes one row per instalment, seq 1 first (plan 4.3, course-fee-plan.md): the course fee split into the chosen number of monthly
+	 * instalments from the first due date, whole taka with the rest on the last.
 	 */
-	private void writeSchedule(OfflineAdmission a, LocalDate firstDueOn, LocalDate courseEndsOn, BigDecimal fee, Instant now) {
-		List<LocalDate> dates = OfflineFeeSchedule.dueDates(firstDueOn, courseEndsOn);
-		for (int index = 0; index < dates.size(); index++) {
-			dues.saveAndFlush(newDue(a.getId(), (short) (index + 1), dates.get(index), fee, now));
+	private void writeSchedule(OfflineAdmission a, Instant now) {
+		List<BigDecimal> amounts = OfflineFeeSchedule.split(a.getCourseFee(), a.getInstallments());
+		List<LocalDate> dates = OfflineFeeSchedule.installmentDates(a.getFirstDueOn(), a.getInstallments());
+		for (int index = 0; index < amounts.size(); index++) {
+			dues.saveAndFlush(newDue(a.getId(), (short) (index + 1), dates.get(index), amounts.get(index), now));
 		}
 	}
 
@@ -678,7 +730,8 @@ public class OfflineAdmissionOnboardingService {
 		String[] batch = jdbc.queryForObject("select name_en, name_bn from offline_batches where id = ?",
 				(rs, row) -> new String[] { rs.getString("name_en"), rs.getString("name_bn") }, a.getBatchId());
 		List<String[]> allBatches = batchesWithAccess(a.getStudentId(), a.getId(), a.getBatchId(), true);
-		return Map.of("batchEn", batch[0], "batchBn", batch[1], "monthlyFee", a.getMonthlyFee().toPlainString(),
+		return Map.of("batchEn", batch[0], "batchBn", batch[1], "courseFee", a.getCourseFee().toPlainString(),
+				"installments", String.valueOf(a.getInstallments()),
 				"firstDueOn", a.getFirstDueOn().toString(), "courseEndsOn", a.getCourseEndsOn().toString(), "itemsEn", titles[0],
 				"itemsBn", titles[1], "batchesEn", joinNames(allBatches, 1), "batchesBn", joinNames(allBatches, 0));
 	}
@@ -688,12 +741,16 @@ public class OfflineAdmissionOnboardingService {
 		return String.join("; ", pairs.stream().map(pair -> pair[index]).toList());
 	}
 
-	private void notifyTerms(OfflineAdmission a, Instant now, BigDecimal oldFee, BigDecimal newFee, LocalDate oldEnd,
-			LocalDate newEnd) {
+	private void notifyTerms(OfflineAdmission a, Instant now, BigDecimal oldFee, BigDecimal newFee, Integer oldCount, Integer newCount,
+			LocalDate oldEnd, LocalDate newEnd) {
 		List<Map<String, String>> changes = new ArrayList<>();
 		if (newFee != null) {
-			changes.add(Map.of("labelBn", "মাসিক ফি", "labelEn", "Monthly fee", "old", oldFee.toPlainString() + " BDT",
+			changes.add(Map.of("labelBn", "কোর্স ফি", "labelEn", "Course fee", "old", oldFee.toPlainString() + " BDT",
 					"new", newFee.toPlainString() + " BDT"));
+		}
+		if (newCount != null) {
+			changes.add(Map.of("labelBn", "কিস্তির সংখ্যা", "labelEn", "Instalments", "old", String.valueOf(oldCount),
+					"new", String.valueOf(newCount)));
 		}
 		if (newEnd != null) {
 			changes.add(Map.of("labelBn", "কোর্স শেষ", "labelEn", "Course ends", "old", oldEnd.toString(), "new", newEnd.toString()));

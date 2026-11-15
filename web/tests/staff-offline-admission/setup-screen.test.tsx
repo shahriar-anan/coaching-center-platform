@@ -12,7 +12,8 @@ const EMPTY_SETUP = {
   batchId: null,
   batchNameEn: null,
   batchNameBn: null,
-  monthlyFee: null,
+  courseFee: null,
+  installments: null,
   admittedOn: null,
   firstDueOn: null,
   courseEndsOn: null,
@@ -43,14 +44,15 @@ function routes(admission: AdmissionDetail, batches: BatchView[] = []) {
   });
 }
 
-/** A batch as the batch list returns it: 1,500 a month, ending 31 December 2026, routine uploaded, 14 students. */
+/** A batch as the batch list returns it: a 1,500 course fee in 3 instalments, ending 31 December 2026, routine uploaded, 14 students. */
 const TEST_BATCH: BatchView = {
   id: "batch-test",
   nameEn: "Test batch",
   nameBn: "টেস্ট ব্যাচ",
   startsOn: null,
   endsOn: "2026-12-31",
-  defaultMonthlyFee: 1500,
+  courseFee: 1500,
+  defaultInstallments: 3,
   status: "ACTIVE",
   descriptionEn: null,
   descriptionBn: null,
@@ -84,22 +86,22 @@ function renderSetupRoute() {
 }
 
 describe("the setup on its own screen", () => {
-  it("leaves the monthly fee empty, not 'undefined', when no batch is chosen", async () => {
+  it("leaves the course fee empty, not 'undefined', when no batch is chosen", async () => {
     routes(detail({ state: "SUBMITTED", setup: EMPTY_SETUP }));
     renderSetupRoute();
 
-    const fee = await screen.findByLabelText(/Monthly fee/);
+    const fee = await screen.findByLabelText(/Course fee for this student/);
     expect(fee).toHaveValue("");
     expect(screen.getByRole("combobox", { name: /Batch/ })).toHaveValue("");
   });
 
-  it("leaves the monthly fee empty when the server sends no fee at all", async () => {
+  it("leaves the course fee empty when the server sends no fee at all", async () => {
     const setupWithoutFee: Partial<typeof EMPTY_SETUP> = { ...EMPTY_SETUP };
-    delete setupWithoutFee.monthlyFee;
+    delete setupWithoutFee.courseFee;
     routes(detail({ state: "SUBMITTED", setup: setupWithoutFee as AdmissionDetail["setup"] }));
     renderSetupRoute();
 
-    const fee = await screen.findByLabelText(/Monthly fee/);
+    const fee = await screen.findByLabelText(/Course fee for this student/);
     expect(fee).toHaveValue("");
   });
 
@@ -111,18 +113,19 @@ describe("the setup on its own screen", () => {
     expect(screen.getByRole("link", { name: "Back to admission" })).toHaveAttribute("href", `/staff/admissions/${ADMISSION_ID}`);
     expect(screen.getByRole("heading", { level: 2, name: "Batch and fees" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Exams and packages" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Monthly fee/)).toHaveValue("3000");
-    expect(screen.getByText(/^Payments: /)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Course fee for this student/)).toHaveValue("9000");
+    expect(screen.getByText(/^Instalments: /)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Number of instalments/)).toHaveValue(3);
     expect(screen.getByText("Ready checklist")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark ready" })).toBeEnabled();
   });
 
-  it("shows the totals as the monthly fee times the months, and the first to last due date", async () => {
+  it("shows the course fee in its instalments, and the first to last due date", async () => {
     routes(detail({ state: "SUBMITTED" }));
     renderSetupRoute();
 
-    // 3,000 a month from 9 December to 9 February: three dues, 9,000 in all.
-    expect(await screen.findByText(/× 3 months = .*9,000/)).toBeInTheDocument();
+    // 9,000 in three instalments from 9 December to 9 February.
+    expect(await screen.findByText(/9,000.* in 3 instalments/)).toBeInTheDocument();
     expect(screen.getByText(/9 December 2026 → 9 February 2027/)).toBeInTheDocument();
   });
 
@@ -141,7 +144,7 @@ describe("the setup on its own screen", () => {
     renderSetupRoute();
 
     expect(await screen.findByRole("button", { name: "Back to review" })).toBeEnabled();
-    expect(screen.getByLabelText(/Monthly fee/)).toBeDisabled();
+    expect(screen.getByLabelText(/Course fee for this student/)).toBeDisabled();
     expect(screen.getByLabelText(/Admitted on/)).toBeDisabled();
     expect(screen.getByRole("combobox", { name: /Batch/ })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "+ Add" })).not.toBeInTheDocument();
@@ -169,13 +172,15 @@ describe("the batch picker shows the name, and the details below it", () => {
     await screen.findByRole("option", { name: "Test batch" });
     await user.selectOptions(screen.getByRole("combobox", { name: /Batch/ }), TEST_BATCH.id);
 
-    expect(screen.getByLabelText(/Monthly fee/)).toHaveValue("1500");
+    expect(screen.getByLabelText(/Course fee for this student/)).toHaveValue("1500");
     expect(screen.getByLabelText(/Course end date/)).toHaveValue("2026-12-31");
+    // No first due date yet: the API picks the count that fits, so the box waits for its answer.
+    expect(screen.getByLabelText(/Number of instalments/)).toHaveValue(null);
     const details = screen.getByText("Ends on").closest("dl");
     if (!details) {
       throw new Error("The batch details are not a list");
     }
-    expect(within(details).getByText("Monthly fee")).toBeInTheDocument();
+    expect(within(details).getByText("Course fee")).toBeInTheDocument();
     expect(within(details).getByText("31 December 2026")).toBeInTheDocument();
     expect(within(details).getByText("Uploaded 2 November 2026")).toBeInTheDocument();
     expect(within(details).getByText("Students in this batch").nextElementSibling).toHaveTextContent("14");
@@ -199,7 +204,7 @@ describe("the admission detail shows the setup as a summary", () => {
       "href",
       `/staff/admissions/${ADMISSION_ID}/setup`,
     );
-    expect(screen.queryByLabelText(/Monthly fee/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Course fee for this student/)).not.toBeInTheDocument();
   });
 
   it("shows no Edit setup button for an ONBOARDED admission", async () => {

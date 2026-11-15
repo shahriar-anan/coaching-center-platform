@@ -26,7 +26,8 @@ export function SetupSummary({ admission, editable }: { admission: AdmissionDeta
 
   const rows: { label: string; value: string }[] = [
     { label: t("staffOffline.setup.batch"), value: batch || "—" },
-    { label: t("staffOffline.setup.studentMonthlyFee"), value: formatMoney(setup.monthlyFee) ?? "—" },
+    { label: t("staffOffline.setup.studentCourseFee"), value: formatMoney(setup.courseFee) ?? "—" },
+    { label: t("staffOffline.setup.installments"), value: setup.installments == null ? "—" : String(setup.installments) },
     { label: t("staffOffline.setup.admittedOn"), value: setup.admittedOn ? formatDate(setup.admittedOn) : "—" },
     { label: t("staffOffline.setup.firstDue"), value: setup.firstDueOn ? formatDate(setup.firstDueOn) : "—" },
     { label: t("staffOffline.setup.courseEnds"), value: setup.courseEndsOn ? formatDate(setup.courseEndsOn) : "—" },

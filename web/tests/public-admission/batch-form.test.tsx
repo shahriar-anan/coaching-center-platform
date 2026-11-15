@@ -11,7 +11,8 @@ const SAVED: BatchView = {
   nameBn: "ব্যাচ ৩",
   startsOn: null,
   endsOn: "2027-05-31",
-  defaultMonthlyFee: 3000,
+  courseFee: 3000,
+  defaultInstallments: 6,
   status: "ACTIVE",
   studentCount: 0,
   routineUploaded: false,
@@ -38,7 +39,7 @@ describe("the batch form takes the catalogue fields (plan 3.1, 6)", () => {
     await user.type(screen.getByRole("textbox", { name: /Name \(English\)/ }), "Batch 5");
     await user.type(screen.getByRole("textbox", { name: /Name \(Bangla\)/ }), "ব্যাচ ৫");
     fireEvent.change(screen.getByLabelText(/Ends on/), { target: { value: "2027-05-31" } });
-    await user.type(screen.getByRole("textbox", { name: /Course fee per month/ }), "2500");
+    await user.type(screen.getByRole("textbox", { name: /^Course fee/ }), "2500");
     await user.type(screen.getByRole("textbox", { name: /Description \(English\)/ }), "Morning classes.");
     await user.clear(screen.getByRole("textbox", { name: /Display order/ }));
     await user.type(screen.getByRole("textbox", { name: /Display order/ }), "1");
@@ -54,11 +55,15 @@ describe("the batch form takes the catalogue fields (plan 3.1, 6)", () => {
     expect(body).toMatchObject({
       nameEn: "Batch 5",
       endsOn: "2027-05-31",
+      courseFee: "2500",
       descriptionEn: "Morning classes.",
       descriptionBn: null,
       admissionsOpen: false,
       displayOrder: 1,
     });
+    // The number of instalments is filled in from the batch's dates (course-fee-plan.md).
+    expect(body.defaultInstallments).toEqual(expect.any(Number));
+    expect(body.defaultInstallments as number).toBeGreaterThanOrEqual(1);
     // A batch is offline and carries no exams or packages (plan P17): nothing else is sent.
     expect(api.calls.some((call) => call.path.endsWith("/items"))).toBe(false);
     expect(Object.keys(body)).not.toContain("items");

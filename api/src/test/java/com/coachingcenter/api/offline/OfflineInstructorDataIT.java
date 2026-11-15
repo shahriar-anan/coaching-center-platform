@@ -325,7 +325,7 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 	private UUID batch(String token) throws Exception {
 		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches").header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"nameEn\":\"BJS Evening\",\"nameBn\":\"বিজেএস সন্ধ্যা\",\"endsOn\":\"2027-04-30\",\"defaultMonthlyFee\":3000}"))
+			.content("{\"nameEn\":\"BJS Evening\",\"nameBn\":\"বিজেএস সন্ধ্যা\",\"endsOn\":\"2027-04-30\",\"courseFee\":3000}"))
 			.andExpect(status().isCreated())
 			.andReturn();
 		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());

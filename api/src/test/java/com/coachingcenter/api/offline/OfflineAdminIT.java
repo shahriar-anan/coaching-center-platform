@@ -111,13 +111,13 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		assertThat(notificationCount("ADMISSION_READY", master)).isEqualTo(1L);
 
 		// The setup is locked while the admission is ready (C16).
-		JsonNode locked = respond(patch("/api/v1/offline-admissions/" + admission + "/setup", staffToken, "{\"monthlyFee\":\"4000\"}"),
+		JsonNode locked = respond(patch("/api/v1/offline-admissions/" + admission + "/setup", staffToken, "{\"courseFee\":\"4000\"}"),
 				409);
 		assertThat(locked.get("code").asText()).isEqualTo("ADMISSION_STATE");
 
 		// Staff cannot onboard, change the terms or close (plan 4.6).
 		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", staffToken, rollBody()), 403);
-		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", staffToken, "{\"monthlyFee\":\"3500\"}"), 403);
+		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", staffToken, "{\"courseFee\":\"3500\"}"), 403);
 		respond(post("/api/v1/offline-admissions/" + admission + "/close", staffToken, "{\"reason\":\"No\"}"), 403);
 
 		// The Master Admin takes it back to review, and the person who marked it ready is told (C16).
@@ -150,7 +150,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		respond(post(base + "/back-to-review", instructor, null), 403);
 		respond(post(base + "/request-changes", instructor, "{\"reason\":\"x\"}"), 403);
 		respond(post(base + "/onboard", instructor, rollBody()), 403);
-		respond(patch(base + "/terms", instructor, "{\"monthlyFee\":\"1\"}"), 403);
+		respond(patch(base + "/terms", instructor, "{\"courseFee\":\"1\"}"), 403);
 		respond(post(base + "/close", instructor, "{\"reason\":\"x\"}"), 403);
 	}
 
@@ -197,7 +197,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 
 		JsonNode refusal = respond(post("/api/v1/offline-admissions/" + bare + "/ready", token, null), 400);
 		assertThat(refusal.get("code").asText()).isEqualTo("VALIDATION_FAILED");
-		assertThat(fieldNames(refusal)).contains("batchId", "monthlyFee", "courseEndsOn");
+		assertThat(fieldNames(refusal)).contains("batchId", "courseFee", "installments", "courseEndsOn");
 		assertThat(fieldNames(refusal)).doesNotContain("items");
 		assertThat(jdbc().queryForObject("select status from offline_admissions where id = ?", String.class, bare))
 			.isEqualTo("SUBMITTED");
@@ -221,8 +221,13 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 				"{\"batchId\":\"" + batch + "\"}"), 200).get("setup");
 		assertThat(setup.get("admittedOn").asText()).isEqualTo("2026-10-20");
 		assertThat(setup.get("firstDueOn").asText()).isEqualTo("2026-11-20");
-		assertThat(setup.get("monthlyFee").decimalValue()).isEqualByComparingTo("3000");
+		assertThat(setup.get("courseFee").decimalValue()).isEqualByComparingTo("3000");
 		assertThat(setup.get("courseEndsOn").asText()).isEqualTo("2027-02-15");
+		// The batch's four months (20 October to 15 February), cut to the three that fit from 20 November: 1,000 each.
+		assertThat(setup.get("installments").asInt()).isEqualTo(3);
+		assertThat(setup.get("installmentPlan")).hasSize(3);
+		assertThat(setup.get("installmentPlan").get(2).get("dueOn").asText()).isEqualTo("2027-01-20");
+		assertThat(setup.get("installmentPlan").get(2).get("amount").decimalValue()).isEqualByComparingTo("1000");
 
 		// Admitted on 31 January: one month later is the last day of February, not 3 March (plan side effect 18).
 		UUID longerBatch = batch(token, "2027-06-30", "3000");
@@ -298,7 +303,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		UUID staff = seed("SYSTEM_ADMIN", "Staff");
 		String masterToken = token(master);
 		UUID student = seed("STUDENT", "Onboard Student");
-		UUID batch = batch(masterToken, "2027-04-30", "3000");
+		UUID batch = batch(masterToken, "2027-04-30", "12000");
 		UUID admission = admission(student, master, "SUBMITTED");
 		UUID exam = publishedExam();
 		UUID module = publishedModule();
@@ -385,40 +390,68 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		assertThat(OfflineFeeSchedule.endOfDay(LocalDate.parse("2027-04-30"))).isEqualTo(Instant.parse("2027-04-30T18:00:00Z"));
 	}
 
+	@Test
+	void theCourseFeeIsSplitIntoWholeTakaWithTheRestOnTheLastInstalment() {
+		assertThat(OfflineFeeSchedule.split(new BigDecimal("7000"), 6)).extracting(BigDecimal::toPlainString)
+			.containsExactly("1166.00", "1166.00", "1166.00", "1166.00", "1166.00", "1170.00");
+		assertThat(OfflineFeeSchedule.split(new BigDecimal("9000"), 7)).extracting(BigDecimal::toPlainString)
+			.containsExactly("1285.00", "1285.00", "1285.00", "1285.00", "1285.00", "1285.00", "1290.00");
+		assertThat(OfflineFeeSchedule.split(new BigDecimal("1000.50"), 3)).extracting(BigDecimal::toPlainString)
+			.containsExactly("333.00", "333.00", "334.50");
+		assertThat(OfflineFeeSchedule.split(new BigDecimal("9000"), 1)).extracting(BigDecimal::toPlainString).containsExactly("9000.00");
+		assertThat(OfflineFeeSchedule.installmentDates(LocalDate.parse("2027-01-31"), 3))
+			.containsExactly(LocalDate.parse("2027-01-31"), LocalDate.parse("2027-02-28"), LocalDate.parse("2027-03-31"));
+		// The batch's default: as many months as fit, at least one.
+		assertThat(OfflineFeeSchedule.fittingInstallments(LocalDate.parse("2026-11-01"), LocalDate.parse("2027-05-31"))).isEqualTo(7);
+		assertThat(OfflineFeeSchedule.fittingInstallments(LocalDate.parse("2027-06-01"), LocalDate.parse("2027-05-31"))).isEqualTo(1);
+	}
+
 	// ---- terms and items after onboarding ----------------------------------------------------------------------------------
 
 	@Test
-	void termsChangeMovesUnpaidFutureDuesAndTheCapsButNeverPaidOnes() throws Exception {
+	void termsSpreadWhatIsLeftOfTheCourseFeeOverTheOpenInstalmentsAndMoveTheCaps() throws Exception {
 		UUID master = seed("MASTER_ADMIN", "Master");
 		UUID student = seed("STUDENT", "Terms Student");
 		UUID admission = onboarded(student, master);
 		String token = token(master);
+		assertThat(unpaidDueAmounts(admission)).containsExactly("3000.00", "3000.00", "3000.00", "3000.00");
 
-		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token(seed("SYSTEM_ADMIN", "Staff")), "{\"monthlyFee\":\"1\"}"),
+		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token(seed("SYSTEM_ADMIN", "Staff")), "{\"courseFee\":\"1\"}"),
 				403);
 
-		JsonNode raised = respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"monthlyFee\":\"3500\"}"), 200);
-		assertThat(raised.get("setup").get("monthlyFee").decimalValue()).isEqualByComparingTo("3500");
-		assertThat(unpaidDueAmounts(admission)).containsOnly("3500.00");
+		// Before any instalment is due, a new fee is spread over all four.
+		JsonNode raised = respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"courseFee\":\"14000\"}"), 200);
+		assertThat(raised.get("setup").get("courseFee").decimalValue()).isEqualByComparingTo("14000");
+		assertThat(unpaidDueAmounts(admission)).containsExactly("3500.00", "3500.00", "3500.00", "3500.00");
 		assertThat(studentNoticeCount(student, "ADMISSION_UPDATED")).isEqualTo(1L);
 		assertThat(mailCount(student, "ADMISSION_UPDATED")).isEqualTo(1L);
 
-		// Later in the course: January is past and keeps its amount; the unpaid dues from February take the new fee.
+		// Later in the course: January has come and keeps its amount; what is left is spread over February to April.
 		clock.set(Instant.parse("2027-02-10T04:00:00Z"));
-		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"monthlyFee\":\"4000\"}"), 200);
+		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"courseFee\":\"15500\"}"), 200);
 		assertThat(unpaidDueAmounts(admission)).containsExactly("3500.00", "4000.00", "4000.00", "4000.00");
 
-		// A later end adds the dues it covers and moves the cap of every live OFFLINE grant.
+		// A fifth instalment needs a later end: the rest is spread over four, and the cap of every live OFFLINE grant moves.
 		clock.set(Instant.parse("2027-02-11T04:00:00Z"));
-		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"courseEndsOn\":\"2027-06-15\"}"), 200);
+		JsonNode tooMany = respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"installments\":5}"), 400);
+		assertThat(fieldNames(tooMany)).contains("installments");
+		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token,
+				"{\"installments\":5,\"courseEndsOn\":\"2027-06-15\"}"), 200);
 		assertThat(unpaidDueDates(admission)).containsExactly("2027-01-31", "2027-02-28", "2027-03-31", "2027-04-30", "2027-05-31");
+		assertThat(unpaidDueAmounts(admission)).containsExactly("3500.00", "3000.00", "3000.00", "3000.00", "3000.00");
 		assertThat(liveCaps(student)).hasSize(2).allSatisfy(cap -> assertThat(cap).isEqualTo(Instant.parse("2027-06-15T18:00:00Z")));
 
-		// A shorter end cancels the unpaid dues beyond it and moves the caps back.
+		// Fewer instalments and an earlier end: the ones beyond are cancelled, the rest is spread with the remainder on the last.
 		clock.set(Instant.parse("2027-02-12T04:00:00Z"));
-		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"courseEndsOn\":\"2027-03-31\"}"), 200);
+		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token,
+				"{\"installments\":3,\"courseEndsOn\":\"2027-03-31\",\"courseFee\":\"15501\"}"), 200);
 		assertThat(unpaidDueDates(admission)).containsExactly("2027-01-31", "2027-02-28", "2027-03-31");
+		assertThat(unpaidDueAmounts(admission)).containsExactly("3500.00", "6000.00", "6001.00");
 		assertThat(liveCaps(student)).hasSize(2).allSatisfy(cap -> assertThat(cap).isEqualTo(Instant.parse("2027-03-31T18:00:00Z")));
+
+		// A fee below what is already due is refused.
+		JsonNode tooLow = respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token, "{\"courseFee\":\"3000\"}"), 400);
+		assertThat(fieldNames(tooLow)).contains("courseFee");
 	}
 
 	@Test
@@ -437,9 +470,9 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 				UUID.randomUUID(), payment, lastDue);
 
 		JsonNode refusal = respond(patch("/api/v1/offline-admissions/" + admission + "/terms", token(master),
-				"{\"courseEndsOn\":\"2027-03-31\"}"), 400);
-		assertThat(fieldNames(refusal)).contains("courseEndsOn");
-		assertThat(refusal.get("fieldErrors").get(0).get("message").asText()).contains("has a payment");
+				"{\"installments\":3,\"courseEndsOn\":\"2027-03-31\"}"), 400);
+		assertThat(fieldNames(refusal)).contains("installments");
+		assertThat(refusal.get("fieldErrors").get(0).get("message").asText()).contains("already paid or due");
 		assertThat(jdbc().queryForObject("select cancelled_at is null from offline_fee_dues where id = ?", Boolean.class, lastDue))
 			.isTrue();
 	}
@@ -565,7 +598,13 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		String masterToken = token(seed("MASTER_ADMIN", "Master"));
 		UUID batch = batch(masterToken, "2027-05-31", "2500");
 
-		respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"defaultMonthlyFee\":\"2700\"}"), 200);
+		JsonNode changed = respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"courseFee\":\"2700\",\"defaultInstallments\":3}"),
+				200);
+		assertThat(changed.get("courseFee").decimalValue()).isEqualByComparingTo("2700");
+		assertThat(changed.get("defaultInstallments").asInt()).isEqualTo(3);
+		assertThat(jdbc().queryForObject("select default_monthly_fee from offline_batches where id = ?", BigDecimal.class, batch))
+			.isEqualByComparingTo("900");
+		respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"defaultInstallments\":25}"), 400);
 		JsonNode archived = respond(post("/api/v1/offline-batches/" + batch + "/archive", masterToken, null), 200);
 		assertThat(archived.get("status").asText()).isEqualTo("ARCHIVED");
 		respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"nameEn\":\"Changed\"}"), 409);
@@ -667,10 +706,13 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		return id;
 	}
 
-	/** An onboarded admission: a batch ending 30 April 2027, one exam and one package, and the Master Admin's onboarding. */
+	/**
+	 * An onboarded admission: a batch ending 30 April 2027 with a 12,000 course fee, admitted on 31 December, so four instalments of
+	 * 3,000 from 31 January; one exam and one package; and the Master Admin's onboarding.
+	 */
 	private UUID onboarded(UUID student, UUID master) throws Exception {
 		String token = token(master);
-		UUID batch = batch(token, "2027-04-30", "3000");
+		UUID batch = batch(token, "2027-04-30", "12000");
 		UUID admission = admission(student, master, "SUBMITTED");
 		respond(patch("/api/v1/offline-admissions/" + admission + "/setup", token,
 				"{\"batchId\":\"" + batch + "\",\"admittedOn\":\"2026-12-31\"}"), 200);
@@ -688,7 +730,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches").header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"nameEn\":\"BJS Evening\",\"nameBn\":\"বিজেএস সন্ধ্যা\",\"endsOn\":\"" + endsOn
-					+ "\",\"defaultMonthlyFee\":" + fee + "}"))
+					+ "\",\"courseFee\":" + fee + "}"))
 			.andExpect(status().isCreated())
 			.andReturn();
 		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());

@@ -6,14 +6,13 @@ import { apiError, fixtures, mockApi, renderWithProviders, routerState } from ".
 import { admissionView, completeForm } from "./admission-fixture";
 
 describe("under review (plan 6.2)", () => {
-  it("says the admission is under review, with the submitted date, a print link and logout", async () => {
+  it("says the admission is under review, with the submitted date, a print link and, for a walk-in student, logout", async () => {
     const user = userEvent.setup();
     const logout = vi.fn(async () => undefined);
+    const desk = admissionView("SUBMITTED", { submittedAt: "2026-11-10T04:00:00Z", submitCount: 1, source: "DESK" }, completeForm);
     mockApi({
-      "GET /api/v1/me/admission": admissionView("SUBMITTED", {
-        submittedAt: "2026-11-10T04:00:00Z",
-        submitCount: 1,
-      }, completeForm),
+      "GET /api/v1/me/admission": desk,
+      "GET /api/v1/me/admissions": [desk],
     });
     renderWithProviders(<AdmissionPage />, {
       user: fixtures.student,
@@ -32,6 +31,29 @@ describe("under review (plan 6.2)", () => {
 
     await user.click(screen.getByRole("button", { name: "Log out" }));
     expect(logout).toHaveBeenCalledTimes(1);
+  });
+
+  it("leads a student who applied from their account back to the rest of the site, not to logout", async () => {
+    const own = admissionView("SUBMITTED", { submittedAt: "2026-11-10T04:00:00Z", submitCount: 1, source: "ACCOUNT" }, completeForm);
+    mockApi({ "GET /api/v1/me/admission": own, "GET /api/v1/me/admissions": [own] });
+    renderWithProviders(<AdmissionPage />, { user: fixtures.student, locale: "en", route: "/admission/form" });
+
+    expect(await screen.findByRole("link", { name: "Go to home" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+  });
+
+  it("once onboarded with a join code out, says it is approved and leads to the join form", async () => {
+    const ready = admissionView(
+      "READY",
+      { submittedAt: "2026-11-10T04:00:00Z", source: "ACCOUNT", joinCodePending: true, batchNameEn: "20th BJS Batch" },
+      completeForm,
+    );
+    mockApi({ "GET /api/v1/me/admission": ready, "GET /api/v1/me/admissions": [ready] });
+    renderWithProviders(<AdmissionPage />, { user: fixtures.student, locale: "en", route: "/admission/form" });
+
+    expect(await screen.findByRole("heading", { name: "Your admission is approved" })).toBeInTheDocument();
+    expect(screen.getByText("Batch: 20th BJS Batch")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Enter join code" })).toHaveAttribute("href", "/admission/join");
   });
 
   it("shows the same view once the form is ready for the next step", async () => {

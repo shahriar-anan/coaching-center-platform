@@ -30,7 +30,7 @@ describe("the ready checklist (plan 6.3, principle 2)", () => {
     renderWithProviders(<ReadyChecklist problems={[]} />, { user: fixtures.systemAdmin, locale: "en" });
 
     expect(screen.getByText("Batch chosen")).toBeInTheDocument();
-    expect(screen.getAllByText("Ticked")).toHaveLength(6);
+    expect(screen.getAllByText("Ticked")).toHaveLength(7);
     expect(screen.queryByText("Missing")).not.toBeInTheDocument();
     expect(screen.getByText("Everything is ticked. You can mark this ready for approval.")).toBeInTheDocument();
   });

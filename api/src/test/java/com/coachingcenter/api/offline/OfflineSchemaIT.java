@@ -164,6 +164,8 @@ class OfflineSchemaIT extends PostgresIntegrationTest {
 		batch.setNameBn("ব্যাচ ১");
 		batch.setEndsOn(LocalDate.now().plusMonths(6));
 		batch.setDefaultMonthlyFee(new BigDecimal("1500.00"));
+		batch.setCourseFee(new BigDecimal("9000.00"));
+		batch.setDefaultInstallments(6);
 		batch.setStatus(OfflineBatch.STATUS_ACTIVE);
 		batch.setCreatedBy(creator);
 		batch.setCreatedAt(now);

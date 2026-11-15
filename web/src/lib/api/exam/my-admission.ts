@@ -82,7 +82,7 @@ export const myAdmissionKeys = {
   fees: ["account", "admission", "fees"] as const,
   items: ["account", "admission", "items"] as const,
   routine: ["account", "admission", "routine"] as const,
-  list: ["account", "admissions"] as const,
+  list: admissionKeys.list,
 };
 
 /**

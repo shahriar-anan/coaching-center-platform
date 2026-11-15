@@ -85,6 +85,11 @@ const admission = {
     submittedOn: "{date} তারিখে জমা হয়েছে",
     viewPrint: "ফরম দেখুন / ছাপুন",
     logout: "লগআউট",
+    goHome: "হোমে যান",
+    approvedTitle: "আপনার ভর্তি অনুমোদিত হয়েছে",
+    batch: "ব্যাচ: {batch}",
+    joinBody: "ব্যাচে যোগ দিতে দপ্তরের ইমেইলে পাঠানো যোগদানের কোডটি দিন। কোডটি ৭ দিন কাজ করবে।",
+    enterJoinCode: "যোগদানের কোড দিন",
   },
   errors: {
     required: "এই ঘরটি পূরণ করা আবশ্যক।",

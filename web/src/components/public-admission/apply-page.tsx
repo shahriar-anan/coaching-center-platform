@@ -18,6 +18,7 @@ import { usePublicBatch, type PublicBatch } from "@/lib/api/exam/public-admissio
 import { readApplicationToken } from "./application-token";
 import { BatchCover, batchDatesLine, batchFeeLine, batchName } from "./batch-parts";
 import { SentPanel } from "./sent-panel";
+import { OwnApplication } from "./own-application";
 import { usePublicFormApi } from "./public-form-api";
 
 /** An empty admission for a visitor's first form: nothing is saved yet, so there is no state, id or photo. */
@@ -228,6 +229,11 @@ function AccountApply({ batchId, onSent }: { batchId: string; onSent: (view: Adm
         {t("publicAdmission.apply.startFailed")}
       </p>
     );
+  }
+  // The API answers the open application for this batch when there is one. Once its form is sent there is nothing to fill in here, so
+  // the student sees where it stands instead.
+  if (state.view.state !== "AWAITING_FORM" && state.view.state !== "CHANGES_REQUESTED") {
+    return <OwnApplication admission={state.view} />;
   }
   return <AdmissionFormView admission={state.view} onSubmitted={onSent} />;
 }

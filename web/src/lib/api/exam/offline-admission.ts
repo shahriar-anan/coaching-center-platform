@@ -52,8 +52,10 @@ export interface AdmissionView {
   /** The batch, filled once the admission is onboarded or closed. */
   batchNameEn?: string | null;
   batchNameBn?: string | null;
-  /** The monthly fee (BDT), once onboarded or closed. */
-  monthlyFee?: number | null;
+  /** The total course fee (BDT), once onboarded or closed. */
+  courseFee?: number | null;
+  /** The number of monthly instalments it is paid in, once onboarded or closed. */
+  installments?: number | null;
   /** yyyy-MM-dd. Filled once onboarded or closed. */
   admittedOn?: string | null;
   /** yyyy-MM-dd. Filled once onboarded or closed. */
@@ -75,6 +77,8 @@ export const ADMISSION_PHOTO_PATH = "/api/v1/me/photo";
 
 export const admissionKeys = {
   mine: ["account", "admission"] as const,
+  /** The list of every admission (my-admission.ts `myAdmissionKeys.list`). The shell, the home tile and the batch page read it. */
+  list: ["account", "admissions"] as const,
 };
 
 /**
@@ -139,6 +143,8 @@ export function useSubmitAdmission() {
     mutationFn: () => apiRequest<AdmissionView>("/api/v1/me/admission/submit", { method: "POST" }),
     onSuccess: (view) => {
       queryClient.setQueryData(admissionKeys.mine, view);
+      // The list carries the same admission's step, which the shell, the home tile and the batch page show.
+      void queryClient.invalidateQueries({ queryKey: admissionKeys.list });
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === "ADMISSION_STATE") {

@@ -124,10 +124,10 @@ function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
           label={t("staffOffline.setup.batch")}
           value={pickTitle({ titleEn: admission.setup.batchNameEn, titleBn: admission.setup.batchNameBn }) || "—"}
         />
-        <Row label={t("staffOffline.onboard.fee")} value={formatMoney(admission.setup.monthlyFee) ?? "—"} />
+        <Row label={t("staffOffline.onboard.fee")} value={formatMoney(admission.setup.courseFee) ?? "—"} />
         <Row label={t("staffOffline.onboard.firstDue")} value={admission.setup.firstDueOn ? formatDate(admission.setup.firstDueOn) : "—"} />
         <Row label={t("staffOffline.onboard.courseEnds")} value={admission.setup.courseEndsOn ? formatDate(admission.setup.courseEndsOn) : "—"} />
-        <Row label={t("staffOffline.onboard.payments")} value={String(totals.months)} />
+        <Row label={t("staffOffline.onboard.payments")} value={installmentLine(totals.rows, formatMoney)} />
         <Row label={t("staffOffline.onboard.total")} value={formatMoney(totals.total) ?? "—"} />
         <Row label={t("staffOffline.onboard.emailed")} value={t("staffOffline.onboard.emailedValue")} />
         <Row label={t("staffOffline.onboard.codeTo")} value={codeLine(admission, t)} />
@@ -203,25 +203,47 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Change the terms after onboarding (plan D16): the fee and the end date. Future unpaid dues change; a paid due is never cancelled. The
- * second step restates the change before it is saved, and the student is emailed the old and new terms.
+ * The instalments in one line: "6 · ৳1,166 × 5 + ৳1,170", or "6 · ৳1,500 × 6" when they are equal, or "—" when there are none.
+ */
+export function installmentLine(
+  rows: readonly { amount: number }[],
+  formatMoney: (value: number | string | null | undefined) => string | null,
+): string {
+  if (rows.length === 0) {
+    return "—";
+  }
+  const first = rows[0].amount;
+  const last = rows[rows.length - 1].amount;
+  if (first === last) {
+    return `${rows.length} · ${formatMoney(first) ?? ""} × ${rows.length}`;
+  }
+  return `${rows.length} · ${formatMoney(first) ?? ""} × ${rows.length - 1} + ${formatMoney(last) ?? ""}`;
+}
+
+/**
+ * Change the terms after onboarding (plan D16, course-fee-plan.md): the course fee, the number of instalments and the end date. Paid and
+ * already-due instalments stay; the rest of the fee is spread over the others. The second step restates the change before it is saved,
+ * and the student is emailed the old and new terms.
  */
 export function TermsDialog({ admission, open, onOpenChange }: { admission: AdmissionDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
   const { formatDate, formatMoney } = useFormat();
   const { toast } = useToast();
   const terms = useSaveTerms(admission.id);
-  const [fee, setFee] = useState(admission.setup.monthlyFee === null ? "" : String(admission.setup.monthlyFee));
+  const [fee, setFee] = useState(admission.setup.courseFee == null ? "" : String(admission.setup.courseFee));
+  const [count, setCount] = useState(admission.setup.installments == null ? "" : String(admission.setup.installments));
   const [end, setEnd] = useState(admission.setup.courseEndsOn ?? "");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const feeChanged = fee.trim() !== "" && Number(fee) !== Number(admission.setup.monthlyFee);
+  const feeChanged = fee.trim() !== "" && Number(fee) !== Number(admission.setup.courseFee);
+  const countChanged = /^\d+$/.test(count.trim()) && Number(count) !== admission.setup.installments;
   const endChanged = end !== "" && end !== admission.setup.courseEndsOn;
-  const nothing = !feeChanged && !endChanged;
+  const nothing = !feeChanged && !countChanged && !endChanged;
 
   async function save() {
-    const body: { monthlyFee?: string; courseEndsOn?: string } = {};
-    if (feeChanged) body.monthlyFee = fee.trim();
+    const body: { courseFee?: string; installments?: number; courseEndsOn?: string } = {};
+    if (feeChanged) body.courseFee = fee.trim();
+    if (countChanged) body.installments = Number(count.trim());
     if (endChanged) body.courseEndsOn = end;
     try {
       await terms.mutateAsync(body);
@@ -268,7 +290,10 @@ export function TermsDialog({ admission, open, onOpenChange }: { admission: Admi
       {confirming ? (
         <dl className="grid gap-2 text-body">
           {feeChanged ? (
-            <Row label={t("staffOffline.terms.feeLabel")} value={`${formatMoney(admission.setup.monthlyFee) ?? "—"} → ${formatMoney(fee) ?? "—"}`} />
+            <Row label={t("staffOffline.terms.feeLabel")} value={`${formatMoney(admission.setup.courseFee) ?? "—"} → ${formatMoney(fee) ?? "—"}`} />
+          ) : null}
+          {countChanged ? (
+            <Row label={t("staffOffline.terms.installmentsLabel")} value={`${admission.setup.installments ?? "—"} → ${count.trim()}`} />
           ) : null}
           {endChanged ? (
             <Row
@@ -280,8 +305,16 @@ export function TermsDialog({ admission, open, onOpenChange }: { admission: Admi
         </dl>
       ) : (
         <div className="grid gap-4">
-          <Field label={t("staffOffline.setup.monthlyFee")} error={error ?? undefined}>
+          {error ? (
+            <p role="alert" className="text-meta text-danger">
+              {error}
+            </p>
+          ) : null}
+          <Field label={t("staffOffline.setup.courseFee")}>
             <TextInput inputMode="decimal" value={fee} onChange={(event) => setFee(event.target.value)} />
+          </Field>
+          <Field label={t("staffOffline.setup.installments")} hint={t("staffOffline.setup.installmentsHint")}>
+            <TextInput type="number" inputMode="numeric" min={1} max={24} step={1} value={count} onChange={(event) => setCount(event.target.value)} />
           </Field>
           <Field label={t("staffOffline.setup.courseEnds")}>
             <TextInput type="date" value={end} onChange={(event) => setEnd(event.target.value)} />

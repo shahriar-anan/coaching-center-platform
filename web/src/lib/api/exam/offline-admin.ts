@@ -83,11 +83,19 @@ export type AdmissionSetup = {
   batchId: string | null;
   batchNameEn: string | null;
   batchNameBn: string | null;
-  monthlyFee: number | string | null;
+  /** The total the student pays for the batch (course-fee-plan.md). */
+  courseFee: number | string | null;
+  /** The number of monthly instalments, chosen by the admin. */
+  installments: number | null;
+  /** Each instalment the onboarding writes: number, date and amount. Empty until the fee, the count and the first due date are set. */
+  installmentPlan?: InstallmentPreview[];
   admittedOn: string | null;
   firstDueOn: string | null;
   courseEndsOn: string | null;
 };
+
+/** One instalment of a course fee. Money comes as a number or a decimal string. */
+export type InstallmentPreview = { seq: number; dueOn: string; amount: number | string };
 
 export type AdmissionItem = {
   id: string;
@@ -290,7 +298,10 @@ export type BatchView = {
   nameBn: string;
   startsOn: string | null;
   endsOn: string;
-  defaultMonthlyFee: number | string;
+  /** The total a student pays for the batch. */
+  courseFee: number | string;
+  /** The number of monthly instalments a new admission starts with. */
+  defaultInstallments: number;
   status: "ACTIVE" | "ARCHIVED";
   descriptionEn: string | null;
   descriptionBn: string | null;
@@ -577,7 +588,8 @@ export function useRenewActivationCode(id: string) {
 
 export type SetupBody = {
   batchId?: string | null;
-  monthlyFee?: string | number | null;
+  courseFee?: string | number | null;
+  installments?: number | null;
   admittedOn?: string | null;
   firstDueOn?: string | null;
   courseEndsOn?: string | null;
@@ -643,7 +655,7 @@ export function useChangeRoll(id: string) {
 }
 
 export function useSaveTerms(id: string) {
-  return useOfflineCall<{ monthlyFee?: string | number; courseEndsOn?: string }>((body) => ({
+  return useOfflineCall<{ courseFee?: string | number; installments?: number; courseEndsOn?: string }>((body) => ({
     path: `/api/v1/offline-admissions/${id}/terms`,
     method: "PATCH",
     body,
@@ -706,7 +718,8 @@ export type BatchBody = {
   nameBn?: string;
   startsOn?: string | null;
   endsOn?: string;
-  defaultMonthlyFee?: string | number;
+  courseFee?: string | number;
+  defaultInstallments?: number;
   descriptionEn?: string | null;
   descriptionBn?: string | null;
   admissionsOpen?: boolean;

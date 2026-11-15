@@ -92,7 +92,8 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 		assertThat(view.get("state").asText()).isEqualTo("ONBOARDED");
 		assertThat(view.get("batchNameEn").asText()).isEqualTo("Evening Batch A");
 		assertThat(view.get("batchNameBn").asText()).isEqualTo("সন্ধ্যা ব্যাচ এ");
-		assertThat(view.get("monthlyFee").decimalValue()).isEqualByComparingTo("2500");
+		assertThat(view.get("courseFee").decimalValue()).isEqualByComparingTo("2500");
+		assertThat(view.get("installments").asInt()).isEqualTo(5);
 		assertThat(view.get("admittedOn").asText()).isEqualTo("2026-10-01");
 		assertThat(view.get("courseEndsOn").asText()).isEqualTo("2027-03-31");
 		assertThat(view.get("hasRoutine").asBoolean()).isFalse();
@@ -110,7 +111,8 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 		assertThat(view.get("state").asText()).isEqualTo("SUBMITTED");
 		// W7: the batch's name is shown while the application is pending, so the student knows which batch it is for.
 		assertThat(view.get("batchNameEn").asText()).isEqualTo("Morning Batch");
-		assertThat(view.hasNonNull("monthlyFee")).isFalse();
+		assertThat(view.hasNonNull("courseFee")).isFalse();
+		assertThat(view.hasNonNull("installments")).isFalse();
 		assertThat(view.hasNonNull("admittedOn")).isFalse();
 		assertThat(view.hasNonNull("courseEndsOn")).isFalse();
 		assertThat(view.get("hasRoutine").asBoolean()).isFalse();
@@ -285,9 +287,9 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 	private UUID batch(String nameEn, String nameBn) {
 		UUID id = UUID.randomUUID();
 		jdbc().update("""
-				insert into offline_batches (id, name_en, name_bn, ends_on, default_monthly_fee, status, created_by, created_at,
-				  updated_at) values (?, ?, ?, ?, ?, 'ACTIVE', ?, now(), now())
-				""", id, nameEn, nameBn, java.sql.Date.valueOf("2027-03-31"), new BigDecimal("2500"), master());
+				insert into offline_batches (id, name_en, name_bn, ends_on, default_monthly_fee, course_fee, default_installments, status,
+				  created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 5, 'ACTIVE', ?, now(), now())
+				""", id, nameEn, nameBn, java.sql.Date.valueOf("2027-03-31"), new BigDecimal("500"), new BigDecimal("2500"), master());
 		return id;
 	}
 
@@ -297,9 +299,10 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 		UUID id = UUID.randomUUID();
 		jdbc().update("""
 				insert into offline_admissions (id, student_id, status, created_by, created_at, submit_count, batch_id,
-				  monthly_fee, admitted_on, course_ends_on, first_due_on) values (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+				  course_fee, installments, admitted_on, course_ends_on, first_due_on) values (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
 				""", id, studentId, status, deskStaff(), Timestamp.from(createdAt), batch,
-				fee == null ? null : new BigDecimal(fee), admittedOn == null ? null : java.sql.Date.valueOf(admittedOn),
+				fee == null ? null : new BigDecimal(fee), fee == null ? null : 5,
+				admittedOn == null ? null : java.sql.Date.valueOf(admittedOn),
 				courseEndsOn == null ? null : java.sql.Date.valueOf(courseEndsOn),
 				admittedOn == null ? null : java.sql.Date.valueOf(admittedOn.plusMonths(1)));
 		return id;

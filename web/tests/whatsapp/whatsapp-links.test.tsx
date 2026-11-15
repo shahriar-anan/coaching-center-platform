@@ -49,7 +49,7 @@ describe("a batch's WhatsApp link on the batch form", () => {
     await user.type(screen.getByRole("textbox", { name: /Name \(English\)/ }), "Batch 5");
     await user.type(screen.getByRole("textbox", { name: /Name \(Bangla\)/ }), "ব্যাচ ৫");
     fireEvent.change(screen.getByLabelText(/Ends on/), { target: { value: "2027-05-31" } });
-    await user.type(screen.getByRole("textbox", { name: /Course fee per month/ }), "2500");
+    await user.type(screen.getByRole("textbox", { name: /^Course fee/ }), "2500");
     await user.type(screen.getByRole("textbox", { name: /WhatsApp group or channel link/ }), LINK);
     await user.click(screen.getByRole("button", { name: "Create batch" }));
 

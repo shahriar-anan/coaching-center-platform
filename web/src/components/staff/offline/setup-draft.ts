@@ -6,14 +6,22 @@ import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
 import { useSaveSetup, type AdmissionDetail, type AdmissionSetup, type SetupBody } from "@/lib/api/exam/offline-admin";
 import { offlineErrorText } from "./offline-error";
-import { duePreview, toNumber } from "./offline-model";
+import { installmentPlan, toNumber } from "./offline-model";
 
 /*
  * The setup's draft: what the form shows while it is being typed in. One hook owns it for every card, so the whole setup saves as one
  * PATCH, a moment after the last change, and one status line (Saving, Saved, Not saved) covers all of it.
  */
 
-export type SetupDraft = { batchId: string; monthlyFee: string; admittedOn: string; firstDueOn: string; courseEndsOn: string };
+/** `courseFee` is the total; `installments` the number of monthly instalments it is paid in (course-fee-plan.md). */
+export type SetupDraft = {
+  batchId: string;
+  courseFee: string;
+  installments: string;
+  admittedOn: string;
+  firstDueOn: string;
+  courseEndsOn: string;
+};
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -30,7 +38,8 @@ export function text(value: string | number | null | undefined): string {
 export function draftOf(setup: AdmissionSetup): SetupDraft {
   return {
     batchId: text(setup.batchId),
-    monthlyFee: text(setup.monthlyFee),
+    courseFee: text(setup.courseFee),
+    installments: text(setup.installments),
     admittedOn: text(setup.admittedOn),
     firstDueOn: text(setup.firstDueOn),
     courseEndsOn: text(setup.courseEndsOn),
@@ -40,7 +49,8 @@ export function draftOf(setup: AdmissionSetup): SetupDraft {
 export function bodyOf(draft: SetupDraft): SetupBody {
   return {
     batchId: draft.batchId || null,
-    monthlyFee: draft.monthlyFee.trim() || null,
+    courseFee: draft.courseFee.trim() || null,
+    installments: /^\d+$/.test(draft.installments.trim()) ? Number(draft.installments.trim()) : null,
     admittedOn: draft.admittedOn || null,
     firstDueOn: draft.firstDueOn || null,
     courseEndsOn: draft.courseEndsOn || null,
@@ -55,18 +65,25 @@ function fieldErrorsOf(error: unknown): Record<string, string> {
   return {};
 }
 
-/** The money and dates of a draft: the dues it will create, their total, and the first and last due dates. */
+/**
+ * The money and dates of a draft: the instalments it will create, the course fee they add up to, and the first and last due dates.
+ * `pastEnd` is true when the last instalment falls after the course end, which the API refuses.
+ */
 export function setupTotals(draft: SetupDraft) {
-  const fee = toNumber(draft.monthlyFee);
-  const rows = duePreview(draft.firstDueOn, draft.courseEndsOn, fee);
+  const fee = toNumber(draft.courseFee);
+  const count = Number(draft.installments);
+  const rows = installmentPlan(draft.firstDueOn, Number.isInteger(count) ? count : 0, fee);
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const lastDue = rows.length > 0 ? rows[rows.length - 1].dueOn : null;
   return {
     fee,
     months: rows.length,
     total,
+    rows,
     dueDates: rows.map((row) => row.dueOn),
     firstDue: rows.length > 0 ? rows[0].dueOn : null,
-    lastDue: rows.length > 0 ? rows[rows.length - 1].dueOn : null,
+    lastDue,
+    pastEnd: Boolean(lastDue && draft.courseEndsOn && lastDue > draft.courseEndsOn),
   };
 }
 

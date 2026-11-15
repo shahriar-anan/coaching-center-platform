@@ -16,6 +16,7 @@ import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { offlineAdmissionEnabled, staffHref } from "@/lib/config";
 import { useMyAdmissions } from "@/lib/api/exam/my-admission";
+import { admissionStep } from "@/lib/admission/gate";
 import { usePublicBatches, type PublicBatch } from "@/lib/api/exam/public-admission";
 import { batchFeeLine, batchName } from "@/components/public-admission/batch-parts";
 import { examPath, isLive } from "@/components/student/catalog/catalog-helpers";
@@ -138,7 +139,7 @@ function ShopDoors() {
 }
 
 /** The admission states the tile names, in the order a student meets them: onboarded first, then what the office is doing. */
-const TILE_STATES = ["ONBOARDED", "CHANGES_REQUESTED", "SUBMITTED", "READY"] as const;
+const TILE_STATES = ["ONBOARDED", "READY", "CHANGES_REQUESTED", "AWAITING_FORM", "SUBMITTED"] as const;
 
 /**
  * "Offline activities" on the dashboard, below the door cards (plan P9, section 8): one status line for each admission that is in
@@ -181,6 +182,26 @@ export function OfflineActivitiesTile() {
                 </li>
               );
             }
+            if (admissionStep(admission) === "JOIN") {
+              return (
+                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">{t("publicAdmission.tile.approved", { batch: name })}</span>
+                  <Link href="/admission/join" className="text-label font-bold text-accent underline">
+                    {t("publicAdmission.tile.enterCode")}
+                  </Link>
+                </li>
+              );
+            }
+            if (admission.state === "AWAITING_FORM") {
+              return (
+                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">{t("publicAdmission.tile.formNotSent", { batch: name })}</span>
+                  <Link href="/admission/form" className="text-label font-bold text-accent underline">
+                    {t("publicAdmission.tile.openForm")}
+                  </Link>
+                </li>
+              );
+            }
             if (admission.state === "CHANGES_REQUESTED") {
               return (
                 <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
@@ -217,10 +238,11 @@ export function OfflineActivitiesTile() {
               <li key={batch.id}>
                 <Link
                   href={`/admission/batches/${batch.id}`}
-                  className="flex min-h-11 items-center justify-between gap-3 rounded-control border border-border bg-bg px-3 py-2 text-body transition hover:border-accent"
+                  className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded-control border border-border bg-bg px-3 py-2 text-body transition hover:border-accent"
                 >
                   <span className="min-w-0 break-words font-semibold">{batchName(batch, locale)}</span>
-                  <span className="shrink-0 text-meta tabular-nums text-muted">{batchFeeLine(batch, locale, t)}</span>
+                  {/* The fee line is long (the total and its instalments), so on a phone it moves under the name instead of squeezing it. */}
+                  <span className="text-meta tabular-nums text-muted">{batchFeeLine(batch, locale, t)}</span>
                 </Link>
               </li>
             ))}

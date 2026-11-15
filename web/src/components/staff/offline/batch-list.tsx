@@ -46,7 +46,11 @@ export function BatchList() {
       key: "fee",
       header: t("staffOffline.batches.columns.fee"),
       mobileLabel: t("staffOffline.batches.columns.fee"),
-      cell: (batch) => <span className="font-latin">{formatMoney(Number(batch.defaultMonthlyFee))}</span>,
+      cell: (batch) => (
+        <span className="font-latin">
+          {formatMoney(Number(batch.courseFee))} · {t("staffOffline.batches.installmentsCount", { count: batch.defaultInstallments })}
+        </span>
+      ),
     },
     {
       key: "students",

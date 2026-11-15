@@ -1,7 +1,7 @@
 # Offline admission: how it works
 
 This guide is for the SYMAM LAW office: the Master Admin and the System Admins (staff). It explains the new **offline**
-part of the site: admitting students to your in-person batches, collecting monthly fees, uploading the batch routine, paying
+part of the site: admitting students to your in-person batches, collecting the course fee in instalments, uploading the batch routine, paying
 instructors, publishing exam results, and seeing all of your income and expenses on the **Finance** page.
 
 Nothing changed for students who buy exams online. Existing students, orders and exams stay as they were.
@@ -31,7 +31,8 @@ The offline pages are in the staff menu under **Offline admission**: **Admission
 
 **Batches → New batch** (Master Admin).
 
-- Give the batch its name in English and Bangla, its start and end dates, and the standard **monthly fee**.
+- Give the batch its name in English and Bangla, its start and end dates, the **course fee** (the total a student pays for the
+  batch, for example ৳9,000) and the number of **monthly instalments** (filled in from the dates; you can change it).
 - Set the **starting roll number**, for example 201001. The first student you onboard gets this roll; later students get the
   next free one. A roll number is never used twice, even across batches.
 - Optional: a cover photo, a description, and the **WhatsApp group link**. Students see a "Join the WhatsApp group" button
@@ -74,8 +75,10 @@ All new forms appear in **Admissions**, under **Forms to review**.
 1. **Review** the form and photo.
 2. If something is wrong, press **Send back** and give a reason (quick reasons are offered, such as "Photo unclear"). The
    student is emailed a link to fix the form and send it again. The reason is shown to them exactly as you write it.
-3. Press **Edit setup** and choose the **batch**. The monthly fee, the admission date, the first due date and the course end
-   date are filled in from the batch, and you can change them for this student. The page shows the payment dates this creates.
+3. Press **Edit setup** and choose the **batch**. The course fee, the number of instalments, the admission date, the first due
+   date and the course end date are filled in from the batch, and you can change them for this student. The page shows each
+   instalment with its date and amount. Instalments are whole taka, with the rest on the last: ৳7,000 in 6 is ৳1,166 five
+   times, then ৳1,170. The last instalment must fall on or before the course end.
 4. Press **Ready for approval**. The Master Admin is told.
 5. The **Master Admin** presses **Onboard**. The dialog shows a summary of the fee and dates and the suggested **roll number**,
    which can be changed. Press **Onboard student**.
@@ -104,7 +107,7 @@ Once admitted, the student's **Offline activities** page shows:
 
 - their **batch**, **roll number** and the **WhatsApp** button;
 - the **next class** and the **routine**;
-- **fees**: each monthly instalment, what is paid, what is overdue, and a **receipt** for every payment;
+- **fees**: the course fee, each monthly instalment, what is paid, what is overdue, and a **receipt** for every payment;
 - **results** of the batch's exams, with the leaderboard.
 
 Students are told in the app (Notices) when they are approved, when the routine changes, when a fee is received or due, and
@@ -112,7 +115,7 @@ when a result is published or corrected.
 
 ---
 
-## 6. Monthly fees
+## 6. Course fee instalments
 
 1. Open the student's admission, the **Fees** tab, and press **Record payment**.
 2. The amount starts at the next due amount. Choose the method (Cash, bKash, Nagad, Rocket, Bank) and the date it was paid.
@@ -124,7 +127,8 @@ when a result is published or corrected.
 
 **Reminders:** the student is reminded three days before a fee is due, on the day, and three days after if it is still unpaid.
 The admins are told about overdue fees, and again each week while they stay unpaid. **Change terms** on the admission changes
-the fee or the end date; payments already made are never cancelled.
+the course fee, the number of instalments or the end date. Instalments already paid or already due stay as they are; what is left
+of the course fee is spread over the other instalments.
 
 ---
 

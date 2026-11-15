@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MyAdmissionPage } from "@/components/student/my-admission/my-admission-page";
 import { ResultsSection, ordinalEn } from "@/components/student/my-admission/results-section";
 import { useMyAdmissionResults } from "@/lib/api/exam/my-results";
-import { fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
+import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { admission, schedule } from "../my-admission/fixture";
 import { absentResult, admissionResults, examResult } from "./fixture";
 
@@ -98,8 +98,8 @@ describe("where the section appears on the admission page", () => {
     const api = mockApi({ "GET /api/v1/me/admission": admission("SUBMITTED") });
     renderWithProviders(<MyAdmissionPage />, { user: fixtures.student, locale: "en", route: "/my-admission" });
 
-    // A pending student is sent to the form and sees nothing else of the admission page.
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission/form"));
+    // A pending admission is a card with its step: nothing else of the admission page, and no results.
+    expect(await screen.findByText(/Under review/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Results" })).not.toBeInTheDocument();
     expect(api.calls.some((call) => call.path.endsWith("/results"))).toBe(false);
   });

@@ -43,12 +43,12 @@ export function parseQueueTab(raw: string | null | undefined, role: Role | null 
 // ---- the ready checklist -----------------------------------------------------------------------------------------------
 
 /** The setup parts the checklist names, in the order it shows them. Any other problem is a form problem. */
-export const CHECKLIST_KEYS = ["form", "batchId", "monthlyFee", "admittedOn", "firstDueOn", "courseEndsOn"] as const;
+export const CHECKLIST_KEYS = ["form", "batchId", "courseFee", "admittedOn", "firstDueOn", "courseEndsOn", "installments"] as const;
 export type ChecklistKey = (typeof CHECKLIST_KEYS)[number];
 
 export type ChecklistRow = { key: ChecklistKey; missing: FieldProblem[] };
 
-const SETUP_FIELDS = new Set<string>(["batchId", "monthlyFee", "admittedOn", "firstDueOn", "courseEndsOn"]);
+const SETUP_FIELDS = new Set<string>(["batchId", "courseFee", "installments", "admittedOn", "firstDueOn", "courseEndsOn"]);
 
 /**
  * One row per requirement, each with the problems the API found for it. A row with no problems is ticked. The Ready button is
@@ -192,18 +192,38 @@ export function defaultFirstDue(admittedOn: string): string {
   return addMonths(admittedOn, 1);
 }
 
-/** The dues the setup will create: one each month from the first due date up to the course end date (plan 4.3). */
-export function duePreview(firstDueOn: string, courseEndsOn: string, monthlyFee: number): { dueOn: string; amount: number }[] {
-  const rows: { dueOn: string; amount: number }[] = [];
+/** The most instalments a course fee may be paid in, as the API allows (course-fee-plan.md). */
+export const MAX_INSTALLMENTS = 24;
+
+/**
+ * How many monthly instalments fit from the first due date to the course end: the same day each month, clamped to the month's end, as
+ * the API counts them. At least 1 and at most {@link MAX_INSTALLMENTS}; 1 when a date is missing.
+ */
+export function fittingInstallments(firstDueOn: string, courseEndsOn: string): number {
   if (!firstDueOn || !courseEndsOn) {
-    return rows;
+    return 1;
   }
-  for (let month = 0; month < 120; month += 1) {
-    const dueOn = addMonths(firstDueOn, month);
-    if (dueOn > courseEndsOn) {
-      break;
-    }
-    rows.push({ dueOn, amount: monthlyFee });
+  let count = 0;
+  while (count < MAX_INSTALLMENTS && addMonths(firstDueOn, count) <= courseEndsOn) {
+    count += 1;
+  }
+  return Math.max(1, count);
+}
+
+/**
+ * The instalments of a course fee, as the onboarding writes them (decision C3): one a month from the first due date, whole taka for
+ * each but the last, which takes the rest. ৳7,000 in 6 is ৳1,166 five times, then ৳1,170. Empty without a date, a count or a fee.
+ */
+export function installmentPlan(firstDueOn: string, count: number, courseFee: number): { seq: number; dueOn: string; amount: number }[] {
+  if (!firstDueOn || !(count >= 1) || !Number.isFinite(courseFee) || courseFee <= 0) {
+    return [];
+  }
+  const totalPaisa = Math.round(courseFee * 100);
+  const eachPaisa = Math.floor(totalPaisa / count / 100) * 100;
+  const rows: { seq: number; dueOn: string; amount: number }[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const last = index === count - 1;
+    rows.push({ seq: index + 1, dueOn: addMonths(firstDueOn, index), amount: (last ? totalPaisa - eachPaisa * (count - 1) : eachPaisa) / 100 });
   }
   return rows;
 }

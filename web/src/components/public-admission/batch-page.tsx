@@ -14,11 +14,28 @@ import { offlineAdmissionEnabled } from "@/lib/config";
 import { loadPublicBatchRoutinePdf, usePublicBatch } from "@/lib/api/exam/public-admission";
 import { formatDate } from "@/lib/format";
 import { isNotFoundError } from "@/lib/api/errors";
+import { useSession } from "@/lib/auth/session-context";
+import { useMyAdmissions } from "@/lib/api/exam/my-admission";
+import type { AdmissionView } from "@/lib/api/exam/offline-admission";
+import { OwnApplication } from "./own-application";
 import { BatchCover, batchDatesLine, batchFeeLine, batchName } from "./batch-parts";
 
 /** The paragraphs of a description: blank lines separate them. Each language is shown as it was written. */
 function paragraphsOf(text: string | null): string[] {
   return text ? text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean) : [];
+}
+
+/**
+ * The signed-in student's application for this batch, if they have one that is not closed: the newest wins (the list is newest first).
+ */
+function useOwnApplication(batchId: string): AdmissionView | null {
+  const { session } = useSession();
+  const student = session.status === "authenticated" && session.user.role === "STUDENT";
+  const admissions = useMyAdmissions({ enabled: offlineAdmissionEnabled && student });
+  if (!student || !Array.isArray(admissions.data)) {
+    return null;
+  }
+  return admissions.data.find((admission) => admission.batchId === batchId && admission.state !== "CLOSED") ?? null;
 }
 
 /**
@@ -28,6 +45,7 @@ function paragraphsOf(text: string | null): string[] {
 export function BatchPage({ id }: { id: string }) {
   const { t, locale } = useLocale();
   const batch = usePublicBatch(id);
+  const own = useOwnApplication(id);
   const [routineOpen, setRoutineOpen] = useState(false);
 
   if (!offlineAdmissionEnabled) {
@@ -78,6 +96,8 @@ export function BatchPage({ id }: { id: string }) {
         </Pill>
         <span className="text-body tabular-nums text-muted">{batchDatesLine(b, locale, t)}</span>
       </div>
+
+      {own ? <OwnApplication admission={own} /> : null}
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="grid gap-0.5 rounded-control border border-border bg-card px-4 py-3">
@@ -142,7 +162,7 @@ export function BatchPage({ id }: { id: string }) {
         <Button variant="ghost" href="/admission">
           {t("publicAdmission.batch.changeBatch")}
         </Button>
-        {b.admissionsOpen ? (
+        {own ? null : b.admissionsOpen ? (
           <Button size="lg" href={`/admission/apply/${b.id}`}>
             {t("publicAdmission.card.apply")}
           </Button>

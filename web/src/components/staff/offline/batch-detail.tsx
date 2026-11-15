@@ -153,7 +153,8 @@ export function BatchDetail({ id }: { id: string }) {
             <FieldCell icon={Languages} label={t("staffOffline.batches.nameBn")} value={b.nameBn} />
             <FieldCell icon={CalendarDays} label={t("staffOffline.batches.startsOn")} value={b.startsOn ? formatDate(b.startsOn) : "—"} />
             <FieldCell icon={CalendarDays} label={t("staffOffline.batches.endsOn")} value={formatDate(b.endsOn)} />
-            <FieldCell icon={Wallet} label={t("staffOffline.batches.fee")} value={formatMoney(Number(b.defaultMonthlyFee)) ?? "—"} />
+            <FieldCell icon={Wallet} label={t("staffOffline.batches.fee")} value={formatMoney(Number(b.courseFee)) ?? "—"} />
+            <FieldCell icon={Wallet} label={t("staffOffline.batches.installments")} value={String(b.defaultInstallments)} />
             <FieldCell icon={Users} label={t("staffOffline.batches.studentsCount")} value={String(onboarded)} />
             <FieldCell
               icon={Megaphone}

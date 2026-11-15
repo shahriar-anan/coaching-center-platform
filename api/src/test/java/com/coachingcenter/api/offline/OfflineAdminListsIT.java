@@ -442,11 +442,18 @@ class OfflineAdminListsIT extends PostgresIntegrationTest {
 		return admission;
 	}
 
-	/** Sets up, adds an exam and a package, marks ready and onboards an admission the Master Admin owns. */
+	/**
+	 * Sets up, adds an exam and a package, marks ready and onboards an admission the Master Admin owns. The course fee is 3,000 for each
+	 * instalment that fits to the course end, so every instalment is 3,000.
+	 */
 	private void onboardExisting(UUID admission, UUID batch, UUID master, String admittedOn) throws Exception {
 		String token = token(master);
+		JsonNode setup = respond(patch("/api/v1/offline-admissions/" + admission + "/setup", token,
+				"{\"batchId\":\"" + batch + "\",\"admittedOn\":\"" + admittedOn + "\"}"), 200).get("setup");
+		int count = OfflineFeeSchedule.fittingInstallments(java.time.LocalDate.parse(setup.get("firstDueOn").asText()),
+				java.time.LocalDate.parse(setup.get("courseEndsOn").asText()));
 		respond(patch("/api/v1/offline-admissions/" + admission + "/setup", token,
-				"{\"batchId\":\"" + batch + "\",\"admittedOn\":\"" + admittedOn + "\"}"), 200);
+				"{\"installments\":" + count + ",\"courseFee\":" + 3000 * count + "}"), 200);
 		respond(post("/api/v1/offline-admissions/" + admission + "/items", token,
 				"{\"scope\":\"EXAM\",\"examId\":\"" + publishedExam() + "\"}"), 200);
 		respond(post("/api/v1/offline-admissions/" + admission + "/items", token,
@@ -460,7 +467,7 @@ class OfflineAdminListsIT extends PostgresIntegrationTest {
 		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches").header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"nameEn\":\"BJS Evening\",\"nameBn\":\"বিজেএস সন্ধ্যা\",\"endsOn\":\"" + endsOn
-					+ "\",\"defaultMonthlyFee\":" + fee + "}"))
+					+ "\",\"courseFee\":" + fee + "}"))
 			.andExpect(status().isCreated())
 			.andReturn();
 		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());

@@ -54,7 +54,14 @@ final class AdmissionMail {
 	private static RenderedEmail approved(MailContext ctx, MailRecipient to, JsonNode p) {
 		List<String[]> rows = new ArrayList<>();
 		rows.add(new String[] { "ব্যাচ", "Batch", both(p, "batchBn", "batchEn") });
-		rows.add(new String[] { "মাসিক ফি", "Monthly fee", text(p, "monthlyFee") + " BDT" });
+		// The course fee is the total, in monthly instalments (V100). A mail queued before that still carries the monthly fee.
+		if (text(p, "courseFee").isEmpty()) {
+			rows.add(new String[] { "মাসিক ফি", "Monthly fee", text(p, "monthlyFee") + " BDT" });
+		}
+		else {
+			rows.add(new String[] { "কোর্স ফি", "Course fee", text(p, "courseFee") + " BDT" });
+			rows.add(new String[] { "মাসিক কিস্তি", "Monthly instalments", text(p, "installments") });
+		}
 		rows.add(new String[] { "প্রথম পরিশোধের তারিখ", "First due date", day(p, "firstDueOn") });
 		rows.add(new String[] { "কোর্স শেষ", "Course ends", day(p, "courseEndsOn") });
 		// Exams and packages are optional (P18): with none, the row and the sentence about them are left out.

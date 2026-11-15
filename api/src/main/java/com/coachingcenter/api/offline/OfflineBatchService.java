@@ -103,10 +103,11 @@ public class OfflineBatchService {
 		if (endsOn == null && !has(body, "endsOn")) {
 			problems.add(new FieldErrorDetail("endsOn", "Enter the end date."));
 		}
-		BigDecimal fee = fee(body, "defaultMonthlyFee", problems);
-		if (fee == null && !has(body, "defaultMonthlyFee")) {
-			problems.add(new FieldErrorDetail("defaultMonthlyFee", "Enter the default monthly fee."));
+		BigDecimal fee = fee(body, "courseFee", problems);
+		if (fee == null && !has(body, "courseFee")) {
+			problems.add(new FieldErrorDetail("courseFee", "Enter the course fee."));
 		}
+		Integer installments = OfflineSupport.installments(body, "defaultInstallments", problems);
 		Integer classMinutes = has(body, "defaultClassMinutes") ? classMinutes(body, problems) : null;
 		if (startsOn != null && endsOn != null && endsOn.isBefore(startsOn)) {
 			problems.add(new FieldErrorDetail("endsOn", "The end date cannot be before the start date."));
@@ -127,7 +128,11 @@ public class OfflineBatchService {
 		batch.setNameBn(nameBn);
 		batch.setStartsOn(startsOn);
 		batch.setEndsOn(endsOn);
-		batch.setDefaultMonthlyFee(fee);
+		batch.setCourseFee(fee);
+		// Without a number from the admin, the batch is paid in as many instalments as it has months (course-fee-plan.md).
+		batch.setDefaultInstallments(installments != null ? installments
+				: OfflineFeeSchedule.fittingInstallments(startsOn != null ? startsOn : OfflineFeeSchedule.today(now), endsOn));
+		batch.setDefaultMonthlyFee(firstInstallment(batch));
 		batch.setDefaultClassMinutes(classMinutes == null ? DEFAULT_CLASS_MINUTES : classMinutes);
 		batch.setDescriptionEn(descriptionEn);
 		batch.setDescriptionBn(descriptionBn);
@@ -175,12 +180,19 @@ public class OfflineBatchService {
 				batch.setEndsOn(endsOn);
 			}
 		}
-		if (has(body, "defaultMonthlyFee")) {
-			BigDecimal fee = fee(body, "defaultMonthlyFee", problems);
+		if (has(body, "courseFee")) {
+			BigDecimal fee = fee(body, "courseFee", problems);
 			if (fee != null) {
-				batch.setDefaultMonthlyFee(fee);
+				batch.setCourseFee(fee);
 			}
 		}
+		if (has(body, "defaultInstallments")) {
+			Integer installments = OfflineSupport.installments(body, "defaultInstallments", problems);
+			if (installments != null) {
+				batch.setDefaultInstallments(installments);
+			}
+		}
+		batch.setDefaultMonthlyFee(firstInstallment(batch));
 		if (has(body, "defaultClassMinutes")) {
 			Integer classMinutes = classMinutes(body, problems);
 			if (classMinutes != null) {
@@ -372,9 +384,14 @@ public class OfflineBatchService {
 		return value;
 	}
 
+	/** The first instalment of the batch's course fee: what the previous release reads as the monthly fee (V100). */
+	private static BigDecimal firstInstallment(OfflineBatch batch) {
+		return OfflineFeeSchedule.split(batch.getCourseFee(), batch.getDefaultInstallments()).get(0);
+	}
+
 	BatchView view(OfflineBatch batch) {
 		return new BatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getStartsOn(), batch.getEndsOn(),
-				batch.getDefaultMonthlyFee(), batch.getStatus(), onboardedCount(batch.getId()),
+				batch.getCourseFee(), batch.getDefaultInstallments(), batch.getStatus(), onboardedCount(batch.getId()),
 				batch.getRoutineStoredName() != null, batch.getRoutineOriginalName(), batch.getRoutineUploadedAt(),
 				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified(), batch.getDefaultClassMinutes(),
 				batch.getDescriptionEn(), batch.getDescriptionBn(), batch.getPhotoStoredName() != null, batch.isAdmissionsOpen(),
@@ -439,7 +456,7 @@ public class OfflineBatchService {
 		String photo = batch.getPhotoStoredName() == null || batch.getPhotoUploadedAt() == null ? null
 				: "/api/v1/public/offline-batches/" + batch.getId() + "/photo?v=" + batch.getPhotoUploadedAt().toEpochMilli();
 		return new PublicBatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getDescriptionEn(),
-				batch.getDescriptionBn(), batch.getStartsOn(), batch.getEndsOn(), batch.getDefaultMonthlyFee(),
+				batch.getDescriptionBn(), batch.getStartsOn(), batch.getEndsOn(), batch.getCourseFee(), batch.getDefaultInstallments(),
 				batch.isAdmissionsOpen(), photo, routine);
 	}
 
@@ -658,7 +675,7 @@ public class OfflineBatchService {
 	 * are the description, whether a photo is on file, the admissions switch and the display order (V93).
 	 */
 	public record BatchView(UUID id, String nameEn, String nameBn, LocalDate startsOn, LocalDate endsOn,
-			BigDecimal defaultMonthlyFee, String status, long studentCount, boolean routineUploaded, String routineFileName,
+			BigDecimal courseFee, int defaultInstallments, String status, long studentCount, boolean routineUploaded, String routineFileName,
 			Instant routineUploadedAt, @JsonInclude(JsonInclude.Include.ALWAYS) String routineUploadedBy,
 			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified, int defaultClassMinutes, String descriptionEn,
 			String descriptionBn, boolean photoUploaded, boolean admissionsOpen, int displayOrder, String rollStart, String whatsappUrl) {
@@ -669,7 +686,7 @@ public class OfflineBatchService {
 	 * only whether a routine is there. No counts, no staff fields.
 	 */
 	public record PublicBatchView(UUID id, String nameEn, String nameBn, String descriptionEn, String descriptionBn,
-			LocalDate startsOn, LocalDate endsOn, BigDecimal monthlyFee, boolean admissionsOpen, String photoUrl,
+			LocalDate startsOn, LocalDate endsOn, BigDecimal courseFee, int installments, boolean admissionsOpen, String photoUrl,
 			boolean routineAvailable) {
 	}
 

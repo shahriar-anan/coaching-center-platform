@@ -4,17 +4,18 @@ import { describe, expect, it } from "vitest";
 import AccountPage from "@/app/(site)/account/page";
 import { HomePage } from "@/components/student/home/home-page";
 import { StudentShell } from "@/components/shell/student-shell";
-import { apiError, fixtures, mockApi, renderWithProviders } from "../helpers";
+import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { admission, due, schedule } from "./fixture";
 
-const FEES = "GET /api/v1/me/admission/fees";
-const ADMISSION = "GET /api/v1/me/admission";
+// The links read the student's admissions list, and the fees of the onboarded one by its id (admission-access-plan.md).
+const FEES = "GET /api/v1/me/admissions/adm-1/fees";
+const ADMISSION = "GET /api/v1/me/admissions";
 const UNREAD = "GET /api/v1/me/notices/unread-count";
 
 /** Two dues: the first paid, the second owing 2,000. The next payment is the second. */
 const onboardedFees = schedule({ dues: [due(1, "2026-11-15", 3000, 3000), due(2, "2026-12-15", 3000, 1000)] });
 
-const noAdmission = apiError(404, "RESOURCE_NOT_FOUND", "Resource not found.");
+const noAdmission: unknown[] = [];
 
 function renderHome(admissionAnswer: unknown, feesAnswer: unknown = onboardedFees) {
   const api = mockApi({
@@ -52,11 +53,17 @@ function renderAccount(admissionAnswer: unknown) {
 }
 
 const homeCard = () => screen.queryByRole("link", { name: /My admission: next payment/ });
-const feesRequested = (api: { calls: { path: string }[] }) => api.calls.some((call) => call.path === "/api/v1/me/admission/fees");
+const feesRequested = (api: { calls: { path: string }[] }) => api.calls.some((call) => call.path.endsWith("/fees"));
 
 describe("home card (plan 6.4): only for an onboarded admission", () => {
+  it("stays for the batch the student is in while they apply for another", async () => {
+    renderHome([admission("SUBMITTED", { id: "adm-2", source: "ACCOUNT" }), admission("ONBOARDED")]);
+
+    expect(await screen.findByRole("link", { name: /My admission: next payment ৳2,000\.00 on 15 Dec/ })).toBeInTheDocument();
+  });
+
   it("shows the next payment amount and date", async () => {
-    renderHome(admission("ONBOARDED"));
+    renderHome([admission("ONBOARDED")]);
 
     const card = await screen.findByRole("link", { name: /My admission: next payment ৳2,000\.00 on 15 Dec/ });
     expect(card).toHaveAttribute("href", "/offline-activities");
@@ -65,15 +72,15 @@ describe("home card (plan 6.4): only for an onboarded admission", () => {
   it("is not shown to an online student, and makes no fee request", async () => {
     const api = renderHome(noAdmission);
 
-    await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/me/admission")).toBe(true));
+    await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/me/admissions")).toBe(true));
     expect(homeCard()).not.toBeInTheDocument();
     expect(feesRequested(api)).toBe(false);
   });
 
   it("is gone once the admission is closed, and makes no fee request", async () => {
-    const api = renderHome(admission("CLOSED"));
+    const api = renderHome([admission("CLOSED")]);
 
-    await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/me/admission")).toBe(true));
+    await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/me/admissions")).toBe(true));
     expect(homeCard()).not.toBeInTheDocument();
     expect(feesRequested(api)).toBe(false);
   });
@@ -86,7 +93,7 @@ describe("account menu entry: only for an admission that is not closed", () => {
   }
 
   it("is listed for an onboarded admission", async () => {
-    renderShell(admission("ONBOARDED"));
+    renderShell([admission("ONBOARDED")]);
 
     await openMenu();
     expect(await screen.findByRole("menuitem", { name: "My admission" })).toHaveAttribute("href", "/offline-activities");
@@ -101,7 +108,7 @@ describe("account menu entry: only for an admission that is not closed", () => {
   });
 
   it("is not listed once the admission is closed", async () => {
-    renderShell(admission("CLOSED"));
+    renderShell([admission("CLOSED")]);
 
     await openMenu();
     expect(await screen.findByRole("menuitem", { name: "Routine" })).toBeInTheDocument();
@@ -111,7 +118,7 @@ describe("account menu entry: only for an admission that is not closed", () => {
 
 describe("account page row: same rule as the menu", () => {
   it("is shown for an onboarded admission", async () => {
-    renderAccount(admission("ONBOARDED"));
+    renderAccount([admission("ONBOARDED")]);
 
     expect(await screen.findByRole("link", { name: "My admission" })).toHaveAttribute("href", "/offline-activities");
   });
@@ -124,7 +131,7 @@ describe("account page row: same rule as the menu", () => {
   });
 
   it("is not shown once the admission is closed", async () => {
-    renderAccount(admission("CLOSED"));
+    renderAccount([admission("CLOSED")]);
 
     await waitFor(() => expect(screen.getByRole("link", { name: /Payment history/ })).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: "My admission" })).not.toBeInTheDocument();

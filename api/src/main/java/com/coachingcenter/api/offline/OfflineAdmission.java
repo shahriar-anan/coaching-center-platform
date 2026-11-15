@@ -130,8 +130,17 @@ public class OfflineAdmission {
 	@Column(name = "batch_id")
 	private UUID batchId;
 
+	/** The first instalment of the course fee, kept for the previous release (V100). The course fee is the total. */
 	@Column(name = "monthly_fee", precision = 12, scale = 2)
 	private BigDecimal monthlyFee;
+
+	/** The total this student pays for the batch (V100, course-fee-plan.md). */
+	@Column(name = "course_fee", precision = 12, scale = 2)
+	private BigDecimal courseFee;
+
+	/** The number of monthly instalments the course fee is paid in, chosen by the admin (V100). */
+	@Column(name = "installments")
+	private Short installments;
 
 	@Column(name = "admitted_on")
 	private LocalDate admittedOn;
@@ -506,6 +515,22 @@ public class OfflineAdmission {
 
 	public void setMonthlyFee(BigDecimal monthlyFee) {
 		this.monthlyFee = monthlyFee;
+	}
+
+	public BigDecimal getCourseFee() {
+		return courseFee;
+	}
+
+	public void setCourseFee(BigDecimal courseFee) {
+		this.courseFee = courseFee;
+	}
+
+	public Integer getInstallments() {
+		return installments == null ? null : installments.intValue();
+	}
+
+	public void setInstallments(Integer installments) {
+		this.installments = installments == null ? null : installments.shortValue();
 	}
 
 	public LocalDate getAdmittedOn() {

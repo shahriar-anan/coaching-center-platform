@@ -85,6 +85,11 @@ const admission = {
     submittedOn: "Submitted on {date}",
     viewPrint: "View / print my form",
     logout: "Log out",
+    goHome: "Go to home",
+    approvedTitle: "Your admission is approved",
+    batch: "Batch: {batch}",
+    joinBody: "To join the batch, enter the join code the office emailed you. It lasts 7 days.",
+    enterJoinCode: "Enter join code",
   },
   errors: {
     required: "This box must be filled in.",

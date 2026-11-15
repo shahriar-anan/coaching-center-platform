@@ -8,16 +8,16 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { useBatches, type AdmissionSetup, type BatchView } from "@/lib/api/exam/offline-admin";
-import { defaultFirstDue } from "./offline-model";
+import { defaultFirstDue, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
 import { SetupCard } from "./setup-card";
 import { setupTotals, text, type SetupDraft } from "./setup-draft";
 
-/** How many payment dates the line lists before it says "+N more". */
+/** How many instalments the line lists before it says "+N more". */
 const PAYMENT_DATES_SHOWN = 6;
 
 /**
- * Card 1, "Batch and fees": the batch (its default fee, end date and routine are shown with it), the monthly fee, the admitted, first
- * due and course end dates, and the payments the dates create. The fields save through the setup draft; this card only shows and edits
+ * Card 1, "Batch and fees": the batch (its course fee, instalments, end date and routine are shown with it), this student's course fee
+ * and number of instalments, the admitted, first due and course end dates, and the instalments they create (course-fee-plan.md). The fields save through the setup draft; this card only shows and edits
  * them. Read-only unless the admission is under review.
  */
 export function SetupForm({
@@ -57,11 +57,16 @@ export function SetupForm({
       : t("staffOffline.setupScreen.batch.routineUploaded");
   }
 
+  // A batch brings its course fee and end date, and its number of instalments cut down to what fits before that end.
   function chooseBatch(batch: BatchView | undefined) {
+    const courseEndsOn = batch ? text(batch.endsOn) : draft.courseEndsOn;
+    const fitting = draft.firstDueOn && courseEndsOn ? fittingInstallments(draft.firstDueOn, courseEndsOn) : null;
     onEdit({
       batchId: batch?.id ?? "",
-      monthlyFee: batch ? text(batch.defaultMonthlyFee) : draft.monthlyFee,
-      courseEndsOn: batch ? text(batch.endsOn) : draft.courseEndsOn,
+      courseFee: batch ? text(batch.courseFee) : draft.courseFee,
+      // Without a first due date yet, the count is left to the API, which cuts the batch's number to what fits.
+      installments: batch ? (fitting == null ? "" : String(Math.min(batch.defaultInstallments, fitting))) : draft.installments,
+      courseEndsOn,
     });
   }
 
@@ -73,8 +78,8 @@ export function SetupForm({
   }
 
   const totals = setupTotals(draft);
-  const shownDates = totals.dueDates.slice(0, PAYMENT_DATES_SHOWN).map((date) => formatDate(date));
-  const moreDates = totals.dueDates.length - shownDates.length;
+  const shownDates = totals.rows.slice(0, PAYMENT_DATES_SHOWN).map((row) => `${formatDate(row.dueOn)} ${formatMoney(row.amount) ?? ""}`);
+  const moreDates = totals.rows.length - shownDates.length;
 
   return (
     <SetupCard id={id} step={step} title={t("staffOffline.setupScreen.cards.batchFees")}>
@@ -101,7 +106,8 @@ export function SetupForm({
       <div className="rounded-control border border-border-control bg-bg p-3">
         {chosen ? (
           <dl className="grid gap-x-4 gap-y-3 text-body sm:grid-cols-2">
-            <BatchFact label={t("staffOffline.setup.monthlyFee")} value={formatMoney(chosen.defaultMonthlyFee) ?? "—"} />
+            <BatchFact label={t("staffOffline.setup.courseFee")} value={formatMoney(chosen.courseFee) ?? "—"} />
+            <BatchFact label={t("staffOffline.setup.batchInstallments")} value={String(chosen.defaultInstallments)} />
             <BatchFact label={t("staffOffline.setupScreen.batch.endsOn")} value={formatDate(chosen.endsOn)} />
             <BatchFact label={t("staffOffline.batches.routine")} value={routineText(chosen)} />
             <BatchFact label={t("staffOffline.setupScreen.batch.students")} value={String(chosen.studentCount)} />
@@ -125,14 +131,34 @@ export function SetupForm({
       ) : null}
 
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-        <Field label={t("staffOffline.setup.studentMonthlyFee")} error={errors.monthlyFee} reserveHint required>
+        <Field label={t("staffOffline.setup.studentCourseFee")} error={errors.courseFee} reserveHint required>
           <TextInput
             className="h-11"
             inputMode="decimal"
-            value={draft.monthlyFee}
+            value={draft.courseFee}
             disabled={disabled}
-            onChange={(event) => onEdit({ monthlyFee: event.target.value })}
-            invalid={Boolean(errors.monthlyFee)}
+            onChange={(event) => onEdit({ courseFee: event.target.value })}
+            invalid={Boolean(errors.courseFee)}
+          />
+        </Field>
+        <Field
+          label={t("staffOffline.setup.installments")}
+          hint={t("staffOffline.setup.installmentsHint")}
+          error={errors.installments ?? (totals.pastEnd ? t("staffOffline.setup.pastEnd") : undefined)}
+          reserveHint
+          required
+        >
+          <TextInput
+            className="h-11"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_INSTALLMENTS}
+            step={1}
+            value={draft.installments}
+            disabled={disabled}
+            onChange={(event) => onEdit({ installments: event.target.value })}
+            invalid={Boolean(errors.installments) || totals.pastEnd}
           />
         </Field>
         <Field label={t("staffOffline.setup.admittedOn")} error={errors.admittedOn} reserveHint required>

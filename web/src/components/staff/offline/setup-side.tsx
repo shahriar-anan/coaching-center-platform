@@ -39,7 +39,6 @@ export function SetupSide({
   const [open, setOpen] = useState(false);
   const state = admission.state;
   const name = admission.form.fullName?.trim() || "—";
-  const money = formatMoney(totals.fee) ?? "";
   const packages = admission.items.filter((item) => item.scope === "MODULE").length;
   const exams = admission.items.length - packages;
 
@@ -102,7 +101,7 @@ export function SetupSide({
             <dd className="font-latin text-text">
               {totals.months === 0
                 ? t("staffOffline.setup.duesEmpty")
-                : t("staffOffline.setupScreen.totals.line", { fee: money, count: formatNumber(totals.months), total: formatMoney(totals.total) ?? "" })}
+                : t("staffOffline.setupScreen.totals.line", { count: formatNumber(totals.months), total: formatMoney(totals.total) ?? "" })}
             </dd>
           </div>
           {totals.firstDue && totals.lastDue ? (

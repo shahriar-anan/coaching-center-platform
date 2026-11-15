@@ -95,7 +95,8 @@ describe("the header (batch and dates)", () => {
         batchNameBn: "ব্যাচ ৩ (সন্ধ্যা)",
         admittedOn: "2026-11-01",
         courseEndsOn: "2027-03-31",
-        monthlyFee: 3000,
+        courseFee: 9000,
+        installments: 3,
       }),
       schedule(),
     );
@@ -108,12 +109,12 @@ describe("the header (batch and dates)", () => {
     expect(screen.getByText("31 March 2027")).toBeInTheDocument();
   });
 
-  it("shows the monthly fee in the payments card, not in the header", async () => {
-    renderPage(admission("ONBOARDED", { monthlyFee: 3000 }), schedule());
+  it("shows the total course fee in the payments card, not in the header", async () => {
+    renderPage(admission("ONBOARDED", { courseFee: 9000, installments: 3 }), schedule());
 
-    // The schedule also shows 3,000 per instalment, so check the fee inside its own block in the payments card.
-    expect(await screen.findByText("Course fee (per month)")).toBeInTheDocument();
-    expect(screen.getByText("Course fee (per month)").parentElement).toHaveTextContent("৳3,000.00");
+    // The course fee is the total; the instalments are listed under it.
+    expect(await screen.findByText("Course fee")).toBeInTheDocument();
+    expect(screen.getByText("Course fee").parentElement).toHaveTextContent("৳9,000.00");
   });
 
   it("leaves out the batch and date rows the API does not give yet", async () => {
@@ -224,10 +225,19 @@ describe("payments (approved only)", () => {
     expect(screen.getAllByRole("button", { name: "Download receipt" })).toHaveLength(1);
   });
 
-  it("sends a student with a pending admission to the form, and shows none of the sections", async () => {
+  it("shows a pending admission as a card with its action, never sends the student away, and shows none of the sections", async () => {
     renderPage(admission("AWAITING_FORM"));
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission/form"));
+    expect(await screen.findByRole("link", { name: "Open the form" })).toHaveAttribute("href", "/admission/form");
+    expect(screen.getByText("Your form is not sent yet.")).toBeInTheDocument();
+    expect(routerState.replace).not.toHaveBeenCalled();
     expect(screen.queryByRole("heading", { name: "Payments" })).not.toBeInTheDocument();
+  });
+
+  it("leads an approved applicant with a join code out to the join form", async () => {
+    renderPage(admission("READY", { joinCodePending: true, source: "ACCOUNT" }));
+
+    expect(await screen.findByRole("link", { name: "Enter join code" })).toHaveAttribute("href", "/admission/join");
+    expect(routerState.replace).not.toHaveBeenCalled();
   });
 });

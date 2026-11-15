@@ -304,7 +304,7 @@ class OfflineApplicationIT extends PostgresIntegrationTest {
 		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches").header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("""
-					{"nameEn":"%s","nameBn":"ব্যাচ","endsOn":"2027-04-30","defaultMonthlyFee":3000,"admissionsOpen":%s}
+					{"nameEn":"%s","nameBn":"ব্যাচ","endsOn":"2027-04-30","courseFee":3000,"admissionsOpen":%s}
 					""".formatted(name, open)))
 			.andExpect(status().isCreated())
 			.andReturn();

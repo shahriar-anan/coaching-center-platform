@@ -169,7 +169,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		ensureKnown(master, "Anarul Islam");
 		ensureKnown(master, "Milon");
 		JsonNode created = respond(post("/api/v1/offline-batches", master, "{\"nameEn\":\"BJS Foundation\",\"nameBn\":\"বিজেএস ফাউন্ডেশন\","
-				+ "\"startsOn\":\"2026-10-26\",\"endsOn\":\"2027-06-30\",\"defaultMonthlyFee\":3000}"), 201);
+				+ "\"startsOn\":\"2026-10-26\",\"endsOn\":\"2027-06-30\",\"courseFee\":3000}"), 201);
 		UUID batch = UUID.fromString(created.get("id").asText());
 		JsonNode routine = upload(master, batch, "2026-11", sample(), 201);
 		UUID id = id(routine);
@@ -617,7 +617,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 	/** A batch made through the API, as the Master Admin makes it, with the default class length. */
 	private UUID batch(String token, String endsOn) throws Exception {
 		JsonNode created = respond(post("/api/v1/offline-batches", token, "{\"nameEn\":\"BJS Foundation\",\"nameBn\":\"বিজেএস ফাউন্ডেশন\","
-				+ "\"endsOn\":\"" + endsOn + "\",\"defaultMonthlyFee\":3000}"), 201);
+				+ "\"endsOn\":\"" + endsOn + "\",\"courseFee\":3000}"), 201);
 		assertThat(created.get("defaultClassMinutes").asInt()).isEqualTo(80);
 		return UUID.fromString(created.get("id").asText());
 	}

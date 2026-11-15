@@ -1,11 +1,6 @@
 const myAdmission = {
   title: "My admission",
   batchUnnamed: "Batch",
-  pending: {
-    review: "Under review. The office will tell you when it is decided.",
-    form: "Your form is not sent yet.",
-    changes: "The office asked for changes. Open the form to update it.",
-  },
   menu: "My admission",
   batch: "Batch",
   roll: "Roll number",
@@ -53,7 +48,7 @@ const myAdmission = {
     progress: "Fee paid so far",
     paidSoFar: "Paid so far",
     stillOwed: "Still owed",
-    monthlyFee: "Course fee (per month)",
+    courseFee: "Course fee",
     overdue: "{amount} was due on {date}",
     schedule: "Instalments",
     installment: "Instalment {no}",

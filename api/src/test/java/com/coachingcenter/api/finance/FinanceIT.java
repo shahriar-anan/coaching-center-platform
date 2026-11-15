@@ -431,7 +431,7 @@ class FinanceIT extends PostgresIntegrationTest {
 	private UUID batch(String token) throws Exception {
 		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches").header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"nameEn\":\"Finance\",\"nameBn\":\"ফিন্যান্স\",\"endsOn\":\"2200-06-30\",\"defaultMonthlyFee\":3000}"))
+			.content("{\"nameEn\":\"Finance\",\"nameBn\":\"ফিন্যান্স\",\"endsOn\":\"2200-06-30\",\"courseFee\":3000}"))
 			.andExpect(status().isCreated())
 			.andReturn();
 		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());

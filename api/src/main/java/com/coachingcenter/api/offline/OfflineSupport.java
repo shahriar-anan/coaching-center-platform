@@ -95,6 +95,30 @@ final class OfflineSupport {
 		}
 	}
 
+	/**
+	 * A number of monthly instalments, 1 to {@link OfflineFeeSchedule#MAX_INSTALLMENTS}, or a problem for that field. Null when the body
+	 * does not name it.
+	 */
+	static Integer installments(JsonNode body, String key, List<FieldErrorDetail> problems) {
+		if (!has(body, key)) {
+			return null;
+		}
+		String text = body.get(key).asText().trim();
+		int count;
+		try {
+			count = Integer.parseInt(text);
+		}
+		catch (NumberFormatException exception) {
+			problems.add(new FieldErrorDetail(key, "Enter the number of instalments as a whole number."));
+			return null;
+		}
+		if (count < 1 || count > OfflineFeeSchedule.MAX_INSTALLMENTS) {
+			problems.add(new FieldErrorDetail(key, "Choose from 1 to " + OfflineFeeSchedule.MAX_INSTALLMENTS + " instalments."));
+			return null;
+		}
+		return count;
+	}
+
 	/** An id, or a problem for that field when the text is not a UUID. */
 	static UUID uuid(JsonNode body, String key, List<FieldErrorDetail> problems) {
 		if (!has(body, key)) {

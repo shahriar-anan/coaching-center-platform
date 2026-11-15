@@ -76,7 +76,7 @@ public class OfflineAdmissionService {
 	 * waits for the student (W7).
 	 */
 	public record AdmissionView(UUID id, String state, String changesReason, Instant submittedAt, int submitCount,
-			boolean hasPhoto, Form form, String batchNameEn, String batchNameBn, BigDecimal monthlyFee, LocalDate admittedOn,
+			boolean hasPhoto, Form form, String batchNameEn, String batchNameBn, BigDecimal courseFee, Integer installments, LocalDate admittedOn,
 			LocalDate courseEndsOn, boolean hasRoutine, UUID batchId, String source, boolean joinCodePending, String rollNo, String whatsappUrl) {
 	}
 
@@ -504,7 +504,7 @@ public class OfflineAdmissionService {
 		boolean after = afterOnboarding(a);
 		BatchLabel batch = batchLabel(a.getBatchId());
 		return new AdmissionView(a.getId(), a.getStatus(), a.getChangesReason(), a.getSubmittedAt(), a.getSubmitCount(),
-				photoOnFile(a), form(a), batch.nameEn(), batch.nameBn(), after ? a.getMonthlyFee() : null,
+				photoOnFile(a), form(a), batch.nameEn(), batch.nameBn(), after ? a.getCourseFee() : null, after ? a.getInstallments() : null,
 				after ? a.getAdmittedOn() : null, after ? a.getCourseEndsOn() : null, after && batch.hasRoutine(), a.getBatchId(),
 				a.getSource(), OfflineAdmissionAdminService.joinPending(a), after ? a.getRollNo() : null,
 				OfflineAdmission.ONBOARDED.equals(a.getStatus()) ? batch.whatsappUrl() : null);

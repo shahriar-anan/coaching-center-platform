@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, type UseQueryResult } from "@tanstack/react-query";
 import { BookOpen, Download, FileText, Package, Printer, Wallet } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { formatDate, formatMoney, formatNumber, pickTitle } from "@/lib/format";
 import { serverNow, useServerNow } from "@/lib/time/clock";
-import { ADMISSION_HOME, isPendingAdmission } from "@/lib/admission/gate";
+import { admissionStep, admissionStepHref, isPendingAdmission } from "@/lib/admission/gate";
 import { nextDueOf, visiblePayments } from "@/lib/admission/my-admission";
 import { useMyAdmission, type AdmissionView } from "@/lib/api/exam/offline-admission";
 import { useMyAdmissionResults } from "@/lib/api/exam/my-results";
@@ -151,7 +150,7 @@ function PaymentRow({ payment, onFailed }: { payment: StudentPayment; onFailed: 
  * The payments card: how much of the whole fee is paid (a bar and three figures), the instalments with a status each, then the
  * approved payments with their receipts. The next payment and any overdue amount are already at the top of the page.
  */
-function PaymentsSection({ fees, monthlyFee }: { fees: UseQueryResult<StudentSchedule>; monthlyFee: number | null }) {
+function PaymentsSection({ fees, courseFee }: { fees: UseQueryResult<StudentSchedule>; courseFee: number | null }) {
   const { t, locale } = useLocale();
   const [downloadFailed, setDownloadFailed] = useState(false);
 
@@ -192,18 +191,18 @@ function PaymentsSection({ fees, monthlyFee }: { fees: UseQueryResult<StudentSch
           </div>
         ) : null}
 
-        {/* Two tiles a row on a phone (the monthly fee then takes a row of its own), three from sm up. */}
-        <dl className={cn("grid gap-2", monthlyFee != null ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2")}>
+        {/* Two tiles a row on a phone (the course fee then takes a row of its own), three from sm up. */}
+        <dl className={cn("grid gap-2", courseFee != null ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2")}>
           <StatCell label={t("myAdmission.payments.paidSoFar")} value={formatMoney(paid, locale) ?? "—"} tone="ok" />
           <StatCell
             label={t("myAdmission.payments.stillOwed")}
             value={formatMoney(schedule.owed, locale) ?? "—"}
             tone={schedule.overdue > 0 ? "warn" : undefined}
           />
-          {monthlyFee != null ? (
+          {courseFee != null ? (
             <StatCell
-              label={t("myAdmission.payments.monthlyFee")}
-              value={formatMoney(monthlyFee, locale) ?? "—"}
+              label={t("myAdmission.payments.courseFee")}
+              value={formatMoney(courseFee, locale) ?? "—"}
               className="col-span-2 sm:col-span-1"
             />
           ) : null}
@@ -410,27 +409,33 @@ function AdmissionBlock({ admission, admissionId }: { admission: AdmissionView; 
 
       <RoutineSection admission={admission} admissionId={admissionId} />
       {open ? <ResultsSection admissionId={admission.id} results={results} /> : null}
-      <PaymentsSection fees={fees} monthlyFee={admission.monthlyFee ?? null} />
+      <PaymentsSection fees={fees} courseFee={admission.courseFee ?? null} />
       <ItemsSection items={items} />
       <FormSection admission={admission} />
     </>
   );
 }
 
-/** A batch the student has applied to that is not onboarded yet: its name and where it stands. Shown beside the open ones. */
+/**
+ * A batch the student has applied to that is not onboarded yet: its name, where it stands, and the action that moves it on (the form,
+ * the print view, or the join code). Shown beside the open ones.
+ */
 function PendingBatchCard({ admission }: { admission: AdmissionView }) {
   const { t, locale } = useLocale();
   const batch = pickTitle({ titleEn: admission.batchNameEn, titleBn: admission.batchNameBn }, locale) || t("myAdmission.batchUnnamed");
-  const note =
-    admission.state === "CHANGES_REQUESTED"
-      ? t("myAdmission.pending.changes")
-      : admission.state === "AWAITING_FORM"
-        ? t("myAdmission.pending.form")
-        : t("myAdmission.pending.review");
+  const step = admissionStep(admission);
+  const href = admissionStepHref(step);
   return (
-    <section aria-label={batch} className="grid gap-1 rounded-card border border-border bg-card p-4">
+    <section aria-label={batch} className="mb-4 grid gap-2 rounded-card border border-border bg-card p-4" data-step={step}>
       <p className="text-card-title font-bold text-text">{batch}</p>
-      <p className="text-body text-muted">{note}</p>
+      <p className="text-body text-muted">{t(`publicAdmission.mine.step.${step}`)}</p>
+      {href ? (
+        <div>
+          <Button href={href} size="sm" variant={step === "REVIEW" ? "secondary" : "primary"}>
+            {t(`publicAdmission.mine.action.${step}`)}
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -468,25 +473,16 @@ export function AdmissionSections({ admissions }: { admissions: AdmissionView[] 
  * The admission card, the glance strip and the sections come first, in the order a student uses them: routine, payments, exams and
  * packages, the form. A closed admission shows the same history with no next class. `offers` adds the published batches the student is
  * not already in, and with no admission at all shows only those. Without `offers`, a student with no admission gets the not-found page.
- * A student with nothing open (every application still under review) is sent to the form (plan 4.5).
+ * An application still in progress is a card with its step and action; it never sends the student away (admission-access-plan.md).
  */
 export function MyAdmissionPage({ title, offers = false }: { title?: string; offers?: boolean } = {}) {
   const { t } = useLocale();
-  const router = useRouter();
   const admission = useMyAdmission();
   const data = admission.data;
   const list = useMyAdmissions({ enabled: data != null });
   // With several admissions the list has them all; if it cannot be read, the newest one stands alone.
   const admissions = list.data && list.data.length > 0 ? list.data : data ? [data] : [];
-  const openAdmissions = admissions.filter((item) => !isPendingAdmission(item.state));
-  const pending = data != null && openAdmissions.length === 0;
   const pageTitle = title ?? t("myAdmission.title");
-
-  useEffect(() => {
-    if (pending) {
-      router.replace(ADMISSION_HOME);
-    }
-  }, [pending, router]);
 
   if (admission.isPending || (data != null && list.isPending)) {
     return <Loading />;
@@ -513,10 +509,6 @@ export function MyAdmissionPage({ title, offers = false }: { title?: string; off
       />
     );
   }
-  if (pending) {
-    return null;
-  }
-
   return (
     <>
       <PageHeader title={pageTitle} breadcrumbs={crumbs} />

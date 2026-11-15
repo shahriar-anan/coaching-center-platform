@@ -26,8 +26,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { cn } from "@/components/ui/cn";
-import { admissionRedirect, isPendingAdmission } from "@/lib/admission/gate";
-import { useMyAdmission } from "@/lib/api/exam/offline-admission";
+import { admissionRedirect, isLockedOut } from "@/lib/admission/gate";
+import { useMyAdmissions } from "@/lib/api/exam/my-admission";
 import { showsMyAdmissionLinks } from "@/lib/admission/my-admission";
 import { MY_ADMISSION_HREF } from "@/components/student/my-admission/admission-links";
 
@@ -141,8 +141,8 @@ function isActive(pathname: string, href: string): boolean {
 function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
   const { session, logout } = useSession();
-  // The same admission query the shell already holds, so this costs no request (students only).
-  const admission = useMyAdmission({
+  // The same admissions query the shell already holds, so this costs no request (students only).
+  const admissions = useMyAdmissions({
     enabled: offlineAdmissionEnabled && session.status === "authenticated" && session.user.role === "STUDENT",
   });
   if (session.status !== "authenticated") {
@@ -189,7 +189,7 @@ function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
           <MenuLink href="/wishlist" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
           <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />
-          {offlineAdmissionEnabled && user.role === "STUDENT" && showsMyAdmissionLinks(admission.data?.state) ? (
+          {offlineAdmissionEnabled && user.role === "STUDENT" && (Array.isArray(admissions.data) && admissions.data.some((item) => showsMyAdmissionLinks(item.state))) ? (
             <MenuLink href={MY_ADMISSION_HREF} icon={GraduationCap} label={t("myAdmission.menu")} />
           ) : null}
           {user.role !== "STUDENT" ? (
@@ -365,14 +365,13 @@ export function StudentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const signedIn = session.status === "authenticated";
   const student = signedIn && session.user.role === "STUDENT";
-  // A student whose offline admission is not yet onboarded is pending: only the form and its print view are open (plan 4.5).
-  // Anyone else, and a student with no admission (the query gives null), is unaffected.
+  // Only a walk-in (desk) student whose admission is not onboarded, with no onboarded batch, is held on the admission pages: the
+  // API's rule (plan 4.5, admission-access-plan.md). An online application, or one from an account, takes nothing away.
   // While the offline admission switch is off no admission can be pending, so the gate and the query stay idle.
-  const admission = useMyAdmission({ enabled: student && offlineAdmissionEnabled });
-  const admissionState = admission.data?.state;
-  const pending = offlineAdmissionEnabled && isPendingAdmission(admissionState);
+  const admissions = useMyAdmissions({ enabled: student && offlineAdmissionEnabled });
+  const pending = offlineAdmissionEnabled && student && isLockedOut(admissions.data);
   const gateTarget = offlineAdmissionEnabled
-    ? admissionRedirect({ pathname, role: student ? "STUDENT" : null, state: admissionState })
+    ? admissionRedirect({ pathname, role: student ? "STUDENT" : null, locked: pending })
     : null;
   useEffect(() => {
     if (gateTarget) {

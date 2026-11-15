@@ -97,7 +97,8 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 
 		JsonNode closed = card(cards, first);
 		assertThat(closed.get("admissionsOpen").asBoolean()).isFalse();
-		assertThat(closed.get("monthlyFee").decimalValue().compareTo(new java.math.BigDecimal("3000"))).isZero();
+		assertThat(closed.get("courseFee").decimalValue().compareTo(new java.math.BigDecimal("3000"))).isZero();
+		assertThat(closed.get("installments").asInt()).isBetween(1, 24);
 		assertThat(closed.get("descriptionEn").asText()).isEqualTo("Evening classes, in person.");
 		assertThat(closed.hasNonNull("photoUrl")).isFalse();
 		assertThat(closed.get("routineAvailable").asBoolean()).isFalse();
@@ -274,7 +275,7 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches")
 			.header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
 			.content("""
-					{"nameEn":"%s","nameBn":"ব্যাচ","endsOn":"2027-04-30","defaultMonthlyFee":3000,
+					{"nameEn":"%s","nameBn":"ব্যাচ","endsOn":"2027-04-30","courseFee":3000,
 					 "descriptionEn":"Evening classes, in person.","admissionsOpen":%s,"displayOrder":%d}
 					""".formatted(name, open, order)))
 			.andExpect(status().isCreated())

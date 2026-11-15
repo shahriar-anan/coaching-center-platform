@@ -35,8 +35,17 @@ public class OfflineBatch {
 	@Column(name = "ends_on", nullable = false)
 	private LocalDate endsOn;
 
+	/** The first instalment of the course fee, kept for the previous release (V100). The course fee is the total. */
 	@Column(name = "default_monthly_fee", nullable = false, precision = 12, scale = 2)
 	private BigDecimal defaultMonthlyFee;
+
+	/** The total a student pays for the batch (V100, course-fee-plan.md). */
+	@Column(name = "course_fee", nullable = false, precision = 12, scale = 2)
+	private BigDecimal courseFee;
+
+	/** The number of monthly instalments a new admission starts with, 1 to 24 (V100). */
+	@Column(name = "default_installments", nullable = false)
+	private short defaultInstallments;
 
 	/** The roll the batch's first student gets (rule R5). Digits only, 4 to 12 long; null when the batch names none. */
 	@Column(name = "roll_start", length = 12)
@@ -181,6 +190,22 @@ public class OfflineBatch {
 
 	public void setDefaultMonthlyFee(BigDecimal defaultMonthlyFee) {
 		this.defaultMonthlyFee = defaultMonthlyFee;
+	}
+
+	public BigDecimal getCourseFee() {
+		return courseFee;
+	}
+
+	public void setCourseFee(BigDecimal courseFee) {
+		this.courseFee = courseFee;
+	}
+
+	public int getDefaultInstallments() {
+		return defaultInstallments;
+	}
+
+	public void setDefaultInstallments(int defaultInstallments) {
+		this.defaultInstallments = (short) defaultInstallments;
 	}
 
 	public String getRoutineStoredName() {

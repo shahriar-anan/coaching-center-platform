@@ -389,7 +389,7 @@ class OfflineClassSettleIT extends PostgresIntegrationTest {
 
 	private UUID batch(String token) throws Exception {
 		JsonNode created = respond(post("/api/v1/offline-batches", token, "{\"nameEn\":\"Settle\",\"nameBn\":\"সেটল\","
-				+ "\"endsOn\":\"2027-06-30\",\"defaultMonthlyFee\":3000}"), 201);
+				+ "\"endsOn\":\"2027-06-30\",\"courseFee\":3000}"), 201);
 		return UUID.fromString(created.get("id").asText());
 	}
 
