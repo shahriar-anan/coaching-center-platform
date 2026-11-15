@@ -104,3 +104,26 @@ after onboarding as now. Not before the form is submitted, and not once closed.
   - Live admissions: 1 onboarded and 2 closed. The office onboarded one before this release, so it keeps the even split it was
     onboarded with.
 - **Rollback:** put back `api.jar.before-plan-20261115-132241` (V102 only adds a column) and the web directory.
+
+## 7. Released: drafts, the staff batch photo, and hiding the routine (15 Nov, 20:28 Dhaka)
+
+- **Commit and builds:** `e5ffa8c`, plus `92f6ab5` (test only: the route list in `AuditLogIT`). Flyway 103. Jar `api-e5ffa8c.jar`
+  (SHA-256 `d627f79c…`). Web `web-e5ffa8c-20261115-141613.tgz`, build `smZOpeJV6TPCjkUfXdaZL`.
+- **What changed:**
+  - Batches are drafts until the Master Admin publishes them; a published batch's form is locked until it is moved back to draft.
+    The existing batches (3 active, 1 archived) were marked published.
+  - The staff batch page and form show the uploaded photo. It was a 405 on the read before.
+  - Students can hide the routine down to the next class and the next exam.
+- **Tests:**
+  - Web 2178/2178; browser check 15/15.
+  - Offline, Finance and AuditLogIT green. A full API run was stopped after it showed only the route-list gap; Shahriar chose the
+    relevant tests over a second full run.
+- **Backup (20:25):** `coaching-pre-publish-20261115-142517.dump` (581 entries) and the files tar, on the box and in
+  `F:\cc-releases\backup-pre-publish-20261115-142517` (hashes match). `api.jar.before-publish-20261115-142517` is on the box.
+- **Swap:** one written live sitting was open (20:20 to 23:30, no draft yet). Shahriar chose to swap during it.
+  - API: Flyway 103, 0 failed, started in 16 s.
+  - Web: up after 1 s; the previous site is kept at `/opt/coaching-web.before-20261115-142912`.
+- **Smoke:**
+  - 9 pages and APIs answer 200; staff routes 401;
+  - 0 errors and 0 5xx;
+  - counts as expected (users 204, participants 194, orders 7, grants 31); the sitting is still in progress.
