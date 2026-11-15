@@ -51,3 +51,6 @@ coverage/
 docs/exam-site/reports/private/
 /.nr01-slots/
 /.nr01-queue/
+
+# Client data and offline admission plans: kept on this PC only, not in the repository.
+docs/offline-admission/
