@@ -13,6 +13,14 @@ Each stage adds what was built, where it differs from this plan, and the test re
 - OFFLINE_CLASSES_OVERDUE, payload `count`. Text: "{count} offline classes have waited more than a week." Link: /staff/offline-instructor-payments.
 - OFFLINE_ENTRIES_DECIDED, payload `approved` and `rejected`. Text: "{approved} of your entries were approved, {rejected} rejected." Link: /staff/offline-instructor-payments.
 
+**Change of 13 November 2026 (Shahriar): routines count from their upload day, not a month.** This replaces the monthly model of sections 4.2, 4.4 and 8.1.
+- No month is chosen or read. A routine counts from the Dhaka date it is uploaded (`effective_from`, `V92__offline_routine_effective_from.sql`). A batch has one live (CONFIRMED) routine; confirming a new one supersedes the old one, which stays as the record. Versions count per batch.
+- Rows dated before that day are flagged DATE_PAST (replacing DATE_OUT_OF_MONTH), shown folded on the preview, and still become classes, which can be edited like any other.
+- A confirm replaces only the classes from `effective_from` onward: matched unsettled classes take the new values, and unsettled routine classes no row lists are cancelled. Classes before that day are left as they are, even unsettled ones; an earlier row with no class adds one.
+- Instructors come from the PDF. A name no instructor has (by name or alias) is added as a new instructor on confirm and does not block it; a row with no name stays without an instructor.
+- One Change dialog, on the preview and on the Classes tab: "Instructor as per routine: {name}", the routine's (or batch's) instructors to pick, or a typed name (an existing one is reused, a new one is added). On the preview, picking for a name that is not an instructor yet updates every row with that name and keeps the name as an alias. A class's instructor can be changed until it is settled; the class Edit dialog no longer has the instructor field.
+- The student copy for a month is the newest confirmed routine that counts from a day in or before that month.
+
 
 ## 1. What is being built
 
@@ -251,3 +259,25 @@ Rules as in the admission plan (section 10.1): test at the end of each stage; up
 ## 12. Open items
 
 None blocking. G1–G7 are choices to confirm; the rest is decided.
+
+## Browser check (15 Nov, after the build)
+Run on coaching_center_review with the client's routine PDF (flow 5, 54/54), screens reviewed: instructor added; upload and preview
+(43 rows, 24 earlier dates folded, flags in words); "Milon" matched to an existing instructor, which reaches all 12 of his classes,
+earlier ones too; confirm; the student's routine and student copy carry no names; rates; a substitute typed on an earlier class with its
+own rate; staff payment with a note for a lower amount, a not-taken mark, a class not held yet refused; Master Admin approve, reject,
+own payment at once; staff decision notice; a rate change leaves the paid class alone; a fee recorded; Finance by batch (fees 3000,
+instructor cost 950, net 2050, 68.3%), by instructor, entries and CSV, phone width, refused to the System Admin; a re-upload keeps
+settled classes.
+
+Fixed during the check:
+- Students saw "Your routine will appear here" after a routine was confirmed: hasRoutine read only the old single-PDF column. It now
+  also counts a confirmed routine (OfflineAdmissionService, with a test in OfflineRoutineIT).
+- Assign on a class with no instructor crashed the batch page: the API leaves out empty fields, and the dialog read the missing name.
+- Every class showed an "Overridden" pill, for the same reason; the pay dialog and the instructor grouping had the same strict checks.
+- Recording a fee always failed with "Check the highlighted fields" and nothing highlighted: the API needs a reference, the dialog
+  treated it as optional. It is now required, filled in for cash (CASH-yyyymmdd) as in the direct-enrolment dialog, and its error shows.
+- The routine check page cut off times and the kind at 1280 px and crushed subject and topic at 1024 px: the table now starts at
+  1280 px, with a four-column card below it.
+
+Noted, not changed: the sample's mistyped date 27-07-2026 is flagged out of order in the preview, but confirming does not require a fix,
+so it becomes a held class on 27 July, before the batch starts.
