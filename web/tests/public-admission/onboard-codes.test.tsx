@@ -80,9 +80,20 @@ describe("after onboarding, the code can be sent again (plan P8)", () => {
     renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, { user: fixtures.masterAdmin, locale: "en", route: ROUTE });
 
     expect(await screen.findByText(/Code sent on/)).toBeInTheDocument();
+    // No code from the API (it is used or cancelled): none is shown.
+    expect(screen.queryByText("Code:")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Send a new code" }));
     await waitFor(() =>
       expect(api.calls.some((call) => call.method === "POST" && call.path === `/api/v1/offline-admissions/${ADMISSION_ID}/resend-code`)).toBe(true),
     );
+  });
+
+  it("shows the code that was sent while it can still be used, so staff can read it out (V101)", async () => {
+    mockApi(baseRoutes({ state: "READY", source: "PUBLIC", joinPending: true, joinCodeSentAt: "2026-11-15T10:00:00Z", canResendCode: true,
+      sentCode: "AB23CD45" }));
+    renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, { user: fixtures.masterAdmin, locale: "en", route: ROUTE });
+
+    expect(await screen.findByText("AB23CD45")).toBeInTheDocument();
+    expect(screen.getByText("Read it out to the student if the email does not arrive.")).toBeInTheDocument();
   });
 });

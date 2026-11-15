@@ -46,7 +46,7 @@ export function noticeKindLabelKey(kind: string): string {
 }
 
 /** The part of a notice the link needs. */
-export type NoticeTarget = { kind: string; exam: { id: string } | null };
+export type NoticeTarget = { kind: string; exam: { id: string } | null; code?: string | null };
 
 /** The offline admission and fee kinds: their row opens the student's offline activities page (plan section 7). */
 const OFFLINE_KINDS: readonly string[] = [
@@ -84,7 +84,8 @@ export function noticeHref(notice: NoticeTarget): string | null {
     return RESULT_KINDS.includes(notice.kind) ? `/exam/${notice.exam.id}/result` : `/exam/${notice.exam.id}`;
   }
   if (notice.kind === "PURCHASE_GRANTED") return "/my-modules";
-  if (notice.kind === "ADMISSION_JOIN_CODE") return "/admission/join";
+  // The join form reads the code from the address fragment, so the student only presses Join (V101).
+  if (notice.kind === "ADMISSION_JOIN_CODE") return notice.code ? `/admission/join#code=${encodeURIComponent(notice.code)}` : "/admission/join";
   if (OFFLINE_KINDS.includes(notice.kind)) return "/offline-activities";
   return null;
 }

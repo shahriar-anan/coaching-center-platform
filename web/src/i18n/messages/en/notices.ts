@@ -77,6 +77,7 @@ const notices = {
   openExamAction: "Open exam",
   openOffline: "Open offline activities",
   enterJoinCode: "Enter the join code",
+  joinCode: "Your join code:",
   myExams: "My exams",
   viewPayment: "View payment",
   startsAt: "Starts {time}",

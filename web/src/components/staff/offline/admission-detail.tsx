@@ -110,8 +110,9 @@ export function AdmissionDetailView({ id }: { id: string }) {
 }
 
 /**
- * After onboarding: when the join or activation code was sent, and a button for a new one (plan P8). The new code replaces the old one,
- * which stops working at once. Only the Master Admin sees it, as only the Master Admin onboards.
+ * After onboarding: when the join or activation code was sent, the code itself while it can still be used (V101, so staff can read it
+ * out to the student), and a button for a new one (plan P8). The new code replaces the old one, which stops working at once. Only the
+ * Master Admin sees it, as only the Master Admin onboards.
  */
 function CodeStatus({ admission }: { admission: AdmissionDetail }) {
   const { t } = useLocale();
@@ -123,11 +124,22 @@ function CodeStatus({ admission }: { admission: AdmissionDetail }) {
   }
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-control bg-card px-3 py-2">
-      <p className="text-body text-text">
-        {admission.joinPending
-          ? t("staffOffline.onboard.waiting", { date: formatDate(admission.joinCodeSentAt) })
-          : t("staffOffline.onboard.codeSent", { date: formatDate(admission.joinCodeSentAt) })}
-      </p>
+      <div className="grid min-w-0 gap-1">
+        <p className="text-body text-text">
+          {admission.joinPending
+            ? t("staffOffline.onboard.waiting", { date: formatDate(admission.joinCodeSentAt) })
+            : t("staffOffline.onboard.codeSent", { date: formatDate(admission.joinCodeSentAt) })}
+        </p>
+        {admission.sentCode ? (
+          <p className="text-body text-text">
+            {t("staffOffline.onboard.codeLabel")}{" "}
+            <span className="select-all rounded-control bg-bg px-2 py-0.5 font-mono text-label font-bold tracking-widest">
+              {admission.sentCode}
+            </span>
+            <span className="ms-2 text-meta text-muted">{t("staffOffline.onboard.codeHint")}</span>
+          </p>
+        ) : null}
+      </div>
       {admission.canResendCode ? (
       <Button
         size="sm"

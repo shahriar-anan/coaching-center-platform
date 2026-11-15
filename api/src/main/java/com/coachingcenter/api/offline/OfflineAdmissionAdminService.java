@@ -509,6 +509,7 @@ public class OfflineAdmissionAdminService {
 		Instant now = clock.instant();
 		a.setStatus(CHANGES_REQUESTED);
 		clearJoinCode(a);
+		studentNotices.clearJoinCodes(a.getId());
 		a.setChangesReason(text);
 		a.setChangesRequestedBy(actorId);
 		a.setChangesRequestedAt(now);
@@ -588,6 +589,7 @@ public class OfflineAdmissionAdminService {
 		Instant now = clock.instant();
 		a.setStatus(SUBMITTED);
 		clearJoinCode(a);
+		studentNotices.clearJoinCodes(a.getId());
 		a.setReadyBy(null);
 		a.setReadyAt(null);
 		admissions.saveAndFlush(a);
@@ -718,6 +720,7 @@ public class OfflineAdmissionAdminService {
 			a.setRollNo(null);
 		}
 		a.setJoinCodeHash(null);
+		a.setSentCode(null);
 		a.setJoinCodeExpiresAt(null);
 		a.setJoinCodeSentAt(null);
 		a.setJoinCodeSentBy(null);
@@ -941,13 +944,15 @@ public class OfflineAdmissionAdminService {
 		String phoneOwnerName = a.getStudentId() == null && match.isEmpty()
 				? matcher.phoneOwner(a.getMobile()).map(user -> matcher.nameOf(user.getId())).orElse(null) : null;
 		List<ItemOverlaps> overlaps = itemOverlaps(a, active);
+		// The code goes to staff only while it can still be used: the student has not joined, or the new account is not activated (V101).
+		boolean resend = canResendCode(a);
 		return new AdmissionDetail(a.getId(), a.getStudentId(), a.getStatus(), a.getVersion() == null ? 0L : a.getVersion(),
 				a.getSubmitCount(), a.getSubmittedAt(), a.getCreatedAt(), hasPhoto, hasPhoto ? photoPath(a) : null,
 				OfflineAdmissionService.form(a), a.getChangesReason(), a.getChangesRequestedAt(), setup, itemViews, history,
 				readyProblems, a.getReadyBy(), a.getReadyAt(), a.getOnboardedBy(), a.getOnboardedAt(), a.getClosedAt(),
 				a.getClosedReason(), signed, overlaps, a.getSource(), matchedName, matchedEmail, a.getJoinCodeSentAt(), alreadyAccessTo(a),
 				match.isPresent() && matchedHasBatch(match.get().getId(), a), linked != null, phoneOwnerName, joinPending(a),
-				canResendCode(a), a.getRollNo());
+				resend, a.getRollNo(), resend ? a.getSentCode() : null);
 	}
 
 	/**
@@ -1086,7 +1091,7 @@ public class OfflineAdmissionAdminService {
 			List<FieldErrorDetail> readyProblems, UUID readyBy, Instant readyAt, UUID onboardedBy, Instant onboardedAt,
 			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps, String source,
 			String matchedName, String matchedEmail, Instant joinCodeSentAt, List<BatchName> alreadyAccessTo, boolean matchedHasBatch,
-			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo) {
+			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo, String sentCode) {
 	}
 
 	/** A batch's two names, for the batches a student already has (P14). */

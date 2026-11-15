@@ -31,7 +31,10 @@ class OfflineAdmissionNotices {
 
 	static final String BATCH_ROUTINE_UPDATED = "BATCH_ROUTINE_UPDATED";
 
-	/** The join code of an admitted batch is ready for the account holder (V94). The notice carries no code. */
+	/**
+	 * The join code of an admitted batch is ready for the account holder (V94). Since V101 the notice carries the code, as the email
+	 * does, while it still works.
+	 */
 	static final String ADMISSION_JOIN_CODE = "ADMISSION_JOIN_CODE";
 
 	/** A student who already has access to a batch was onboarded to another one (P14). */
@@ -44,11 +47,23 @@ class OfflineAdmissionNotices {
 	static final String OFFLINE_RESULT_UPDATED = "OFFLINE_RESULT_UPDATED";
 
 	private static final String INSERT_NOTICE = """
-			insert into student_notices (id, user_id, kind, message_key, exam_id, module_id, participant_id, created_at)
-			select ?, u.id, ?, ?, null, null, null, ?
+			insert into student_notices (id, user_id, kind, message_key, exam_id, module_id, participant_id, created_at, code)
+			select ?, u.id, ?, ?, null, null, null, ?, ?
 			from users u
 			where u.id = ? and u.role = 'STUDENT' and u.status = 'ACTIVE' and u.deleted_at is null
 			on conflict (kind, message_key) do nothing
+			""";
+
+	/**
+	 * The join-code notice. A second code sent with the same key (the same instant) puts the new code on that notice instead of being
+	 * dropped, so the newest code is always shown.
+	 */
+	private static final String INSERT_CODE_NOTICE = """
+			insert into student_notices (id, user_id, kind, message_key, exam_id, module_id, participant_id, created_at, code)
+			select ?, u.id, ?, ?, null, null, null, ?, ?
+			from users u
+			where u.id = ? and u.role = 'STUDENT' and u.status = 'ACTIVE' and u.deleted_at is null
+			on conflict (kind, message_key) do update set code = excluded.code
 			""";
 
 	private static final String INSERT_MAIL = """
@@ -74,7 +89,21 @@ class OfflineAdmissionNotices {
 
 	/** One student notice (in-app). Returns true when the row was new. */
 	boolean notice(UUID studentId, String kind, String key) {
-		return jdbc.update(INSERT_NOTICE, UUID.randomUUID(), kind, key, Timestamp.from(clock.instant()), studentId) == 1;
+		return jdbc.update(INSERT_NOTICE, UUID.randomUUID(), kind, key, Timestamp.from(clock.instant()), null, studentId) == 1;
+	}
+
+	/** One student notice that shows a code (the join code, V101). Returns true when the row was new. */
+	boolean noticeWithCode(UUID studentId, String kind, String key, String code) {
+		return jdbc.update(INSERT_CODE_NOTICE, UUID.randomUUID(), kind, key, Timestamp.from(clock.instant()), code, studentId) == 1;
+	}
+
+	/**
+	 * Takes the join code off every join-code notice of one admission (its keys start with the admission's id): the code was replaced,
+	 * used, or the admission was closed, so it no longer works and is not shown.
+	 */
+	void clearJoinCodes(UUID admissionId) {
+		jdbc.update("update student_notices set code = null where kind = ? and message_key like ? and code is not null",
+				ADMISSION_JOIN_CODE, admissionId + ":%");
 	}
 
 	/**

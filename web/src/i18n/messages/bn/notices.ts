@@ -77,6 +77,7 @@ const notices = {
   openExamAction: "পরীক্ষা খুলুন",
   openOffline: "অফলাইন কার্যক্রম খুলুন",
   enterJoinCode: "যোগদানের কোড দিন",
+  joinCode: "আপনার যোগদানের কোড:",
   myExams: "আমার পরীক্ষা",
   viewPayment: "পেমেন্ট দেখুন",
   startsAt: "শুরু {time}",

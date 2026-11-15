@@ -134,6 +134,10 @@ public class OfflineAdmission {
 	@Column(name = "monthly_fee", precision = 12, scale = 2)
 	private BigDecimal monthlyFee;
 
+	/** The last code sent after onboarding (join or activation), for staff to read out (V101). Shown only while it can be used. */
+	@Column(name = "sent_code", length = 16)
+	private String sentCode;
+
 	/** The total this student pays for the batch (V100, course-fee-plan.md). */
 	@Column(name = "course_fee", precision = 12, scale = 2)
 	private BigDecimal courseFee;
@@ -515,6 +519,14 @@ public class OfflineAdmission {
 
 	public void setMonthlyFee(BigDecimal monthlyFee) {
 		this.monthlyFee = monthlyFee;
+	}
+
+	public String getSentCode() {
+		return sentCode;
+	}
+
+	public void setSentCode(String sentCode) {
+		this.sentCode = sentCode;
 	}
 
 	public BigDecimal getCourseFee() {

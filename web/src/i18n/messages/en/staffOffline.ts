@@ -298,6 +298,8 @@ const staffOffline = {
     codeLasts: "The code lasts 7 days.",
     codeSent: "Code sent on {date}",
     resend: "Send a new code",
+    codeLabel: "Code:",
+    codeHint: "Read it out to the student if the email does not arrive.",
     resent: "A new code was sent. The old one no longer works.",
     title: "Onboard {name}?",
     body: "This gives the student access to the exams and packages below and starts the instalments.",

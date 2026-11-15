@@ -75,6 +75,8 @@ export interface Notice {
   announcement: NoticeAnnouncement | null;
   /** Set on a direct-enrolment money notice. Left out on every other kind. */
   installment?: NoticeInstallment | null;
+  /** The join code of a join-code notice while it still works (V101). Left out on every other notice. */
+  code?: string | null;
   /** Set on a written-result notice sent after an earlier one for the same paper (a correction was released). */
   updated?: boolean | null;
   /** MCQ score or written mark, with the maximum. */

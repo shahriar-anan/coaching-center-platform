@@ -97,6 +97,14 @@ describe("each notice kind: its label and where its row opens (S-002, S-004, S-0
     }
   });
 
+  it("ADMISSION_JOIN_CODE shows the code and opens the join form with it filled in (V101)", async () => {
+    renderOne("ADMISSION_JOIN_CODE", { exam: null, code: "AB23CD45" });
+
+    expect(await screen.findByText("AB23CD45")).toBeInTheDocument();
+    expect(screen.getByText("আপনার যোগদানের কোড:", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/admission/join#code=AB23CD45");
+  });
+
   it("PURCHASE_GRANTED with no exam named opens my modules", async () => {
     renderOne("PURCHASE_GRANTED", { exam: null });
 

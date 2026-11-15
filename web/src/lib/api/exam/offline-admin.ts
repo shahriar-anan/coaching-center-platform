@@ -188,6 +188,8 @@ export type AdmissionDetail = {
   joinPending: boolean;
   /** True when a new code can be sent (a join code, or a new activation code for an account not yet activated). */
   canResendCode: boolean;
+  /** The code that was sent (join or activation), while it can still be used, so staff can read it out (V101). */
+  sentCode?: string | null;
 };
 
 export type ItemAdded = { admission: AdmissionDetail; overlaps: ItemOverlap[]; alreadyHeld: boolean };

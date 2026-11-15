@@ -299,6 +299,12 @@ function NoticeRow({ notice, tab, onOpen }: { notice: Notice; tab: NoticeGroup; 
             {startsAt ? ` · ${t("notices.startsAt", { time: formatDateTime(startsAt, locale) })}` : ""}
           </p>
         ) : null}
+        {notice.kind === "ADMISSION_JOIN_CODE" && notice.code ? (
+          <p className="text-body text-text">
+            {t("notices.joinCode")}{" "}
+            <span className="select-all rounded-control bg-bg px-2 py-0.5 font-mono text-label font-bold tracking-widest">{notice.code}</span>
+          </p>
+        ) : null}
         {hasScore || hasPassed ? (
           <div className="flex flex-wrap items-center gap-2">
             {hasScore ? (

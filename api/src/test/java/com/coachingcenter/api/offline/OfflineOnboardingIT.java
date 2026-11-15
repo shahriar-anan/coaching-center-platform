@@ -101,12 +101,15 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 			.isEqualTo("PENDING_ACTIVATION");
 		String code = codeFrom(email);
 		assertThat(emails.latestRendered(email)).contains("You are admitted");
+		// V101: staff see the activation code that was sent, so they can read it out, until the account is activated.
+		assertThat(detail(admission, master).get("sentCode").asText()).isEqualTo(code);
 
 		respond(post("/api/v1/auth/activate", null, "{\"email\":\"" + email + "\",\"code\":\"WRONGCODE\",\"password\":\"password1\"}"),
 				400);
 		respond(post("/api/v1/auth/activate", null, "{\"email\":\"" + email + "\",\"code\":\"" + code + "\",\"password\":\"password1\"}"),
 				204);
 		assertThat(jdbc().queryForObject("select status from users where email = ?", String.class, email)).isEqualTo("ACTIVE");
+		assertThat(detail(admission, master).hasNonNull("sentCode")).isFalse();
 
 		UUID student = jdbc().queryForObject("select id from users where email = ?", UUID.class, email);
 		JsonNode mine = json.readTree(mockMvc.perform(get("/api/v1/me/admissions").header("Authorization", "Bearer " + token(student))
@@ -223,16 +226,42 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		readyAdmission(admission, batch, master);
 		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, rollBody()), 200);
 		String first = codeFrom(email);
+		// V101: the join code is in the student's notice and on the staff screen, as in the email.
+		assertThat(noticeCodes(admission)).containsExactly(first);
+		assertThat(detail(admission, master).get("sentCode").asText()).isEqualTo(first);
 
 		JsonNode resent = respond(post("/api/v1/offline-admissions/" + admission + "/resend-code", master, null), 200);
 		assertThat(resent.get("state").asText()).isEqualTo("READY");
 		String second = codeFrom(email);
 		assertThat(second).isNotEqualTo(first);
 		assertThat(emails.latestRendered(email)).contains("A new code");
+		// The old notice loses its code, which no longer works; the new notice and the staff screen show the new one.
+		assertThat(noticeCodes(admission)).containsExactly(second);
+		assertThat(resent.get("sentCode").asText()).isEqualTo(second);
 
 		String studentToken = token(existing);
+		JsonNode notices = json.readTree(mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/me/notices?page=0&size=20")
+			.header("Authorization", "Bearer " + studentToken).header("X-Client-Type", "web")).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString());
+		java.util.List<String> shown = new java.util.ArrayList<>();
+		for (JsonNode notice : notices.get("content")) {
+			if ("ADMISSION_JOIN_CODE".equals(notice.get("kind").asText()) && notice.hasNonNull("code")) {
+				shown.add(notice.get("code").asText());
+			}
+		}
+		assertThat(shown).containsExactly(second);
+
 		respond(post("/api/v1/me/admission/join", studentToken, "{\"code\":\"" + first + "\"}"), 400);
 		respond(post("/api/v1/me/admission/join", studentToken, "{\"code\":\"" + second + "\"}"), 200);
+		// Joined: the code is used, so neither the notice nor the staff screen shows it any more.
+		assertThat(noticeCodes(admission)).isEmpty();
+		assertThat(detail(admission, master).hasNonNull("sentCode")).isFalse();
+	}
+
+	/** The codes the join-code notices of one admission still show (V101), newest first. */
+	private java.util.List<String> noticeCodes(UUID admission) {
+		return jdbc().queryForList("select code from student_notices where kind = 'ADMISSION_JOIN_CODE' and message_key like ?"
+				+ " and code is not null order by created_at desc", String.class, admission + ":%");
 	}
 
 	@Test
@@ -338,7 +367,8 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 	/** One of the student's own admissions, from their admissions list. */
 	private JsonNode ownAdmission(String studentToken, UUID admission) throws Exception {
 		JsonNode list = json.readTree(mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/me/admissions")
-			.header("Authorization", "Bearer " + studentToken)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+			.header("Authorization", "Bearer " + studentToken).header("X-Client-Type", "web")).andExpect(status().isOk()).andReturn().getResponse()
+			.getContentAsString());
 		for (JsonNode row : list) {
 			if (admission.toString().equals(row.get("id").asText())) {
 				return row;
@@ -458,6 +488,8 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		JsonNode review = detail(admission, master);
 		assertThat(review.get("joinPending").asBoolean()).isFalse();
 		assertThat(review.hasNonNull("joinCodeSentAt")).isFalse();
+		assertThat(review.hasNonNull("sentCode")).isFalse();
+		assertThat(noticeCodes(admission)).isEmpty();
 		respond(post("/api/v1/offline-admissions/" + admission + "/ready", master, null), 200);
 		respond(post("/api/v1/me/admission/join", token(existing), "{\"code\":\"" + oldCode + "\"}"), 400);
 	}

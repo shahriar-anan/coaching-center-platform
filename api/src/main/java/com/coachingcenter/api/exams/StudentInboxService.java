@@ -61,7 +61,7 @@ public class StudentInboxService {
 			""";
 
 	private static final String SELECT = """
-			select n.id, n.kind, n.created_at, n.read_at, e.id as exam_id, e.module_id, e.exam_type, e.title_en, e.title_bn,
+			select n.id, n.kind, n.created_at, n.read_at, n.code, e.id as exam_id, e.module_id, e.exam_type, e.title_en, e.title_bn,
 			  e.live_at, e.duration_minutes, p.score, p.passed, p.published_at,
 			  exists (select 1 from student_notices x where x.participant_id = n.participant_id
 			    and x.kind = 'WRITTEN_RESULT' and x.created_at < n.created_at) as updated,
@@ -186,7 +186,7 @@ public class StudentInboxService {
 						rs.getObject("notice_module_id", UUID.class), rs.getObject("announcement_exam_id", UUID.class));
 		return new NoticeView(rs.getObject("id", UUID.class), kind, format(rs.getTimestamp("created_at").toInstant()),
 				readAt == null ? null : format(readAt.toInstant()), exam, score, maximum, passed, announcement,
-				rs.getBoolean("updated") ? Boolean.TRUE : null, NoticeGroup.of(kind).name(), installment(kind, rs));
+				rs.getBoolean("updated") ? Boolean.TRUE : null, NoticeGroup.of(kind).name(), installment(kind, rs), rs.getString("code"));
 	}
 
 	/**
@@ -236,11 +236,12 @@ public class StudentInboxService {
 
 	/**
 	 * {@code exam} is null for an announcement, and {@code announcement} is null for every other kind. {@code group} is the
-	 * tab the notice sits under (N1). {@code installment} is set only for a direct-enrolment money notice.
+	 * tab the notice sits under (N1). {@code installment} is set only for a direct-enrolment money notice. {@code code} is the join
+	 * code of a join-code notice while it still works (V101), and null otherwise.
 	 */
 	public record NoticeView(UUID id, String kind, String createdAt, String readAt, NoticeExam exam, Integer score,
 			Integer maximum, Boolean passed, NoticeAnnouncement announcement, Boolean updated, String group,
-			NoticeInstallment installment) {
+			NoticeInstallment installment, String code) {
 	}
 
 	/**

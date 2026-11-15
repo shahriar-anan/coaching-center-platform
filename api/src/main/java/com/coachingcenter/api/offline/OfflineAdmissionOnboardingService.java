@@ -354,25 +354,29 @@ public class OfflineAdmissionOnboardingService {
 		complete(actorId, a, now, true);
 		String[] batch = batchNames(a.getBatchId());
 		publicMail.activation(created.email(), a.getFullName(), batch[1], batch[0], created.activationCode(), false);
-		// The activation code is the one that was sent, so the staff panel shows when, and can send a new one.
+		// The activation code is the one that was sent, so the staff panel shows when and what, and can send a new one.
 		a.setJoinCodeSentAt(now);
+		a.setSentCode(created.activationCode());
 		return admin.detail(a.getId());
 	}
 
 	/**
 	 * Makes a new join code for an admission that waits for one, and mails it to the account (plan B, C). The code is kept as a hash with its
-	 * expiry, so the old one stops working the moment this one is saved (P8). The in-app notice carries no code.
+	 * expiry, so the old one stops working the moment this one is saved (P8). The in-app notice shows the code too (V101); the code is
+	 * taken off the older notices of this admission first, since it no longer works.
 	 */
 	private AdmissionDetail sendJoinCode(UUID actorId, OfflineAdmission a, Instant now, boolean resent) {
 		String code = OfflineApplicationMail.newCode();
 		a.setJoinCodeHash(publicMail.hash(code));
+		a.setSentCode(code);
 		a.setJoinCodeExpiresAt(now.plus(OfflineApplicationMail.CODE_DAYS, ChronoUnit.DAYS));
 		a.setJoinCodeSentAt(now);
 		a.setJoinCodeSentBy(actorId);
 		a.setJoinCodeUsedAt(null);
 		a.setJoinCodeFailures(0);
 		admissions.saveAndFlush(a);
-		studentNotices.notice(a.getStudentId(), OfflineAdmissionNotices.ADMISSION_JOIN_CODE, a.getId() + ":" + now.toEpochMilli());
+		studentNotices.clearJoinCodes(a.getId());
+		studentNotices.noticeWithCode(a.getStudentId(), OfflineAdmissionNotices.ADMISSION_JOIN_CODE, a.getId() + ":" + now.toEpochMilli(), code);
 		String[] batch = batchNames(a.getBatchId());
 		String to = accountEmail(a);
 		if (to != null) {
@@ -415,7 +419,9 @@ public class OfflineAdmissionOnboardingService {
 						"This admission needs the office to look at it again before you can join. Please contact the office.");
 			}
 			a.setJoinCodeUsedAt(now);
+			a.setSentCode(null);
 			admissions.saveAndFlush(a);
+			studentNotices.clearJoinCodes(a.getId());
 			complete(a.getJoinCodeSentBy(), a, now, false);
 			noticeBatchAdded(a, now);
 			audit.record(AuditRecorder.OFFLINE_ADMISSION_JOINED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, a.getId());
@@ -472,6 +478,7 @@ public class OfflineAdmissionOnboardingService {
 				&& a.getMatchedUserId() == null && account != null && "PENDING_ACTIVATION".equals(account.getStatus())) {
 			String code = auth.issueActivationCodeUnmailed(account, actorId, now.plus(OfflineApplicationMail.CODE_DAYS, ChronoUnit.DAYS));
 			a.setJoinCodeSentAt(now);
+			a.setSentCode(code);
 			String[] batch = batchNames(a.getBatchId());
 			publicMail.activation(accountEmail(a), a.getFullName(), batch[1], batch[0], code, true);
 			audit.record(AuditRecorder.OFFLINE_ADMISSION_CODE_RESENT, AuditRecorder.OFFLINE_ADMISSION_ENTITY, id);
@@ -676,6 +683,7 @@ public class OfflineAdmissionOnboardingService {
 		if (!wasOnboarded) {
 			// Nothing was granted or scheduled yet. The codes and links of the application stop working.
 			OfflineAdmissionAdminService.clearJoinCode(a);
+			studentNotices.clearJoinCodes(a.getId());
 			a.setReopenTokenHash(null);
 			a.setReopenTokenExpiresAt(null);
 		}
