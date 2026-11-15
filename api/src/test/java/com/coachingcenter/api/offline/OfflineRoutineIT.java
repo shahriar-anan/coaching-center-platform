@@ -150,20 +150,21 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(count(rows, "instructorText", "Milon")).isEqualTo(12);
 		assertThat(unmatchedNames(routine)).containsExactly("Milon:12");
 
-		// The 27-07 typo is a wrong date: it blocks the confirm (decision of 15 Nov 2026) until the admin fixes it in the preview.
-		assertThat(routine.get("canConfirm").asBoolean()).isFalse();
-		assertThat(routine.get("blockers").toString()).contains("earlier than the row above");
+		// The 27-07 typo is a wrong date: it is warned of, and the admin may fix it in the preview or confirm as it is (15 Nov 2026).
+		assertThat(routine.get("canConfirm").asBoolean()).isTrue();
+		assertThat(routine.get("warnings").toString()).contains("earlier than the row above");
 		JsonNode fixed = fixTypo(master, id(routine));
 		assertThat(fixed.get("canConfirm").asBoolean()).isTrue();
 		assertThat(codes(findRow(fixed, "2026-10-27", "Contract Act"))).doesNotContain("DATE_OUT_OF_ORDER", "WEEKDAY_MISMATCH");
 	}
 
 	/**
-	 * Decision of 15 Nov 2026: a wrong date blocks the confirm (out of order, or outside the batch's dates, worked out against the batch
-	 * as it is now); a weekday that does not match its date only warns, since the admin fixes it in the preview.
+	 * Shahriar, 15 Nov 2026 (evening): nothing in the rows blocks the confirm. A wrong date (out of order, or outside the batch's dates)
+	 * and a weekday that does not match its date are warnings; the admin confirms with them in view, and the classes keep the dates as
+	 * written.
 	 */
 	@Test
-	void aWrongDateBlocksTheConfirmAndAWeekdayMismatchOnlyWarns() throws Exception {
+	void aWrongDateOnlyWarnsAndTheRoutineConfirmsAsWritten() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		ensureKnown(master, "Tuhin Hossain");
 		ensureKnown(master, "Anarul Islam");
@@ -174,26 +175,18 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		JsonNode routine = upload(master, batch, "2026-11", sample(), 201);
 		UUID id = id(routine);
 
-		// 25 October is before the batch starts (26 October): flagged, and it blocks, like the 27-07 typo.
+		// 25 October is before the batch starts (26 October) and 27-07 is a typo: both are flagged and warned of, and neither blocks.
 		assertThat(codes(findRow(routine, "2026-10-25", "Succession"))).contains("DATE_OUTSIDE_BATCH");
 		assertThat(codes(findRow(routine, "2026-07-27", "Contract Act"))).contains("DATE_OUTSIDE_BATCH", "DATE_OUT_OF_ORDER");
-		assertThat(routine.get("canConfirm").asBoolean()).isFalse();
-		assertThat(routine.get("blockers").toString()).contains("outside the batch's dates");
-		respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 409);
-		assertThat(classCount(batch)).isZero();
+		assertThat(codes(findRow(routine, "2026-12-07", "Monthly Exam"))).contains("WEEKDAY_MISMATCH");
+		assertThat(routine.get("canConfirm").asBoolean()).isTrue();
+		assertThat(routine.get("warnings").toString()).contains("outside the batch's dates", "earlier than the row above");
 
-		// The batch's dates are read as they are now: starting the batch on 1 October clears the 25 October rows.
-		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"startsOn\":\"2026-10-01\"}"), 200);
-		JsonNode reread = respondTo(get("/api/v1/offline-routines/" + id).header("Authorization", "Bearer " + master), 200);
-		assertThat(codes(findRow(reread, "2026-10-25", "Succession"))).doesNotContain("DATE_OUTSIDE_BATCH");
-		assertThat(reread.get("canConfirm").asBoolean()).isFalse();
-
-		// Fixing the typo unblocks it. The 7 December row still says Wednesday (it is a Monday): only a warning.
-		JsonNode fixed = fixTypo(master, id);
-		assertThat(codes(findRow(fixed, "2026-12-07", "Monthly Exam"))).contains("WEEKDAY_MISMATCH");
-		assertThat(fixed.get("canConfirm").asBoolean()).isTrue();
+		// Confirmed as it is: every row becomes a class, the typo row on the date written.
 		respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
 		assertThat(classCount(batch)).isEqualTo(SAMPLE_ROWS);
+		assertThat(jdbc().queryForObject("select count(*) from offline_classes where batch_id = ? and held_on = '2026-07-27'", Long.class,
+				batch)).isEqualTo(1L);
 	}
 
 	@Test

@@ -104,8 +104,8 @@ public class OfflineFeeService {
 	}
 
 	/**
-	 * Records a payment (plan 4.3, D15, C12). Refused unless the admission is onboarded, the amount is more than zero, and the amount
-	 * is no more than what is still owed. A Master Admin's payment is approved at once; a staff payment waits as PENDING, and every
+	 * Records a payment (plan 4.3, D15, C12). Refused unless the admission is onboarded, or has its batch and instalment plan before
+	 * onboarding (E3); the amount must be more than zero and no more than what is still owed. A Master Admin's payment is approved at once; a staff payment waits as PENDING, and every
 	 * Master Admin is told.
 	 */
 	@Transactional
@@ -134,9 +134,7 @@ public class OfflineFeeService {
 		LocalDate paidOn = request.paidOn();
 
 		Admission admission = ledger.lock(admissionId);
-		if (!ONBOARDED.equals(admission.status())) {
-			throw state("Payments can be recorded only once the admission is onboarded.");
-		}
+		requirePayable(admission);
 		BigDecimal owed = ledger.owed(admissionId);
 		if (amount.compareTo(owed) > 0) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
@@ -152,7 +150,7 @@ public class OfflineFeeService {
 				approvedAtOnce ? OfflineFeePayment.STATUS_APPROVED : OfflineFeePayment.STATUS_PENDING, actor.userId(), now,
 				approvedAtOnce ? actor.userId() : null, approvedAtOnce ? now : null, receiptNo);
 		if (approvedAtOnce) {
-			settle(paymentId, admissionId, amount, admission.studentId());
+			settle(paymentId, admissionId, amount, admission.studentId(), ONBOARDED.equals(admission.status()));
 		}
 		else {
 			notices.staff(StaffNotificationKind.OFFLINE_PAYMENT_PENDING, notices.masterAdmins(),
@@ -174,9 +172,7 @@ public class OfflineFeeService {
 		if (!OfflineFeePayment.STATUS_PENDING.equals(payment.status())) {
 			throw state("Only a pending payment can be approved. This one is " + payment.status().toLowerCase(Locale.ROOT) + ".");
 		}
-		if (!ONBOARDED.equals(locked.admission().status())) {
-			throw state("Payments can be approved only once the admission is onboarded.");
-		}
+		requirePayable(locked.admission());
 		BigDecimal owed = ledger.owed(payment.admissionId());
 		if (payment.amount().compareTo(owed) > 0) {
 			throw state("Only BDT " + owed.toPlainString() + " is still owed, so this payment is more than the balance. "
@@ -184,7 +180,7 @@ public class OfflineFeeService {
 		}
 		String receiptNo = ledger.nextReceipt(payment.paidOn());
 		ledger.approve(paymentId, actor.userId(), clock.instant(), receiptNo);
-		settle(paymentId, payment.admissionId(), payment.amount(), payment.studentId());
+		settle(paymentId, payment.admissionId(), payment.amount(), payment.studentId(), ONBOARDED.equals(locked.admission().status()));
 		notices.staff(StaffNotificationKind.OFFLINE_PAYMENT_APPROVED, List.of(payment.recordedBy()),
 				payload(payment.personName(), payment.amount(), payment.method(), null), OfflineFeeRules.FEES_PAGE,
 				"OFFLINE_PAYMENT_APPROVED:" + paymentId);
@@ -253,7 +249,10 @@ public class OfflineFeeService {
 		Admission admission = ledger.find(admissionId).orElseThrow(OfflineFeeLedger::notFound);
 		LocalDate today = ledger.today();
 		List<DueView> dues = dueViews(admissionId, today);
-		return new Schedule(admission.id(), admission.status(), ledger.personName(admissionId), total(dues), overdue(dues),
+		// Before onboarding there are no dues: what is owed is the plan's total less the approved payments (E3).
+		BigDecimal owed = ONBOARDED.equals(admission.status()) || OfflineAdmission.CLOSED.equals(admission.status()) ? total(dues)
+				: ledger.owed(admissionId);
+		return new Schedule(admission.id(), admission.status(), ledger.personName(admissionId), owed, overdue(dues),
 				dues, ledger.payments(admissionId, null));
 	}
 
@@ -311,9 +310,24 @@ public class OfflineFeeService {
 		return new Receipt(payment, ledger.batchName(payment.admissionId()), lines, ledger.owed(payment.admissionId()));
 	}
 
-	/** The approval step shared by a Master Admin's payment and an approval: the matching and the receipt notices. */
-	private void settle(UUID paymentId, UUID admissionId, BigDecimal amount, UUID studentId) {
-		ledger.match(paymentId, amount, ledger.open(admissionId));
+	/**
+	 * Refused unless a payment may be taken: the admission is onboarded, or before onboarding it has its batch and instalment plan (E3).
+	 */
+	private void requirePayable(Admission admission) {
+		if (ONBOARDED.equals(admission.status()) || ledger.payableBeforeOnboarding(admission.id())) {
+			return;
+		}
+		throw state("A payment can be taken once the batch and the instalments are set up, or after onboarding.");
+	}
+
+	/**
+	 * The approval step shared by a Master Admin's payment and an approval: the matching and the receipt notices. Before onboarding there
+	 * are no dues to match; the onboarding matches the payment later (E3).
+	 */
+	private void settle(UUID paymentId, UUID admissionId, BigDecimal amount, UUID studentId, boolean onboarded) {
+		if (onboarded) {
+			ledger.match(paymentId, amount, ledger.open(admissionId));
+		}
 		notices.studentNotice(OfflineFeeNotices.RECEIVED, paymentId, studentId);
 		notices.studentMail(OfflineFeeNotices.MAIL_RECEIPT, paymentId, studentId);
 	}

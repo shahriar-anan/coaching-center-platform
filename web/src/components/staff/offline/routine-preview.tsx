@@ -130,10 +130,9 @@ function ConfirmBar({ routine, batchId }: { routine: RoutineView; batchId: strin
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Names no instructor has do not block: confirming adds them as new instructors (the PDF assigns the instructors).
-  // A wrong date blocks (15 Nov 2026): the rows say which; this line counts them in the reader's language. Other blockers (no time,
-  // no subject) keep the API's own sentence.
-  const wrongDates = routine.rows.filter(hasWrongDate).length;
-  const reason = wrongDates > 0 ? t("batchPay.preview.fixDates", { count: wrongDates }) : routine.blockers.join(" ");
+  // Nothing in the rows blocks the confirm (15 Nov 2026): wrong dates and the rest are warnings, with the rows marked below. The admin
+  // may fix them first or confirm as they are. The API's own sentences list each row.
+  const warnings = routine.warnings ?? [];
   const newNames = routine.unmatchedNames.map((name) => name.name).join(", ");
 
   async function onConfirm() {
@@ -156,8 +155,17 @@ function ConfirmBar({ routine, batchId }: { routine: RoutineView; batchId: strin
         <Button variant="secondary" onClick={() => setDiscarding(true)}>
           {t("batchPay.preview.discard")}
         </Button>
-        {!routine.canConfirm && reason ? <p className="text-meta text-warn">{reason}</p> : null}
       </div>
+      {warnings.length > 0 ? (
+        <div role="status" className="grid gap-1 rounded-control border border-warn/50 bg-warn/5 px-3 py-2">
+          <p className="text-meta font-semibold text-text">{t("batchPay.preview.warningsTitle")}</p>
+          <ul className="grid list-disc gap-0.5 ps-5 text-meta text-text">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {newNames ? <p className="text-meta text-muted">{t("batchPay.preview.newInstructors", { names: newNames })}</p> : null}
       {error ? (
         <p role="alert" className="text-meta text-danger">
@@ -698,7 +706,7 @@ function EditableText({
   );
 }
 
-/** The flags that block a confirm because the date itself is wrong. A weekday mismatch only warns. */
+/** The flags that say the date itself looks wrong. They only warn (15 Nov 2026), like a weekday that does not match its date. */
 const WRONG_DATE_FLAGS = ["DATE_UNREADABLE", "DATE_OUT_OF_ORDER", "DATE_OUTSIDE_BATCH"];
 
 function hasWrongDate(row: RoutineRow): boolean {

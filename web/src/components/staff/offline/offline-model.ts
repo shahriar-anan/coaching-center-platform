@@ -192,6 +192,21 @@ export function defaultFirstDue(admittedOn: string): string {
   return addMonths(admittedOn, 1);
 }
 
+/**
+ * True when a payment may be taken before onboarding (E3): the form is in (submitted, sent back or ready) and the setup has a batch and a
+ * course fee above zero. The same rule as the API's.
+ */
+export function payableBeforeOnboarding(admission: {
+  state: string;
+  setup: { batchId: string | null; courseFee: number | string | null };
+}): boolean {
+  return (
+    ["SUBMITTED", "CHANGES_REQUESTED", "READY"].includes(admission.state) &&
+    Boolean(admission.setup.batchId) &&
+    toNumber(admission.setup.courseFee) > 0
+  );
+}
+
 /** The most instalments a course fee may be paid in, as the API allows (course-fee-plan.md). */
 export const MAX_INSTALLMENTS = 24;
 

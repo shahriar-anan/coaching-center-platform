@@ -10,10 +10,8 @@ import { useRole } from "@/lib/auth/guards";
 import { useBatches, type AdmissionSetup, type BatchView } from "@/lib/api/exam/offline-admin";
 import { defaultFirstDue, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
 import { SetupCard } from "./setup-card";
-import { setupTotals, text, type SetupDraft } from "./setup-draft";
-
-/** How many instalments the line lists before it says "+N more". */
-const PAYMENT_DATES_SHOWN = 6;
+import { setupTotals, text, type PlanRow, type RowIssue, type SetupDraft } from "./setup-draft";
+import { addMonths } from "./offline-model";
 
 /**
  * Card 1, "Batch and fees": the batch (its course fee, instalments, end date and routine are shown with it), this student's course fee
@@ -64,6 +62,8 @@ export function SetupForm({
     onEdit({
       batchId: batch?.id ?? "",
       courseFee: batch ? text(batch.courseFee) : draft.courseFee,
+      // A batch brings its even split again; the admin can then edit any row.
+      custom: batch ? false : draft.custom,
       // Without a first due date yet, the count is left to the API, which cuts the batch's number to what fits.
       installments: batch ? (fitting == null ? "" : String(Math.min(batch.defaultInstallments, fitting))) : draft.installments,
       courseEndsOn,
@@ -78,8 +78,50 @@ export function SetupForm({
   }
 
   const totals = setupTotals(draft);
-  const shownDates = totals.rows.slice(0, PAYMENT_DATES_SHOWN).map((row) => `${formatDate(row.dueOn)} ${formatMoney(row.amount) ?? ""}`);
-  const moreDates = totals.rows.length - shownDates.length;
+
+  /** The rows as the table holds them: the admin's own, or the even split written out, so any row can be edited (E1). */
+  const tableRows: PlanRow[] = draft.custom
+    ? draft.rows
+    : totals.rows.map((row) => ({ dueOn: row.dueOn, amount: String(row.amount) }));
+
+  /** Editing a row makes the instalments the admin's own: the course fee becomes their sum (E2). */
+  function editRows(next: PlanRow[]) {
+    onEdit({ custom: true, rows: next });
+  }
+
+  function changeRow(index: number, change: Partial<PlanRow>) {
+    editRows(tableRows.map((row, at) => (at === index ? { ...row, ...change } : row)));
+  }
+
+  function addRow() {
+    const last = tableRows[tableRows.length - 1];
+    const dueOn = last?.dueOn ? addMonths(last.dueOn, 1) : draft.firstDueOn || "";
+    editRows([...tableRows, { dueOn, amount: "" }]);
+  }
+
+  function removeRow(index: number) {
+    editRows(tableRows.filter((_, at) => at !== index));
+  }
+
+  // Typing a total or a number of instalments spreads it evenly again, from the first row's date.
+  function spread(change: Partial<SetupDraft>) {
+    const firstDueOn = draft.custom && draft.rows[0]?.dueOn ? draft.rows[0].dueOn : draft.firstDueOn;
+    onEdit({
+      custom: false,
+      courseFee: draft.custom ? String(totals.fee) : draft.courseFee,
+      installments: draft.custom ? String(draft.rows.length) : draft.installments,
+      firstDueOn,
+      ...change,
+    });
+  }
+
+  const issueText: Record<RowIssue, string> = {
+    amount: t("staffOffline.setup.rowIssues.amount"),
+    date: t("staffOffline.setup.rowIssues.date"),
+    order: t("staffOffline.setup.rowIssues.order"),
+    beforeAdmitted: t("staffOffline.setup.rowIssues.beforeAdmitted"),
+    afterEnd: t("staffOffline.setup.rowIssues.afterEnd"),
+  };
 
   return (
     <SetupCard id={id} step={step} title={t("staffOffline.setupScreen.cards.batchFees")}>
@@ -131,36 +173,6 @@ export function SetupForm({
       ) : null}
 
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-        <Field label={t("staffOffline.setup.studentCourseFee")} error={errors.courseFee} reserveHint required>
-          <TextInput
-            className="h-11"
-            inputMode="decimal"
-            value={draft.courseFee}
-            disabled={disabled}
-            onChange={(event) => onEdit({ courseFee: event.target.value })}
-            invalid={Boolean(errors.courseFee)}
-          />
-        </Field>
-        <Field
-          label={t("staffOffline.setup.installments")}
-          hint={t("staffOffline.setup.installmentsHint")}
-          error={errors.installments ?? (totals.pastEnd ? t("staffOffline.setup.pastEnd") : undefined)}
-          reserveHint
-          required
-        >
-          <TextInput
-            className="h-11"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={MAX_INSTALLMENTS}
-            step={1}
-            value={draft.installments}
-            disabled={disabled}
-            onChange={(event) => onEdit({ installments: event.target.value })}
-            invalid={Boolean(errors.installments) || totals.pastEnd}
-          />
-        </Field>
         <Field label={t("staffOffline.setup.admittedOn")} error={errors.admittedOn} reserveHint required>
           <TextInput
             className="h-11"
@@ -169,16 +181,6 @@ export function SetupForm({
             disabled={disabled}
             onChange={(event) => changeAdmittedOn(event.target.value)}
             invalid={Boolean(errors.admittedOn)}
-          />
-        </Field>
-        <Field label={t("staffOffline.setup.firstDue")} hint={t("staffOffline.setup.firstDueHint")} error={errors.firstDueOn} reserveHint required>
-          <TextInput
-            className="h-11"
-            type="date"
-            value={draft.firstDueOn}
-            disabled={disabled}
-            onChange={(event) => onEdit({ firstDueOn: event.target.value })}
-            invalid={Boolean(errors.firstDueOn)}
           />
         </Field>
         <Field label={t("staffOffline.setup.courseEnds")} error={errors.courseEndsOn} reserveHint required>
@@ -193,13 +195,107 @@ export function SetupForm({
         </Field>
       </div>
 
-      <p className="text-meta text-muted">
-        {totals.months === 0
-          ? t("staffOffline.setup.duesEmpty")
-          : t("staffOffline.setupScreen.payments.line", {
-              dates: [...shownDates, ...(moreDates > 0 ? [t("staffOffline.setupScreen.payments.more", { count: moreDates })] : [])].join(" · "),
+      <section aria-labelledby="setup-instalments" className="grid gap-3 rounded-control border border-border-control p-3">
+        <div className="grid gap-1">
+          <h3 id="setup-instalments" className="text-label font-bold text-text">
+            {t("staffOffline.setup.instalmentsTitle")}
+          </h3>
+          <p className="text-meta text-muted">{t("staffOffline.setup.instalmentsHint")}</p>
+        </div>
+
+        {/* Spread evenly: a total and a number of instalments, one a month from the first due date. */}
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
+          <Field label={t("staffOffline.setup.studentCourseFee")} error={errors.courseFee} reserveHint required>
+            <TextInput
+              className="h-11"
+              inputMode="decimal"
+              value={draft.custom ? String(totals.fee) : draft.courseFee}
+              disabled={disabled}
+              onChange={(event) => spread({ courseFee: event.target.value })}
+              invalid={Boolean(errors.courseFee)}
+            />
+          </Field>
+          <Field label={t("staffOffline.setup.installments")} error={errors.installments} reserveHint required>
+            <TextInput
+              className="h-11"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_INSTALLMENTS}
+              step={1}
+              value={draft.custom ? String(draft.rows.length) : draft.installments}
+              disabled={disabled}
+              onChange={(event) => spread({ installments: event.target.value })}
+              invalid={Boolean(errors.installments)}
+            />
+          </Field>
+          <Field label={t("staffOffline.setup.firstDue")} error={errors.firstDueOn} reserveHint required>
+            <TextInput
+              className="h-11"
+              type="date"
+              value={draft.custom ? (draft.rows[0]?.dueOn ?? "") : draft.firstDueOn}
+              disabled={disabled}
+              onChange={(event) => spread({ firstDueOn: event.target.value })}
+              invalid={Boolean(errors.firstDueOn)}
+            />
+          </Field>
+        </div>
+        <p className="text-meta text-muted">{t("staffOffline.setup.spreadHint")}</p>
+
+        {tableRows.length === 0 ? (
+          <p className="text-meta text-muted">{t("staffOffline.setup.duesEmpty")}</p>
+        ) : (
+          <ol className="grid gap-2">
+            {tableRows.map((row, index) => {
+              const issues = totals.rowIssues[index] ?? [];
+              return (
+                <li key={index} className="grid gap-1">
+                  <div className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+                    <span className="text-meta font-semibold text-muted">{index + 1}</span>
+                    <TextInput
+                      type="date"
+                      aria-label={t("staffOffline.setup.rowDate", { no: index + 1 })}
+                      value={row.dueOn}
+                      disabled={disabled}
+                      onChange={(event) => changeRow(index, { dueOn: event.target.value })}
+                      invalid={issues.some((issue) => issue !== "amount")}
+                    />
+                    <TextInput
+                      inputMode="decimal"
+                      aria-label={t("staffOffline.setup.rowAmount", { no: index + 1 })}
+                      value={row.amount}
+                      disabled={disabled}
+                      onChange={(event) => changeRow(index, { amount: event.target.value })}
+                      invalid={issues.includes("amount")}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled || tableRows.length <= 1}
+                      onClick={() => removeRow(index)}
+                      aria-label={t("staffOffline.setup.rowRemove", { no: index + 1 })}
+                    >
+                      {t("staffOffline.setup.remove")}
+                    </Button>
+                  </div>
+                  {issues.length > 0 ? (
+                    <p className="ps-10 text-meta text-danger">{issues.map((issue) => issueText[issue]).join(" ")}</p>
+                  ) : null}
+                </li>
+              );
             })}
-      </p>
+          </ol>
+        )}
+        {errors.installmentPlan ? <p role="alert" className="text-meta text-danger">{errors.installmentPlan}</p> : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="secondary" size="sm" disabled={disabled || tableRows.length >= MAX_INSTALLMENTS} onClick={addRow}>
+            {t("staffOffline.setup.addRow")}
+          </Button>
+          <p className="text-body font-semibold text-text">
+            {t("staffOffline.setup.planTotal", { total: formatMoney(totals.fee) ?? "", count: tableRows.length })}
+          </p>
+        </div>
+      </section>
     </SetupCard>
   );
 }

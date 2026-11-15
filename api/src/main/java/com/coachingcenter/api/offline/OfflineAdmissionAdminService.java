@@ -311,6 +311,8 @@ public class OfflineAdmissionAdminService {
 		LocalDate admittedOn = day(body, "admittedOn", problems);
 		LocalDate firstDueOn = day(body, "firstDueOn", problems);
 		LocalDate courseEndsOn = day(body, "courseEndsOn", problems);
+		// The admin's own instalments (E1). Sent instead of the fee and count once the admin edits a row; the course fee is their sum.
+		List<OfflineInstallmentPlan.Row> plan = OfflineInstallmentPlan.parse(body, problems);
 		OfflineBatch batch = null;
 		if (batchId != null) {
 			batch = batches.findById(batchId).orElse(null);
@@ -353,6 +355,10 @@ public class OfflineAdmissionAdminService {
 				a.setCourseEndsOn(batch.getEndsOn());
 			}
 		}
+		if (fee != null || installments != null) {
+			// A fee or a count without rows is the even split (Spread evenly): the admin's own rows give way to it.
+			a.setInstallmentPlan(null);
+		}
 		if (fee != null) {
 			a.setCourseFee(fee);
 		}
@@ -369,6 +375,20 @@ public class OfflineAdmissionAdminService {
 			a.setInstallments(chosen == null ? fitting : Math.min(chosen.getDefaultInstallments(), fitting));
 		}
 		a.setMonthlyFee(firstInstallment(a));
+		if (plan != null) {
+			OfflineInstallmentPlan.apply(a, plan, json);
+		}
+		else if (a.getInstallmentPlan() != null) {
+			// The admin's rows keep their dates: the first due date is always the first row's.
+			a.setFirstDueOn(OfflineInstallmentPlan.of(a, json).get(0).dueOn());
+		}
+		// A payment may already be taken before onboarding (E3): the plan cannot go below what is paid or waiting.
+		BigDecimal taken = jdbc.queryForObject("select coalesce(sum(amount), 0) from offline_fee_payments where admission_id = ?"
+				+ " and status in ('APPROVED', 'PENDING')", BigDecimal.class, a.getId());
+		if (taken != null && taken.signum() > 0 && (a.getCourseFee() == null || a.getCourseFee().compareTo(taken) < 0)) {
+			problems.add(new FieldErrorDetail(plan != null ? "installmentPlan" : "courseFee", "৳" + taken.toPlainString()
+					+ " is already paid or waiting for approval, so the course fee cannot be less than that."));
+		}
 		if (a.getFirstDueOn().isBefore(a.getAdmittedOn())) {
 			problems.add(new FieldErrorDetail("firstDueOn", "The first due date cannot be before the admitted-on date."));
 		}
@@ -811,10 +831,15 @@ public class OfflineAdmissionAdminService {
 	}
 
 	/**
-	 * The instalments must end by the course end, and each must be at least one taka (course-fee-plan.md section 3). Nothing to check
-	 * until the fee, the count and both dates are there.
+	 * The instalments must end by the course end, and each must be at least one taka (course-fee-plan.md section 3). The admin's own rows
+	 * must also be in date order and start on or after the admitted-on date (E1). Nothing to check until the fee, the count and both
+	 * dates are there.
 	 */
-	static void installmentProblems(OfflineAdmission a, List<FieldErrorDetail> problems) {
+	void installmentProblems(OfflineAdmission a, List<FieldErrorDetail> problems) {
+		if (a.getInstallmentPlan() != null) {
+			OfflineInstallmentPlan.problems(a, OfflineInstallmentPlan.of(a, json), problems);
+			return;
+		}
 		Integer count = a.getInstallments();
 		if (count == null || a.getFirstDueOn() == null || a.getCourseEndsOn() == null) {
 			return;
@@ -837,17 +862,22 @@ public class OfflineAdmissionAdminService {
 		return OfflineFeeSchedule.split(a.getCourseFee(), a.getInstallments()).get(0);
 	}
 
-	/** The instalments the setup would create, or an empty list until the fee, the count and the first due date are set. */
-	static List<InstallmentPreview> installmentPlan(OfflineAdmission a) {
-		if (a.getCourseFee() == null || a.getInstallments() == null || a.getFirstDueOn() == null) {
-			return List.of();
-		}
-		List<BigDecimal> amounts = OfflineFeeSchedule.split(a.getCourseFee(), a.getInstallments());
-		List<InstallmentPreview> plan = new ArrayList<>(amounts.size());
-		for (int index = 0; index < amounts.size(); index++) {
-			plan.add(new InstallmentPreview(index + 1, OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), index + 1), amounts.get(index)));
+	/**
+	 * The instalments the setup would create: the admin's own rows, or the even split (E1). Empty until the fee, the count and the first
+	 * due date are set.
+	 */
+	List<InstallmentPreview> installmentPlan(OfflineAdmission a) {
+		List<OfflineInstallmentPlan.Row> rows = OfflineInstallmentPlan.of(a, json);
+		List<InstallmentPreview> plan = new ArrayList<>(rows.size());
+		for (int index = 0; index < rows.size(); index++) {
+			plan.add(new InstallmentPreview(index + 1, rows.get(index).dueOn(), rows.get(index).amount()));
 		}
 		return plan;
+	}
+
+	/** The instalments of an admission, for the onboarding to write as dues (E1). */
+	List<OfflineInstallmentPlan.Row> installmentRows(OfflineAdmission a) {
+		return OfflineInstallmentPlan.of(a, json);
 	}
 
 	/** The English titles of the active exams and packages, joined with a comma. "-" when there are none. */
@@ -929,7 +959,8 @@ public class OfflineAdmissionAdminService {
 				: batches.findById(a.getBatchId()).map(found -> new BatchInfo(found.getId(), found.getNameEn(), found.getNameBn()))
 					.orElse(null);
 		Setup setup = new Setup(a.getBatchId(), batch == null ? null : batch.nameEn(), batch == null ? null : batch.nameBn(),
-				a.getCourseFee(), a.getInstallments(), installmentPlan(a), a.getAdmittedOn(), a.getFirstDueOn(), a.getCourseEndsOn());
+				a.getCourseFee(), a.getInstallments(), installmentPlan(a), a.getInstallmentPlan() != null, a.getAdmittedOn(), a.getFirstDueOn(),
+				a.getCourseEndsOn());
 		List<FieldErrorDetail> readyProblems = SUBMITTED.equals(a.getStatus()) || CHANGES_REQUESTED.equals(a.getStatus())
 				? readyProblems(a, hasPhoto) : List.of();
 		SignedCopy signed = a.getSignedStoredName() == null ? null
@@ -1110,7 +1141,8 @@ public class OfflineAdmissionAdminService {
 	 * once onboarded, would have written at the start; the Fees tab lists the real ones.
 	 */
 	public record Setup(UUID batchId, String batchNameEn, String batchNameBn, BigDecimal courseFee, Integer installments,
-			List<InstallmentPreview> installmentPlan, LocalDate admittedOn, LocalDate firstDueOn, LocalDate courseEndsOn) {
+			List<InstallmentPreview> installmentPlan, boolean customPlan, LocalDate admittedOn, LocalDate firstDueOn,
+			LocalDate courseEndsOn) {
 	}
 
 	/** One instalment of a course fee: its number (1 first), its due date and its amount. */

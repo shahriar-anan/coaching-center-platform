@@ -98,7 +98,8 @@ export type RoutineView = {
   rowCount: number;
   flaggedCount: number;
   unmatchedNames: UnmatchedName[];
-  blockers: string[];
+  /** What the admin is warned of before confirming. Nothing blocks the confirm (15 Nov): rows with no date or time are left out. */
+  warnings: string[];
   canConfirm: boolean;
   rows: RoutineRow[];
   difference: RoutineDifference | null;

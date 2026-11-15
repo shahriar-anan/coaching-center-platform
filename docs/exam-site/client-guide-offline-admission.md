@@ -75,10 +75,13 @@ All new forms appear in **Admissions**, under **Forms to review**.
 1. **Review** the form and photo.
 2. If something is wrong, press **Send back** and give a reason (quick reasons are offered, such as "Photo unclear"). The
    student is emailed a link to fix the form and send it again. The reason is shown to them exactly as you write it.
-3. Press **Edit setup** and choose the **batch**. The course fee, the number of instalments, the admission date, the first due
-   date and the course end date are filled in from the batch, and you can change them for this student. The page shows each
-   instalment with its date and amount. Instalments are whole taka, with the rest on the last: ৳7,000 in 6 is ৳1,166 five
-   times, then ৳1,170. The last instalment must fall on or before the course end.
+3. Press **Edit setup** and choose the **batch**. The admission date and the course end date are filled in. The batch's course
+   fee is split evenly into its instalments, shown as a table of due dates and amounts (whole taka, the rest on the last:
+   ৳7,000 in 6 is ৳1,166 five times, then ৳1,170).
+   - **Change any row:** type its own due date and amount, add an instalment or remove one. The course fee is then the total
+     of the rows. For example, ৳10,000 can be ৳4,000, ৳2,000, ৳2,000, ৳1,000 and ৳1,000.
+   - **Start again evenly:** type a new course fee, number of instalments or first due date above the table.
+   - The dates must go forward, the first can't be before the admission date, and the last must be on or before the course end.
 4. Press **Ready for approval**. The Master Admin is told.
 5. The **Master Admin** presses **Onboard**. The dialog shows a summary of the fee and dates and the suggested **roll number**,
    which can be changed. Press **Onboard student**.
@@ -117,13 +120,22 @@ when a result is published or corrected.
 
 ## 6. Course fee instalments
 
+**Payments before onboarding:**
+- A payment can be taken as soon as the setup has a batch and instalments, before the student is onboarded.
+- The admission page shows a **Payments** card with the planned instalments, what is paid and what is still owed.
+- When the student is onboarded, the payments are matched to the instalments in order.
+- If the plan is changed later, the course fee can't go below what is already paid.
+
 1. Open the student's admission, the **Fees** tab, and press **Record payment**.
 2. The amount starts at the next due amount. Choose the method (Cash, bKash, Nagad, Rocket, Bank) and the date it was paid.
 3. A **reference** is required. For cash it is filled in for you (for example CASH-20261115); change it if the receipt book has
    its own number.
 4. A payment recorded by **staff** waits in **Fee approvals** until the Master Admin approves it. The Master Admin's own payment
    counts at once.
-5. Each approved payment gets a numbered **receipt** the student can download.
+5. Each approved payment gets a numbered **receipt**:
+   - when the Master Admin records a payment, **Open receipt** appears straight away;
+   - every approved payment on the admission has **Open receipt**;
+   - the student can download it too.
 
 **Reminders:** the student is reminded three days before a fee is due, on the day, and three days after if it is still unpaid.
 The admins are told about overdue fees, and again each week while they stay unpaid. **Change terms** on the admission changes
@@ -141,9 +153,10 @@ of the course fee is spread over the other instalments.
    kind (lecture or exam).
 3. Rows that need a look are marked with the reason, for example "No instructor yet" or "Exam row: check who is paid". Any
    cell can be corrected by clicking it.
-4. **Wrong dates must be fixed before you can confirm:** a date that cannot be read, a date earlier than the row above it, or
-   a date outside the batch's start and end. These rows are always shown, even among the earlier dates. A weekday that does
-   not match its date is only a warning: correct it if you wish.
+4. **Nothing stops you confirming.** Possible problems are listed above the rows as warnings: a date earlier than the row above,
+   a date outside the batch's dates, a weekday that does not match its date, or a row with no subject. You can correct any row
+   first, or confirm the routine as it is. A row whose date or time can't be read is left out when you confirm, unless you type
+   it in.
 5. An instructor name the site does not know yet is added as a new instructor when you confirm. If it is someone already in
    the list under another spelling (for example "Milon" for "Milon Hossain"), use **Change** on that row and choose them; every
    row with that name follows, and the site remembers the spelling.

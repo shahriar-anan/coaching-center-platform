@@ -89,6 +89,8 @@ export type AdmissionSetup = {
   installments: number | null;
   /** Each instalment the onboarding writes: number, date and amount. Empty until the fee, the count and the first due date are set. */
   installmentPlan?: InstallmentPreview[];
+  /** True when the admin set the instalments one by one (E1); false for the even split of the course fee. */
+  customPlan?: boolean;
   admittedOn: string | null;
   firstDueOn: string | null;
   courseEndsOn: string | null;
@@ -592,6 +594,8 @@ export type SetupBody = {
   batchId?: string | null;
   courseFee?: string | number | null;
   installments?: number | null;
+  /** The admin's own instalments (E1). Sent instead of the fee and count; the course fee is their sum. */
+  installmentPlan?: { dueOn: string; amount: string }[];
   admittedOn?: string | null;
   firstDueOn?: string | null;
   courseEndsOn?: string | null;

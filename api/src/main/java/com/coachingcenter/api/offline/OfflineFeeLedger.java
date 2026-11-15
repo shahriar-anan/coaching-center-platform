@@ -123,9 +123,56 @@ class OfflineFeeLedger {
 		return open;
 	}
 
-	/** What the admission still owes in all, across every open due. */
+	/**
+	 * What the admission still owes in all. After onboarding: across every open due. Before onboarding there are no dues yet, so it is
+	 * the course fee (the instalment plan's total) less the approved payments (instalment-plan-and-early-payments.md, E3).
+	 */
 	BigDecimal owed(UUID admissionId) {
+		String status = jdbc.queryForObject("select status from offline_admissions where id = ?", String.class, admissionId);
+		if (OfflineFeeRules.BEFORE_ONBOARDING.contains(status)) {
+			BigDecimal left = jdbc.queryForObject("""
+					select coalesce(a.course_fee, 0) - coalesce((select sum(p.amount) from offline_fee_payments p
+					  where p.admission_id = a.id and p.status = 'APPROVED'), 0)
+					from offline_admissions a where a.id = ?
+					""", BigDecimal.class, admissionId);
+			return left == null ? BigDecimal.ZERO.setScale(2) : left.max(BigDecimal.ZERO).setScale(2);
+		}
 		return OfflineFeeRules.total(open(admissionId));
+	}
+
+	/**
+	 * True when a payment may be taken before onboarding (E3): the form is in (submitted, sent back or ready) and the setup has a batch
+	 * and an instalment plan with a total above zero.
+	 */
+	boolean payableBeforeOnboarding(UUID admissionId) {
+		return Boolean.TRUE.equals(jdbc.queryForObject("""
+				select status in ('SUBMITTED', 'CHANGES_REQUESTED', 'READY') and batch_id is not null and coalesce(course_fee, 0) > 0
+				from offline_admissions where id = ?
+				""", Boolean.class, admissionId));
+	}
+
+	/** The approved and pending payments of an admission, together: what a new plan total may not go below. */
+	BigDecimal paidOrWaiting(UUID admissionId) {
+		BigDecimal sum = jdbc.queryForObject("""
+				select coalesce(sum(amount), 0) from offline_fee_payments where admission_id = ? and status in ('APPROVED', 'PENDING')
+				""", BigDecimal.class, admissionId);
+		return sum == null ? BigDecimal.ZERO : sum;
+	}
+
+	/**
+	 * Matches the approved payments taken before onboarding to the dues the onboarding has just written, in the order they were paid,
+	 * as if each had been recorded after onboarding (E3). A payment already matched is left alone.
+	 */
+	void matchEarlyPayments(UUID admissionId) {
+		List<Object[]> early = jdbc.query("""
+				select p.id, p.amount from offline_fee_payments p
+				where p.admission_id = ? and p.status = 'APPROVED'
+				  and not exists (select 1 from offline_fee_allocations al where al.payment_id = p.id)
+				order by p.paid_on, p.recorded_at, p.id
+				""", (rs, row) -> new Object[] { rs.getObject("id", UUID.class), rs.getBigDecimal("amount") }, admissionId);
+		for (Object[] payment : early) {
+			match((UUID) payment[0], (BigDecimal) payment[1], open(admissionId));
+		}
 	}
 
 	/** Each due that is past its date and still owes money, with what it owes. */

@@ -20,7 +20,8 @@ import { FormReadOnly } from "./form-readonly";
 import { AdmissionMoneyPills } from "./money-pills";
 import { PrimaryActions } from "./primary-actions";
 import { SetupSummary } from "./setup-summary";
-import { isAfterOnboarding, progressIndex, waitingFor } from "./offline-model";
+import { FeesTab } from "./fees-tab";
+import { isAfterOnboarding, payableBeforeOnboarding, progressIndex, waitingFor } from "./offline-model";
 import { stateLabelKey } from "./labels";
 
 const STATE_TONE: Record<AdmissionState, PillTone> = {
@@ -95,6 +96,14 @@ export function AdmissionDetailView({ id }: { id: string }) {
               </p>
             ) : null}
             <AdmissionPhoto admissionId={a.id} hasPhoto={a.hasPhoto} name={name} size="lg" />
+            {payableBeforeOnboarding(a) && canReview ? (
+              <section aria-labelledby="early-payments" className="grid gap-3">
+                <h2 id="early-payments" className="text-card-title font-bold text-text">
+                  {t("staffOffline.fees.earlyTitle")}
+                </h2>
+                <FeesTab admission={a} canRecord={canReview} canApprove={canOnboard} openOnLoad={false} beforeOnboarding />
+              </section>
+            ) : null}
             <FormReadOnly form={a.form} />
             <SubmissionHistory admission={a} />
           </div>

@@ -13,11 +13,20 @@ import { installmentPlan, toNumber } from "./offline-model";
  * PATCH, a moment after the last change, and one status line (Saving, Saved, Not saved) covers all of it.
  */
 
-/** `courseFee` is the total; `installments` the number of monthly instalments it is paid in (course-fee-plan.md). */
+/** One instalment as the setup table holds it while it is typed in. */
+export type PlanRow = { dueOn: string; amount: string };
+
+/**
+ * `courseFee` is the total and `installments` the number of monthly instalments it is split into evenly (course-fee-plan.md). Once the
+ * admin edits a row, `custom` is true and `rows` are the instalments: the course fee is then their sum (instalment-plan-and-early-payments
+ * .md, E1, E2).
+ */
 export type SetupDraft = {
   batchId: string;
   courseFee: string;
   installments: string;
+  custom: boolean;
+  rows: PlanRow[];
   admittedOn: string;
   firstDueOn: string;
   courseEndsOn: string;
@@ -40,6 +49,8 @@ export function draftOf(setup: AdmissionSetup): SetupDraft {
     batchId: text(setup.batchId),
     courseFee: text(setup.courseFee),
     installments: text(setup.installments),
+    custom: setup.customPlan === true,
+    rows: (setup.installmentPlan ?? []).map((row) => ({ dueOn: row.dueOn, amount: text(row.amount) })),
     admittedOn: text(setup.admittedOn),
     firstDueOn: text(setup.firstDueOn),
     courseEndsOn: text(setup.courseEndsOn),
@@ -47,6 +58,15 @@ export function draftOf(setup: AdmissionSetup): SetupDraft {
 }
 
 export function bodyOf(draft: SetupDraft): SetupBody {
+  if (draft.custom) {
+    // The admin's own rows: the fee and the count follow from them, so they are not sent (sending them means "split evenly").
+    return {
+      batchId: draft.batchId || null,
+      installmentPlan: draft.rows.map((row) => ({ dueOn: row.dueOn, amount: row.amount.trim() })),
+      admittedOn: draft.admittedOn || null,
+      courseEndsOn: draft.courseEndsOn || null,
+    };
+  }
   return {
     batchId: draft.batchId || null,
     courseFee: draft.courseFee.trim() || null,
@@ -70,9 +90,11 @@ function fieldErrorsOf(error: unknown): Record<string, string> {
  * `pastEnd` is true when the last instalment falls after the course end, which the API refuses.
  */
 export function setupTotals(draft: SetupDraft) {
-  const fee = toNumber(draft.courseFee);
   const count = Number(draft.installments);
-  const rows = installmentPlan(draft.firstDueOn, Number.isInteger(count) ? count : 0, fee);
+  const rows = draft.custom
+    ? draft.rows.map((row, index) => ({ seq: index + 1, dueOn: row.dueOn, amount: toNumber(row.amount) }))
+    : installmentPlan(draft.firstDueOn, Number.isInteger(count) ? count : 0, toNumber(draft.courseFee));
+  const fee = draft.custom ? rows.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? row.amount : 0), 0) : toNumber(draft.courseFee);
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
   const lastDue = rows.length > 0 ? rows[rows.length - 1].dueOn : null;
   return {
@@ -84,7 +106,31 @@ export function setupTotals(draft: SetupDraft) {
     firstDue: rows.length > 0 ? rows[0].dueOn : null,
     lastDue,
     pastEnd: Boolean(lastDue && draft.courseEndsOn && lastDue > draft.courseEndsOn),
+    rowIssues: draft.custom ? rowIssuesOf(draft) : [],
   };
+}
+
+/** What is wrong with one instalment row, as message keys (E1): the same rules the API checks on save. */
+export type RowIssue = "amount" | "date" | "order" | "beforeAdmitted" | "afterEnd";
+
+/** The problems of each row of the admin's own instalments, by row index. A row with none has an empty list. */
+export function rowIssuesOf(draft: SetupDraft): RowIssue[][] {
+  return draft.rows.map((row, index) => {
+    const issues: RowIssue[] = [];
+    const amount = Number(row.amount.trim());
+    if (!row.amount.trim() || !Number.isFinite(amount) || amount < 1 || !/^\d+(\.\d{1,2})?$/.test(row.amount.trim())) {
+      issues.push("amount");
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row.dueOn)) {
+      issues.push("date");
+      return issues;
+    }
+    const previous = index > 0 ? draft.rows[index - 1].dueOn : "";
+    if (previous && row.dueOn <= previous) issues.push("order");
+    if (index === 0 && draft.admittedOn && row.dueOn < draft.admittedOn) issues.push("beforeAdmitted");
+    if (draft.courseEndsOn && row.dueOn > draft.courseEndsOn) issues.push("afterEnd");
+    return issues;
+  });
 }
 
 /**

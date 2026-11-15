@@ -66,7 +66,7 @@ export function previewRoutine(overrides: Partial<RoutineView> = {}): RoutineVie
     flaggedCount: 1,
     unmatchedNames: [{ name: "Milon Sir", rows: 1 }],
     // A name no instructor has does not block: the confirm adds it as a new instructor.
-    blockers: [],
+    warnings: [],
     canConfirm: true,
     rows: [
       row(0, {

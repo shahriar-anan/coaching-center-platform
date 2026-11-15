@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import SetupPage from "@/app/(staff)/staff/admissions/[id]/setup/page";
@@ -114,7 +114,7 @@ describe("the setup on its own screen", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Batch and fees" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Exams and packages" })).toBeInTheDocument();
     expect(screen.getByLabelText(/Course fee for this student/)).toHaveValue("9000");
-    expect(screen.getByText(/^Instalments: /)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Instalments" })).toBeInTheDocument();
     expect(screen.getByLabelText(/Number of instalments/)).toHaveValue(3);
     expect(screen.getByText("Ready checklist")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark ready" })).toBeEnabled();
@@ -125,8 +125,47 @@ describe("the setup on its own screen", () => {
     renderSetupRoute();
 
     // 9,000 in three instalments from 9 December to 9 February.
-    expect(await screen.findByText(/9,000.* in 3 instalments/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/9,000.* in 3 instalments/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/9 December 2026 → 9 February 2027/)).toBeInTheDocument();
+  });
+
+  it("lists each instalment, and editing one sends the admin's own rows instead of the fee and count (E1, E2)", async () => {
+    const api = routes(detail({ state: "SUBMITTED" }));
+    renderSetupRoute();
+    const user = userEvent.setup();
+
+    // The even split is written out as rows: 3,000 on 9 December, 9 January and 9 February.
+    const third = await screen.findByLabelText("Instalment 3 amount (৳)");
+    expect(third).toHaveValue("3000");
+    expect(screen.getByLabelText("Instalment 1 due date")).toHaveValue("2026-12-09");
+
+    await user.clear(screen.getByLabelText("Instalment 1 amount (৳)"));
+    await user.type(screen.getByLabelText("Instalment 1 amount (৳)"), "5000");
+    // The course fee is now the sum: 11,000.
+    expect(screen.getByText(/Course fee: .*11,000.* in 3 instalments/)).toBeInTheDocument();
+
+    await waitFor(
+      () => {
+        const sent = api.calls.filter((call) => call.method === "PATCH" && call.path.endsWith("/setup")).pop()?.body as
+          | { installmentPlan?: { dueOn: string; amount: string }[]; courseFee?: unknown }
+          | undefined;
+        expect(sent?.installmentPlan?.[0]).toEqual({ dueOn: "2026-12-09", amount: "5000" });
+        expect(sent && "courseFee" in sent).toBe(false);
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it("marks a row whose date is not after the row above", async () => {
+    routes(detail({ state: "SUBMITTED" }));
+    renderSetupRoute();
+    const user = userEvent.setup();
+
+    const second = await screen.findByLabelText("Instalment 2 due date");
+    fireEvent.change(second, { target: { value: "2026-12-01" } });
+    expect(await screen.findByText("Must be due after the instalment above.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "+ Add instalment" }));
+    expect(screen.getByLabelText("Instalment 4 due date")).toBeInTheDocument();
   });
 
   it("keeps Mark ready off, with the reason, until the checklist passes", async () => {

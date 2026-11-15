@@ -134,6 +134,14 @@ public class OfflineAdmission {
 	@Column(name = "monthly_fee", precision = 12, scale = 2)
 	private BigDecimal monthlyFee;
 
+	/**
+	 * The admin's own instalments before onboarding, as JSON [{"dueOn":"yyyy-MM-dd","amount":"4000.00"}] (V102). Null: the even split of
+	 * the course fee over the instalments. See {@link OfflineInstallmentPlan}.
+	 */
+	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+	@Column(name = "installment_plan", columnDefinition = "jsonb")
+	private String installmentPlan;
+
 	/** The last code sent after onboarding (join or activation), for staff to read out (V101). Shown only while it can be used. */
 	@Column(name = "sent_code", length = 16)
 	private String sentCode;
@@ -519,6 +527,14 @@ public class OfflineAdmission {
 
 	public void setMonthlyFee(BigDecimal monthlyFee) {
 		this.monthlyFee = monthlyFee;
+	}
+
+	public String getInstallmentPlan() {
+		return installmentPlan;
+	}
+
+	public void setInstallmentPlan(String installmentPlan) {
+		this.installmentPlan = installmentPlan;
 	}
 
 	public String getSentCode() {

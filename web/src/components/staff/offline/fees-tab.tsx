@@ -33,12 +33,18 @@ export function FeesTab({
   canRecord,
   canApprove,
   openOnLoad,
+  beforeOnboarding = false,
 }: {
   admission: AdmissionDetail;
   canRecord: boolean;
   canApprove: boolean;
   /** Opens Record payment at once, when the page was reached from the queue's Record payment action. */
   openOnLoad: boolean;
+  /**
+   * Before onboarding (E3) there are no dues yet: the setup's instalments are shown instead, covered by the approved payments in order,
+   * and the payments are matched to the real dues when the student is onboarded.
+   */
+  beforeOnboarding?: boolean;
 }) {
   const { t } = useLocale();
   const { formatDate, formatMoney } = useFormat();
@@ -53,7 +59,7 @@ export function FeesTab({
   if (fees.isError) {
     return <ErrorState onRetry={() => fees.refetch()} error={fees.error} />;
   }
-  const schedule = fees.data;
+  const schedule = beforeOnboarding ? { ...fees.data, dues: plannedDues(admission, fees.data.payments) } : fees.data;
   const next = nextOwedDue(schedule.dues);
   const overdue = toNumber(schedule.overdue);
 
@@ -129,6 +135,7 @@ export function FeesTab({
         <h3 id="fees-schedule" className="text-card-title text-text">
           {t("staffOffline.fees.schedule")}
         </h3>
+        {beforeOnboarding ? <p className="text-meta text-muted">{t("staffOffline.fees.beforeOnboarding")}</p> : null}
         <Table
           columns={dueColumns}
           rows={schedule.dues}
@@ -174,6 +181,30 @@ export function FeesTab({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The setup's instalments as dues, before onboarding (E3): each is covered by the approved payments in order, as the onboarding will match
+ * them. None is overdue yet, since the schedule starts at onboarding.
+ */
+function plannedDues(admission: AdmissionDetail, payments: FeePayment[]): DueView[] {
+  let left = payments.filter((payment) => payment.status === "APPROVED").reduce((sum, payment) => sum + toNumber(payment.amount), 0);
+  return (admission.setup.installmentPlan ?? []).map((row) => {
+    const amount = toNumber(row.amount);
+    const paid = Math.min(amount, Math.max(0, left));
+    left -= paid;
+    const owed = Math.round((amount - paid) * 100) / 100;
+    return {
+      id: `plan-${row.seq}`,
+      seq: row.seq,
+      dueOn: row.dueOn,
+      amount,
+      paid,
+      owed,
+      overdue: false,
+      state: owed <= 0 ? "PAID" : paid > 0 ? "PART_PAID" : "UNPAID",
+    };
+  });
 }
 
 function PaymentRow({

@@ -406,6 +406,109 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		assertThat(OfflineFeeSchedule.fittingInstallments(LocalDate.parse("2027-06-01"), LocalDate.parse("2027-05-31"))).isEqualTo(1);
 	}
 
+	// ---- instalments set one by one, and payments before onboarding (instalment-plan-and-early-payments.md) --------------------
+
+	private static String plan(String... rows) {
+		StringBuilder body = new StringBuilder("{\"installmentPlan\":[");
+		for (int index = 0; index < rows.length; index += 2) {
+			body.append(index == 0 ? "" : ",").append("{\"dueOn\":\"").append(rows[index]).append("\",\"amount\":\"").append(rows[index + 1])
+				.append("\"}");
+		}
+		return body.append("]}").toString();
+	}
+
+	@Test
+	void theAdminSetsEachInstalmentAndTheCourseFeeIsTheirSum() throws Exception {
+		UUID master = seed("MASTER_ADMIN", "Master");
+		String token = token(master);
+		UUID batch = batch(token, "2027-04-30", "12000");
+		UUID admission = admission(seed("STUDENT", "Plan Student"), master, "SUBMITTED");
+		String setup = "/api/v1/offline-admissions/" + admission + "/setup";
+		respond(patch(setup, token, "{\"batchId\":\"" + batch + "\",\"admittedOn\":\"2026-12-31\"}"), 200);
+
+		// E1, E2: any dates and amounts; the course fee is their sum, the count their number, the first due date the first row's.
+		JsonNode own = respond(patch(setup, token, plan("2027-01-10", "4000", "2027-02-01", "2000", "2027-03-15", "1000")), 200).get("setup");
+		assertThat(own.get("customPlan").asBoolean()).isTrue();
+		assertThat(own.get("courseFee").decimalValue()).isEqualByComparingTo("7000");
+		assertThat(own.get("installments").asInt()).isEqualTo(3);
+		assertThat(own.get("firstDueOn").asText()).isEqualTo("2027-01-10");
+		assertThat(own.get("installmentPlan").get(1).get("amount").decimalValue()).isEqualByComparingTo("2000");
+
+		// Out of order, after the course end, or below one taka: refused on the plan, and the saved plan stays.
+		assertThat(fieldNames(respond(patch(setup, token, plan("2027-02-01", "4000", "2027-01-10", "3000")), 400)))
+			.contains("installmentPlan");
+		assertThat(fieldNames(respond(patch(setup, token, plan("2027-01-10", "4000", "2027-05-01", "3000")), 400)))
+			.contains("installmentPlan");
+		assertThat(fieldNames(respond(patch(setup, token, plan("2027-01-10", "0")), 400))).contains("installmentPlan");
+
+		// A fee and a count without rows is the even split again (Spread evenly).
+		JsonNode even = respond(patch(setup, token, "{\"courseFee\":\"9000\",\"installments\":3}"), 200).get("setup");
+		assertThat(even.get("customPlan").asBoolean()).isFalse();
+		assertThat(even.get("installmentPlan").get(2).get("amount").decimalValue()).isEqualByComparingTo("3000");
+
+		// Back to the admin's rows; onboarding writes exactly those dues.
+		respond(patch(setup, token, plan("2027-01-10", "4000", "2027-02-01", "2000", "2027-03-15", "1000")), 200);
+		respond(post("/api/v1/offline-admissions/" + admission + "/items", token, "{\"scope\":\"EXAM\",\"examId\":\"" + publishedExam() + "\"}"),
+				200);
+		respond(post("/api/v1/offline-admissions/" + admission + "/ready", token, null), 200);
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", token, rollBody()), 200);
+		assertThat(unpaidDueDates(admission)).containsExactly("2027-01-10", "2027-02-01", "2027-03-15");
+		assertThat(unpaidDueAmounts(admission)).containsExactly("4000.00", "2000.00", "1000.00");
+	}
+
+	@Test
+	void aPaymentCanBeTakenBeforeOnboardingAndIsMatchedToTheDuesAtOnboarding() throws Exception {
+		UUID master = seed("MASTER_ADMIN", "Master");
+		String token = token(master);
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID batch = batch(token, "2027-04-30", "12000");
+		UUID admission = admission(seed("STUDENT", "Early Payer"), master, "SUBMITTED");
+		String base = "/api/v1/offline-admissions/" + admission;
+
+		// No batch or plan yet: nothing to pay against.
+		respond(post(base + "/payments", token, payment("1000", "EARLY-0")), 409);
+
+		respond(patch(base + "/setup", token, "{\"batchId\":\"" + batch + "\",\"admittedOn\":\"2026-10-20\"}"), 200);
+		respond(patch(base + "/setup", token, plan("2026-11-20", "4000", "2026-12-20", "2000", "2027-01-20", "1000")), 200);
+
+		// E3: the Master Admin's payment counts at once and gets its receipt (E4); a staff payment waits.
+		JsonNode paid = respond(post(base + "/payments", token, payment("4500", "EARLY-1")), 201);
+		assertThat(paid.get("status").asText()).isEqualTo("APPROVED");
+		assertThat(paid.hasNonNull("receiptNo")).isTrue();
+		MvcResult pdf = mockMvc.perform(get("/api/v1/offline-fee-payments/" + paid.get("id").asText() + "/receipt.pdf")
+			.header("Authorization", "Bearer " + token)).andExpect(status().isOk()).andReturn();
+		assertThat(pdf.getResponse().getContentAsByteArray().length).isGreaterThan(1000);
+		JsonNode waiting = respond(post(base + "/payments", staff, payment("500", "EARLY-2")), 201);
+		assertThat(waiting.get("status").asText()).isEqualTo("PENDING");
+
+		// What is owed is the plan's total less the approved payments; more than that is refused.
+		JsonNode fees = respondTo(get(base + "/fees").header("Authorization", "Bearer " + token), 200);
+		assertThat(fees.get("owed").decimalValue()).isEqualByComparingTo("2500");
+		assertThat(fees.get("dues")).isEmpty();
+		respond(post(base + "/payments", token, payment("2600", "EARLY-3")), 400);
+
+		// The plan cannot go below what is paid or waiting (5,000).
+		assertThat(fieldNames(respond(patch(base + "/setup", token, plan("2026-11-20", "4000")), 400))).contains("installmentPlan");
+
+		respond(post("/api/v1/offline-fee-payments/" + waiting.get("id").asText() + "/approve", token, null), 200);
+		assertThat(respondTo(get(base + "/fees").header("Authorization", "Bearer " + token), 200).get("owed").decimalValue())
+			.isEqualByComparingTo("2000");
+
+		// Onboarding writes the dues and matches the 5,000 to them in order: the first 4,000 in full, 1,000 of the second.
+		respond(post(base + "/items", token, "{\"scope\":\"EXAM\",\"examId\":\"" + publishedExam() + "\"}"), 200);
+		respond(post(base + "/ready", token, null), 200);
+		respond(post(base + "/onboard", token, rollBody()), 200);
+		JsonNode after = respondTo(get(base + "/fees").header("Authorization", "Bearer " + token), 200);
+		assertThat(after.get("owed").decimalValue()).isEqualByComparingTo("2000");
+		assertThat(after.get("dues").get(0).get("paid").decimalValue()).isEqualByComparingTo("4000");
+		assertThat(after.get("dues").get(1).get("paid").decimalValue()).isEqualByComparingTo("1000");
+		assertThat(after.get("dues").get(2).get("paid").decimalValue()).isEqualByComparingTo("0");
+	}
+
+	private static String payment(String amount, String reference) {
+		return "{\"amount\":\"" + amount + "\",\"method\":\"CASH\",\"reference\":\"" + reference + "\",\"paidOn\":\"2026-10-20\"}";
+	}
+
 	// ---- terms and items after onboarding ----------------------------------------------------------------------------------
 
 	@Test

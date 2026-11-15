@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { ApiError } from "@/lib/api/errors";
-import { useRecordPayment, type FeePayment } from "@/lib/api/exam/offline-admin";
+import { openAuthorizedFile, useRecordPayment, type FeePayment } from "@/lib/api/exam/offline-admin";
 import { dhakaToday, toNumber } from "./offline-model";
 import { methodLabelKey } from "./labels";
 import { offlineErrorText } from "./offline-error";
@@ -52,6 +52,14 @@ export function RecordPaymentDialog({
   const [referenceTyped, setReferenceTyped] = useState(false);
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // After recording, the dialog says what happened: an approved payment offers its receipt at once; a waiting one says the receipt
+  // follows the Master Admin's approval (E4).
+  const [done, setDone] = useState<FeePayment | null>(null);
+
+  function close(next: boolean) {
+    if (!next) setDone(null);
+    onOpenChange(next);
+  }
 
   function validate(): Record<string, string> {
     const problems: Record<string, string> = {};
@@ -86,7 +94,7 @@ export function RecordPaymentDialog({
         title: payment.status === "PENDING" ? t("staffOffline.pay.pending") : t("staffOffline.pay.recorded"),
         tone: "ok",
       });
-      onOpenChange(false);
+      setDone(payment);
     } catch (error) {
       // Each field the API names is marked with this dialog's own words, so the highlighted field matches the summary line.
       const fields: Record<string, string> = {};
@@ -107,22 +115,50 @@ export function RecordPaymentDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
-      title={t("staffOffline.pay.title")}
+      onOpenChange={close}
+      title={done ? t("staffOffline.pay.doneTitle") : t("staffOffline.pay.title")}
       description={
         canApprove ? t("staffOffline.pay.masterNote") : t("staffOffline.pay.staffNote")
       }
       footer={
-        <>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t("common.actions.cancel")}
-          </Button>
-          <Button onClick={() => void submit()} loading={record.isPending}>
-            {t("staffOffline.pay.submit")}
-          </Button>
-        </>
+        done ? (
+          <>
+            {done.status === "APPROVED" && done.receiptNo ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  void openAuthorizedFile(`/api/v1/offline-fee-payments/${done.id}/receipt.pdf`).catch(() =>
+                    toast({ title: t("staffOffline.errors.generic"), tone: "danger" }),
+                  )
+                }
+              >
+                {t("staffOffline.fees.openReceipt")}
+              </Button>
+            ) : null}
+            <Button onClick={() => close(false)}>{t("staffOffline.pay.close")}</Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={() => close(false)}>
+              {t("common.actions.cancel")}
+            </Button>
+            <Button onClick={() => void submit()} loading={record.isPending}>
+              {t("staffOffline.pay.submit")}
+            </Button>
+          </>
+        )
       }
     >
+      {done ? (
+        <div role="status" className="grid gap-2 text-body text-text">
+          <p className="font-latin font-semibold">{formatMoney(toNumber(done.amount))}</p>
+          {done.status === "APPROVED" && done.receiptNo ? (
+            <p>{t("staffOffline.pay.doneApproved", { number: done.receiptNo })}</p>
+          ) : (
+            <p>{t("staffOffline.pay.donePending")}</p>
+          )}
+        </div>
+      ) : (
       <div className="grid gap-4">
         {nextDue ? (
           <p className="rounded-control bg-bg px-3 py-2 text-meta text-muted">
@@ -181,6 +217,7 @@ export function RecordPaymentDialog({
           <TextInput value={note} onChange={(event) => setNote(event.target.value)} />
         </Field>
       </div>
+      )}
     </Dialog>
   );
 }

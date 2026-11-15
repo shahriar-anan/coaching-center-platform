@@ -82,6 +82,9 @@ public class OfflineRoutineService {
 
 	private static final int MAX_SUBJECT = 200;
 
+	/** The subject a class gets when its routine row has none (15 Nov: a missing subject only warns). */
+	private static final String NO_SUBJECT = "Class";
+
 	private static final int MAX_TOPIC = 500;
 
 	private static final int MAX_INSTRUCTOR_TEXT = 200;
@@ -182,12 +185,11 @@ public class OfflineRoutineService {
 		List<RoutineSummary> summaries = new ArrayList<>();
 		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByEffectiveFromDescRevisionDesc(batchId)) {
 			List<OfflineRoutineRow> rows = rowsFor(routine);
-			List<String> blockers = blockers(rows);
 			Report report = report(routine);
 			summaries.add(new RoutineSummary(routine.getId(), routine.getEffectiveFrom().toString(), routine.getRevision(),
 					routine.getStatus(), routine.isLegacyOriginal(), routine.getOriginalName(), routine.getStudentFile() != null,
 					routine.getUploadedAt(), routine.getConfirmedAt(), rows.size(), flagged(rows),
-					OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()) && blockers.isEmpty()));
+					OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())));
 		}
 		return summaries;
 	}
@@ -313,7 +315,8 @@ public class OfflineRoutineService {
 	}
 
 	/**
-	 * Confirms a PREVIEW. Refused while a row lacks a date, time or subject; flags do not block. The instructors come from the PDF: a name
+	 * Confirms a PREVIEW. Nothing in the rows blocks it (Shahriar, 15 Nov): the admin confirms with the warnings in view. A row with no
+	 * readable date or time cannot be a class, so it is left out (the warnings say so); a row with no subject is saved as "Class". The instructors come from the PDF: a name
 	 * that no instructor has (by name or alias) is added as a new instructor under that name and assigned to its rows, so nobody has to
 	 * match names before confirming. A name can still be matched to an existing instructor on the preview, and a class's instructor can be
 	 * changed later until it is settled. The classes of the batch change in this transaction: matched unsettled classes take the new
@@ -331,11 +334,10 @@ public class OfflineRoutineService {
 			throw state("This batch is archived, so its routine cannot be confirmed.");
 		}
 		Report report = report(routine);
-		List<String> blockers = blockers(OfflineRoutineRules.withBatchDates(report.rows(), batch.getStartsOn(), batch.getEndsOn()));
-		if (!blockers.isEmpty()) {
-			throw state("This routine cannot be confirmed yet. " + String.join(" ", blockers));
-		}
 		report = withNewInstructors(routine, report, actorId);
+		// A row with no date or time cannot be held on a day and hour, so it is left out; every other row becomes a class.
+		List<OfflineRoutineRow> usable = report.rows().stream().filter(row -> row.date() != null && row.startsAt() != null).toList();
+		report = new Report(report.defaultClassMinutes(), report.pageCount(), usable);
 		Instant now = clock.instant();
 		Plan plan = OfflineRoutineMatcher.plan(report.rows(), classes.findByBatchIdOrderByHeldOnAscStartsAtAsc(batch.getId()),
 				routine.getEffectiveFrom(), results.classesWithResults(batch.getId()));
@@ -459,12 +461,12 @@ public class OfflineRoutineService {
 				&& routines.findByBatchIdAndStatus(routine.getBatchId(), OfflineBatchRoutine.STATUS_CONFIRMED).isPresent()) {
 			difference = difference(routine.getBatchId(), routine.getEffectiveFrom(), report.rows(), names);
 		}
-		List<String> blockers = blockers(checked);
+		List<String> warnings = warnings(checked);
 		return new RoutineView(routine.getId(), routine.getBatchId(), routine.getEffectiveFrom().toString(),
 				routine.getRevision(), routine.getStatus(), routine.isLegacyOriginal(), routine.getOriginalName(),
 				routine.getStudentFile() != null, routine.getUploadedAt(), routine.getConfirmedAt(), report.rows().size(),
-				flagged(checked), unmatched(report.rows()), blockers,
-				OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()) && blockers.isEmpty(), rows, difference);
+				flagged(checked), unmatched(report.rows()), warnings,
+				OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()), rows, difference);
 	}
 
 	private Difference difference(UUID batchId, LocalDate from, List<OfflineRoutineRow> rows, Map<UUID, String> names) {
@@ -512,30 +514,31 @@ public class OfflineRoutineService {
 	}
 
 	/**
-	 * What stops a confirm: a row without a date, time or subject, and a wrong date: one earlier than the row above it, or outside the
-	 * batch's dates (decision of 15 Nov 2026). A weekday that does not match its date only warns: the admin fixes it in the preview.
+	 * What the admin is warned of before confirming (Shahriar, 15 Nov: nothing blocks). A row with no readable date or time is left out of
+	 * the classes; a date earlier than the row above it, or outside the batch's dates, is kept as written; a row with no subject is saved
+	 * as "Class". A weekday that does not match its date, and the other flags, show on the rows.
 	 */
-	private static List<String> blockers(List<OfflineRoutineRow> rows) {
-		List<String> blockers = new ArrayList<>();
+	private static List<String> warnings(List<OfflineRoutineRow> rows) {
+		List<String> warnings = new ArrayList<>();
 		for (int index = 0; index < rows.size(); index++) {
 			OfflineRoutineRow row = rows.get(index);
 			if (row.date() == null) {
-				blockers.add("Row " + (index + 1) + " has no readable date.");
+				warnings.add("Row " + (index + 1) + " has no readable date, so it will be left out.");
+			}
+			else if (row.startsAt() == null) {
+				warnings.add("Row " + (index + 1) + " has no readable time, so it will be left out.");
 			}
 			if (OfflineRoutineRules.has(row, OfflineRoutineRules.DATE_OUT_OF_ORDER)) {
-				blockers.add("Row " + (index + 1) + " has a date earlier than the row above it.");
+				warnings.add("Row " + (index + 1) + " has a date earlier than the row above it.");
 			}
 			if (OfflineRoutineRules.has(row, OfflineRoutineRules.DATE_OUTSIDE_BATCH)) {
-				blockers.add("Row " + (index + 1) + " has a date outside the batch's dates.");
-			}
-			if (row.startsAt() == null) {
-				blockers.add("Row " + (index + 1) + " has no readable time.");
+				warnings.add("Row " + (index + 1) + " has a date outside the batch's dates.");
 			}
 			if (row.subject() == null || row.subject().isBlank()) {
-				blockers.add("Row " + (index + 1) + " has no subject.");
+				warnings.add("Row " + (index + 1) + " has no subject, so it will be saved as \"Class\".");
 			}
 		}
-		return blockers;
+		return warnings;
 	}
 
 	/**
@@ -606,7 +609,7 @@ public class OfflineRoutineService {
 		item.setHeldOn(LocalDate.parse(row.date()));
 		item.setStartsAt(LocalTime.parse(row.startsAt()));
 		item.setEndsAt(row.endsAt() == null ? null : LocalTime.parse(row.endsAt()));
-		item.setSubject(cut(row.subject(), MAX_SUBJECT));
+		item.setSubject(row.subject() == null || row.subject().isBlank() ? NO_SUBJECT : cut(row.subject(), MAX_SUBJECT));
 		item.setTopic(row.topic() == null || row.topic().isBlank() ? null : cut(row.topic(), MAX_TOPIC));
 		item.setKind(row.kind());
 		item.setInstructorId(row.instructorId());
@@ -825,18 +828,19 @@ public class OfflineRoutineService {
 	public record Report(int defaultClassMinutes, int pageCount, List<OfflineRoutineRow> rows) {
 	}
 
-	/** One routine in a list. {@code rowCount} and {@code flaggedCount} count the rows; {@code canConfirm} is true for a preview with nothing blocking. */
+	/** One routine in a list. {@code rowCount} and {@code flaggedCount} count the rows; {@code canConfirm} is true for every preview. */
 	public record RoutineSummary(UUID id, String effectiveFrom, int version, String status, boolean legacyOriginal, String originalName,
 			boolean studentCopy, Instant uploadedAt, Instant confirmedAt, int rowCount, int flaggedCount, boolean canConfirm) {
 	}
 
 	/**
-	 * One routine in full: its rows, what blocks the confirm, and the difference when the batch already has a live routine.
+	 * One routine in full: its rows, the warnings to read before confirming (nothing blocks), and the difference when the batch already
+	 * has a live routine.
 	 * {@code effectiveFrom} is the day the routine counts from (yyyy-MM-dd): the classes from that day onward are the ones it replaces.
 	 */
 	public record RoutineView(UUID id, UUID batchId, String effectiveFrom, int version, String status, boolean legacyOriginal,
 			String originalName, boolean studentCopy, Instant uploadedAt, Instant confirmedAt, int rowCount, int flaggedCount,
-			List<UnmatchedName> unmatchedNames, List<String> blockers, boolean canConfirm, List<RowView> rows, Difference difference) {
+			List<UnmatchedName> unmatchedNames, List<String> warnings, boolean canConfirm, List<RowView> rows, Difference difference) {
 	}
 
 	/** One row with its index and the instructor's name for the screens. */

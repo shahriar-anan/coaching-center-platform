@@ -66,6 +66,9 @@ public class OfflineAdmissionOnboardingService {
 
 	private final OfflineAdmissionNotices studentNotices;
 
+	/** Matches the payments taken before onboarding to the dues the onboarding writes (E3). */
+	private final OfflineFeeLedger feeLedger;
+
 	private final StaffNotificationWriter staffNotices;
 
 	private final AuditRecorder audit;
@@ -97,7 +100,8 @@ public class OfflineAdmissionOnboardingService {
 			OfflineFeeDueRepository dues, OfflineAdmissionAdminService admin, OfflineAccessGrants grants,
 			OfflineAdmissionNotices studentNotices, StaffNotificationWriter staffNotices, AuditRecorder audit, JdbcTemplate jdbc,
 			Clock clock, AccountService accounts, AuthService auth, UserRepository users, OfflineApplicationMail publicMail,
-			OfflineAccountMatcher matcher) {
+			OfflineAccountMatcher matcher, OfflineFeeLedger feeLedger) {
+		this.feeLedger = feeLedger;
 		this.accounts = accounts;
 		this.auth = auth;
 		this.users = users;
@@ -302,6 +306,8 @@ public class OfflineAdmissionOnboardingService {
 			audit.record(AuditRecorder.OFFLINE_ACCESS_GRANTED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, grantId);
 		}
 		writeSchedule(a, now);
+		// Payments taken before onboarding (E3) are matched to the new dues, in the order they were paid.
+		feeLedger.matchEarlyPayments(a.getId());
 		if (renameProfile) {
 			jdbc.update("update student_profiles set full_name = ? where user_id = ?", a.getFullName(), a.getStudentId());
 		}
@@ -554,7 +560,7 @@ public class OfflineAdmissionOnboardingService {
 		if (!newEnd.isAfter(a.getFirstDueOn())) {
 			throw validation(List.of(new FieldErrorDetail("courseEndsOn", "The course end date must be after the first due date.")));
 		}
-		LocalDate last = OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), newCount);
+		LocalDate last = targetDates(a, newCount).get(newCount - 1);
 		if (last.isAfter(newEnd)) {
 			throw validation(List.of(new FieldErrorDetail(countChanged ? "installments" : "courseEndsOn", "The last instalment would be due on "
 					+ last + ", after the course ends on " + newEnd + ". Choose fewer instalments or a later course end.")));
@@ -580,6 +586,32 @@ public class OfflineAdmissionOnboardingService {
 		notifyTerms(a, now, feeChanged ? oldFee : null, feeChanged ? newFee : null, countChanged ? oldCount : null,
 				countChanged ? newCount : null, endChanged ? oldEnd : null, endChanged ? newEnd : null);
 		return admin.view(a);
+	}
+
+	/**
+	 * The due date of each instalment 1 to {@code count} after a change of terms. An instalment that already has a row keeps its date
+	 * (the admin may have set it, E1). A new one is due on the monthly date from the first due date, or a month after the one before it
+	 * when that would not be later.
+	 */
+	private List<LocalDate> targetDates(OfflineAdmission a, int count) {
+		Map<Integer, LocalDate> existing = new HashMap<>();
+		for (OfflineFeeDue due : dues.findByAdmissionIdOrderBySeqAsc(a.getId())) {
+			existing.put((int) due.getSeq(), due.getDueOn());
+		}
+		List<LocalDate> dates = new ArrayList<>(count);
+		LocalDate previous = null;
+		for (int seq = 1; seq <= count; seq++) {
+			LocalDate date = existing.get(seq);
+			if (date == null) {
+				date = OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), seq);
+				if (previous != null && !date.isAfter(previous)) {
+					date = previous.plusMonths(1);
+				}
+			}
+			dates.add(date);
+			previous = date;
+		}
+		return dates;
 	}
 
 	/**
@@ -626,9 +658,10 @@ public class OfflineAdmissionOnboardingService {
 					+ " instalments. Choose fewer instalments.")));
 		}
 		List<BigDecimal> amounts = OfflineFeeSchedule.split(rest, open.size());
+		List<LocalDate> dates = targetDates(a, count);
 		for (int index = 0; index < open.size(); index++) {
 			int seq = open.get(index);
-			LocalDate dueOn = OfflineFeeSchedule.installmentDate(a.getFirstDueOn(), seq);
+			LocalDate dueOn = dates.get(seq - 1);
 			OfflineFeeDue existing = bySeq.get(seq);
 			if (existing == null) {
 				dues.saveAndFlush(newDue(a.getId(), (short) seq, dueOn, amounts.get(index), now));
@@ -705,10 +738,10 @@ public class OfflineAdmissionOnboardingService {
 	 * instalments from the first due date, whole taka with the rest on the last.
 	 */
 	private void writeSchedule(OfflineAdmission a, Instant now) {
-		List<BigDecimal> amounts = OfflineFeeSchedule.split(a.getCourseFee(), a.getInstallments());
-		List<LocalDate> dates = OfflineFeeSchedule.installmentDates(a.getFirstDueOn(), a.getInstallments());
-		for (int index = 0; index < amounts.size(); index++) {
-			dues.saveAndFlush(newDue(a.getId(), (short) (index + 1), dates.get(index), amounts.get(index), now));
+		// The admin's own rows (E1), or the even split when there are none.
+		List<OfflineInstallmentPlan.Row> rows = admin.installmentRows(a);
+		for (int index = 0; index < rows.size(); index++) {
+			dues.saveAndFlush(newDue(a.getId(), (short) (index + 1), rows.get(index).dueOn(), rows.get(index).amount(), now));
 		}
 	}
 
