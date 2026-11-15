@@ -53,7 +53,7 @@ const myAdmission = {
     progress: "Fee paid so far",
     paidSoFar: "Paid so far",
     stillOwed: "Still owed",
-    monthlyFee: "Monthly fee",
+    monthlyFee: "Course fee (per month)",
     overdue: "{amount} was due on {date}",
     schedule: "Instalments",
     installment: "Instalment {no}",

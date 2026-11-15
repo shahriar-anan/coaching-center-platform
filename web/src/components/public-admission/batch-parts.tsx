@@ -20,12 +20,20 @@ export function batchDatesLine(batch: PublicBatch, locale: Locale, t: (key: stri
   return t("publicAdmission.card.dates", { start: formatDate(batch.startsOn, locale, { year: "auto" }), end });
 }
 
-/** The monthly fee as the card shows it, for example "৳3,000 a month". */
-export function batchFeeLine(batch: PublicBatch, locale: Locale, t: (key: string, params?: Record<string, string | number>) => string): string {
+/**
+ * The course fee as students see it, paid month by month: "Course fee: ৳3,000 a month", or "৳3,000 a month" under a label that
+ * already says "Course fee" ({@code labelled} false).
+ */
+export function batchFeeLine(
+  batch: PublicBatch,
+  locale: Locale,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  labelled = true,
+): string {
   // Whole taka with a separator, as the card shows it; a fee with paisa is written out in full.
   const value = Number(batch.monthlyFee);
   const amount = `৳${formatNumber(value, locale, { decimals: Number.isInteger(value) ? 0 : 2 })}`;
-  return t("publicAdmission.card.fee", { amount });
+  return t(labelled ? "publicAdmission.card.fee" : "publicAdmission.card.perMonth", { amount });
 }
 
 /**

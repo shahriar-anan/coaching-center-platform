@@ -82,7 +82,7 @@ export function BatchPage({ id }: { id: string }) {
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="grid gap-0.5 rounded-control border border-border bg-card px-4 py-3">
           <dt className="text-meta text-muted">{t("publicAdmission.batch.fee")}</dt>
-          <dd className="font-bold tabular-nums text-text">{batchFeeLine(b, locale, t)}</dd>
+          <dd className="font-bold tabular-nums text-text">{batchFeeLine(b, locale, t, false)}</dd>
         </div>
         <div className="grid gap-0.5 rounded-control border border-border bg-card px-4 py-3">
           <dt className="text-meta text-muted">{t("publicAdmission.batch.startsOn")}</dt>

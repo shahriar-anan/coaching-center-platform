@@ -11,7 +11,8 @@ const publicAdmission = {
   card: {
     dates: "{start} to {end}",
     endsOn: "Ends {end}",
-    fee: "{amount} a month",
+    fee: "Course fee: {amount} a month",
+    perMonth: "{amount} a month",
     apply: "Apply",
     closed: "Admissions closed",
     coverAlt: "Photo of {title}",
@@ -20,7 +21,7 @@ const publicAdmission = {
   batch: {
     open: "Admissions open",
     closed: "Admissions closed",
-    fee: "Monthly fee",
+    fee: "Course fee",
     startsOn: "Starts",
     endsOn: "Ends",
     about: "About this batch",

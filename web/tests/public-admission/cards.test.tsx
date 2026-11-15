@@ -39,7 +39,7 @@ describe("the Admission page shows the batches as cards (plan 3.2, 8)", () => {
     const open = (await screen.findByRole("link", { name: /Batch 3 \(Evening\)/ })).closest("article");
     expect(open).not.toBeNull();
     const card = within(open as HTMLElement);
-    expect(card.getByText("৳3,000 a month")).toBeInTheDocument();
+    expect(card.getByText("Course fee: ৳3,000 a month")).toBeInTheDocument();
     expect(card.getByText(/31 May 2027/)).toBeInTheDocument();
     expect(card.getByRole("link", { name: "Apply" })).toHaveAttribute("href", "/admission/apply/b-1");
 
@@ -63,6 +63,7 @@ describe("the batch page (plan 2A)", () => {
 
     expect(await screen.findByText("The first paragraph.")).toBeInTheDocument();
     expect(screen.getByText("The second paragraph.")).toBeInTheDocument();
+    expect(screen.getByText("Course fee")).toBeInTheDocument();
     expect(screen.getByText("৳3,000 a month")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open the routine PDF" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Apply" })).toHaveAttribute("href", "/admission/apply/b-1");

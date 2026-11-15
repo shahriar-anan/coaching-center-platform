@@ -112,8 +112,8 @@ describe("the header (batch and dates)", () => {
     renderPage(admission("ONBOARDED", { monthlyFee: 3000 }), schedule());
 
     // The schedule also shows 3,000 per instalment, so check the fee inside its own block in the payments card.
-    expect(await screen.findByText("Monthly fee")).toBeInTheDocument();
-    expect(screen.getByText("Monthly fee").parentElement).toHaveTextContent("৳3,000.00");
+    expect(await screen.findByText("Course fee (per month)")).toBeInTheDocument();
+    expect(screen.getByText("Course fee (per month)").parentElement).toHaveTextContent("৳3,000.00");
   });
 
   it("leaves out the batch and date rows the API does not give yet", async () => {

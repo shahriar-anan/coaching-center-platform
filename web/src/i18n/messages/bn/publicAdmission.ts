@@ -11,7 +11,8 @@ const publicAdmission = {
   card: {
     dates: "{start} থেকে {end}",
     endsOn: "শেষ {end}",
-    fee: "প্রতি মাসে {amount}",
+    fee: "কোর্স ফি: প্রতি মাসে {amount}",
+    perMonth: "প্রতি মাসে {amount}",
     apply: "আবেদন করুন",
     closed: "ভর্তি বন্ধ",
     coverAlt: "{title}-এর ছবি",
@@ -20,7 +21,7 @@ const publicAdmission = {
   batch: {
     open: "ভর্তি চালু",
     closed: "ভর্তি বন্ধ",
-    fee: "মাসিক ফি",
+    fee: "কোর্স ফি",
     startsOn: "শুরু",
     endsOn: "শেষ",
     about: "এই ব্যাচ সম্পর্কে",

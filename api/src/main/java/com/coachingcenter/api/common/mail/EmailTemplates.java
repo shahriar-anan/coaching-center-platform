@@ -277,7 +277,7 @@ public final class EmailTemplates {
 		String greet = first == null ? "" : esc(first) + ", ";
 		String greetEn = first == null ? "" : first + ", ";
 		StringBuilder html = new StringBuilder();
-		html.append(hero("মাসিক ফি জমা হয়েছে", "Monthly fee received"));
+		html.append(hero("কোর্স ফি জমা হয়েছে", "Course fee received"));
 		html.append(para(greet + "আপনার পেমেন্ট পাওয়া গেছে। রসিদটি নিচে দেওয়া হলো।",
 				greetEn + "your payment was received. The receipt is below."));
 		html.append(facts(List.of(
@@ -291,11 +291,11 @@ public final class EmailTemplates {
 		html.append(button("আমার পেমেন্ট দেখুন", "View my payments", link));
 		html.append(note("রসিদটি সংরক্ষণ করুন। কোনো প্রশ্ন থাকলে রসিদ নম্বরসহ আমাদের জানান।",
 				"Keep this receipt. If you have a question, quote the receipt number."));
-		String text = text("মাসিক ফি জমা হয়েছে / Monthly fee received", greetEn + "আপনার পেমেন্ট পাওয়া গেছে / your payment was received.",
+		String text = text("কোর্স ফি জমা হয়েছে / Course fee received", greetEn + "আপনার পেমেন্ট পাওয়া গেছে / your payment was received.",
 				"জমা / Received: " + plainMoney(amount) + " BDT", "পেমেন্টের মাধ্যম / Paid with: " + method,
 				"লেনদেন নম্বর / Reference: " + reference, "তারিখ / Date: " + paidOn, "রসিদ নম্বর / Receipt number: " + receiptNo,
 				"বাকি আছে / Still owed: " + plainMoney(stillOwed) + " BDT", "খুলুন / Open: " + link);
-		return new RenderedEmail("মাসিক ফি জমা হয়েছে · Monthly fee received: " + receiptNo,
+		return new RenderedEmail("কোর্স ফি জমা হয়েছে · Course fee received: " + receiptNo,
 				frame(ctx, "৳" + plainMoney(amount) + " · " + receiptNo, html.toString()), text);
 	}
 
@@ -315,33 +315,33 @@ public final class EmailTemplates {
 		String bodyEn;
 		switch (stage) {
 			case "DUE_SOON" -> {
-				titleBn = "মাসিক ফি আসছে";
-				titleEn = "Monthly fee due soon";
-				bodyBn = "আপনার মাসিক ফি পরিশোধের তারিখ আর ৩ দিন পরে। সময়মতো পরিশোধ করুন।";
-				bodyEn = "your monthly fee is due in 3 days. Please pay it on time.";
+				titleBn = "কোর্স ফির কিস্তি আসছে";
+				titleEn = "Course fee due soon";
+				bodyBn = "আপনার কোর্স ফির কিস্তি পরিশোধের তারিখ আর ৩ দিন পরে। সময়মতো পরিশোধ করুন।";
+				bodyEn = "your course fee instalment is due in 3 days. Please pay it on time.";
 			}
 			case "DUE_TODAY" -> {
-				titleBn = "আজ মাসিক ফি পরিশোধের দিন";
-				titleEn = "Monthly fee due today";
-				bodyBn = "আজ আপনার মাসিক ফি পরিশোধের তারিখ।";
-				bodyEn = "today is the due date for your monthly fee.";
+				titleBn = "আজ কোর্স ফির কিস্তি পরিশোধের দিন";
+				titleEn = "Course fee due today";
+				bodyBn = "আজ আপনার কোর্স ফির কিস্তি পরিশোধের তারিখ।";
+				bodyEn = "today is the due date for your course fee instalment.";
 			}
 			default -> {
-				titleBn = "মাসিক ফি পরিশোধ হয়নি";
-				titleEn = "Monthly fee overdue";
-				bodyBn = "আপনার মাসিক ফি পরিশোধের তারিখ পেরিয়ে গেছে। যত দ্রুত সম্ভব পরিশোধ করুন।";
-				bodyEn = "your monthly fee is past its due date. Please pay it as soon as you can.";
+				titleBn = "কোর্স ফির কিস্তি পরিশোধ হয়নি";
+				titleEn = "Course fee overdue";
+				bodyBn = "আপনার কোর্স ফির কিস্তি পরিশোধের তারিখ পেরিয়ে গেছে। যত দ্রুত সম্ভব পরিশোধ করুন।";
+				bodyEn = "your course fee instalment is past its due date. Please pay it as soon as you can.";
 			}
 		}
 		StringBuilder html = new StringBuilder();
 		html.append(hero(titleBn, titleEn));
 		html.append(para(greet + bodyBn, greetEn + bodyEn));
 		html.append(facts(List.of(
-				new String[] { "মাসিক ফি", "Monthly fee", "<strong>" + money(amount) + "</strong> BDT" },
+				new String[] { "কোর্স ফির কিস্তি", "Course fee instalment", "<strong>" + money(amount) + "</strong> BDT" },
 				new String[] { "পরিশোধের তারিখ", "Due date", esc(dueOn) })));
 		html.append(button("পেমেন্টের বিবরণ", "View payments", link));
 		String text = text(titleBn + " / " + titleEn, greetEn + bodyBn + " / " + greetEn + bodyEn,
-				"মাসিক ফি / Monthly fee: " + plainMoney(amount) + " BDT", "পরিশোধের তারিখ / Due date: " + dueOn,
+				"কোর্স ফির কিস্তি / Course fee instalment: " + plainMoney(amount) + " BDT", "পরিশোধের তারিখ / Due date: " + dueOn,
 				"খুলুন / Open: " + link);
 		return new RenderedEmail(titleBn + " · " + titleEn + ": " + dueOn, frame(ctx, "৳" + plainMoney(amount) + " · " + dueOn,
 				html.toString()), text);

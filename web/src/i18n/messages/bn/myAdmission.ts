@@ -53,7 +53,7 @@ const myAdmission = {
     progress: "এ পর্যন্ত কত ফি দেওয়া হয়েছে",
     paidSoFar: "দেওয়া হয়েছে",
     stillOwed: "বাকি আছে",
-    monthlyFee: "মাসিক ফি",
+    monthlyFee: "কোর্স ফি (প্রতি মাসে)",
     overdue: "{date} তারিখের {amount} এখনো পরিশোধ হয়নি।",
     schedule: "কিস্তির সূচি",
     installment: "কিস্তি {no}",
