@@ -90,6 +90,10 @@ class ActivationSendFailureIT extends PostgresIntegrationTest {
 				public void sendActivation(String to, String code) {
 					throw new IllegalStateException("smtp down");
 				}
+
+				@Override
+				public void sendRendered(String to, com.coachingcenter.api.common.mail.RenderedEmail mail, String secret) {
+				}
 			};
 		}
 

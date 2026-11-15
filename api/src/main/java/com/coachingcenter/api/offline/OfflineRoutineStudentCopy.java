@@ -46,9 +46,9 @@ final class OfflineRoutineStudentCopy {
 
 	private static final float WATERMARK_ANGLE = 35f;
 
-	private static final float WATERMARK_GREY = 0.6f;
+	private static final float WATERMARK_GREY = 0.8f;
 
-	private static final float WATERMARK_ALPHA = 0.12f;
+	private static final float WATERMARK_ALPHA = 0.05f;
 
 	/** How far inside the cell the background is sampled, in points, so the sample is clear of the rules. */
 	private static final float SAMPLE_INSET = 3f;

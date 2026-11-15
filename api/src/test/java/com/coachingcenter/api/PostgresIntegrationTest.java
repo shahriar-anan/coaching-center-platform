@@ -5,6 +5,23 @@ import org.springframework.test.context.DynamicPropertySource;
 
 public abstract class PostgresIntegrationTest {
 
+	/**
+	 * The access token of the bootstrap Master Admin (the MASTER_ADMIN_* values below). Only the Master Admin publishes a package
+	 * (15 Nov), so test setups that build a published package as another role publish it with this token.
+	 */
+	public static String bootstrapMasterToken(org.springframework.test.web.servlet.MockMvc mockMvc) throws Exception {
+		String body = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/auth/login")
+			.header("X-Client-Type", "mobile")
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"identifier\":\"+8801700000001\",\"password\":\"bootstrap-password-1\"}"))
+			.andReturn().getResponse().getContentAsString();
+		java.util.regex.Matcher token = java.util.regex.Pattern.compile("\"accessToken\":\"([^\"]+)\"").matcher(body);
+		if (!token.find()) {
+			throw new IllegalStateException("The bootstrap Master Admin could not sign in: " + body);
+		}
+		return token.group(1);
+	}
+
 	private static final String FILE_STORAGE_DIR = createStorageDir();
 
 	/**

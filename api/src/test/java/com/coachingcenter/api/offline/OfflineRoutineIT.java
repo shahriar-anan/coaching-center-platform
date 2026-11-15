@@ -114,9 +114,9 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		JsonNode rows = routine.get("rows");
 		assertThat(rows.size()).isEqualTo(SAMPLE_ROWS);
 
-		// 27-07-2026 sits among October's dates: out of the month, out of order, and its day (Tuesday) is not the real day (Monday).
+		// 27-07-2026 sits among October's dates: before the upload day (past), out of order, and its day (Tuesday) is not the real day (Monday).
 		JsonNode july = findRow(routine, "2026-07-27", "Contract Act");
-		assertThat(codes(july)).contains("DATE_OUT_OF_MONTH", "DATE_OUT_OF_ORDER", "WEEKDAY_MISMATCH");
+		assertThat(codes(july)).contains("DATE_PAST", "DATE_OUT_OF_ORDER", "WEEKDAY_MISMATCH");
 
 		// The Evidence Act rows have no instructor in the PDF: they import empty and are flagged, never refused.
 		JsonNode evidence = findRow(routine, "2026-10-30", "Evidence Act");
@@ -146,10 +146,49 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(second.get("endsAt").asText()).isEqualTo("12:15");
 		assertThat(count(rows, "date", "2026-11-06")).isEqualTo(2);
 
-		// "Milon" is not known yet: every row with that name is unmatched, and the confirm is blocked (plan G4).
+		// "Milon" is not known yet: every row with that name is listed as a new instructor, and the confirm is not blocked by it.
 		assertThat(count(rows, "instructorText", "Milon")).isEqualTo(12);
-		assertThat(routine.get("canConfirm").asBoolean()).isFalse();
+		assertThat(routine.get("canConfirm").asBoolean()).isTrue();
 		assertThat(unmatchedNames(routine)).containsExactly("Milon:12");
+	}
+
+	@Test
+	void aRoutineCountsFromItsUploadDayAndANewUploadReplacesOnlyFromItsOwnDay() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		ensureKnown(master, "Tuhin Hossain");
+		ensureKnown(master, "Anarul Islam");
+		ensureKnown(master, "Milon");
+		UUID batch = batch(master, "2027-06-30");
+
+		// Uploaded on 10 November (Dhaka): the routine counts from that day, and its earlier dates are flagged as past.
+		clock.set(Instant.parse("2026-11-10T04:00:00Z"));
+		JsonNode first = upload(master, batch, null, sample(), 201);
+		assertThat(first.get("effectiveFrom").asText()).isEqualTo("2026-11-10");
+		assertThat(codes(findRow(first, "2026-11-07", "Constitution"))).contains("DATE_PAST");
+		assertThat(codes(findRow(first, "2026-11-24", "Registration Act"))).doesNotContain("DATE_PAST");
+
+		// The past rows still become classes.
+		respond(post("/api/v1/offline-routines/" + id(first) + "/confirm", master, null), 200);
+		assertThat(classOn(batch, "2026-11-07", "Constitution")).isNotNull();
+		assertThat(classOn(batch, "2026-11-24", "Registration Act")).isNotNull();
+
+		// Both classes are changed by hand after the confirm.
+		jdbc().update("update offline_classes set topic = 'Changed by hand' where batch_id = ? and held_on in ('2026-11-07', '2026-11-24')",
+				batch);
+
+		// The same routine uploaded again on 20 November replaces the classes from 20 November onward only: the class of 24 November takes
+		// the routine's values again, and the class of 7 November, before that day, keeps the change even though it is unsettled.
+		clock.set(Instant.parse("2026-11-20T04:00:00Z"));
+		JsonNode second = upload(master, batch, null, sample(), 201);
+		assertThat(second.get("effectiveFrom").asText()).isEqualTo("2026-11-20");
+		respond(post("/api/v1/offline-routines/" + id(second) + "/confirm", master, null), 200);
+
+		assertThat(classOn(batch, "2026-11-07", "Constitution").getTopic()).isEqualTo("Changed by hand");
+		assertThat(classOn(batch, "2026-11-24", "Registration Act").getTopic()).isNotEqualTo("Changed by hand");
+		assertThat(jdbc().queryForObject("select status from offline_batch_routines where id = ?", String.class, id(first)))
+			.isEqualTo("SUPERSEDED");
+		assertThat(jdbc().queryForObject("select count(*) from offline_batch_routines where batch_id = ? and status = 'CONFIRMED'",
+				Integer.class, batch)).isEqualTo(1);
 	}
 
 	@Test
@@ -204,7 +243,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void thePreviewIsNotAConfirmedRoutineAndConfirmIsRefusedWhileAnInstructorIsUnmatched() throws Exception {
+	void thePreviewIsNotAConfirmedRoutineAndConfirmAddsAnUnknownInstructorFromThePdf() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		ensureKnown(master, "Tuhin Hossain");
 		ensureKnown(master, "Anarul Islam");
@@ -217,9 +256,16 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(listed.get(0).get("status").asText()).isEqualTo("PREVIEW");
 		assertThat(listed.get(0).get("studentCopy").asBoolean()).isFalse();
 
-		JsonNode refused = respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 409);
-		assertThat(refused.get("message").asText()).contains("Milon");
-		assertThat(classCount(batch)).isZero();
+		// Nobody matched "Milon": the confirm adds him as an instructor under the name the PDF uses and assigns his classes to him.
+		JsonNode confirmed = respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
+		assertThat(confirmed.get("status").asText()).isEqualTo("CONFIRMED");
+		assertThat(unmatchedNames(confirmed)).isEmpty();
+		Integer milons = jdbc().queryForObject("select count(*) from offline_instructors where name = ? and archived_at is null", Integer.class,
+				"Milon");
+		assertThat(milons).isEqualTo(1);
+		Integer taught = jdbc().queryForObject("select count(*) from offline_classes c join offline_instructors i on i.id = c.instructor_id"
+				+ " where c.batch_id = ? and i.name = ?", Integer.class, batch, "Milon");
+		assertThat(taught).isPositive();
 	}
 
 	@Test
@@ -244,6 +290,9 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(jdbc().queryForObject("select count(*) from offline_classes where batch_id = ? and status = 'SCHEDULED'", Long.class,
 				batch)).isEqualTo((long) SAMPLE_ROWS);
 		assertThat(notices(student, "BATCH_ROUTINE_UPDATED")).isEqualTo(1L);
+		// The student's own admission now says the batch has a routine, so the page shows it (it said "coming soon" before).
+		JsonNode mine = respondTo(get("/api/v1/me/admission").header("Authorization", "Bearer " + token(student)), 200);
+		assertThat(mine.get("hasRoutine").asBoolean()).isTrue();
 
 		// The original keeps the names; the student copy has the same pages and no names in its text.
 		byte[] original = bytes(get("/api/v1/offline-routines/" + id + "/original.pdf").header("Authorization", "Bearer " + master));
@@ -347,9 +396,11 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 	}
 
 	private ResultActions upload(String token, UUID batch, String month, MockMultipartFile file) throws Exception {
-		MockMultipartHttpServletRequestBuilder request = multipart("/api/v1/offline-batches/" + batch + "/routines").file(file)
-			.param("month", month)
-			.header("Authorization", "Bearer " + token);
+		MockMultipartHttpServletRequestBuilder request = multipart("/api/v1/offline-batches/" + batch + "/routines").file(file);
+		if (month != null) {
+			request.param("month", month);
+		}
+		request.header("Authorization", "Bearer " + token);
 		return mockMvc.perform(request);
 	}
 

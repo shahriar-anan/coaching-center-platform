@@ -556,7 +556,7 @@ class LivePublicCatalogIT extends PostgresIntegrationTest {
 	}
 
 	private void publishModule(String token, UUID moduleId) throws Exception {
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + moduleId + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + moduleId + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 	}
 

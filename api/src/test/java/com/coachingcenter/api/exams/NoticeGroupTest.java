@@ -15,6 +15,8 @@ class NoticeGroupTest {
 	void everyKindOfTheInboxLandsInExactlyOneTab() {
 		assertThat(NoticeGroup.of("MCQ_SCORE")).isEqualTo(NoticeGroup.RESULTS);
 		assertThat(NoticeGroup.of("WRITTEN_RESULT")).isEqualTo(NoticeGroup.RESULTS);
+		assertThat(NoticeGroup.of("OFFLINE_RESULT_PUBLISHED")).isEqualTo(NoticeGroup.RESULTS);
+		assertThat(NoticeGroup.of("OFFLINE_RESULT_UPDATED")).isEqualTo(NoticeGroup.RESULTS);
 		assertThat(NoticeGroup.of("ANNOUNCEMENT")).isEqualTo(NoticeGroup.ANNOUNCEMENTS);
 		for (String kind : new String[] { "EXAM_OPEN", "EXAM_PUBLISHED", "EXAM_REMINDER", "EXAM_STARTING_SOON",
 				"RETAKE_AVAILABLE", "EXAM_UPDATED", "PURCHASE_GRANTED" }) {
@@ -29,9 +31,11 @@ class NoticeGroupTest {
 
 	@Test
 	void theTabKindsCoverTheSameSplitAsTheMapping() {
-		assertThat(NoticeGroup.RESULTS.kinds()).containsExactlyInAnyOrder("MCQ_SCORE", "WRITTEN_RESULT");
+		assertThat(NoticeGroup.RESULTS.kinds()).containsExactlyInAnyOrder("MCQ_SCORE", "WRITTEN_RESULT", "OFFLINE_RESULT_PUBLISHED",
+				"OFFLINE_RESULT_UPDATED");
 		assertThat(NoticeGroup.ANNOUNCEMENTS.kinds()).containsExactly("ANNOUNCEMENT");
-		assertThat(NoticeGroup.EXAMS.kinds()).containsExactlyInAnyOrder("MCQ_SCORE", "WRITTEN_RESULT", "ANNOUNCEMENT");
+		assertThat(NoticeGroup.EXAMS.kinds()).containsExactlyInAnyOrder("MCQ_SCORE", "WRITTEN_RESULT", "OFFLINE_RESULT_PUBLISHED",
+				"OFFLINE_RESULT_UPDATED", "ANNOUNCEMENT");
 	}
 
 	@Test

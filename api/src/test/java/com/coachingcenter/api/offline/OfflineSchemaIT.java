@@ -93,7 +93,7 @@ class OfflineSchemaIT extends PostgresIntegrationTest {
 		assertEquals(2, items.findByAdmissionIdAndRemovedAtIsNull(admission.getId()).size());
 		assertEquals(1, dues.findByAdmissionIdAndCancelledAtIsNullOrderBySeqAsc(admission.getId()).size());
 		assertEquals(1, payments.findByAdmissionIdOrderByRecordedAtAsc(admission.getId()).size());
-		OfflineAdmission open = admissions.findFirstByStudentIdAndStatusNot(student, OfflineAdmission.CLOSED).orElseThrow();
+		OfflineAdmission open = admissions.findFirstByStudentIdAndStatusNotOrderByCreatedAtDesc(student, OfflineAdmission.CLOSED).orElseThrow();
 		assertEquals(OfflineAdmission.AWAITING_FORM, open.getStatus());
 	}
 

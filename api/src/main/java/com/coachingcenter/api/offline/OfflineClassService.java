@@ -110,9 +110,12 @@ public class OfflineClassService {
 
 	private final Clock clock;
 
+	private final OfflineResultService results;
+
 	public OfflineClassService(OfflineBatchRepository batches, OfflineClassRepository classes, OfflineClassPaymentRepository payments,
 			OfflineClassDecisionRepository decisions, OfflineInstructorRepository instructors, OfflineBatchInstructorRateRepository rates,
-			AuditRecorder audit, OfflineClassNotices notices, Clock clock) {
+			AuditRecorder audit, OfflineClassNotices notices, Clock clock, OfflineResultService results) {
+		this.results = results;
 		this.notices = notices;
 		this.batches = batches;
 		this.classes = classes;
@@ -291,7 +294,16 @@ public class OfflineClassService {
 	 */
 	@Transactional
 	public ClassView update(UUID id, UUID actorId, JsonNode body) {
-		OfflineClass classItem = findClass(id);
+		// The class is locked first, so a result that is being saved for it finishes before this edit reads whether it has one (plan F7).
+		OfflineClass classItem = classes.findForUpdate(id).orElseThrow(OfflineSupport::notFound);
+		if (body.has("status") && OfflineClass.STATUS_CANCELLED.equalsIgnoreCase(body.get("status").asText("").trim())) {
+			// Rule A1: an exam with a result is never cancelled. Any other class is cancelled only by a routine upload, not by hand.
+			if (results.hasResult(id)) {
+				throw new ApiException(ErrorCode.OFFLINE_CLASS_HAS_RESULT, HttpStatus.CONFLICT,
+						"This exam has a result, so it cannot be cancelled. The result stays with the exam.");
+			}
+			throw validation(List.of(new FieldErrorDetail("status", "A class is cancelled by a routine upload, not by hand.")));
+		}
 		if (!OfflineClass.STATUS_SCHEDULED.equals(classItem.getStatus())) {
 			throw state("This class is already waiting for approval, paid or not taken, so it cannot be changed.");
 		}
@@ -306,6 +318,11 @@ public class OfflineClassService {
 				problems.add(new FieldErrorDetail("heldOn", "Enter the date of the class."));
 			}
 			else if (heldOn != null) {
+				// Plan F7: moving the date of an exam with a result would put its result on another day, so it is refused.
+				if (!heldOn.equals(classItem.getHeldOn()) && results.hasResult(id)) {
+					throw new ApiException(ErrorCode.OFFLINE_CLASS_HAS_RESULT, HttpStatus.CONFLICT,
+							"This exam has a result, so its date cannot change. Discard the staged result first, or keep the date.");
+				}
 				classItem.setHeldOn(heldOn);
 			}
 		}
@@ -754,7 +771,7 @@ public class OfflineClassService {
 				classItem.getStartsAt(), classItem.getEndsAt(), classItem.getSubject(), classItem.getTopic(), classItem.getKind(),
 				classItem.getInstructorId(), classItem.getInstructorId() == null ? null : names.get(classItem.getInstructorId()),
 				classItem.getInstructorText(), classItem.getAmount(), classItem.getRateOverride(), statusOf(classItem),
-				classItem.getVersion() == null ? 0L : classItem.getVersion(), payment, notTaken);
+				classItem.getVersion() == null ? 0L : classItem.getVersion(), payment, notTaken, results.hasResult(classItem.getId()));
 	}
 
 	private Map<UUID, String> instructorNames() {
@@ -864,7 +881,7 @@ public class OfflineClassService {
 	/** One class as the staff see it: the computed status, the amount due and the live payment or not-taken request. */
 	public record ClassView(UUID id, UUID batchId, UUID routineId, LocalDate heldOn, LocalTime startsAt, LocalTime endsAt, String subject,
 			String topic, String kind, UUID instructorId, String instructorName, String instructorText, BigDecimal amount,
-			BigDecimal rateOverride, String status, long version, PaymentView payment, DecisionView notTakenRequest) {
+			BigDecimal rateOverride, String status, long version, PaymentView payment, DecisionView notTakenRequest, boolean hasResult) {
 	}
 
 	/** The live payment of a class (pending or approved). */

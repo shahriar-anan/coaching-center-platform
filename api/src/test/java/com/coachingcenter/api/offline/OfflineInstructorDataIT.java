@@ -236,10 +236,10 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 		assertThat(jdbc().queryForObject("select routine_stored_name from offline_batches where id = ?", String.class, batch))
 			.as("the old routine columns stay").isEqualTo(stored);
 
-		// The table holds one confirmed routine per batch and month.
+		// The table holds one live (confirmed) routine per batch.
 		assertThatThrownBy(() -> jdbc().update("""
-				insert into offline_batch_routines (id, batch_id, month, version, status, uploaded_at)
-				values (?, ?, '2026-11-01', 2, 'CONFIRMED', now())
+				insert into offline_batch_routines (id, batch_id, month, effective_from, version, status, uploaded_at)
+				values (?, ?, '2026-11-01', '2026-11-13', 2, 'CONFIRMED', now())
 				""", UUID.randomUUID(), batch)).isInstanceOf(DataIntegrityViolationException.class);
 	}
 
@@ -277,7 +277,15 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 		int end = script.indexOf("-- LEGACY_ROUTINE_COPY_END");
 		assertThat(begin).isGreaterThanOrEqualTo(0);
 		assertThat(end).isGreaterThan(begin);
-		jdbc().execute(script.substring(begin, end));
+		// V92 made effective_from required, and this copy is the V89 statement, which predates it. For the replay only, the column
+		// takes the routine's month as its default, then the default is removed again.
+		jdbc().execute("alter table offline_batch_routines alter column effective_from set default date '2026-11-01'");
+		try {
+			jdbc().execute(script.substring(begin, end));
+		}
+		finally {
+			jdbc().execute("alter table offline_batch_routines alter column effective_from drop default");
+		}
 	}
 
 	private UUID insertClass(UUID batch, UUID instructor, String status, BigDecimal amount, BigDecimal override) {

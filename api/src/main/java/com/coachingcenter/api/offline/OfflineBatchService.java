@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -22,8 +23,10 @@ import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.error.FieldErrorDetail;
+import com.coachingcenter.api.files.ExamImageStorage;
 import com.coachingcenter.api.files.LocalFileStorage;
 import com.coachingcenter.api.files.PdfUploads;
+import com.coachingcenter.api.users.StudentPhotoService;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import tools.jackson.databind.JsonNode;
@@ -32,12 +35,18 @@ import tools.jackson.databind.JsonNode;
  * Offline batches (plan section 4.1, D11, C10). The Master Admin creates, edits and archives a batch. Staff and the Master Admin see
  * the batches and upload the routine. A batch's fee and end date are only defaults: each admission keeps its own copy, so an edit
  * never changes an admission silently.
+ *
+ * <p>The public catalogue (V93, public-admission plan section 3) reads the same batches: the cards, the batch page, its photo and the
+ * student copy of its routine. An archived batch is never shown publicly.
  */
 @Service
 public class OfflineBatchService {
 
 	/** The largest routine PDF, the same as a package routine (V78). */
 	public static final long MAX_ROUTINE_BYTES = 20L * 1024 * 1024;
+
+	/** The largest batch photo accepted before processing (the brief sets 5 MB). */
+	public static final long MAX_PHOTO_BYTES = 5L * 1024 * 1024;
 
 	public static final String ACTIVE = "ACTIVE";
 
@@ -48,6 +57,9 @@ public class OfflineBatchService {
 	private static final String FALLBACK_NAME = "routine.pdf";
 
 	private static final int MAX_NAME = 200;
+
+	/** The longest description in either language (V93). */
+	private static final int MAX_DESCRIPTION = 2000;
 
 	/** The length of a class when a routine gives only its start time (plan section 5, step 3). */
 	private static final int DEFAULT_CLASS_MINUTES = 80;
@@ -66,8 +78,10 @@ public class OfflineBatchService {
 
 	private final Clock clock;
 
+	private final ExamImageStorage images;
+
 	public OfflineBatchService(OfflineBatchRepository batches, PdfUploads uploads, LocalFileStorage fileStorage,
-			AuditRecorder audit, OfflineAdmissionNotices notices, JdbcTemplate jdbc, Clock clock) {
+			AuditRecorder audit, OfflineAdmissionNotices notices, JdbcTemplate jdbc, Clock clock, ExamImageStorage images) {
 		this.batches = batches;
 		this.uploads = uploads;
 		this.fileStorage = fileStorage;
@@ -75,6 +89,7 @@ public class OfflineBatchService {
 		this.notices = notices;
 		this.jdbc = jdbc;
 		this.clock = clock;
+		this.images = images;
 	}
 
 	/** Creates an active batch. The name in both languages, the end date and the default fee are required. */
@@ -96,6 +111,12 @@ public class OfflineBatchService {
 		if (startsOn != null && endsOn != null && endsOn.isBefore(startsOn)) {
 			problems.add(new FieldErrorDetail("endsOn", "The end date cannot be before the start date."));
 		}
+		String descriptionEn = text(body, "descriptionEn", problems);
+		String descriptionBn = text(body, "descriptionBn", problems);
+		boolean admissionsOpen = !has(body, "admissionsOpen") || flag(body, "admissionsOpen", problems);
+		Integer displayOrder = has(body, "displayOrder") ? order(body, problems) : 0;
+		String rollStart = rollNumber(body, "rollStart", problems);
+		String whatsappUrl = whatsappLink(body, problems);
 		if (!problems.isEmpty()) {
 			throw validation(problems);
 		}
@@ -108,7 +129,13 @@ public class OfflineBatchService {
 		batch.setEndsOn(endsOn);
 		batch.setDefaultMonthlyFee(fee);
 		batch.setDefaultClassMinutes(classMinutes == null ? DEFAULT_CLASS_MINUTES : classMinutes);
+		batch.setDescriptionEn(descriptionEn);
+		batch.setDescriptionBn(descriptionBn);
+		batch.setAdmissionsOpen(admissionsOpen);
+		batch.setDisplayOrder(displayOrder == null ? 0 : displayOrder);
 		batch.setStatus(ACTIVE);
+		batch.setRollStart(rollStart);
+		batch.setWhatsappUrl(whatsappUrl);
 		batch.setCreatedBy(actorId);
 		batch.setCreatedAt(now);
 		batch.setUpdatedAt(now);
@@ -121,10 +148,21 @@ public class OfflineBatchService {
 	@Transactional
 	public BatchView update(UUID id, JsonNode body) {
 		OfflineBatch batch = find(id);
-		if (!ACTIVE.equals(batch.getStatus())) {
-			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT, "This batch is archived, so it cannot be changed.");
-		}
+		requireActive(batch);
 		List<FieldErrorDetail> problems = new ArrayList<>();
+		if (has(body, "rollStart")) {
+			String rollStart = rollNumber(body, "rollStart", problems);
+			if (problems.isEmpty()) {
+				// Once a student has a roll in the batch, the starting roll cannot move: the next suggestion would change under them.
+				if (!java.util.Objects.equals(rollStart, batch.getRollStart()) && batchHasRolls(id)) {
+					problems.add(new FieldErrorDetail("rollStart",
+							"Students in this batch already have roll numbers, so the starting roll cannot change."));
+				}
+				else {
+					batch.setRollStart(rollStart);
+				}
+			}
+		}
 		if (has(body, "nameEn")) batch.setNameEn(name(body, "nameEn", problems));
 		if (has(body, "nameBn")) batch.setNameBn(name(body, "nameBn", problems));
 		if (has(body, "startsOn")) batch.setStartsOn(date(body, "startsOn", problems));
@@ -147,6 +185,18 @@ public class OfflineBatchService {
 			Integer classMinutes = classMinutes(body, problems);
 			if (classMinutes != null) {
 				batch.setDefaultClassMinutes(classMinutes);
+			}
+		}
+		// An explicit null or blank clears a description; an absent key leaves it alone.
+		if (body != null && body.has("descriptionEn")) batch.setDescriptionEn(text(body, "descriptionEn", problems));
+		if (body != null && body.has("descriptionBn")) batch.setDescriptionBn(text(body, "descriptionBn", problems));
+		if (has(body, "admissionsOpen")) batch.setAdmissionsOpen(flag(body, "admissionsOpen", problems));
+		// An explicit null or blank removes the WhatsApp link; an absent key leaves it alone.
+		if (body != null && body.has("whatsappUrl")) batch.setWhatsappUrl(whatsappLink(body, problems));
+		if (has(body, "displayOrder")) {
+			Integer displayOrder = order(body, problems);
+			if (displayOrder != null) {
+				batch.setDisplayOrder(displayOrder);
 			}
 		}
 		if (batch.getStartsOn() != null && batch.getEndsOn() != null && batch.getEndsOn().isBefore(batch.getStartsOn())) {
@@ -183,16 +233,17 @@ public class OfflineBatchService {
 		return view(batch);
 	}
 
-	/** The batches, active ones first and by name. {@code status} narrows them to one state; null lists both. */
+	/** The batches, active ones first, then the display order and the name. {@code status} narrows them to one state; null lists both. */
 	@Transactional(readOnly = true)
 	public List<BatchView> list(String status) {
 		List<OfflineBatch> found = status == null || status.isBlank() ? batches.findAll() : batches.findByStatusOrderByNameEnAsc(
-				status.trim().toUpperCase(java.util.Locale.ROOT));
+				status.trim().toUpperCase(Locale.ROOT));
 		List<BatchView> views = new ArrayList<>();
 		for (OfflineBatch batch : found) {
 			views.add(view(batch));
 		}
-		views.sort(java.util.Comparator.comparing(BatchView::status).thenComparing(BatchView::nameEn));
+		views.sort(java.util.Comparator.comparing(BatchView::status).thenComparingInt(BatchView::displayOrder)
+				.thenComparing(BatchView::nameEn));
 		return views;
 	}
 
@@ -206,11 +257,11 @@ public class OfflineBatchService {
 	public List<BatchStudent> students(UUID id) {
 		find(id);
 		return jdbc.query("""
-				select a.id, a.student_id, a.full_name, a.mobile, a.status, a.created_at
+				select a.id, a.student_id, a.full_name, a.mobile, a.status, a.created_at, a.roll_no
 				from offline_admissions a where a.batch_id = ?
 				order by a.created_at desc, a.id
 				""", (rs, row) -> new BatchStudent(rs.getObject("id", UUID.class), rs.getObject("student_id", UUID.class),
-				rs.getString("full_name"), rs.getString("mobile"), rs.getString("status")), id);
+				rs.getString("full_name"), rs.getString("mobile"), rs.getString("status"), rs.getString("roll_no")), id);
 	}
 
 	/**
@@ -284,11 +335,219 @@ public class OfflineBatchService {
 		return count == null ? 0L : count;
 	}
 
+	/** The WhatsApp link in the body: blank or null means none; otherwise a group or channel invite link (WhatsAppLinks). */
+	private static String whatsappLink(JsonNode body, List<FieldErrorDetail> problems) {
+		if (body == null || !body.has("whatsappUrl") || body.get("whatsappUrl").isNull()) {
+			return null;
+		}
+		String url = com.coachingcenter.api.common.web.WhatsAppLinks.clean(body.get("whatsappUrl").asText());
+		String problem = com.coachingcenter.api.common.web.WhatsAppLinks.problem(url);
+		if (problem != null) {
+			problems.add(new FieldErrorDetail("whatsappUrl", problem));
+			return null;
+		}
+		return url;
+	}
+
+	/** Whether any student of the batch has a roll number yet. */
+	private boolean batchHasRolls(UUID batchId) {
+		Boolean any = jdbc.queryForObject("select exists(select 1 from offline_admissions where batch_id = ? and roll_no is not null)",
+				Boolean.class, batchId);
+		return Boolean.TRUE.equals(any);
+	}
+
+	/** A roll number in the body: blank or absent means none; otherwise 4 to 12 digits (rule O2). */
+	static String rollNumber(JsonNode body, String key, List<FieldErrorDetail> problems) {
+		if (!has(body, key) || body.get(key).isNull()) {
+			return null;
+		}
+		String value = body.get(key).asText().trim();
+		if (value.isEmpty()) {
+			return null;
+		}
+		if (!value.matches("\\d{4,12}")) {
+			problems.add(new FieldErrorDetail(key, "Use 4 to 12 digits for the roll number."));
+			return null;
+		}
+		return value;
+	}
+
 	BatchView view(OfflineBatch batch) {
 		return new BatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getStartsOn(), batch.getEndsOn(),
 				batch.getDefaultMonthlyFee(), batch.getStatus(), onboardedCount(batch.getId()),
 				batch.getRoutineStoredName() != null, batch.getRoutineOriginalName(), batch.getRoutineUploadedAt(),
-				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified(), batch.getDefaultClassMinutes());
+				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified(), batch.getDefaultClassMinutes(),
+				batch.getDescriptionEn(), batch.getDescriptionBn(), batch.getPhotoStoredName() != null, batch.isAdmissionsOpen(),
+				batch.getDisplayOrder() == null ? 0 : batch.getDisplayOrder(), batch.getRollStart(), batch.getWhatsappUrl());
+	}
+
+	/** The public cards: the batches that are not archived, the lowest display order first (plan section 3.2). */
+	@Transactional(readOnly = true)
+	public List<PublicBatchView> publicList() {
+		List<PublicBatchView> views = new ArrayList<>();
+		for (OfflineBatch batch : batches.findByStatusOrderByDisplayOrderAscNameEnAsc(ACTIVE)) {
+			views.add(publicView(batch));
+		}
+		return views;
+	}
+
+	/** One public batch. An archived batch is not shown, so it answers 404 like a missing one. */
+	@Transactional(readOnly = true)
+	public PublicBatchView publicGet(UUID id) {
+		return publicView(publicFind(id));
+	}
+
+	/** Answers 404 unless the batch exists and is not archived. The routine route uses it before it reads the file. */
+	@Transactional(readOnly = true)
+	public void requirePublic(UUID id) {
+		publicFind(id);
+	}
+
+	/** The batch photo for the public cards, or 404 when there is none or the batch is archived. */
+	@Transactional(readOnly = true)
+	public PhotoFile openPhoto(UUID id) {
+		OfflineBatch batch = publicFind(id);
+		if (batch.getPhotoStoredName() == null) {
+			throw notFound();
+		}
+		Path path = fileStorage.resolve(batch.getPhotoStoredName());
+		if (!Files.exists(path)) {
+			throw notFound();
+		}
+		try {
+			return new PhotoFile(Files.newInputStream(path), batch.getPhotoContentType(),
+					batch.getPhotoByteSize() == null ? 0L : batch.getPhotoByteSize());
+		}
+		catch (IOException exception) {
+			throw notFound();
+		}
+	}
+
+	private OfflineBatch publicFind(UUID id) {
+		OfflineBatch batch = find(id);
+		if (!ACTIVE.equals(batch.getStatus())) {
+			throw notFound();
+		}
+		return batch;
+	}
+
+	private PublicBatchView publicView(OfflineBatch batch) {
+		boolean routine = Boolean.TRUE.equals(jdbc.queryForObject("""
+				select exists (select 1 from offline_batch_routines
+				where batch_id = ? and status = ? and student_file is not null and legacy_original = false)
+				""", Boolean.class, batch.getId(), OfflineBatchRoutine.STATUS_CONFIRMED));
+		String photo = batch.getPhotoStoredName() == null || batch.getPhotoUploadedAt() == null ? null
+				: "/api/v1/public/offline-batches/" + batch.getId() + "/photo?v=" + batch.getPhotoUploadedAt().toEpochMilli();
+		return new PublicBatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getDescriptionEn(),
+				batch.getDescriptionBn(), batch.getStartsOn(), batch.getEndsOn(), batch.getDefaultMonthlyFee(),
+				batch.isAdmissionsOpen(), photo, routine);
+	}
+
+	/** Stores a new batch photo, replacing the old one. Re-encoded and resized like the profile photo (V93). */
+	@Transactional
+	public BatchView uploadPhoto(UUID id, MultipartFile file, UUID actorId) {
+		OfflineBatch batch = find(id);
+		requireActive(batch);
+		if (file == null || file.isEmpty()) {
+			throw validation(List.of(new FieldErrorDetail("file", "Choose a photo.")));
+		}
+		if (file.getSize() > MAX_PHOTO_BYTES) {
+			throw tooLarge();
+		}
+		if (!StudentPhotoService.hasJpegPngOrWebpSignature(file)) {
+			throw validation(List.of(new FieldErrorDetail("file", "Upload a JPEG, PNG or WebP picture.")));
+		}
+		ExamImageStorage.StoredExamImage stored = images.store(file);
+		if (stored.byteSize() > MAX_PHOTO_BYTES) {
+			images.delete(stored.storedFileName());
+			throw tooLarge();
+		}
+		String previous = batch.getPhotoStoredName();
+		fileStorage.commitReplacement(stored.storedFileName(), previous);
+		Instant now = clock.instant();
+		batch.setPhotoStoredName(stored.storedFileName());
+		batch.setPhotoContentType(stored.contentType());
+		batch.setPhotoByteSize(stored.byteSize());
+		batch.setPhotoUploadedBy(actorId);
+		batch.setPhotoUploadedAt(now);
+		batch.setUpdatedAt(now);
+		batches.saveAndFlush(batch);
+		audit.record(AuditRecorder.OFFLINE_BATCH_PHOTO_UPLOADED, AuditRecorder.OFFLINE_BATCH_ENTITY, id);
+		return view(batch);
+	}
+
+	/** Removes the batch photo. A batch with no photo is left unchanged. */
+	@Transactional
+	public BatchView removePhoto(UUID id) {
+		OfflineBatch batch = find(id);
+		requireActive(batch);
+		String previous = batch.getPhotoStoredName();
+		if (previous == null) {
+			return view(batch);
+		}
+		batch.setPhotoStoredName(null);
+		batch.setPhotoContentType(null);
+		batch.setPhotoByteSize(null);
+		batch.setPhotoUploadedBy(null);
+		batch.setPhotoUploadedAt(null);
+		batch.setUpdatedAt(clock.instant());
+		batches.saveAndFlush(batch);
+		fileStorage.commitReplacement(null, previous);
+		audit.record(AuditRecorder.OFFLINE_BATCH_PHOTO_REMOVED, AuditRecorder.OFFLINE_BATCH_ENTITY, id);
+		return view(batch);
+	}
+
+	/** An archived batch cannot take a photo, the same as it cannot be edited. */
+	private static void requireActive(OfflineBatch batch) {
+		if (!ACTIVE.equals(batch.getStatus())) {
+			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT, "This batch is archived, so it cannot be changed.");
+		}
+	}
+
+	private static ApiException tooLarge() {
+		return new ApiException(ErrorCode.FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, "File is too large.");
+	}
+
+	/** A description: optional, blank becomes null, at most 2,000 characters. */
+	private static String text(JsonNode body, String key, List<FieldErrorDetail> problems) {
+		if (body == null || !body.has(key) || body.get(key).isNull()) {
+			return null;
+		}
+		String value = body.get(key).asText().trim();
+		if (value.isEmpty()) {
+			return null;
+		}
+		if (value.length() > MAX_DESCRIPTION) {
+			problems.add(new FieldErrorDetail(key, "This is longer than " + MAX_DESCRIPTION + " characters."));
+			return null;
+		}
+		return value;
+	}
+
+	/** A switch: a JSON true or false. Anything else is a problem for that field. */
+	private static boolean flag(JsonNode body, String key, List<FieldErrorDetail> problems) {
+		JsonNode node = body.get(key);
+		if (node.isBoolean()) {
+			return node.booleanValue();
+		}
+		problems.add(new FieldErrorDetail(key, "Choose on or off."));
+		return false;
+	}
+
+	/** The display order: a whole number from 0 to 9999. */
+	private static Integer order(JsonNode body, List<FieldErrorDetail> problems) {
+		try {
+			int order = Integer.parseInt(body.get("displayOrder").asText().trim());
+			if (order < 0 || order > 9999) {
+				problems.add(new FieldErrorDetail("displayOrder", "Enter an order from 0 to 9999."));
+				return null;
+			}
+			return order;
+		}
+		catch (NumberFormatException exception) {
+			problems.add(new FieldErrorDetail("displayOrder", "Enter the order as a number."));
+			return null;
+		}
 	}
 
 	/** The name of whoever uploaded the routine, from the staff or student profile. Null when there is no uploader or no name. */
@@ -395,20 +654,35 @@ public class OfflineBatchService {
 	/**
 	 * One batch as the staff and the Master Admin see it. {@code studentCount} counts the onboarded students. {@code routineUploadedBy}
 	 * is the uploader's name, and {@code studentsNotified} is how many students the last routine upload notified (null when not known).
-	 * {@code defaultClassMinutes} is the length of a class that a routine gives only a start time for (plan section 5).
+	 * {@code defaultClassMinutes} is the length of a class that a routine gives only a start time for (plan section 5). The last fields
+	 * are the description, whether a photo is on file, the admissions switch and the display order (V93).
 	 */
 	public record BatchView(UUID id, String nameEn, String nameBn, LocalDate startsOn, LocalDate endsOn,
 			BigDecimal defaultMonthlyFee, String status, long studentCount, boolean routineUploaded, String routineFileName,
 			Instant routineUploadedAt, @JsonInclude(JsonInclude.Include.ALWAYS) String routineUploadedBy,
-			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified, int defaultClassMinutes) {
+			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified, int defaultClassMinutes, String descriptionEn,
+			String descriptionBn, boolean photoUploaded, boolean admissionsOpen, int displayOrder, String rollStart, String whatsappUrl) {
+	}
+
+	/**
+	 * One batch on the public cards and the batch page. The photo and the routine are links the page follows, so the view carries
+	 * only whether a routine is there. No counts, no staff fields.
+	 */
+	public record PublicBatchView(UUID id, String nameEn, String nameBn, String descriptionEn, String descriptionBn,
+			LocalDate startsOn, LocalDate endsOn, BigDecimal monthlyFee, boolean admissionsOpen, String photoUrl,
+			boolean routineAvailable) {
 	}
 
 	/** A student admitted to the batch. The mobile is shown to staff only, since these routes are staff routes. */
-	public record BatchStudent(UUID admissionId, UUID studentId, String fullName, String mobile, String status) {
+	public record BatchStudent(UUID admissionId, UUID studentId, String fullName, String mobile, String status, String roll) {
 	}
 
 	/** The routine PDF bytes. The response writes the stream and closes it. */
 	public record RoutineFile(InputStream body, String fileName, long byteSize) {
+	}
+
+	/** The batch photo bytes. The response writes the stream and closes it. */
+	public record PhotoFile(InputStream body, String contentType, long byteSize) {
 	}
 
 }

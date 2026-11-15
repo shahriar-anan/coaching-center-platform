@@ -122,12 +122,16 @@ class CatalogBrowseIT extends PostgresIntegrationTest {
 	void studentCatalogBrowse() throws Exception {
 		mockMvc.perform(get("/api/v1/catalog/courses")).andExpect(status().isUnauthorized());
 
-		mockMvc.perform(get("/api/v1/catalog/courses").header("Authorization", "Bearer " + student))
+		// Each title is searched for, because the shared test database can hold more courses than fit on the first page.
+		mockMvc.perform(get("/api/v1/catalog/courses").header("Authorization", "Bearer " + student).param("q", OPEN_EN))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.content[?(@.titleEn=='" + OPEN_EN + "')]").exists())
-			.andExpect(jsonPath("$.content[?(@.titleEn=='" + CLOSED_EN + "')]").doesNotExist())
-			.andExpect(jsonPath("$.content[?(@.titleEn=='" + DRAFT_EN + "')]").doesNotExist())
-			.andExpect(jsonPath("$.content[?(@.titleEn=='" + ARCHIVED_EN + "')]").doesNotExist());
+			.andExpect(jsonPath("$.content[?(@.titleEn=='" + OPEN_EN + "')]").exists());
+		mockMvc.perform(get("/api/v1/catalog/courses").header("Authorization", "Bearer " + student).param("q", CLOSED_EN))
+			.andExpect(jsonPath("$.content.length()").value(0));
+		mockMvc.perform(get("/api/v1/catalog/courses").header("Authorization", "Bearer " + student).param("q", DRAFT_EN))
+			.andExpect(jsonPath("$.content.length()").value(0));
+		mockMvc.perform(get("/api/v1/catalog/courses").header("Authorization", "Bearer " + student).param("q", ARCHIVED_EN))
+			.andExpect(jsonPath("$.content.length()").value(0));
 
 		mockMvc.perform(get("/api/v1/catalog/courses").header("Authorization", "Bearer " + student).param("q", OPEN_EN))
 			.andExpect(jsonPath("$.content[0].titleEn").value(OPEN_EN));
@@ -149,9 +153,10 @@ class CatalogBrowseIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/catalog/courses/" + archivedCourseId).header("Authorization", "Bearer " + student))
 			.andExpect(status().isNotFound());
 
-		mockMvc.perform(get("/api/v1/catalog/books").header("Authorization", "Bearer " + student))
-			.andExpect(jsonPath("$.content[?(@.titleEn=='" + BOOK_EN + "')]").exists())
-			.andExpect(jsonPath("$.content[?(@.titleEn=='HiddenBookEnglish')]").doesNotExist());
+		mockMvc.perform(get("/api/v1/catalog/books").header("Authorization", "Bearer " + student).param("q", BOOK_EN))
+			.andExpect(jsonPath("$.content[?(@.titleEn=='" + BOOK_EN + "')]").exists());
+		mockMvc.perform(get("/api/v1/catalog/books").header("Authorization", "Bearer " + student).param("q", "HiddenBookEnglish"))
+			.andExpect(jsonPath("$.content.length()").value(0));
 		mockMvc.perform(get("/api/v1/catalog/books").header("Authorization", "Bearer " + student).param("q", BOOK_EN))
 			.andExpect(jsonPath("$.content[0].titleEn").value(BOOK_EN));
 		mockMvc.perform(get("/api/v1/catalog/books").header("Authorization", "Bearer " + student).param("q", BOOK_BN))

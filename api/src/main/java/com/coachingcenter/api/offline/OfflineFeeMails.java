@@ -37,7 +37,7 @@ public class OfflineFeeMails {
 			select u.email, coalesce(sp.full_name, '') as name from users u
 			left join student_profiles sp on sp.user_id = u.id
 			where u.id = ? and u.role = 'STUDENT' and u.status = 'ACTIVE' and u.deleted_at is null
-			  and u.email_verified_at is not null and u.email is not null and u.email <> ''
+			  and u.email is not null and u.email <> ''
 			""";
 
 	private final JdbcTemplate jdbc;

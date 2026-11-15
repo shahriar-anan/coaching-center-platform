@@ -142,6 +142,19 @@ public class AuthService {
 	 */
 	@Transactional
 	public String issueActivationCode(User user, UUID createdBy, Instant expiresAt) {
+		String code = issueActivationCodeUnmailed(user, createdBy, expiresAt);
+		if (hasEmail(user)) {
+			sendQuietly(() -> email.sendActivation(recipient(user), code));
+		}
+		return code;
+	}
+
+	/**
+	 * An activation code for a caller that mails it itself (the offline admission onboarding, plan section 7). Any earlier unused code of
+	 * the account stops working. No mail is sent from here.
+	 */
+	@Transactional
+	public String issueActivationCodeUnmailed(User user, UUID createdBy, Instant expiresAt) {
 		if (user.getDeletedAt() != null) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
 		}
@@ -151,16 +164,26 @@ public class AuthService {
 		}
 		String code = issueCode(user, ACTIVATION, createdBy, expiresAt);
 		audit.record(AuditRecorder.ACTIVATION_CODE_ISSUED, user.getId());
-		if (hasEmail(user)) {
-			sendQuietly(() -> email.sendActivation(recipient(user), code));
-		}
 		return code;
 	}
 
-	@Transactional
+	@Transactional(noRollbackFor = ApiException.class)
 	public void activate(String phone, String code, String password) {
-		User user = users.findByPhoneAndDeletedAtIsNull(PhoneNumbers.normalize(phone))
-			.orElseThrow(this::invalidCode);
+		activate(null, phone, code, password);
+	}
+
+	/**
+	 * Activates a pending account with its code (plan section 5, Q5): the account is found by its email when one is given, else by its
+	 * phone. The code is single use and five wrong tries lock it.
+	 */
+	@Transactional(noRollbackFor = ApiException.class)
+	public void activate(String email, String phone, String code, String password) {
+		if ((email == null || email.isBlank()) && (phone == null || phone.isBlank())) {
+			throw invalidCode();
+		}
+		User user = email != null && !email.isBlank()
+				? users.findByEmailAndDeletedAtIsNull(normalizeEmail(email)).orElseThrow(this::invalidCode)
+				: users.findByPhoneAndDeletedAtIsNull(PhoneNumbers.normalize(phone)).orElseThrow(this::invalidCode);
 		OneTimeCode match = codes.findFirstByUserIdAndPurposeAndCodeHashOrderByCreatedAtDesc(user.getId(), ACTIVATION,
 				hasher.sha256(code)).orElse(null);
 		if (match == null) {
@@ -168,6 +191,10 @@ public class AuthService {
 			throw invalidCode();
 		}
 		acceptCode(match);
+		// The student proved they hold this address by answering the code that was mailed to it.
+		if (email != null && !email.isBlank() && user.getEmailVerifiedAt() == null) {
+			user.setEmailVerifiedAt(clock.instant());
+		}
 		user.setPasswordHash(passwords.encode(password));
 		user.setStatus(ACTIVE);
 		events.publishEvent(new UserActivated(user.getId()));

@@ -263,7 +263,18 @@ public class OfflineFeeService {
 	 */
 	@Transactional(readOnly = true)
 	public StudentSchedule ownSchedule(UUID studentId) {
-		Admission admission = ledger.latestFor(studentId).orElseThrow(OfflineFeeLedger::notFound);
+		return studentSchedule(ledger.latestFor(studentId).orElseThrow(OfflineFeeLedger::notFound));
+	}
+
+	/** The schedule of one of the student's own admissions (V94: a student may hold several). Another student's gets 404. */
+	@Transactional(readOnly = true)
+	public StudentSchedule ownSchedule(UUID studentId, UUID admissionId) {
+		Admission admission = ledger.find(admissionId).filter(found -> studentId.equals(found.studentId()))
+			.orElseThrow(OfflineFeeLedger::notFound);
+		return studentSchedule(admission);
+	}
+
+	private StudentSchedule studentSchedule(Admission admission) {
 		if (OfflineFeeRules.BEFORE_ONBOARDING.contains(admission.status())) {
 			throw state("Your admission is not approved yet, so there is no schedule to show.");
 		}

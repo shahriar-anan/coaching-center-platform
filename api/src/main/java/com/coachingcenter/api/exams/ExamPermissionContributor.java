@@ -24,6 +24,9 @@ public class ExamPermissionContributor implements PermissionContributor {
 
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.EXAM_READ, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.EXAM_MANAGE, PermissionScope.ANY);
+		// 15 Nov: the System Admin sets prices, discounts and access too. A change to a published exam or package is still staged
+		// until the Master Admin publishes it, and publishing stays the Master Admin's.
+		registry.grant(Role.SYSTEM_ADMIN, Permissions.EXAM_PRICE, PermissionScope.ANY);
 	}
 
 }

@@ -112,7 +112,8 @@ final class AuthoringFixture {
 		UUID module = id(created);
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+		// Publishing is the Master Admin's (15 Nov), whoever authored the package.
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + master()))
 			.andExpect(status().isOk());
 		return module;
 	}

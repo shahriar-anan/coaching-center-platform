@@ -452,7 +452,7 @@ class OfflineAdminListsIT extends PostgresIntegrationTest {
 		respond(post("/api/v1/offline-admissions/" + admission + "/items", token,
 				"{\"scope\":\"MODULE\",\"moduleId\":\"" + publishedModule() + "\"}"), 200);
 		respond(post("/api/v1/offline-admissions/" + admission + "/ready", token, null), 200);
-		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", token, null), 200);
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", token, rollBody()), 200);
 	}
 
 	/** A batch made through the API, as the Master Admin makes it. */
@@ -553,4 +553,9 @@ class OfflineAdminListsIT extends PostgresIntegrationTest {
 
 	}
 
+
+	/** A request body with a roll number nobody has yet: onboarding requires one. */
+	private static String rollBody() {
+		return "{\"rollNo\":\"" + java.util.concurrent.ThreadLocalRandom.current().nextLong(100_000_000L, 999_999_999L) + "\"}";
+	}
 }

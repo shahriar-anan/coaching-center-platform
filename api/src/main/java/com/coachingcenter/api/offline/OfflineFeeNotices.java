@@ -52,7 +52,7 @@ class OfflineFeeNotices {
 			select ?, ?, ?, u.id, 0, 'PENDING', ?, ?
 			from users u
 			where u.id = ? and u.role = 'STUDENT' and u.status = 'ACTIVE' and u.deleted_at is null
-			  and u.email_verified_at is not null and u.email is not null and u.email <> ''
+			  and u.email is not null and u.email <> ''
 			on conflict (kind, message_key) do nothing
 			""";
 

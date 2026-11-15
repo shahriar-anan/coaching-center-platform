@@ -76,15 +76,13 @@ public class LiveExamModuleController {
 	}
 
 	/**
-	 * Body {@code {"revisionId"}}. A staged revision is published by the Master Admin only, and a missing revisionId is
-	 * accepted from the Master Admin alone (contracts §7 item 4).
+	 * Body {@code {"revisionId"}}. Publishing is the Master Admin's only (15 Nov): a draft's first publish, and a staged revision.
+	 * A missing revisionId is accepted from the Master Admin alone (contracts §7 item 4).
 	 */
 	@PostMapping("/api/v1/live-exam-modules/{id}/publish")
 	public LiveExamModuleService.ModuleView publish(@PathVariable UUID id, @RequestBody(required = false) JsonNode body) {
 		require(Permissions.EXAM_MANAGE);
-		if (revisions.hasRevision(id)) {
-			require(Permissions.LIVE_EXAM_PUBLISH);
-		}
+		require(Permissions.LIVE_EXAM_PUBLISH);
 		String revisionId = body != null && body.hasNonNull("revisionId") ? body.get("revisionId").asText() : null;
 		return modules.publish(id, revisionId);
 	}
@@ -205,7 +203,7 @@ public class LiveExamModuleController {
 		}
 	}
 
-	/** The price and the discount are the Master Admin's (EXAM_PRICE), on a draft and on a staged revision alike. */
+	/** The price and the discount need EXAM_PRICE (both admin roles since 15 Nov), on a draft and on a staged revision alike. */
 	private void requirePricePermission(JsonNode body) {
 		boolean pricing = body.has("price") || body.has("discountPercent") || body.has("discountEndsAt");
 		if (pricing && !permissions.has(Permissions.EXAM_PRICE)) {

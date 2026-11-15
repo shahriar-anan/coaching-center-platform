@@ -46,6 +46,11 @@ public class SecurityConfig {
 						"/api/v1/auth/google/callback", "/api/v1/auth/session")
 				.permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/public/**").permitAll()
+				// The public application (no account, plan section 5): start, the form, the photo and the submit. Behind the switch.
+				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/public/offline-applications",
+						"/api/v1/public/offline-applications/**")
+				.permitAll()
+				.requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/v1/public/offline-applications/**").permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/live-exam-orders/*/return").permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/live-exam-orders/*/return",
 						"/api/v1/live-exam-orders/*/ipn")

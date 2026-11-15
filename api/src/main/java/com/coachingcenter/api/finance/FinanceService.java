@@ -62,8 +62,8 @@ public class FinanceService {
 
 	static final List<String> OFFLINE = List.of(OFFLINE_FEES, OFFLINE_INSTRUCTORS);
 
-	/** The longest range a report covers, in days (two years). */
-	static final long MAX_DAYS = 731;
+	/** The longest range the finance reports answer: ten years, which covers "All time" from the first year of records. */
+	static final long MAX_DAYS = 3653;
 
 	static final int MAX_PAGE_SIZE = 200;
 
@@ -267,24 +267,32 @@ public class FinanceService {
 		return found;
 	}
 
-	/** The rows behind the figures, newest first, one page at a time. */
-	public EntryPage entries(String from, String to, String sources, String batch, int page, int size) {
+	/**
+	 * The rows behind the figures, one page at a time (the Entries page). {@code q} keeps the rows whose description or reference holds
+	 * it, ignoring case: a student's or an instructor's name, a receipt or a transaction reference. {@code sort} is {@code date} (newest
+	 * first, the default), {@code date_asc}, {@code amount} (largest first) or {@code amount_asc}. {@code bySource} totals every stream
+	 * in reach for the same dates, batch and search, the streams left out of {@code sources} included, so the page can offer them.
+	 */
+	public EntryPage entries(String from, String to, String sources, String batch, String q, String sort, int page, int size) {
 		Query query = query(from, to, sources, batch);
-		List<Entry> all = sorted(entries(query));
+		List<Entry> all = sorted(matching(entries(query), q), sort);
 		int safeSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
 		int safePage = Math.max(0, page);
 		int start = Math.min(all.size(), safePage * safeSize);
 		int end = Math.min(all.size(), start + safeSize);
 		Totals totals = totals(all);
-		return new EntryPage(all.subList(start, end), safePage, safeSize, all.size(), totals.income(), totals.expense());
+		List<Entry> everyStream = query.sources().size() == available(query.batchId()).size() ? all
+				: matching(entries(query(from, to, null, batch)), q);
+		return new EntryPage(all.subList(start, end), safePage, safeSize, all.size(), totals.income(), totals.expense(),
+				streamTotals(everyStream));
 	}
 
-	/** The same rows as {@link #entries(String, String, String, String, int, int)}, all of them, as CSV in UTF-8 with a byte order mark. */
-	public byte[] entriesCsv(String from, String to, String sources, String batch) {
+	/** The same rows as {@link #entries}, all of them, as CSV in UTF-8 with a byte order mark. */
+	public byte[] entriesCsv(String from, String to, String sources, String batch, String q, String sort) {
 		Query query = query(from, to, sources, batch);
 		StringBuilder csv = new StringBuilder("﻿");
 		csv.append("date,source,direction,description,amount,reference,id,batch_id\r\n");
-		for (Entry entry : sorted(entries(query))) {
+		for (Entry entry : sorted(matching(entries(query), q), sort)) {
 			csv.append(csvCell(entry.date().toString())).append(',')
 				.append(csvCell(entry.source())).append(',')
 				.append(csvCell(entry.direction())).append(',')
@@ -323,7 +331,7 @@ public class FinanceService {
 
 	/**
 	 * The query the request asks for. Dates are required and in year-month-day form; the range runs from no later than the end and at most
-	 * two years long. Named sources must be known; the list is narrowed to the sources that apply (offline sources when the switch is on,
+	 * ten years long. Named sources must be known; the list is narrowed to the sources that apply (offline sources when the switch is on,
 	 * the batch's own sources when a batch is chosen, and OTHER_ONLINE only when the older table has rows).
 	 */
 	Query query(String from, String to, String sources, String batch) {
@@ -447,8 +455,8 @@ public class FinanceService {
 					List.of(new FieldErrorDetail("to", "The end date cannot be before the start date.")));
 		}
 		if (ChronoUnit.DAYS.between(start, end) + 1 > MAX_DAYS) {
-			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "The range can be at most 2 years.",
-					List.of(new FieldErrorDetail("to", "The range can be at most 2 years.")));
+			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "The range can be at most 10 years.",
+					List.of(new FieldErrorDetail("to", "The range can be at most 10 years.")));
 		}
 	}
 
@@ -478,10 +486,50 @@ public class FinanceService {
 	}
 
 	private static List<Entry> sorted(List<Entry> entries) {
+		return sorted(entries, null);
+	}
+
+	/** The entries in the order asked for (see {@link #entries}); ties fall back to the newest first, then the source and the id. */
+	private static List<Entry> sorted(List<Entry> entries, String sort) {
+		Comparator<Entry> newest = Comparator.comparing(Entry::date).reversed().thenComparing(Entry::source)
+			.thenComparing(entry -> entry.id() == null ? "" : entry.id().toString());
+		Comparator<Entry> order = switch (sort == null ? "" : sort.trim().toLowerCase(Locale.ROOT)) {
+			case "date_asc" -> Comparator.comparing(Entry::date).thenComparing(newest);
+			case "amount" -> Comparator.comparing(Entry::amount).reversed().thenComparing(newest);
+			case "amount_asc" -> Comparator.comparing(Entry::amount).thenComparing(newest);
+			default -> newest;
+		};
 		List<Entry> sorted = new ArrayList<>(entries);
-		sorted.sort(Comparator.comparing(Entry::date).reversed().thenComparing(Entry::source).thenComparing(entry -> entry.id() == null
-				? "" : entry.id().toString()));
+		sorted.sort(order);
 		return sorted;
+	}
+
+	/** The entries whose description or reference holds {@code q}, ignoring case; all of them when {@code q} is blank. */
+	private static List<Entry> matching(List<Entry> entries, String q) {
+		if (q == null || q.isBlank()) {
+			return entries;
+		}
+		String needle = q.trim().toLowerCase(Locale.ROOT);
+		List<Entry> found = new ArrayList<>();
+		for (Entry entry : entries) {
+			String description = entry.description() == null ? "" : entry.description().toLowerCase(Locale.ROOT);
+			String reference = entry.reference() == null ? "" : entry.reference().toLowerCase(Locale.ROOT);
+			if (description.contains(needle) || reference.contains(needle)) {
+				found.add(entry);
+			}
+		}
+		return found;
+	}
+
+	/** Each stream's total and count among the entries, in the order the streams first appear. */
+	private static List<SourceTotal> streamTotals(List<Entry> entries) {
+		Map<String, SourceTotal> totals = new java.util.LinkedHashMap<>();
+		for (Entry entry : entries) {
+			SourceTotal before = totals.get(entry.source());
+			totals.put(entry.source(), before == null ? new SourceTotal(entry.source(), entry.direction(), entry.amount(), 1)
+					: new SourceTotal(entry.source(), entry.direction(), before.total().add(entry.amount()), before.count() + 1));
+		}
+		return List.copyOf(totals.values());
 	}
 
 	private static String csvCell(String value) {
@@ -550,7 +598,9 @@ public class FinanceService {
 
 	}
 
-	public record EntryPage(List<Entry> items, int page, int size, long total, BigDecimal income, BigDecimal expense) {
+	/** One page of entries, the totals of all the matching ones, and each stream's total in reach (the streams left out included). */
+	public record EntryPage(List<Entry> items, int page, int size, long total, BigDecimal income, BigDecimal expense,
+			List<SourceTotal> bySource) {
 	}
 
 }

@@ -1,5 +1,6 @@
 package com.coachingcenter.api.offline;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,12 +38,17 @@ public class OfflineAdmissionGate {
 		if (!admissionSwitch.isEnabled()) {
 			return;
 		}
-		admissions.findFirstByStudentIdAndStatusNot(studentId, OfflineAdmission.CLOSED)
-			.filter(admission -> PENDING.contains(admission.getStatus()))
-			.ifPresent(admission -> {
-				throw new ApiException(ErrorCode.ADMISSION_PENDING, HttpStatus.FORBIDDEN,
-						"Your admission is not complete yet. Fill in and submit your admission form first.");
-			});
+		List<OfflineAdmission> open = admissions.findByStudentIdAndStatusNotOrderByCreatedAtDesc(studentId, OfflineAdmission.CLOSED);
+		// A student with one onboarded admission (any batch) keeps their access while another batch is still under review (V94, P11).
+		if (open.stream().anyMatch(admission -> OfflineAdmission.ONBOARDED.equals(admission.getStatus()))) {
+			return;
+		}
+		// Only a desk admission locks the student (plan section 8, F4): an online application never takes away exams or checkout.
+		if (open.stream().anyMatch(admission -> OfflineAdmission.SOURCE_DESK.equals(admission.getSource())
+				&& PENDING.contains(admission.getStatus()))) {
+			throw new ApiException(ErrorCode.ADMISSION_PENDING, HttpStatus.FORBIDDEN,
+					"Your admission is not complete yet. Fill in and submit your admission form first.");
+		}
 	}
 
 }

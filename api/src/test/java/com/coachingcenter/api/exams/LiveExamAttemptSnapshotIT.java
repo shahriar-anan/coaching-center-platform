@@ -485,7 +485,7 @@ class LiveExamAttemptSnapshotIT extends PostgresIntegrationTest {
 		UUID module = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 		return module;
 	}

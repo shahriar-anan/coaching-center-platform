@@ -108,7 +108,8 @@ class OfflineMyAdmissionIT extends PostgresIntegrationTest {
 		JsonNode view = view(token(student));
 
 		assertThat(view.get("state").asText()).isEqualTo("SUBMITTED");
-		assertThat(view.hasNonNull("batchNameEn")).isFalse();
+		// W7: the batch's name is shown while the application is pending, so the student knows which batch it is for.
+		assertThat(view.get("batchNameEn").asText()).isEqualTo("Morning Batch");
 		assertThat(view.hasNonNull("monthlyFee")).isFalse();
 		assertThat(view.hasNonNull("admittedOn")).isFalse();
 		assertThat(view.hasNonNull("courseEndsOn")).isFalse();

@@ -747,6 +747,94 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.andExpect(status().isNotFound());
 	}
 
+	/** A written sitting started at 06:50 (its deadline is 07:30): the student, and the sitting's path. */
+	private record WrittenSitting(UUID examId, UUID studentId, String token, String path) {
+	}
+
+	private WrittenSitting openWrittenSitting() throws Exception {
+		String staff = token(seed("SYSTEM_ADMIN"));
+		String master = token(seed("MASTER_ADMIN"));
+		UUID module = publishModule(staff, "Draft");
+		UUID exam = createWritten(staff, module);
+		UUID studentId = seed("STUDENT");
+		mark(master, module, studentId);
+		String student = token(studentId);
+		String path = "/api/v1/live-exams/" + exam;
+		clock.set(Instant.parse("2026-10-20T06:50:00Z"));
+		mockMvc.perform(post(path + "/take").header("Authorization", "Bearer " + student).contentType(MediaType.APPLICATION_JSON)
+			.content("{}")).andExpect(status().isOk());
+		return new WrittenSitting(exam, studentId, student, path);
+	}
+
+	private org.springframework.test.web.servlet.ResultActions uploadDraft(WrittenSitting sitting, String name) throws Exception {
+		return mockMvc.perform(multipart(org.springframework.http.HttpMethod.PUT, sitting.path() + "/answer-draft")
+			.file(new MockMultipartFile("file", name, "application/pdf", compressiblePdf()))
+			.header("Authorization", "Bearer " + sitting.token()));
+	}
+
+	private String draftFile(WrittenSitting sitting) {
+		return new JdbcTemplate(dataSource).queryForObject(
+				"select draft_stored_file_name from live_exam_participants where exam_id = ? and student_id = ?", String.class,
+				sitting.examId(), sitting.studentId());
+	}
+
+	@Test
+	void aDraftIsKeptOnTheServerReplacedUntilSubmitAndThenFinal() throws Exception {
+		WrittenSitting sitting = openWrittenSitting();
+
+		// An upload is a draft: the sitting stays open and the paper is still offered.
+		uploadDraft(sitting, "first.pdf").andExpect(status().isOk()).andExpect(jsonPath("$.fileName").value("first.pdf"));
+		String first = draftFile(sitting);
+		assertThat(storedAnswer(sitting.examId(), sitting.studentId())).isNull();
+		mockMvc.perform(get(sitting.path()).header("Authorization", "Bearer " + sitting.token()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.myStatus").value("IN_PROGRESS"))
+			.andExpect(jsonPath("$.answerDraft.fileName").value("first.pdf"))
+			.andExpect(jsonPath("$.questionPdf").value(true));
+
+		// Replace: the new file is the draft and the earlier draft file is removed.
+		uploadDraft(sitting, "second.pdf").andExpect(status().isOk()).andExpect(jsonPath("$.fileName").value("second.pdf"));
+		String second = draftFile(sitting);
+		assertThat(second).isNotEqualTo(first);
+		assertThat(Files.exists(java.nio.file.Path.of(files.storageDir(), first))).isFalse();
+		mockMvc.perform(get(sitting.path() + "/answer-draft").header("Authorization", "Bearer " + sitting.token()))
+			.andExpect(status().isOk());
+
+		// Submit: the current draft becomes the answer script, and nothing replaces it after.
+		mockMvc.perform(post(sitting.path() + "/submit").header("Authorization", "Bearer " + sitting.token())).andExpect(status().isOk());
+		assertThat(storedAnswer(sitting.examId(), sitting.studentId())).isEqualTo(second);
+		assertThat(draftFile(sitting)).isNull();
+		assertThat(sittingStatus(sitting.examId(), sitting.studentId())).isEqualTo("SUBMITTED");
+		uploadDraft(sitting, "third.pdf").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
+		assertThat(storedAnswer(sitting.examId(), sitting.studentId())).isEqualTo(second);
+	}
+
+	@Test
+	void theDeadlineSubmitsTheLastUploadedDraftWithoutTheBrowser() throws Exception {
+		WrittenSitting sitting = openWrittenSitting();
+		uploadDraft(sitting, "answer.pdf").andExpect(status().isOk());
+		String draft = draftFile(sitting);
+
+		// The student closes the page. At 07:30 the deadline job submits the draft by itself.
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		deadlineJob.settleDue();
+		assertThat(sittingStatus(sitting.examId(), sitting.studentId())).isEqualTo("SUBMITTED");
+		assertThat(storedAnswer(sitting.examId(), sitting.studentId())).isEqualTo(draft);
+		uploadDraft(sitting, "late.pdf").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEADLINE_PASSED"));
+	}
+
+	@Test
+	void submitWithNothingUploadedIsRefusedAndNoDraftAtTheDeadlineIsFailedToSubmit() throws Exception {
+		WrittenSitting sitting = openWrittenSitting();
+		mockMvc.perform(post(sitting.path() + "/submit").header("Authorization", "Bearer " + sitting.token()))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NO_ANSWER_SCRIPT"));
+
+		clock.set(Instant.parse("2026-10-20T07:30:00Z"));
+		deadlineJob.settleDue();
+		assertThat(sittingStatus(sitting.examId(), sitting.studentId())).isEqualTo("FAILED_TO_SUBMIT");
+	}
+
 	@Test
 	void theDeadlineJobPostsMcqSittingsWithoutAnyRead() throws Exception {
 		String staff = token(seed("SYSTEM_ADMIN"));
@@ -1166,10 +1254,10 @@ class LiveSittingIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + stored))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("ANSWER_ALREADY_SUBMITTED"));
+		// A written submit with nothing uploaded is refused (written-draft plan): the student uploads first; the sitting stays open.
 		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/submit").header("Authorization", "Bearer " + empty))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("IN_PROGRESS"))
-			.andExpect(jsonPath("$.score").doesNotExist());
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NO_ANSWER_SCRIPT"));
 		assertThat(sittingStatus(exam, emptyId)).isEqualTo("IN_PROGRESS");
 	}
 
@@ -1964,7 +2052,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		UUID module = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 		return module;
 	}
@@ -2161,7 +2249,7 @@ class LiveSittingIT extends PostgresIntegrationTest {
 		UUID module = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 		return module;
 	}

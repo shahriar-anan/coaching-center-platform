@@ -163,8 +163,13 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.status").value("DRAFT"))
 			.andExpect(jsonPath("$.finallySaved").value(false));
 
+		// Publishing is the Master Admin's (15 Nov): the System Admin is refused, and a draft needs its final save first.
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish")
 			.header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish")
+			.header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("FINAL_SAVE_REQUIRED"));
 
@@ -174,7 +179,7 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.status").value("DRAFT"))
 			.andExpect(jsonPath("$.finallySaved").value(true));
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish")
-			.header("Authorization", "Bearer " + system))
+			.header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 
@@ -380,7 +385,7 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 		finalSave(system, draft);
 		mockMvc.perform(post("/api/v1/live-exam-categories/" + arts + "/archive").header("Authorization", "Bearer " + master))
 			.andExpect(status().isNoContent());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + draft + "/publish").header("Authorization", "Bearer " + system))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + draft + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("CATEGORY_ARCHIVED"));
 		assertThat(moduleIds(allModules(student))).doesNotContain(literature, thermo);
@@ -418,7 +423,7 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 		assertThat(moduleIds(moduleList(student, category))).isEmpty();
 
 		// Publish needs a final save again.
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + system))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("FINAL_SAVE_REQUIRED"));
 		finalSave(system, module);
@@ -538,7 +543,7 @@ class LiveCatalogIT extends PostgresIntegrationTest {
 	}
 
 	private void publish(String token, UUID moduleId) throws Exception {
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + moduleId + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + moduleId + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 	}

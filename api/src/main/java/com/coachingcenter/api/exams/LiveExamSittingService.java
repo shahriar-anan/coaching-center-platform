@@ -2,6 +2,10 @@ package com.coachingcenter.api.exams;
 
 import com.coachingcenter.api.offline.OfflineAdmissionGate;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -42,6 +46,10 @@ import tools.jackson.databind.JsonNode;
 public class LiveExamSittingService {
 
 	static final long MAX_PDF_BYTES = 80L * 1024 * 1024;
+
+	/** Used to lock a sitting row and read it fresh, so a draft upload, a submit and the deadline settle run one after another. */
+	@PersistenceContext
+	private EntityManager entityManager;
 
 	/** The most exams one page of {@link #myResults} holds, whatever the client asks for. */
 	private static final int MAX_RESULT_PAGE = 50;
@@ -165,7 +173,8 @@ public class LiveExamSittingService {
 				participant != null && participant.getAnswerStoredFileName() != null, standing.status().detail(),
 				standing.attempts(),
 				new AccessView(state.granted(), state.source(), state.endsAt() == null ? null : state.endsAt().toString(),
-						state.expired()), shell.coverUrl(), exam.isAnswersChangeable(), null, shownNegativeMarks, shownHeader);
+						state.expired()), shell.coverUrl(), exam.isAnswersChangeable(), null, shownNegativeMarks, shownHeader,
+				draftView(participant));
 	}
 
 	/** The first attempt. A student with an open attempt gets it back; one with a finished attempt must use {@link #retake}. */
@@ -286,8 +295,18 @@ public class LiveExamSittingService {
 			throw notOpen();
 		}
 		if (clock.instant().isBefore(participant.getDeadlineAt())) {
-			boolean written = LiveExam.WRITTEN.equals(exam.getExamType()) && participant.getAnswerStoredFileName() != null;
-			if ((LiveExam.MCQ.equals(exam.getExamType()) || written) && participant.getSubmittedAt() == null) {
+			if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+				locked(participant);
+				if (participant.getSubmittedAt() == null) {
+					// The uploaded draft becomes the answer script; with nothing uploaded there is nothing to submit.
+					if (participant.getDraftStoredFileName() == null && participant.getAnswerStoredFileName() == null) {
+						throw new ApiException(ErrorCode.NO_ANSWER_SCRIPT, HttpStatus.CONFLICT, "Upload your answer script before you submit.");
+					}
+					post(participant, exam);
+				}
+				return posted(participant, exam);
+			}
+			if (LiveExam.MCQ.equals(exam.getExamType()) && participant.getSubmittedAt() == null) {
 				post(participant, exam);
 			}
 			return posted(participant, exam);
@@ -435,6 +454,7 @@ public class LiveExamSittingService {
 		}
 		LiveExam exam = requireExam(participant.getExamId());
 		if (!clock.instant().isBefore(participant.getDeadlineAt())) {
+			locked(participant);
 			postIfDue(participant, exam);
 		}
 	}
@@ -444,6 +464,7 @@ public class LiveExamSittingService {
 		LiveExam exam = requireExam(examId);
 		for (LiveExamParticipant participant : participants.findByExamIdAndDeletedAtIsNull(examId)) {
 			if (!clock.instant().isBefore(participant.getDeadlineAt())) {
+				locked(participant);
 				postIfDue(participant, exam);
 			}
 		}
@@ -492,12 +513,53 @@ public class LiveExamSittingService {
 
 	@Transactional
 	public void uploadAnswer(UUID examId, UUID studentId, MultipartFile file) {
+		LiveExam exam = requireWrittenExam(examId, studentId);
+		LiveExamParticipant participant = openParticipant(examId, studentId);
+		storeDraft(participant, file);
+		// The one-step upload is the student's submission: the script is posted now, whatever time is left in the sitting.
+		post(participant, exam);
+	}
+
+	/**
+	 * Saves or replaces the draft script of the student's open written sitting (plan: draft on the server). Refused once the sitting is
+	 * submitted or its deadline has passed. The deadline is judged when the request arrives, so compressing a large PDF never makes an
+	 * in-time upload late. The earlier draft file is removed once the new one is saved.
+	 */
+	@Transactional
+	public DraftView saveDraft(UUID examId, UUID studentId, MultipartFile file) {
+		requireWrittenExam(examId, studentId);
+		LiveExamParticipant participant = openParticipant(examId, studentId);
+		storeDraft(participant, file);
+		return draftView(participant);
+	}
+
+	/** The bytes of the student's draft script, while the sitting is open. 404 when there is none. */
+	@Transactional(readOnly = true)
+	public byte[] draftPdf(UUID examId, UUID studentId) {
+		exams.get(examId, false, studentId);
+		LiveExamParticipant participant = latest(examId, studentId).orElseThrow(this::notFound);
+		if (participant.getDraftStoredFileName() == null || participant.getSubmittedAt() != null) {
+			throw notFound();
+		}
+		try {
+			return java.nio.file.Files.readAllBytes(files.resolve(participant.getDraftStoredFileName()));
+		}
+		catch (IOException exception) {
+			throw notFound();
+		}
+	}
+
+	private LiveExam requireWrittenExam(UUID examId, UUID studentId) {
 		exams.get(examId, false, studentId);
 		LiveExam exam = requireExam(examId);
 		if (!LiveExam.WRITTEN.equals(exam.getExamType())) {
 			throw new ApiException(ErrorCode.EXAM_TYPE_MISMATCH, HttpStatus.CONFLICT, "Only a written exam accepts a PDF.");
 		}
-		LiveExamParticipant participant = openParticipant(examId, studentId);
+		return exam;
+	}
+
+	/** Checks the PDF, compresses it, and stores it as the sitting's draft, replacing the earlier draft file after the commit. */
+	private void storeDraft(LiveExamParticipant participant, MultipartFile file) {
 		if (file == null || file.getSize() > MAX_PDF_BYTES) {
 			throw new ApiException(ErrorCode.FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, "File is too large.");
 		}
@@ -512,23 +574,51 @@ public class LiveExamSittingService {
 			throw validationFailed();
 		}
 		byte[] compressed = pdfs.compress(original);
-		if (!clock.instant().isBefore(participant.getDeadlineAt())) {
-			throw new ApiException(ErrorCode.DEADLINE_PASSED, HttpStatus.CONFLICT, "The sitting deadline has passed.");
-		}
-		// A written script is submitted once. A second upload would replace what the student already confirmed.
+		// A submitted script is final: nothing replaces it. (The deadline was checked when the request arrived.)
 		if (participant.getAnswerStoredFileName() != null) {
 			throw new ApiException(ErrorCode.ANSWER_ALREADY_SUBMITTED, HttpStatus.CONFLICT,
 					"The answer script was already submitted.");
 		}
 		LocalFileStorage.StoredFile stored = files.save(file.getOriginalFilename(), "application/pdf",
 				new ByteArrayInputStream(compressed), compressed.length, MAX_PDF_BYTES);
-		participant.setAnswerStoredFileName(stored.storedFileName());
-		participant.setAnswerOriginalFileName(stored.originalFileName());
-		participant.setAnswerByteSize(stored.byteSize());
+		String previous = participant.getDraftStoredFileName();
+		participant.setDraftStoredFileName(stored.storedFileName());
+		participant.setDraftOriginalFileName(stored.originalFileName());
+		participant.setDraftByteSize(stored.byteSize());
+		participant.setDraftUploadedAt(clock.instant());
+		participants.saveAndFlush(participant);
+		files.commitReplacement(stored.storedFileName(), previous);
+	}
+
+	/** The draft of a sitting that is not submitted, or null. */
+	private static DraftView draftView(LiveExamParticipant participant) {
+		if (participant == null || participant.getSubmittedAt() != null || participant.getDraftStoredFileName() == null) {
+			return null;
+		}
+		return new DraftView(participant.getDraftOriginalFileName(), participant.getDraftByteSize() == null ? 0L : participant.getDraftByteSize(),
+				participant.getDraftUploadedAt() == null ? null : participant.getDraftUploadedAt().toString());
+	}
+
+	/** Moves a waiting draft to the answer script. A sitting that already has a script keeps it. */
+	private static void promoteDraft(LiveExamParticipant participant) {
+		if (participant.getDraftStoredFileName() == null || participant.getAnswerStoredFileName() != null) {
+			return;
+		}
+		participant.setAnswerStoredFileName(participant.getDraftStoredFileName());
+		participant.setAnswerOriginalFileName(participant.getDraftOriginalFileName());
+		participant.setAnswerByteSize(participant.getDraftByteSize());
 		participant.setAnswerContentType("application/pdf");
-		files.commitReplacement(stored.storedFileName(), null);
-		// The upload is the student's submission: the script is posted now, whatever time is left in the sitting.
-		post(participant, exam);
+		participant.setDraftStoredFileName(null);
+		participant.setDraftOriginalFileName(null);
+		participant.setDraftByteSize(null);
+		participant.setDraftUploadedAt(null);
+	}
+
+	/** Locks the sitting row and reads it fresh, so the caller decides on its current state. */
+	private LiveExamParticipant locked(LiveExamParticipant participant) {
+		entityManager.flush();
+		entityManager.refresh(participant, LockModeType.PESSIMISTIC_WRITE);
+		return participant;
 	}
 
 	private TakeView firstAttempt(LiveExam exam, UUID studentId) {
@@ -574,6 +664,7 @@ public class LiveExamSittingService {
 	private void post(LiveExamParticipant participant, LiveExam exam) {
 		participant.setSubmittedAt(clock.instant());
 		if (LiveExam.WRITTEN.equals(exam.getExamType())) {
+			promoteDraft(participant);
 			if (participant.getAnswerStoredFileName() == null) {
 				participant.setStatus(LiveExamParticipant.FAILED_TO_SUBMIT);
 				participant.setScore(BigDecimal.ZERO);
@@ -777,8 +868,8 @@ public class LiveExamSittingService {
 	}
 
 	private LiveExamParticipant openParticipant(UUID examId, UUID studentId) {
-		LiveExamParticipant participant = latest(examId, studentId)
-			.orElseThrow(LiveExamSittingService::notOpen);
+		LiveExamParticipant participant = locked(latest(examId, studentId)
+			.orElseThrow(LiveExamSittingService::notOpen));
 		// Past the deadline a late upload is a deadline refusal, whatever was already posted.
 		if (!clock.instant().isBefore(participant.getDeadlineAt())) {
 			throw new ApiException(ErrorCode.DEADLINE_PASSED, HttpStatus.CONFLICT, "The sitting deadline has passed.");
@@ -916,7 +1007,11 @@ public class LiveExamSittingService {
 			java.math.BigDecimal price, Boolean questionPdf, List<StudentQuestion> questions, String myStatus,
 			Boolean retakeAvailable, SittingView sitting, Boolean answerStored, String myStatusDetail, int attempts,
 			AccessView access, String coverUrl, boolean answersChangeable, String reviewOpensAt, BigDecimal negativeMarks,
-			String paperHeader) {
+			String paperHeader, DraftView answerDraft) {
+	}
+
+	/** The written script uploaded but not submitted yet: its name, size and when it was uploaded. */
+	public record DraftView(String fileName, long byteSize, String uploadedAt) {
 	}
 
 	public record AccessView(boolean granted, String source, String endsAt, boolean expired) {

@@ -113,7 +113,7 @@ abstract class InstallmentTestSupport extends PostgresIntegrationTest {
 		UUID id = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("id").asText());
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + id + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + id + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + id + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 		return id;
 	}

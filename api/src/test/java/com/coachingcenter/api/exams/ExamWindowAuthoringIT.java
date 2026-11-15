@@ -318,11 +318,11 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 		UUID module = fx.module(staff, "Fields");
 		String extra = "\"negativeMarks\":0.25,\"answersChangeable\":false,\"previewEnabled\":true,\"price\":200,"
 				+ "\"discountPercent\":30,\"discountEndsAt\":\"2026-11-01T00:00:00Z\",\"accessDays\":90,\"popular\":true";
-		// The System Admin cannot set commercial fields; the Master Admin can.
+		// Both admins set commercial fields since 15 Nov; popular is ignored on create either way.
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(AuthoringFixture.examBody("MCQ", "Priced by staff", NOON, 40, extra)))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isCreated());
 		UUID exam = fx.createExam(master, module, "MCQ", "Fields", NOON, 40, extra);
 		JsonNode view = fx.exam(staff, exam);
 		assertThat(view.get("negativeMarks").decimalValue()).isEqualByComparingTo("0.25");
@@ -359,7 +359,7 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 		mockMvc.perform(patch("/api/v1/live-exams/" + plain).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"free\":true}"))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk());
 	}
 
 	@Test
@@ -459,8 +459,12 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.questionPdf").value(true));
 	}
 
+	/**
+	 * Since 15 Nov both admins set the price, the discount and a free exam (EXAM_PRICE). On a published exam the change is staged, and only
+	 * the Master Admin publishes it.
+	 */
 	@Test
-	void discountsAndFreeExamsFollowThePricePermissionOnCreateAndInAStagedEdit() throws Exception {
+	void bothAdminsSetDiscountsAndAStagedEditWaitsForTheMasterAdmin() throws Exception {
 		String staff = fx.staff();
 		String master = fx.master();
 		UUID module = fx.module(staff, "Discount gate");
@@ -470,38 +474,28 @@ class ExamWindowAuthoringIT extends PostgresIntegrationTest {
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"discountPercent\":30}"))
-			.andExpect(status().isForbidden());
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"discountEndsAt\":\"2026-11-01T00:00:00Z\"}"))
-			.andExpect(status().isForbidden());
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"free\":true}"))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk());
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/exams").header("Authorization", "Bearer " + staff)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(AuthoringFixture.examBody("MCQ", "Discounted by staff", NOON, 40, "\"discountPercent\":30")))
-			.andExpect(status().isForbidden());
-
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
+			.andExpect(status().isCreated());
+		// An instructor never prices.
+		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + token("INSTRUCTOR"))
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"discountPercent\":30}"))
-			.andExpect(status().isOk());
+			.content("{\"discountPercent\":10}"))
+			.andExpect(status().isForbidden());
 
 		fx.publishNew(master, exam);
+		// A published exam's edit by the System Admin is staged: the live discount stays 30 until the Master Admin publishes it.
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + staff)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"discountPercent\":20}"))
-			.andExpect(status().isForbidden());
-		// A published exam's edit is staged until the Master Admin publishes it: the discount waits in the revision.
-		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"discountPercent\":20}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.pendingChanges").value(true));
 		assertThat(fx.jdbc().queryForObject("select discount_percent from live_exams where id = ?", Integer.class, exam))
 			.isEqualTo(30);
+		mockMvc.perform(post("/api/v1/live-exams/" + exam + "/publish").header("Authorization", "Bearer " + staff))
+			.andExpect(status().isForbidden());
 	}
 
 	private String token(String role) throws Exception {

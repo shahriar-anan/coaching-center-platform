@@ -2,6 +2,7 @@ package com.coachingcenter.api.common.mail;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.coachingcenter.api.auth.Role;
@@ -416,6 +417,110 @@ public final class EmailTemplates {
 	}
 
 	// ----- building blocks -----
+
+	// ----- public offline admission mail (public-admission plan, section 7) -----
+
+	/** Sent to the address on an application when it is received. The applicant has no account yet. */
+	public static RenderedEmail offlineApplicationReceived(MailContext ctx, MailRecipient who, String batchBn, String batchEn) {
+		List<String[]> rows = new ArrayList<>();
+		rows.add(new String[] { "ব্যাচ", "Batch", batchBn + " / " + batchEn });
+		return admissionNotice(ctx, who, "আবেদন পেয়েছি", "Application received",
+				"আপনার আবেদনটি আমরা পেয়েছি। দফতর আবেদনটি দেখে আপনাকে জানাবে।",
+				"we received your application. The office will review it and write to you.", rows, "ব্যাচগুলো দেখুন",
+				"View the batches", ctx.site("/admission"));
+	}
+
+	/** Sent when the same email starts an application it already has open for the batch: a private link back to it (F7). */
+	public static RenderedEmail offlineResume(MailContext ctx, MailRecipient who, String batchBn, String batchEn, String link) {
+		List<String[]> rows = new ArrayList<>();
+		rows.add(new String[] { "ব্যাচ", "Batch", batchBn + " / " + batchEn });
+		return admissionNotice(ctx, who, "আপনার আবেদন", "Your application",
+				"এই ব্যাচে এই ইমেইল দিয়ে আপনার একটি আবেদন আগে থেকেই আছে। নিচের লিংক থেকে আবেদনটি চালিয়ে যান। লিংকটি ৭ দিন কার্যকর। "
+						+ "আপনি নিজে আবেদন না করে থাকলে এই ইমেইলটি এড়িয়ে যান।",
+				"you already have an application for this batch with this email. Use the link below to continue it. The link works for 7 days. "
+						+ "If you did not ask for this, ignore this email.",
+				rows, "আবেদন চালিয়ে যান", "Continue my application", link);
+	}
+
+	/** Sent to the address on an application when the office asks for changes. The link reopens the form for 7 days (Q4). */
+	public static RenderedEmail offlineChangesRequested(MailContext ctx, MailRecipient who, String reason, String batchBn,
+			String batchEn, String reopenLink) {
+		List<String[]> rows = new ArrayList<>();
+		rows.add(new String[] { "ব্যাচ", "Batch", batchBn + " / " + batchEn });
+		rows.add(new String[] { "কারণ", "Reason", reason });
+		return admissionNotice(ctx, who, "ফর্মে পরিবর্তন দরকার", "Your form needs changes",
+				"আপনার আবেদনের ফর্মটি ফেরত পাঠানো হয়েছে। নিচের কারণটি দেখে ফর্মটি ঠিক করে আবার জমা দিন। লিংকটি ৭ দিন কার্যকর।",
+				"your application form was sent back. Read the reason below, fix the form and send it again. The link works for 7 days.",
+				rows, "ফর্ম ঠিক করুন", "Fix my form", reopenLink);
+	}
+
+	/**
+	 * Sent when an applicant with no account is admitted: the activation code makes the account. {@code resent} is true for a new code that
+	 * replaces an earlier one (P8).
+	 */
+	public static RenderedEmail offlineActivation(MailContext ctx, MailRecipient who, String batchBn, String batchEn, String code,
+			int days, boolean resent) {
+		String first = who == null ? null : who.firstName();
+		String greet = first == null ? "" : esc(first) + ", ";
+		String greetEn = first == null ? "" : first + ", ";
+		String titleBn = resent ? "নতুন কোড" : "আপনাকে ভর্তি করা হয়েছে";
+		String titleEn = resent ? "A new code" : "You are admitted";
+		StringBuilder html = new StringBuilder();
+		html.append(hero(titleBn, titleEn));
+		html.append(para(greet + "আপনাকে <strong>" + esc(batchBn) + "</strong> ব্যাচে ভর্তি করা হয়েছে। অ্যাকাউন্ট চালু করতে নিচের কোডটি ব্যবহার করুন"
+				+ (resent ? "। আগের কোডটি আর কাজ করবে না।" : "।"),
+				greetEn + "you are admitted to " + batchEn + ". Use the code below to activate your account"
+						+ (resent ? ". The earlier code no longer works." : ".")));
+		html.append(codeBox(ctx, code, copyLink(ctx, code, "activate"), "আপনার অ্যাকাউন্ট চালু করার কোড", "Your activation code"));
+		html.append(button("অ্যাকাউন্ট চালু করুন", "Activate account", ctx.forRole(Role.STUDENT, "/activate#code=" + enc(code))));
+		html.append(note("কোডটি " + bn(days) + " দিন পর্যন্ত কার্যকর এবং একবারই ব্যবহার করা যাবে। সাইমাম ল'-এর কেউ কখনো এই কোড চাইবেন না।",
+				"This code works for " + days + " days and can be used once. Nobody from SYMAM LAW will ever ask you for it."));
+		String text = text(titleBn + " / " + titleEn,
+				greetEn + "আপনাকে " + batchBn + " ব্যাচে ভর্তি করা হয়েছে / you are admitted to " + batchEn + ".",
+				"কোড / Code: " + code, "অ্যাকাউন্ট চালু করুন / Activate your account: " + ctx.forRole(Role.STUDENT, "/activate#code=" + enc(code)),
+				"কোডটি " + bn(days) + " দিন কার্যকর। / The code works for " + days + " days.");
+		return new RenderedEmail(titleBn + " · " + titleEn, frame(ctx, "কোডটি দিয়ে অ্যাকাউন্ট চালু করুন।", html.toString()), text);
+	}
+
+	/**
+	 * Sent when the applicant already has an account: the join code adds the batch to it, from the link (plan Q3). {@code resent} is true for
+	 * a new code that replaces an earlier one (P8).
+	 */
+	public static RenderedEmail offlineJoin(MailContext ctx, MailRecipient who, String batchBn, String batchEn, List<String[]> allBatches,
+			String code, int days, boolean resent) {
+		String first = who == null ? null : who.firstName();
+		String greet = first == null ? "" : esc(first) + ", ";
+		String greetEn = first == null ? "" : first + ", ";
+		String titleBn = resent ? "নতুন কোড" : "আপনাকে ভর্তি করা হয়েছে";
+		String titleEn = resent ? "A new code" : "You are admitted";
+		String joinLink = ctx.site("/admission/join");
+		StringBuilder html = new StringBuilder();
+		html.append(hero(titleBn, titleEn));
+		html.append(para(greet + "আপনাকে <strong>" + esc(batchBn) + "</strong> ব্যাচে ভর্তি করা হয়েছে। আপনার অ্যাকাউন্টে এই ব্যাচটি যোগ করতে "
+				+ "লগইন করে নিচের কোডটি ব্যবহার করুন" + (resent ? "। আগের কোডটি আর কাজ করবে না।" : "।"),
+				greetEn + "you are admitted to " + batchEn + ". To add the batch to your account, sign in and use the code below"
+						+ (resent ? ". The earlier code no longer works." : ".")));
+		if (allBatches.size() > 1) {
+			String joined = String.join("; ", allBatches.stream().map(pair -> pair[0] + " / " + pair[1]).toList());
+			List<String[]> rows = new ArrayList<>();
+			rows.add(new String[] { "আপনার সব ব্যাচ", "Batches you have access to", esc(joined) });
+			html.append(facts(rows));
+		}
+		html.append(codeBox(ctx, code, copyLink(ctx, code, "join"), "ব্যাচে যোগ দেওয়ার কোড", "Your code to join the batch"));
+		html.append(button("ব্যাচে যোগ দিন", "Join the batch", joinLink));
+		html.append(note("কোডটি " + bn(days) + " দিন পর্যন্ত কার্যকর এবং একবারই ব্যবহার করা যাবে। সাইমাম ল'-এর কেউ কখনো এই কোড চাইবেন না।",
+				"This code works for " + days + " days and can be used once. Nobody from SYMAM LAW will ever ask you for it."));
+		List<String> lines = new ArrayList<>(List.of(titleBn + " / " + titleEn,
+				greetEn + "আপনাকে " + batchBn + " ব্যাচে ভর্তি করা হয়েছে / you are admitted to " + batchEn + ".",
+				"কোড / Code: " + code, "ব্যাচে যোগ দিন / Join the batch: " + joinLink,
+				"কোডটি " + bn(days) + " দিন কার্যকর। / The code works for " + days + " days."));
+		if (allBatches.size() > 1) {
+			lines.add("আপনার সব ব্যাচ / Batches you have access to: "
+					+ String.join("; ", allBatches.stream().map(pair -> pair[0] + " / " + pair[1]).toList()));
+		}
+		String text = text(lines.toArray(String[]::new));
+		return new RenderedEmail(titleBn + " · " + titleEn, frame(ctx, "কোডটি দিয়ে ব্যাচে যোগ দিন।", html.toString()), text);
+	}
 
 	private static String frame(MailContext ctx, String preheader, String content) {
 		return "<!doctype html>\n<html lang=\"bn\"><head><meta charset=\"utf-8\">"

@@ -88,6 +88,27 @@ public class AuditRecorder {
 
 	public static final String OFFLINE_ADMISSION_SIGNED_UPLOADED = "OFFLINE_ADMISSION_SIGNED_UPLOADED";
 
+	/** A public applicant (no account) started an application, or a signed-in student applied for a batch (V94). */
+	public static final String OFFLINE_APPLICATION_STARTED = "OFFLINE_APPLICATION_STARTED";
+
+	/** The reopen link of a changes-requested public application was mailed (V94, Q4). */
+	public static final String OFFLINE_REOPEN_LINK_SENT = "OFFLINE_REOPEN_LINK_SENT";
+
+	/** Onboarding made the account for a public applicant (no match, Q3). */
+	public static final String OFFLINE_ADMISSION_ACCOUNT_CREATED = "OFFLINE_ADMISSION_ACCOUNT_CREATED";
+
+	/** Onboarding matched the applicant to an existing account by email or phone (Q3). */
+	public static final String OFFLINE_ADMISSION_MATCHED = "OFFLINE_ADMISSION_MATCHED";
+
+	/** A join code was mailed to an account holder (V94). */
+	public static final String OFFLINE_ADMISSION_JOIN_CODE_SENT = "OFFLINE_ADMISSION_JOIN_CODE_SENT";
+
+	/** A new code replaced the earlier one for an admission (P8). */
+	public static final String OFFLINE_ADMISSION_CODE_RESENT = "OFFLINE_ADMISSION_CODE_RESENT";
+
+	/** A signed-in student joined an admitted batch with the join code (V94). */
+	public static final String OFFLINE_ADMISSION_JOINED = "OFFLINE_ADMISSION_JOINED";
+
 	/** An access grant made by an offline admission (onboarding, an item added after it, or the close). */
 	public static final String OFFLINE_ACCESS_GRANTED = "OFFLINE_ACCESS_GRANTED";
 
@@ -100,9 +121,28 @@ public class AuditRecorder {
 
 	public static final String OFFLINE_BATCH_UPDATED = "OFFLINE_BATCH_UPDATED";
 
+	/** A student's roll number was given or changed (the onboarding, or the Master Admin later). */
+	public static final String OFFLINE_ROLL_SET = "OFFLINE_ROLL_SET";
+
 	public static final String OFFLINE_BATCH_ARCHIVED = "OFFLINE_BATCH_ARCHIVED";
 
 	public static final String OFFLINE_BATCH_ROUTINE_UPLOADED = "OFFLINE_BATCH_ROUTINE_UPLOADED";
+
+	/** An exam's result sheet: one staged sheet (its row is the exam class). */
+	public static final String OFFLINE_RESULT_ENTITY = "OFFLINE_RESULT_SHEET";
+
+	/** A result sheet was uploaded and saved as the staged one (it replaces an earlier staged sheet of the exam). */
+	public static final String OFFLINE_RESULT_UPLOADED = "OFFLINE_RESULT_UPLOADED";
+
+	/** The staged result sheet was published; the published one before it, if any, became replaced. */
+	public static final String OFFLINE_RESULT_PUBLISHED = "OFFLINE_RESULT_PUBLISHED";
+
+	/** The staged result sheet was discarded. The published sheet is never touched by a discard. */
+	public static final String OFFLINE_RESULT_DISCARDED = "OFFLINE_RESULT_DISCARDED";
+
+	public static final String OFFLINE_BATCH_PHOTO_UPLOADED = "OFFLINE_BATCH_PHOTO_UPLOADED";
+
+	public static final String OFFLINE_BATCH_PHOTO_REMOVED = "OFFLINE_BATCH_PHOTO_REMOVED";
 
 	public static final String BOOK_CATEGORY_ENTITY = "BOOK_CATEGORY";
 

@@ -5,6 +5,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -138,13 +139,16 @@ public class StudentOwnAccessService {
 	public MyAccess mine(UUID studentId) {
 		Instant now = clock.instant();
 		MapSqlParameterSource params = new MapSqlParameterSource("studentId", studentId);
+		Map<UUID, String> links = publishedWhatsAppLinks();
 		List<MyModule> modules = jdbc.query(MY_MODULES, params, (rs, number) -> new MyModule(
 				rs.getObject("module_id", UUID.class), rs.getString("via"), rs.getObject("order_id", UUID.class),
-				instant(rs.getTimestamp("granted_at")), instant(rs.getTimestamp("access_ends_at")), false)).stream()
+				instant(rs.getTimestamp("granted_at")), instant(rs.getTimestamp("access_ends_at")), false, null)).stream()
 			.map(row -> {
 				Instant endsAt = row.endsAt() != null ? row.endsAt() : access.moduleEnd(row.moduleId(), row.grantedAt());
-				return new MyModule(row.moduleId(), row.via(), row.orderId(), row.grantedAt(), endsAt,
-						LiveExamAccess.expired(endsAt, now));
+				boolean expired = LiveExamAccess.expired(endsAt, now);
+				// The WhatsApp link goes only to a student whose access is live, for a published package (15 Nov).
+				return new MyModule(row.moduleId(), row.via(), row.orderId(), row.grantedAt(), endsAt, expired,
+						expired ? null : links.get(row.moduleId()));
 			})
 			.toList();
 		List<MyExam> exams = jdbc.query(MY_EXAMS, params, (rs, number) -> new MyExam(
@@ -161,6 +165,14 @@ public class StudentOwnAccessService {
 		return new MyAccess(modules, exams);
 	}
 
+	/** The WhatsApp links of the published packages that have one, by package id. */
+	private Map<UUID, String> publishedWhatsAppLinks() {
+		Map<UUID, String> links = new HashMap<>();
+		jdbc.query("select id, whatsapp_url from live_exam_modules where status = 'PUBLISHED' and deleted_at is null and whatsapp_url is not null",
+				new MapSqlParameterSource(), (rs, number) -> links.put(rs.getObject("id", UUID.class), rs.getString("whatsapp_url")));
+		return links;
+	}
+
 	private static Instant instant(Timestamp value) {
 		return value == null ? null : value.toInstant();
 	}
@@ -169,7 +181,8 @@ public class StudentOwnAccessService {
 	 * {@code via} is {@code ROSTER}, {@code MODULE} or {@code MANUAL}. {@code orderId} is null for a roster row. {@code endsAt}
 	 * is when the package's paid exams have all run out (null for lifetime), and {@code expired} is true from that moment.
 	 */
-	public record MyModule(UUID moduleId, String via, UUID orderId, Instant grantedAt, Instant endsAt, boolean expired) {
+	public record MyModule(UUID moduleId, String via, UUID orderId, Instant grantedAt, Instant endsAt, boolean expired,
+			String whatsappUrl) {
 	}
 
 	/**

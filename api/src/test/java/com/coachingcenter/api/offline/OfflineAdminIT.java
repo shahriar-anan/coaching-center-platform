@@ -116,7 +116,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		assertThat(locked.get("code").asText()).isEqualTo("ADMISSION_STATE");
 
 		// Staff cannot onboard, change the terms or close (plan 4.6).
-		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", staffToken, null), 403);
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", staffToken, rollBody()), 403);
 		respond(patch("/api/v1/offline-admissions/" + admission + "/terms", staffToken, "{\"monthlyFee\":\"3500\"}"), 403);
 		respond(post("/api/v1/offline-admissions/" + admission + "/close", staffToken, "{\"reason\":\"No\"}"), 403);
 
@@ -149,7 +149,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		respond(post(base + "/ready", instructor, null), 403);
 		respond(post(base + "/back-to-review", instructor, null), 403);
 		respond(post(base + "/request-changes", instructor, "{\"reason\":\"x\"}"), 403);
-		respond(post(base + "/onboard", instructor, null), 403);
+		respond(post(base + "/onboard", instructor, rollBody()), 403);
 		respond(patch(base + "/terms", instructor, "{\"monthlyFee\":\"1\"}"), 403);
 		respond(post(base + "/close", instructor, "{\"reason\":\"x\"}"), 403);
 	}
@@ -197,7 +197,8 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 
 		JsonNode refusal = respond(post("/api/v1/offline-admissions/" + bare + "/ready", token, null), 400);
 		assertThat(refusal.get("code").asText()).isEqualTo("VALIDATION_FAILED");
-		assertThat(fieldNames(refusal)).contains("batchId", "monthlyFee", "courseEndsOn", "items");
+		assertThat(fieldNames(refusal)).contains("batchId", "monthlyFee", "courseEndsOn");
+		assertThat(fieldNames(refusal)).doesNotContain("items");
 		assertThat(jdbc().queryForObject("select status from offline_admissions where id = ?", String.class, bare))
 			.isEqualTo("SUBMITTED");
 
@@ -229,6 +230,26 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		JsonNode january = respond(patch("/api/v1/offline-admissions/" + other + "/setup", token,
 				"{\"batchId\":\"" + longerBatch + "\",\"admittedOn\":\"2027-01-31\"}"), 200).get("setup");
 		assertThat(january.get("firstDueOn").asText()).isEqualTo("2027-02-28");
+	}
+
+	@Test
+	void aBatchGivesNoExamsOrPackagesAtSetupAndOnlyTheStudentsOwnItemsCount() throws Exception {
+		// P17: the batch carries no default items, so setting it copies nothing onto the admission. Exams and packages are optional
+		// for the ready check; the student's own items, when chosen here, still count.
+		UUID master = seed("MASTER_ADMIN", "Master");
+		String token = token(master);
+		UUID batch = batch(token, "2027-02-15", "3000");
+		UUID exam = publishedExam();
+		UUID admission = admission(seed("STUDENT", "Own Items"), master, "SUBMITTED");
+
+		respond(patch("/api/v1/offline-admissions/" + admission + "/setup", token, "{\"batchId\":\"" + batch + "\"}"), 200);
+		assertThat(jdbc().queryForObject("select count(*) from offline_admission_items where admission_id = ?", Long.class, admission))
+			.isZero();
+		JsonNode added = respond(post("/api/v1/offline-admissions/" + admission + "/items", token,
+				"{\"scope\":\"EXAM\",\"examId\":\"" + exam + "\"}"), 200);
+		assertThat(added.get("admission").get("items")).hasSize(1);
+		JsonNode ready = respond(post("/api/v1/offline-admissions/" + admission + "/ready", token, null), 200);
+		assertThat(ready.get("state").asText()).isEqualTo("READY");
 	}
 
 	@Test
@@ -290,7 +311,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		// Staff mark it ready, so the Master Admin onboards it and staff are told.
 		respond(post("/api/v1/offline-admissions/" + admission + "/ready", token(staff), null), 200);
 
-		JsonNode onboarded = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", masterToken, null), 200);
+		JsonNode onboarded = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", masterToken, rollBody()), 200);
 		assertThat(onboarded.get("state").asText()).isEqualTo("ONBOARDED");
 
 		// One OFFLINE grant per item, capped at the end of 30 April in Dhaka: 18:00 UTC on 30 April.
@@ -337,7 +358,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 				"{\"batchId\":\"" + batch(masterToken, "2027-04-30", "3000") + "\"}"), 200);
 		respond(post("/api/v1/offline-admissions/" + admission + "/ready", masterToken, null), 200);
 
-		JsonNode refusal = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", masterToken, null), 409);
+		JsonNode refusal = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", masterToken, rollBody()), 409);
 		assertThat(refusal.get("code").asText()).isEqualTo("GRANT_ALREADY_ACTIVE");
 		assertThat(refusal.get("message").asText()).contains(titleOf("live_exams", exam));
 
@@ -658,7 +679,7 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		respond(post("/api/v1/offline-admissions/" + admission + "/items", token,
 				"{\"scope\":\"MODULE\",\"moduleId\":\"" + publishedModule() + "\"}"), 200);
 		respond(post("/api/v1/offline-admissions/" + admission + "/ready", token, null), 200);
-		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", token, null), 200);
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", token, rollBody()), 200);
 		return admission;
 	}
 
@@ -779,4 +800,9 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 
 	}
 
+
+	/** A request body with a roll number nobody has yet: onboarding requires one. */
+	private static String rollBody() {
+		return "{\"rollNo\":\"" + java.util.concurrent.ThreadLocalRandom.current().nextLong(100_000_000L, 999_999_999L) + "\"}";
+	}
 }

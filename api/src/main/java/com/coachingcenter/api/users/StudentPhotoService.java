@@ -97,6 +97,37 @@ public class StudentPhotoService {
 		photos.save(photo);
 	}
 
+	/**
+	 * Gives a student with no picture a copy of a picture already on file (the photo of a public application, once onboarding links or
+	 * makes the account). The file is copied, so the application and the profile never share one file. A student who already has a
+	 * picture, or a source file that is gone, is left unchanged. Returns true when a picture was added.
+	 */
+	@Transactional
+	public boolean adoptIfMissing(UUID userId, String sourceStoredName, String contentType, long byteSize) {
+		if (sourceStoredName == null || photos.existsById(userId)) {
+			return false;
+		}
+		Path source = fileStorage.resolve(sourceStoredName);
+		if (!Files.exists(source)) {
+			return false;
+		}
+		LocalFileStorage.StoredFile stored;
+		try (InputStream input = Files.newInputStream(source)) {
+			stored = fileStorage.save(sourceStoredName, contentType, input, byteSize);
+		}
+		catch (IOException exception) {
+			return false;
+		}
+		fileStorage.commitReplacement(stored.storedFileName(), null);
+		StudentPhoto photo = newPhoto(userId);
+		photo.setStoredName(stored.storedFileName());
+		photo.setContentType(contentType);
+		photo.setByteSize(byteSize);
+		photo.setUpdatedAt(Instant.now());
+		photos.save(photo);
+		return true;
+	}
+
 	/** Removes the picture. A student with no picture is left unchanged. */
 	@Transactional
 	public void remove(UUID userId) {
@@ -154,7 +185,7 @@ public class StudentPhotoService {
 		return photo;
 	}
 
-	private static boolean hasJpegPngOrWebpSignature(MultipartFile file) {
+	public static boolean hasJpegPngOrWebpSignature(MultipartFile file) {
 		byte[] head = new byte[HEADER_BYTES];
 		int read;
 		try (InputStream input = file.getInputStream()) {

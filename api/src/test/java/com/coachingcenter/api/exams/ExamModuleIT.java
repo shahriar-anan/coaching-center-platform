@@ -75,10 +75,11 @@ class ExamModuleIT extends PostgresIntegrationTest {
 			.andExpect(jsonPath("$.descriptionEn").value("Overview EN"))
 			.andExpect(jsonPath("$.descriptionBn").value("সংক্ষিপ্ত বিবরণ"));
 
+		// Since 15 Nov the System Admin sets the price too (EXAM_PRICE).
 		mockMvc.perform(patch("/api/v1/exam-modules/" + moduleId).header("Authorization", "Bearer " + systemAdmin)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"price\":1500}"))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk());
 
 		mockMvc.perform(patch("/api/v1/exam-modules/" + moduleId).header("Authorization", "Bearer " + masterAdmin)
 			.contentType(MediaType.APPLICATION_JSON)

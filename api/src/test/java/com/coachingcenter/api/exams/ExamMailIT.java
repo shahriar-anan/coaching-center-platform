@@ -416,7 +416,9 @@ class ExamMailIT extends PostgresIntegrationTest {
 		Fixture fixture = seed("PUBLISHED", START.plus(Duration.ofDays(2)), "Retry", "পুনরায়");
 		Student buyer = student("ACTIVE");
 		BigDecimal amount = new BigDecimal("80.00");
-		sender.failTimes(5);
+		// Every send fails. The order also queues the Master Admin's notice with the same timestamp, so a fixed number of failures
+		// could be used up by that row first, depending on which of the two the database returns first.
+		sender.failTimes(1000);
 		LiveExamOrder order = orders.insert(buyer.id, LiveExamOrder.EXAM, fixture.moduleId, fixture.examId, amount);
 		orders.verify(order.getTranId(),
 				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));

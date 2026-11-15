@@ -265,7 +265,7 @@ class LiveEnrolmentListIT extends PostgresIntegrationTest {
 	private void publish(String token, UUID module) throws Exception {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 	}
 

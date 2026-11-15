@@ -38,6 +38,14 @@ public class OfflineBatch {
 	@Column(name = "default_monthly_fee", nullable = false, precision = 12, scale = 2)
 	private BigDecimal defaultMonthlyFee;
 
+	/** The roll the batch's first student gets (rule R5). Digits only, 4 to 12 long; null when the batch names none. */
+	@Column(name = "roll_start", length = 12)
+	private String rollStart;
+
+	/** The batch's WhatsApp group or channel link, or null (15 Nov). Only onboarded students of the batch are given it. */
+	@Column(name = "whatsapp_url", length = 500)
+	private String whatsappUrl;
+
 	@Column(name = "routine_stored_name", length = 255)
 	private String routineStoredName;
 
@@ -66,6 +74,37 @@ public class OfflineBatch {
 	/** The length of a class when a routine gives only its start time (V91). */
 	@Column(name = "default_class_minutes", nullable = false)
 	private Integer defaultClassMinutes = 80;
+
+	/** The description in each language, plain paragraphs, up to 2,000 characters each (V93). Optional. */
+	@Column(name = "description_en", length = 2000)
+	private String descriptionEn;
+
+	@Column(name = "description_bn", length = 2000)
+	private String descriptionBn;
+
+	/** The batch photo, stored like the profile photo (V93). Null when there is none. */
+	@Column(name = "photo_stored_name", length = 255)
+	private String photoStoredName;
+
+	@Column(name = "photo_content_type", length = 100)
+	private String photoContentType;
+
+	@Column(name = "photo_byte_size")
+	private Long photoByteSize;
+
+	@Column(name = "photo_uploaded_by")
+	private UUID photoUploadedBy;
+
+	@Column(name = "photo_uploaded_at")
+	private Instant photoUploadedAt;
+
+	/** Off shows "Admissions closed" on the card and refuses new applications (V93, P6). */
+	@Column(name = "admissions_open", nullable = false)
+	private boolean admissionsOpen = true;
+
+	/** The order of the cards and of the staff list: the lowest first (V93). */
+	@Column(name = "display_order", nullable = false)
+	private Integer displayOrder = 0;
 
 	@Column(name = "created_by", nullable = false)
 	private UUID createdBy;
@@ -118,6 +157,22 @@ public class OfflineBatch {
 
 	public void setEndsOn(LocalDate endsOn) {
 		this.endsOn = endsOn;
+	}
+
+	public String getWhatsappUrl() {
+		return whatsappUrl;
+	}
+
+	public void setWhatsappUrl(String whatsappUrl) {
+		this.whatsappUrl = whatsappUrl;
+	}
+
+	public String getRollStart() {
+		return rollStart;
+	}
+
+	public void setRollStart(String rollStart) {
+		this.rollStart = rollStart;
 	}
 
 	public BigDecimal getDefaultMonthlyFee() {
@@ -198,6 +253,78 @@ public class OfflineBatch {
 
 	public void setDefaultClassMinutes(Integer defaultClassMinutes) {
 		this.defaultClassMinutes = defaultClassMinutes;
+	}
+
+	public String getDescriptionEn() {
+		return descriptionEn;
+	}
+
+	public void setDescriptionEn(String descriptionEn) {
+		this.descriptionEn = descriptionEn;
+	}
+
+	public String getDescriptionBn() {
+		return descriptionBn;
+	}
+
+	public void setDescriptionBn(String descriptionBn) {
+		this.descriptionBn = descriptionBn;
+	}
+
+	public String getPhotoStoredName() {
+		return photoStoredName;
+	}
+
+	public void setPhotoStoredName(String photoStoredName) {
+		this.photoStoredName = photoStoredName;
+	}
+
+	public String getPhotoContentType() {
+		return photoContentType;
+	}
+
+	public void setPhotoContentType(String photoContentType) {
+		this.photoContentType = photoContentType;
+	}
+
+	public Long getPhotoByteSize() {
+		return photoByteSize;
+	}
+
+	public void setPhotoByteSize(Long photoByteSize) {
+		this.photoByteSize = photoByteSize;
+	}
+
+	public UUID getPhotoUploadedBy() {
+		return photoUploadedBy;
+	}
+
+	public void setPhotoUploadedBy(UUID photoUploadedBy) {
+		this.photoUploadedBy = photoUploadedBy;
+	}
+
+	public Instant getPhotoUploadedAt() {
+		return photoUploadedAt;
+	}
+
+	public void setPhotoUploadedAt(Instant photoUploadedAt) {
+		this.photoUploadedAt = photoUploadedAt;
+	}
+
+	public boolean isAdmissionsOpen() {
+		return admissionsOpen;
+	}
+
+	public void setAdmissionsOpen(boolean admissionsOpen) {
+		this.admissionsOpen = admissionsOpen;
+	}
+
+	public Integer getDisplayOrder() {
+		return displayOrder;
+	}
+
+	public void setDisplayOrder(Integer displayOrder) {
+		this.displayOrder = displayOrder;
 	}
 
 	public UUID getCreatedBy() {

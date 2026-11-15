@@ -22,7 +22,7 @@ public class OfflineAdmissionSubmission {
 	@Column(name = "submitted_at", nullable = false)
 	private Instant submittedAt;
 
-	@Column(name = "submitted_by", nullable = false)
+	@Column(name = "submitted_by")
 	private UUID submittedBy;
 
 	@Column(name = "form_json", nullable = false)

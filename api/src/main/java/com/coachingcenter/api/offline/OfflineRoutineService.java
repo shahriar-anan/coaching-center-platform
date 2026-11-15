@@ -20,7 +20,6 @@ import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -50,14 +49,17 @@ import com.coachingcenter.api.offline.OfflineRoutineMatcher.RowPlan;
 import com.coachingcenter.api.offline.OfflineRoutineReader.Parsed;
 import com.coachingcenter.api.offline.OfflineRoutineRow.Flag;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Monthly routines of a batch (plan sections 4.2, 4.4, 5 and 6, stage 2). An upload reads the PDF into a PREVIEW routine that the staff
- * check; nothing reaches the classes until the confirm. The confirm applies the rows to the batch's classes in one transaction, makes the
- * student copy, supersedes the earlier routine of the same month and tells the onboarded students once. A confirmed routine is never
- * changed; a new upload of the month is the only way to replace it.
+ * Routines of a batch (plan sections 4.2, 4.4, 5 and 6, stage 2; changed on 13 Nov 2026). An upload reads the PDF into a PREVIEW
+ * routine that the staff check; nothing reaches the classes until the confirm. A routine counts from the day it is uploaded: its earlier
+ * dates still become classes, but the confirm only replaces the classes from that day onward. The confirm applies the rows to the batch's
+ * classes in one transaction, makes the student copy, supersedes the batch's earlier live routine and tells the onboarded students once.
+ * A confirmed routine is never changed; a new upload is the only way to replace it.
  */
 @Service
 public class OfflineRoutineService {
@@ -110,9 +112,13 @@ public class OfflineRoutineService {
 
 	private final Clock clock;
 
+	private final OfflineResultService results;
+
 	public OfflineRoutineService(OfflineBatchRepository batches, OfflineBatchRoutineRepository routines, OfflineClassRepository classes,
 			OfflineInstructorRepository instructors, OfflineInstructorService instructorService, OfflineBatchService batchService,
-			PdfUploads uploads, LocalFileStorage files, AuditRecorder audit, JdbcTemplate jdbc, ObjectMapper json, Clock clock) {
+			PdfUploads uploads, LocalFileStorage files, AuditRecorder audit, JdbcTemplate jdbc, ObjectMapper json, Clock clock,
+			OfflineResultService results) {
+		this.results = results;
 		this.batches = batches;
 		this.routines = routines;
 		this.classes = classes;
@@ -128,35 +134,37 @@ public class OfflineRoutineService {
 	}
 
 	/**
-	 * Reads a routine PDF for one month into a PREVIEW. A PDF without the routine's header row is refused, and nothing is saved. The
-	 * original PDF is kept for staff. The month may already have a confirmed routine: the preview then shows the difference.
+	 * Reads a routine PDF into a PREVIEW. A PDF without the routine's header row is refused, and nothing is saved. The original PDF is
+	 * kept for staff. There is no month to choose: the routine counts from the day it is uploaded (Dhaka). Its earlier dates are flagged
+	 * as past and still become classes; on confirm it replaces only the classes from that day onward. When the batch already has a live
+	 * routine, the preview shows the difference.
 	 */
 	@Transactional
-	public RoutineView upload(UUID batchId, String month, MultipartFile file, UUID actorId) {
+	public RoutineView upload(UUID batchId, MultipartFile file, UUID actorId) {
 		OfflineBatch batch = findBatch(batchId);
 		if (OfflineBatch.STATUS_ARCHIVED.equals(batch.getStatus())) {
 			throw state("This batch is archived, so its routine cannot be uploaded.");
 		}
-		YearMonth ym = yearMonth(month);
+		LocalDate from = today();
 		byte[] bytes = pdfBytes(file);
 		Parsed parsed = OfflineRoutineReader.read(bytes);
-		List<OfflineRoutineRow> rows = OfflineRoutineRules.build(parsed.rows(), ym, batch.getDefaultClassMinutes(), index());
+		List<OfflineRoutineRow> rows = OfflineRoutineRules.build(parsed.rows(), from, batch.getDefaultClassMinutes(), index());
 		LocalFileStorage.StoredFile stored = uploads.store(file, OfflineBatchService.MAX_ROUTINE_BYTES);
 		try {
-			LocalDate first = ym.atDay(1);
 			OfflineBatchRoutine routine = new OfflineBatchRoutine();
 			routine.setId(UUID.randomUUID());
 			routine.setBatchId(batchId);
-			routine.setMonth(first);
+			routine.setEffectiveFrom(from);
+			routine.setMonth(from.withDayOfMonth(1));
 			routine.setOriginalFile(stored.storedFileName());
 			routine.setOriginalName(originalName(stored.originalFileName()));
 			routine.setOriginalByteSize(stored.byteSize());
-			routine.setRevision(nextRevision(batchId, first));
+			routine.setRevision(nextRevision(batchId));
 			routine.setStatus(OfflineBatchRoutine.STATUS_PREVIEW);
 			routine.setLegacyOriginal(false);
 			routine.setUploadedBy(actorId);
 			routine.setUploadedAt(clock.instant());
-			routine.setParseReport(reportJson(ym, batch.getDefaultClassMinutes(), parsed.pageCount(), rows));
+			routine.setParseReport(reportJson(batch.getDefaultClassMinutes(), parsed.pageCount(), rows));
 			routines.saveAndFlush(routine);
 			audit.record(UPLOADED, ENTITY, routine.getId());
 			return view(routine);
@@ -167,15 +175,15 @@ public class OfflineRoutineService {
 		}
 	}
 
-	/** The routines of a batch, the newest month first and the latest revision first within a month. */
+	/** The routines of a batch, the newest first: by the day each counts from, then by version. */
 	@Transactional(readOnly = true)
 	public List<RoutineSummary> list(UUID batchId) {
 		findBatch(batchId);
 		List<RoutineSummary> summaries = new ArrayList<>();
-		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByMonthDescRevisionDesc(batchId)) {
+		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByEffectiveFromDescRevisionDesc(batchId)) {
 			Report report = report(routine);
 			List<String> blockers = blockers(report.rows());
-			summaries.add(new RoutineSummary(routine.getId(), YearMonth.from(routine.getMonth()).toString(), routine.getRevision(),
+			summaries.add(new RoutineSummary(routine.getId(), routine.getEffectiveFrom().toString(), routine.getRevision(),
 					routine.getStatus(), routine.isLegacyOriginal(), routine.getOriginalName(), routine.getStudentFile() != null,
 					routine.getUploadedAt(), routine.getConfirmedAt(), report.rows().size(), flagged(report.rows()),
 					OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()) && blockers.isEmpty()));
@@ -304,9 +312,11 @@ public class OfflineRoutineService {
 	}
 
 	/**
-	 * Confirms a PREVIEW. Refused while a row lacks a date, time or subject, or while a name is not matched; flags do not block. The classes
-	 * of the batch change in this transaction: matched unsettled classes take the new values, settled ones stay, new rows are added and
-	 * unsettled classes of the month that no row matches are cancelled.
+	 * Confirms a PREVIEW. Refused while a row lacks a date, time or subject; flags do not block. The instructors come from the PDF: a name
+	 * that no instructor has (by name or alias) is added as a new instructor under that name and assigned to its rows, so nobody has to
+	 * match names before confirming. A name can still be matched to an existing instructor on the preview, and a class's instructor can be
+	 * changed later until it is settled. The classes of the batch change in this transaction: matched unsettled classes take the new
+	 * values, settled ones stay, new rows are added and unsettled classes of the month that no row matches are cancelled.
 	 */
 	@Transactional
 	public RoutineView confirm(UUID id, UUID actorId) {
@@ -324,10 +334,10 @@ public class OfflineRoutineService {
 		if (!blockers.isEmpty()) {
 			throw state("This routine cannot be confirmed yet. " + String.join(" ", blockers));
 		}
-		LocalDate month = routine.getMonth();
+		report = withNewInstructors(routine, report, actorId);
 		Instant now = clock.instant();
 		Plan plan = OfflineRoutineMatcher.plan(report.rows(), classes.findByBatchIdOrderByHeldOnAscStartsAtAsc(batch.getId()),
-				monthRoutines(batch.getId(), month));
+				routine.getEffectiveFrom(), results.classesWithResults(batch.getId()));
 		LocalFileStorage.StoredFile copy = null;
 		try {
 			for (RowPlan planned : plan.rows()) {
@@ -347,11 +357,12 @@ public class OfflineRoutineService {
 				cancelled.setUpdatedAt(now);
 				classes.save(cancelled);
 			}
-			routines.findByBatchIdAndMonthAndStatus(batch.getId(), month, OfflineBatchRoutine.STATUS_CONFIRMED).ifPresent(prior -> {
+			// The batch has one live routine: the one before it stays as the record.
+			routines.findByBatchIdAndStatus(batch.getId(), OfflineBatchRoutine.STATUS_CONFIRMED).ifPresent(prior -> {
 				prior.setStatus(OfflineBatchRoutine.STATUS_SUPERSEDED);
 				routines.saveAndFlush(prior);
 			});
-			int revision = confirmedRevision(batch.getId(), month) + 1;
+			int revision = confirmedRevision(batch.getId()) + 1;
 			byte[] original = originalBytes(routine);
 			byte[] studentCopy = OfflineRoutineStudentCopy.render(original, OfflineRoutineReader.read(original).rows());
 			copy = files.save(STUDENT_COPY_NAME, PDF, new ByteArrayInputStream(studentCopy), studentCopy.length,
@@ -400,9 +411,9 @@ public class OfflineRoutineService {
 		}
 		try {
 			InputStream body = Files.newInputStream(path);
-			String month = YearMonth.from(routine.getMonth()).toString();
-			String name = student ? "routine-" + month + "-student-copy.pdf"
-					: routine.getOriginalName() == null ? "routine-" + month + ".pdf" : routine.getOriginalName();
+			String day = routine.getEffectiveFrom().toString();
+			String name = student ? "routine-" + day + "-student-copy.pdf"
+					: routine.getOriginalName() == null ? "routine-" + day + ".pdf" : routine.getOriginalName();
 			long size = Files.size(path);
 			return new RoutineFile(body, name, size);
 		}
@@ -412,16 +423,16 @@ public class OfflineRoutineService {
 	}
 
 	/**
-	 * The student copy of the latest confirmed routine of a batch, or of one month. A routine with no student copy (the old single routine,
-	 * which carries names) is never served to a student: the answer is 404.
+	 * The student copy for a batch: without a month, the live routine's; with a month, the newest confirmed routine (live or since
+	 * replaced) that counts from a day in or before that month, which is the routine the month was taught from. A routine with no
+	 * student copy (the old single routine, which carries names) is never served to a student: the answer is 404.
 	 */
 	@Transactional(readOnly = true)
 	public RoutineFile studentCopy(UUID batchId, YearMonth month) {
-		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByMonthDescRevisionDesc(batchId)) {
-			if (!OfflineBatchRoutine.STATUS_CONFIRMED.equals(routine.getStatus())) {
-				continue;
-			}
-			if (month != null && !month.equals(YearMonth.from(routine.getMonth()))) {
+		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByEffectiveFromDescRevisionDesc(batchId)) {
+			boolean live = OfflineBatchRoutine.STATUS_CONFIRMED.equals(routine.getStatus());
+			boolean confirmedOnce = live || OfflineBatchRoutine.STATUS_SUPERSEDED.equals(routine.getStatus());
+			if (month == null ? !live : !confirmedOnce || routine.getEffectiveFrom().isAfter(month.atEndOfMonth())) {
 				continue;
 			}
 			if (routine.isLegacyOriginal() || routine.getStudentFile() == null) {
@@ -443,20 +454,20 @@ public class OfflineRoutineService {
 		}
 		Difference difference = null;
 		if (OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())
-				&& routines.findByBatchIdAndMonthAndStatus(routine.getBatchId(), routine.getMonth(),
-						OfflineBatchRoutine.STATUS_CONFIRMED).isPresent()) {
-			difference = difference(routine.getBatchId(), routine.getMonth(), report.rows(), names);
+				&& routines.findByBatchIdAndStatus(routine.getBatchId(), OfflineBatchRoutine.STATUS_CONFIRMED).isPresent()) {
+			difference = difference(routine.getBatchId(), routine.getEffectiveFrom(), report.rows(), names);
 		}
 		List<String> blockers = blockers(report.rows());
-		return new RoutineView(routine.getId(), routine.getBatchId(), YearMonth.from(routine.getMonth()).toString(),
+		return new RoutineView(routine.getId(), routine.getBatchId(), routine.getEffectiveFrom().toString(),
 				routine.getRevision(), routine.getStatus(), routine.isLegacyOriginal(), routine.getOriginalName(),
 				routine.getStudentFile() != null, routine.getUploadedAt(), routine.getConfirmedAt(), report.rows().size(),
 				flagged(report.rows()), unmatched(report.rows()), blockers,
 				OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()) && blockers.isEmpty(), rows, difference);
 	}
 
-	private Difference difference(UUID batchId, LocalDate month, List<OfflineRoutineRow> rows, Map<UUID, String> names) {
-		Plan plan = OfflineRoutineMatcher.plan(rows, classes.findByBatchIdOrderByHeldOnAscStartsAtAsc(batchId), monthRoutines(batchId, month));
+	private Difference difference(UUID batchId, LocalDate from, List<OfflineRoutineRow> rows, Map<UUID, String> names) {
+		Set<UUID> withResult = results.classesWithResults(batchId);
+		Plan plan = OfflineRoutineMatcher.plan(rows, classes.findByBatchIdOrderByHeldOnAscStartsAtAsc(batchId), from, withResult);
 		List<RowView> added = new ArrayList<>();
 		List<Change> changed = new ArrayList<>();
 		List<ClassView> settled = new ArrayList<>();
@@ -467,21 +478,22 @@ public class OfflineRoutineService {
 				added.add(row);
 			}
 			else if (planned.action() == Action.UPDATE && planned.changed()) {
-				changed.add(new Change(classView(planned.existing()), row));
+				changed.add(new Change(classView(planned.existing(), false), row));
 			}
-			else if (planned.action() == Action.UPDATE) {
+			else if (planned.action() == Action.UPDATE || planned.action() == Action.EARLIER) {
+				// An earlier class the row matches is left as it is, so it counts as unchanged.
 				unchanged++;
 			}
 			else {
-				settled.add(classView(planned.existing()));
+				settled.add(classView(planned.existing(), withResult.contains(planned.existing().getId())));
 			}
 		}
 		List<ClassView> cancelled = new ArrayList<>();
 		for (OfflineClass cancel : plan.cancel()) {
-			cancelled.add(classView(cancel));
+			cancelled.add(classView(cancel, false));
 		}
 		for (OfflineClass kept : plan.settledKept()) {
-			settled.add(classView(kept));
+			settled.add(classView(kept, withResult.contains(kept.getId())));
 		}
 		return new Difference(added, changed, cancelled, settled, unchanged);
 	}
@@ -491,9 +503,10 @@ public class OfflineRoutineService {
 				row.instructorText(), row.instructorId(), row.instructorId() == null ? null : names.get(row.instructorId()), row.flags());
 	}
 
-	private static ClassView classView(OfflineClass item) {
+	/** A class as the preview lists it. {@code keptForResult} is set for an exam with a result sheet, which the routine keeps (rule A1). */
+	private static ClassView classView(OfflineClass item, boolean keptForResult) {
 		return new ClassView(item.getId(), item.getHeldOn().toString(), item.getStartsAt() == null ? null : item.getStartsAt().toString(),
-				item.getSubject(), item.getTopic(), item.getInstructorText(), item.getStatus());
+				item.getSubject(), item.getTopic(), item.getInstructorText(), item.getStatus(), keptForResult);
 	}
 
 	/** What stops a confirm: a row without a date, time or subject, and a name nobody matched yet. */
@@ -511,11 +524,33 @@ public class OfflineRoutineService {
 				blockers.add("Row " + (index + 1) + " has no subject.");
 			}
 		}
-		for (UnmatchedName name : unmatched(rows)) {
-			blockers.add("Match the instructor \"" + name.name() + "\" (" + name.rows() + (name.rows() == 1 ? " row" : " rows")
-					+ ") to an instructor or add a new one.");
-		}
 		return blockers;
+	}
+
+	/**
+	 * The report with every name no instructor has assigned to an instructor of that name: an existing one when the name is already
+	 * known, otherwise a new one created now. The rows are saved, so the confirmed routine shows who teaches each class. Rows with no
+	 * instructor in the PDF stay without one.
+	 */
+	private Report withNewInstructors(OfflineBatchRoutine routine, Report report, UUID actorId) {
+		List<UnmatchedName> names = unmatched(report.rows());
+		if (names.isEmpty()) {
+			return report;
+		}
+		Map<String, UUID> assigned = new LinkedHashMap<>();
+		for (UnmatchedName name : names) {
+			assigned.put(OfflineRoutineRules.key(name.name()), existingOrNew(clip(name.name(), 200), actorId).getId());
+		}
+		List<OfflineRoutineRow> rows = new ArrayList<>();
+		for (OfflineRoutineRow row : report.rows()) {
+			UUID instructorId = row.instructorId() == null && row.instructorText() != null && !row.instructorText().isEmpty()
+					? assigned.get(OfflineRoutineRules.key(row.instructorText()))
+					: row.instructorId();
+			rows.add(instructorId == row.instructorId() ? row : new OfflineRoutineRow(row.page(), row.date(), row.day(), row.time(),
+					row.startsAt(), row.endsAt(), row.subject(), row.topic(), row.kind(), row.instructorText(), instructorId, row.flags()));
+		}
+		save(routine, report, rows);
+		return report(routine);
 	}
 
 	private static List<UnmatchedName> unmatched(List<OfflineRoutineRow> rows) {
@@ -579,29 +614,24 @@ public class OfflineRoutineService {
 		return rates.isEmpty() ? null : rates.get(0);
 	}
 
-	/** The classes of the month's routines (confirmed or replaced): the only ones a row can cancel. */
-	private Set<UUID> monthRoutines(UUID batchId, LocalDate month) {
-		Set<UUID> ids = new HashSet<>();
-		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByMonthDescRevisionDesc(batchId)) {
-			if (month.equals(routine.getMonth()) && !OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())) {
-				ids.add(routine.getId());
-			}
-		}
-		return ids;
-	}
-
-	private int confirmedRevision(UUID batchId, LocalDate month) {
+	/** The highest version a confirmed (live or replaced) routine of the batch has, or 0. Versions count per batch. */
+	private int confirmedRevision(UUID batchId) {
 		int max = 0;
-		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByMonthDescRevisionDesc(batchId)) {
-			if (month.equals(routine.getMonth()) && !OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())) {
+		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByEffectiveFromDescRevisionDesc(batchId)) {
+			if (!OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())) {
 				max = Math.max(max, routine.getRevision());
 			}
 		}
 		return max;
 	}
 
-	private int nextRevision(UUID batchId, LocalDate month) {
-		return confirmedRevision(batchId, month) + 1;
+	private int nextRevision(UUID batchId) {
+		return confirmedRevision(batchId) + 1;
+	}
+
+	/** Today in Dhaka: the day an uploaded routine counts from. */
+	private LocalDate today() {
+		return LocalDate.now(clock.withZone(OfflineClassService.DHAKA));
 	}
 
 	// ---- helpers ----------------------------------------------------------------------------------------------------------
@@ -609,24 +639,25 @@ public class OfflineRoutineService {
 	/** The routine's stored rows and counts. A routine with no stored report (the old single routine) has no rows. */
 	private Report report(OfflineBatchRoutine routine) {
 		if (routine.getParseReport() == null) {
-			return new Report(YearMonth.from(routine.getMonth()).toString(), 0, 0, List.of());
+			return new Report(0, 0, List.of());
 		}
 		return json.readValue(routine.getParseReport(), Report.class);
 	}
 
-	private String reportJson(YearMonth month, int minutes, int pageCount, List<OfflineRoutineRow> rows) {
-		return json.writeValueAsString(new Report(month.toString(), minutes, pageCount, rows));
+	private String reportJson(int minutes, int pageCount, List<OfflineRoutineRow> rows) {
+		return json.writeValueAsString(new Report(minutes, pageCount, rows));
 	}
 
+	/** Stores the rows with their flags worked out again against the day the routine counts from. */
 	private void save(OfflineBatchRoutine routine, Report report, List<OfflineRoutineRow> rows) {
-		YearMonth month = YearMonth.from(routine.getMonth());
-		routine.setParseReport(reportJson(month, report.defaultClassMinutes(), report.pageCount(), OfflineRoutineRules.flag(rows, month)));
+		routine.setParseReport(reportJson(report.defaultClassMinutes(), report.pageCount(),
+				OfflineRoutineRules.flag(rows, routine.getEffectiveFrom())));
 		routines.saveAndFlush(routine);
 	}
 
 	private void requirePreview(OfflineBatchRoutine routine) {
 		if (OfflineBatchRoutine.STATUS_CONFIRMED.equals(routine.getStatus())) {
-			throw state("This routine is confirmed, so its rows cannot be changed. Upload a new routine for the month to change it.");
+			throw state("This routine is confirmed, so its rows cannot be changed. Upload the routine again to change it.");
 		}
 		if (!OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())) {
 			throw state("This routine was replaced by a later upload, so it cannot be changed.");
@@ -689,18 +720,6 @@ public class OfflineRoutineService {
 		}
 		catch (IOException | RuntimeException exception) {
 			throw state("The original PDF of this routine is missing, so the student copy cannot be made.");
-		}
-	}
-
-	private static YearMonth yearMonth(String month) {
-		if (month == null || month.isBlank()) {
-			throw validation(List.of(new FieldErrorDetail("month", "Choose the month of the routine.")));
-		}
-		try {
-			return YearMonth.parse(month.trim());
-		}
-		catch (DateTimeParseException exception) {
-			throw validation(List.of(new FieldErrorDetail("month", "Enter the month as year-month, for example 2026-11.")));
 		}
 	}
 
@@ -781,19 +800,26 @@ public class OfflineRoutineService {
 
 	// ---- records ----------------------------------------------------------------------------------------------------------
 
-	/** What the routine's parse report holds: the month, the class length it was read with, the pages and the rows. */
-	public record Report(String month, int defaultClassMinutes, int pageCount, List<OfflineRoutineRow> rows) {
+	/**
+	 * What the routine's parse report holds: the class length it was read with, the pages and the rows. Reports stored while routines
+	 * were monthly also carry a month; it is ignored (the routine's {@code effectiveFrom} is the day it counts from).
+	 */
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public record Report(int defaultClassMinutes, int pageCount, List<OfflineRoutineRow> rows) {
 	}
 
 	/** One routine in a list. {@code rowCount} and {@code flaggedCount} count the rows; {@code canConfirm} is true for a preview with nothing blocking. */
-	public record RoutineSummary(UUID id, String month, int version, String status, boolean legacyOriginal, String originalName,
+	public record RoutineSummary(UUID id, String effectiveFrom, int version, String status, boolean legacyOriginal, String originalName,
 			boolean studentCopy, Instant uploadedAt, Instant confirmedAt, int rowCount, int flaggedCount, boolean canConfirm) {
 	}
 
-	/** One routine in full: its rows, what blocks the confirm, and the difference when a preview is for a month already confirmed. */
-	public record RoutineView(UUID id, UUID batchId, String month, int version, String status, boolean legacyOriginal, String originalName,
-			boolean studentCopy, Instant uploadedAt, Instant confirmedAt, int rowCount, int flaggedCount, List<UnmatchedName> unmatchedNames,
-			List<String> blockers, boolean canConfirm, List<RowView> rows, Difference difference) {
+	/**
+	 * One routine in full: its rows, what blocks the confirm, and the difference when the batch already has a live routine.
+	 * {@code effectiveFrom} is the day the routine counts from (yyyy-MM-dd): the classes from that day onward are the ones it replaces.
+	 */
+	public record RoutineView(UUID id, UUID batchId, String effectiveFrom, int version, String status, boolean legacyOriginal,
+			String originalName, boolean studentCopy, Instant uploadedAt, Instant confirmedAt, int rowCount, int flaggedCount,
+			List<UnmatchedName> unmatchedNames, List<String> blockers, boolean canConfirm, List<RowView> rows, Difference difference) {
 	}
 
 	/** One row with its index and the instructor's name for the screens. */
@@ -806,7 +832,8 @@ public class OfflineRoutineService {
 	}
 
 	/** A class as it is in the batch now. */
-	public record ClassView(UUID id, String date, String startsAt, String subject, String topic, String instructorText, String status) {
+	public record ClassView(UUID id, String date, String startsAt, String subject, String topic, String instructorText, String status,
+			boolean keptForResult) {
 	}
 
 	/** A row of the preview that changes a class: the class now, and the row. */

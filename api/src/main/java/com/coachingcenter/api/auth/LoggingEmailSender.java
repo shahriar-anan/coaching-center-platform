@@ -59,4 +59,12 @@ public class LoggingEmailSender implements EmailSender {
 		}
 	}
 
+	@Override
+	public void sendRendered(String to, com.coachingcenter.api.common.mail.RenderedEmail mail, String secret) {
+		log.info("Message queued subject={}", mail.subject());
+		if (exposeCodes && secret != null) {
+			log.info(secret.startsWith("http") ? "Message link {}" : "Message code {}", secret);
+		}
+	}
+
 }

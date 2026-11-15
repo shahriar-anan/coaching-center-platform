@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import javax.sql.DataSource;
 
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,24 +23,6 @@ import com.coachingcenter.api.auth.CapturingEmailConfig;
 @Import(CapturingEmailConfig.class)
 class BootstrapIT extends PostgresIntegrationTest {
 
-	@BeforeAll
-	static void removeExistingMasterAdmins() throws Exception {
-		String url = System.getenv("TEST_DB_URL");
-		if (url == null || url.isBlank()) {
-			return;
-		}
-		try (var connection = java.sql.DriverManager.getConnection(url, System.getenv("TEST_DB_USER"),
-				System.getenv("TEST_DB_PASSWORD"))) {
-			try (var statement = connection.createStatement()) {
-				// Soft delete: other suites leave Master Admins that courses, profiles, and orders still reference.
-				statement.executeUpdate("""
-						UPDATE users SET deleted_at = now(), updated_at = now()
-						WHERE role = 'MASTER_ADMIN' AND deleted_at IS NULL
-						""");
-			}
-		}
-	}
-
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -54,6 +35,9 @@ class BootstrapIT extends PostgresIntegrationTest {
 	@Test
 	void createsOneMasterAdminAndDoesNotOverwriteAnExistingPassword() throws Exception {
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		// Soft delete: other suites leave Master Admins that courses, profiles, and orders still reference. This goes through the
+		// test's own database, so it runs on an external database and on Testcontainers alike.
+		jdbc.update("update users set deleted_at = now(), updated_at = now() where role = 'MASTER_ADMIN' and deleted_at is null");
 		// The context may be cached from an earlier class, so its startup run happened before the cleanup.
 		bootstrap.run(null);
 		Integer count = jdbc.queryForObject(

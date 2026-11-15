@@ -20,7 +20,9 @@ public enum NoticeGroup {
 
 	ANNOUNCEMENTS;
 
-	private static final Set<String> RESULT_KINDS = Set.of(StudentNoticeWriter.MCQ_SCORE, StudentNoticeWriter.WRITTEN_RESULT);
+	/** The online scores, and the offline batch results (published and updated), which a student looks for under Results too. */
+	private static final Set<String> RESULT_KINDS = Set.of(StudentNoticeWriter.MCQ_SCORE, StudentNoticeWriter.WRITTEN_RESULT,
+			"OFFLINE_RESULT_PUBLISHED", "OFFLINE_RESULT_UPDATED");
 
 	private static final Set<String> ANNOUNCEMENT_KINDS = Set.of("ANNOUNCEMENT");
 
@@ -53,8 +55,14 @@ public enum NoticeGroup {
 		return switch (this) {
 			case RESULTS -> RESULT_KINDS;
 			case ANNOUNCEMENTS -> ANNOUNCEMENT_KINDS;
-			case EXAMS -> Set.of(StudentNoticeWriter.MCQ_SCORE, StudentNoticeWriter.WRITTEN_RESULT, "ANNOUNCEMENT");
+			case EXAMS -> union(RESULT_KINDS, ANNOUNCEMENT_KINDS);
 		};
+	}
+
+	private static Set<String> union(Set<String> a, Set<String> b) {
+		Set<String> all = new java.util.HashSet<>(a);
+		all.addAll(b);
+		return Set.copyOf(all);
 	}
 
 	/** Reads the {@code group} query value. Absent means every notice (null). An unknown value is a validation error. */

@@ -14,9 +14,11 @@ import java.util.function.Predicate;
  * Matches the rows of a routine to the classes the batch already has (plan section 4.4). A row matches a class with the same date, start
  * time and subject; when none matches, the same date and subject match, which is a class whose time moved. A class is matched once.
  *
- * <p>The matching looks at every class of the batch, so a class that two routines both list is one class, not two. Only the classes that
- * came from a routine of the same month can be cancelled by a row that is no longer there. A settled class (paid, or not taken) is
- * never changed: a row that matches one leaves it alone.
+ * <p>The matching looks at every class of the batch, so a class that two routines both list is one class, not two. A routine counts from
+ * the day it was uploaded ({@code from}): only the classes from that day onward are its to change. A class before that day that a row
+ * matches is left as it is (it may have been changed by hand since), and a row before that day with no class becomes a new class. Only
+ * classes that came from a routine, from {@code from} onward, are cancelled when no row lists them. A settled class (paid, or not taken)
+ * is never changed: a row that matches one leaves it alone.
  */
 final class OfflineRoutineMatcher {
 
@@ -26,7 +28,9 @@ final class OfflineRoutineMatcher {
 		/** An unsettled class takes the row's values. */
 		UPDATE,
 		/** A settled class matches the row and is left as it is. */
-		SETTLED
+		SETTLED,
+		/** A class before the routine's day matches the row and is left as it is. */
+		EARLIER
 	}
 
 	/** What a row does; {@code existing} is the matched class (null for ADD), {@code changed} says whether an UPDATE changes anything. */
@@ -34,8 +38,8 @@ final class OfflineRoutineMatcher {
 	}
 
 	/**
-	 * The whole plan: each row's action, the unsettled classes of the month that no row matches (to cancel), and the settled classes of
-	 * the month that no row matches (kept, shown in the difference).
+	 * The whole plan: each row's action, the unsettled routine classes from {@code from} onward that no row matches (to cancel), and the
+	 * settled ones that no row matches (kept, shown in the difference).
 	 */
 	record Plan(List<RowPlan> rows, List<OfflineClass> cancel, List<OfflineClass> settledKept) {
 	}
@@ -43,7 +47,11 @@ final class OfflineRoutineMatcher {
 	private OfflineRoutineMatcher() {
 	}
 
-	static Plan plan(List<OfflineRoutineRow> rows, List<OfflineClass> batchClasses, Set<UUID> monthRoutines) {
+	/**
+	 * The plan of one routine. {@code withResult} is the classes that have a result sheet (rule A1): such a class is never changed or cancelled
+	 * by the routine. A row that matches it leaves it as it is, and one it does not match is kept, listed as settled.
+	 */
+	static Plan plan(List<OfflineRoutineRow> rows, List<OfflineClass> batchClasses, LocalDate from, Set<UUID> withResult) {
 		List<OfflineClass> candidates = new ArrayList<>();
 		for (OfflineClass classItem : batchClasses) {
 			if (!OfflineClass.STATUS_CANCELLED.equals(classItem.getStatus())) {
@@ -77,7 +85,10 @@ final class OfflineRoutineMatcher {
 			if (existing == null) {
 				plans.add(new RowPlan(index, Action.ADD, null, true));
 			}
-			else if (OfflineClass.STATUS_SCHEDULED.equals(existing.getStatus())) {
+			else if (existing.getHeldOn() != null && existing.getHeldOn().isBefore(from)) {
+				plans.add(new RowPlan(index, Action.EARLIER, existing, false));
+			}
+			else if (OfflineClass.STATUS_SCHEDULED.equals(existing.getStatus()) && !withResult.contains(existing.getId())) {
 				plans.add(new RowPlan(index, Action.UPDATE, existing, differs(existing, rows.get(index))));
 			}
 			else {
@@ -87,10 +98,11 @@ final class OfflineRoutineMatcher {
 		List<OfflineClass> cancel = new ArrayList<>();
 		List<OfflineClass> settledKept = new ArrayList<>();
 		for (OfflineClass classItem : candidates) {
-			if (used.contains(classItem.getId()) || classItem.getRoutineId() == null || !monthRoutines.contains(classItem.getRoutineId())) {
+			if (used.contains(classItem.getId()) || classItem.getRoutineId() == null || classItem.getHeldOn() == null
+					|| classItem.getHeldOn().isBefore(from)) {
 				continue;
 			}
-			if (OfflineClass.STATUS_SCHEDULED.equals(classItem.getStatus())) {
+			if (OfflineClass.STATUS_SCHEDULED.equals(classItem.getStatus()) && !withResult.contains(classItem.getId())) {
 				cancel.add(classItem);
 			}
 			else {

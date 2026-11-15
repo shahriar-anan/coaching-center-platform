@@ -31,13 +31,14 @@ public class OfflineAdmission {
 	@Id
 	private UUID id;
 
-	@Column(name = "student_id", nullable = false)
+	/** Empty for a public application until onboarding makes or matches the account (V94). */
+	@Column(name = "student_id")
 	private UUID studentId;
 
 	@Column(nullable = false, length = 24)
 	private String status;
 
-	@Column(name = "created_by", nullable = false)
+	@Column(name = "created_by")
 	private UUID createdBy;
 
 	@Column(name = "created_at", nullable = false)
@@ -76,6 +77,10 @@ public class OfflineAdmission {
 
 	@Column(length = 32)
 	private String mobile;
+
+	/** The roll number the onboarding gave (digits, unique across admissions). Null until onboarded (rules R4, A6). */
+	@Column(name = "roll_no", length = 12)
+	private String rollNo;
 
 	@Column(name = "emergency_mobile", length = 32)
 	private String emergencyMobile;
@@ -185,6 +190,51 @@ public class OfflineAdmission {
 
 	@Column(name = "activated_at")
 	private Instant activatedAt;
+
+	/** Where the application came from: PUBLIC (no account yet), ACCOUNT (signed in), DESK (a walk-in). V94. */
+	@Column(nullable = false, length = 8)
+	private String source = SOURCE_DESK;
+
+	/** The token of a public applicant (hash only). Kept while the application is open. V94. */
+	@Column(name = "access_token_hash", length = 255)
+	private String accessTokenHash;
+
+	/** The join code of an account that already exists (hash only), with its expiry, send time and sender. V94. */
+	@Column(name = "join_code_hash", length = 255)
+	private String joinCodeHash;
+
+	@Column(name = "join_code_expires_at")
+	private Instant joinCodeExpiresAt;
+
+	@Column(name = "join_code_sent_at")
+	private Instant joinCodeSentAt;
+
+	@Column(name = "join_code_sent_by")
+	private UUID joinCodeSentBy;
+
+	@Column(name = "join_code_used_at")
+	private Instant joinCodeUsedAt;
+
+	/** Wrong join codes typed for this admission. Five lock it until a new code is sent (plan section 9). */
+	@Column(name = "join_code_failures", nullable = false)
+	private int joinCodeFailures;
+
+	/** The reopen link of a changes-requested public application (hash only, 7 days). V94. */
+	@Column(name = "reopen_token_hash", length = 255)
+	private String reopenTokenHash;
+
+	@Column(name = "reopen_token_expires_at")
+	private Instant reopenTokenExpiresAt;
+
+	/** The account found for this applicant at onboarding, by email then phone (Q3). V94. */
+	@Column(name = "matched_user_id")
+	private UUID matchedUserId;
+
+	public static final String SOURCE_PUBLIC = "PUBLIC";
+
+	public static final String SOURCE_ACCOUNT = "ACCOUNT";
+
+	public static final String SOURCE_DESK = "DESK";
 
 	public UUID getId() {
 		return id;
@@ -312,6 +362,14 @@ public class OfflineAdmission {
 
 	public void setMobile(String mobile) {
 		this.mobile = mobile;
+	}
+
+	public String getRollNo() {
+		return rollNo;
+	}
+
+	public void setRollNo(String rollNo) {
+		this.rollNo = rollNo;
 	}
 
 	public String getEmergencyMobile() {
@@ -600,6 +658,94 @@ public class OfflineAdmission {
 
 	public void setActivatedAt(Instant activatedAt) {
 		this.activatedAt = activatedAt;
+	}
+
+	public String getSource() {
+		return source;
+	}
+
+	public void setSource(String source) {
+		this.source = source;
+	}
+
+	public String getAccessTokenHash() {
+		return accessTokenHash;
+	}
+
+	public void setAccessTokenHash(String accessTokenHash) {
+		this.accessTokenHash = accessTokenHash;
+	}
+
+	public String getJoinCodeHash() {
+		return joinCodeHash;
+	}
+
+	public void setJoinCodeHash(String joinCodeHash) {
+		this.joinCodeHash = joinCodeHash;
+	}
+
+	public Instant getJoinCodeExpiresAt() {
+		return joinCodeExpiresAt;
+	}
+
+	public void setJoinCodeExpiresAt(Instant joinCodeExpiresAt) {
+		this.joinCodeExpiresAt = joinCodeExpiresAt;
+	}
+
+	public Instant getJoinCodeSentAt() {
+		return joinCodeSentAt;
+	}
+
+	public void setJoinCodeSentAt(Instant joinCodeSentAt) {
+		this.joinCodeSentAt = joinCodeSentAt;
+	}
+
+	public UUID getJoinCodeSentBy() {
+		return joinCodeSentBy;
+	}
+
+	public void setJoinCodeSentBy(UUID joinCodeSentBy) {
+		this.joinCodeSentBy = joinCodeSentBy;
+	}
+
+	public Instant getJoinCodeUsedAt() {
+		return joinCodeUsedAt;
+	}
+
+	public void setJoinCodeUsedAt(Instant joinCodeUsedAt) {
+		this.joinCodeUsedAt = joinCodeUsedAt;
+	}
+
+	public int getJoinCodeFailures() {
+		return joinCodeFailures;
+	}
+
+	public void setJoinCodeFailures(int joinCodeFailures) {
+		this.joinCodeFailures = joinCodeFailures;
+	}
+
+	public String getReopenTokenHash() {
+		return reopenTokenHash;
+	}
+
+	public void setReopenTokenHash(String reopenTokenHash) {
+		this.reopenTokenHash = reopenTokenHash;
+	}
+
+	public Instant getReopenTokenExpiresAt() {
+		return reopenTokenExpiresAt;
+	}
+
+	public void setReopenTokenExpiresAt(Instant reopenTokenExpiresAt) {
+		this.reopenTokenExpiresAt = reopenTokenExpiresAt;
+	}
+
+	public UUID getMatchedUserId() {
+		return matchedUserId;
+	}
+
+	public void setMatchedUserId(UUID matchedUserId) {
+		this.matchedUserId = matchedUserId;
 	}
 
 }

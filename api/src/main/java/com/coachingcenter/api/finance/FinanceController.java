@@ -65,17 +65,19 @@ public class FinanceController {
 	@GetMapping("/api/v1/finance/entries")
 	public EntryPage entries(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
 			@RequestParam(required = false) String sources, @RequestParam(required = false) String batchId,
+			@RequestParam(required = false) String q, @RequestParam(required = false) String sort,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
 		require();
-		return finance.entries(from, to, sources, batchId, page, size);
+		return finance.entries(from, to, sources, batchId, q, sort, page, size);
 	}
 
 	/** The entries of the same filters as CSV, UTF-8 with a byte order mark so Excel reads the Bangla text. Private, never cached shared. */
 	@GetMapping("/api/v1/finance/entries.csv")
 	public ResponseEntity<byte[]> entriesCsv(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
-			@RequestParam(required = false) String sources, @RequestParam(required = false) String batchId) {
+			@RequestParam(required = false) String sources, @RequestParam(required = false) String batchId,
+			@RequestParam(required = false) String q, @RequestParam(required = false) String sort) {
 		require();
-		byte[] body = finance.entriesCsv(from, to, sources, batchId);
+		byte[] body = finance.entriesCsv(from, to, sources, batchId, q, sort);
 		return ResponseEntity.ok()
 			.contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
 			.header("Content-Disposition", "attachment; filename=\"finance-entries.csv\"")

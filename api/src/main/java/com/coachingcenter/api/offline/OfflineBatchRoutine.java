@@ -33,9 +33,16 @@ public class OfflineBatchRoutine {
 	@Column(name = "batch_id", nullable = false)
 	private UUID batchId;
 
-	/** The first day of the month the routine is for. */
+	/** The first day of the month of {@link #effectiveFrom}, kept for the older readers of this table. */
 	@Column(nullable = false)
 	private LocalDate month;
+
+	/**
+	 * The day the routine counts from: the Dhaka date it was uploaded. Its earlier dates still become classes, but a confirm only
+	 * replaces the classes from this day onward.
+	 */
+	@Column(name = "effective_from", nullable = false)
+	private LocalDate effectiveFrom;
 
 	@Column(name = "original_file", length = 255)
 	private String originalFile;
@@ -100,6 +107,14 @@ public class OfflineBatchRoutine {
 
 	public void setMonth(LocalDate month) {
 		this.month = month;
+	}
+
+	public LocalDate getEffectiveFrom() {
+		return effectiveFrom;
+	}
+
+	public void setEffectiveFrom(LocalDate effectiveFrom) {
+		this.effectiveFrom = effectiveFrom;
 	}
 
 	public String getOriginalFile() {

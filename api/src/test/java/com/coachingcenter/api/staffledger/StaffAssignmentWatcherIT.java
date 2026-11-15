@@ -50,9 +50,9 @@ class StaffAssignmentWatcherIT extends PostgresIntegrationTest {
 	@Test
 	void theFirstRunRecordsTheMarkersAsTheyStandWithoutNotices() {
 		UUID marker = seed("INSTRUCTOR");
-		UUID exam = writtenExam("Baseline exam " + UUID.randomUUID());
+		UUID exam = writtenExam("Baseline exam " + noDigits());
 		jdbc.update("update live_exams set instructor_id = ? where id = ?", marker, exam);
-		UUID unassigned = writtenExam("Baseline unassigned " + UUID.randomUUID());
+		UUID unassigned = writtenExam("Baseline unassigned " + noDigits());
 
 		watcher.watch();
 
@@ -77,7 +77,7 @@ class StaffAssignmentWatcherIT extends PostgresIntegrationTest {
 		UUID second = seed("INSTRUCTOR");
 		// No digits in the random part: a run of nine digits in a title is shortened by the notice text (StaffNotificationWriter.fitText),
 		// so a random UUID could make the stored title differ from the one the test looks for.
-		String title = "Muslim Law " + UUID.randomUUID().toString().replaceAll("[0-9]", "a");
+		String title = "Muslim Law " + noDigits();
 		UUID exam = writtenExam(title);
 		watcher.watch();
 
@@ -118,7 +118,7 @@ class StaffAssignmentWatcherIT extends PostgresIntegrationTest {
 	void anUnassignmentNotifiesThePreviousInstructor() {
 		UUID master = seed("MASTER_ADMIN");
 		UUID marker = seed("INSTRUCTOR");
-		String title = "Unassigned exam " + UUID.randomUUID();
+		String title = "Unassigned exam " + noDigits();
 		UUID exam = writtenExam(title);
 		watcher.watch();
 		jdbc.update("update live_exams set instructor_id = ? where id = ?", marker, exam);
@@ -132,6 +132,14 @@ class StaffAssignmentWatcherIT extends PostgresIntegrationTest {
 		assertThat(removed).containsEntry("instructor_id", null).containsEntry("changed_by", master);
 		assertThat(notices(marker, "EXAM_UNASSIGNED", title)).isEqualTo(1);
 		assertThat(notices(marker, "EXAM_ASSIGNED", title)).isEqualTo(1);
+	}
+
+	/**
+	 * A random text with no digits. The notice writer masks any run of nine or more digits in a title (a phone or account
+	 * number), so a title holding a UUID's digits would not match the notice text the test looks for.
+	 */
+	private static String noDigits() {
+		return UUID.randomUUID().toString().replaceAll("[0-9]", "a");
 	}
 
 	private List<Map<String, Object>> log(UUID exam) {

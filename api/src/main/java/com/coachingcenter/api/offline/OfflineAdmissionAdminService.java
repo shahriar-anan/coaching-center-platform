@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -45,6 +46,7 @@ import com.coachingcenter.api.files.LocalFileStorage;
 import com.coachingcenter.api.staffnotifications.StaffNotificationKind;
 import com.coachingcenter.api.staffnotifications.StaffNotificationWriter;
 import com.coachingcenter.api.users.StudentPhotoRepository;
+import com.coachingcenter.api.users.User;
 import com.coachingcenter.api.users.StudentPhotoService;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -126,12 +128,19 @@ public class OfflineAdmissionAdminService {
 
 	private final OfflineAdmissionMoney money;
 
+	private final OfflineApplicationMail publicMail;
+
+	private final OfflineAccountMatcher matcher;
+
 	public OfflineAdmissionAdminService(OfflineAdmissionRepository admissions, OfflineAdmissionSubmissionRepository submissions,
 			OfflineAdmissionItemRepository items, OfflineBatchRepository batches, OfflineAdmissionService form,
 			StudentPhotoRepository photoRows, StudentPhotoService photos, LocalFileStorage fileStorage,
 			StaffNotificationWriter staffNotices, OfflineAdmissionNotices studentNotices, OfflineAccessGrants grants,
 			LiveExamRepository exams, LiveExamModuleRepository modules, AuditRecorder audit, JdbcTemplate jdbc, ObjectMapper json,
-			Clock clock, OfflineAdmissionMoney money) {
+			Clock clock, OfflineAdmissionMoney money, OfflineApplicationMail publicMail,
+			OfflineAccountMatcher matcher) {
+		this.matcher = matcher;
+		this.publicMail = publicMail;
 		this.money = money;
 		this.admissions = admissions;
 		this.submissions = submissions;
@@ -187,7 +196,11 @@ public class OfflineAdmissionAdminService {
 		}
 		if (q != null && !q.isBlank()) {
 			String like = "%" + escapeLike(q.trim()) + "%";
-			where.add("(a.full_name ilike ? escape '!' or a.mobile like ? escape '!' or a.nid like ? escape '!')");
+			where.add("(a.full_name ilike ? escape '!' or a.mobile like ? escape '!' or a.nid like ? escape '!' or a.roll_no like ? escape '!'"
+					// A desk admission keeps its phone on the account until the form is filled in.
+					+ " or exists (select 1 from users su where su.id = a.student_id and su.phone like ? escape '!'))");
+			args.add(like);
+			args.add(like);
 			args.add(like);
 			args.add(like);
 			args.add(like);
@@ -218,12 +231,17 @@ public class OfflineAdmissionAdminService {
 		pageArgs.add((long) pageNumber * pageSize);
 		List<QueueRow> found = jdbc.query("""
 				select a.id, a.student_id, a.full_name, coalesce(a.mobile, u.phone) as mobile, a.batch_id, b.name_en, b.name_bn, a.status, a.submit_count,
-				  a.submitted_at, a.created_at, (p.user_id is not null) as has_photo,
-				  (u.status <> 'PENDING_ACTIVATION') as activated,
+				  a.source, a.roll_no, (case when a.student_id is null then (select coalesce(sp.full_name, ap.full_name) from users mu
+				    left join student_profiles sp on sp.user_id = mu.id left join admin_profiles ap on ap.user_id = mu.id
+				    where mu.deleted_at is null and lower(mu.email) = lower(a.email) limit 1) end) as matched_name,
+				  (case when a.student_id is null then (select mu.email from users mu where mu.deleted_at is null
+				    and lower(mu.email) = lower(a.email) limit 1) end) as matched_email,
+				  a.submitted_at, a.created_at, (p.user_id is not null or a.photo_stored_name is not null) as has_photo,
+				  coalesce(u.status <> 'PENDING_ACTIVATION', false) as activated,
 				  case when a.activation_code is not null and a.activation_code_expires_at > ? then a.activation_code_expires_at end
 				    as code_expires_at
 				from offline_admissions a
-				join users u on u.id = a.student_id
+				left join users u on u.id = a.student_id
 				left join offline_batches b on b.id = a.batch_id
 				left join student_photos p on p.user_id = a.student_id
 				""" + whereSql + """
@@ -233,7 +251,8 @@ public class OfflineAdmissionAdminService {
 				rs.getString("full_name"), rs.getString("mobile"), rs.getObject("batch_id", UUID.class), rs.getString("name_en"),
 				rs.getString("name_bn"), rs.getString("status"), rs.getInt("submit_count"), instant(rs.getTimestamp("submitted_at")),
 				instant(rs.getTimestamp("created_at")), rs.getBoolean("has_photo"), List.of(), null, null,
-				rs.getBoolean("activated"), instant(rs.getTimestamp("code_expires_at"))), pageArgs.toArray());
+				rs.getBoolean("activated"), instant(rs.getTimestamp("code_expires_at")), rs.getString("source"),
+				rs.getString("matched_name"), rs.getString("matched_email"), rs.getString("roll_no")), pageArgs.toArray());
 		// The money of the whole page in two queries, then each row's flags from it (plan 4.3).
 		Map<UUID, OfflineAdmissionMoney.Money> moneyByAdmission = money.page(found.stream().map(QueueRow::id).toList(), money.today());
 		List<QueueRow> rows = new ArrayList<>();
@@ -241,7 +260,8 @@ public class OfflineAdmissionAdminService {
 			OfflineAdmissionMoney.Money due = moneyByAdmission.getOrDefault(row.id(), OfflineAdmissionMoney.Money.NONE);
 			rows.add(new QueueRow(row.id(), row.studentId(), row.fullName(), row.mobile(), row.batchId(), row.batchNameEn(),
 					row.batchNameBn(), row.status(), row.submitCount(), row.submittedAt(), row.createdAt(), row.hasPhoto(),
-					due.flags(row.status()), due.owedTotal(), due.nextDueOn(), row.activated(), row.codeExpiresAt()));
+					due.flags(row.status()), due.owedTotal(), due.nextDueOn(), row.activated(), row.codeExpiresAt(), row.source(),
+					row.matchedName(), row.matchedEmail(), row.rollNo()));
 		}
 		int totalPages = (int) ((count + pageSize - 1) / pageSize);
 		return new PageResponse<>(rows, pageNumber, pageSize, count, totalPages);
@@ -257,6 +277,13 @@ public class OfflineAdmissionAdminService {
 	}
 
 	@Transactional(readOnly = true)
+	/** True when the account already has an open admission for this application's batch (a second one would be refused). */
+	boolean matchedHasBatch(UUID accountId, OfflineAdmission a) {
+		Integer open = jdbc.queryForObject("select count(*) from offline_admissions where student_id = ? and batch_id = ? and status <> 'CLOSED' and id <> ?",
+				Integer.class, accountId, a.getBatchId(), a.getId());
+		return open != null && open > 0;
+	}
+
 	public AdmissionDetail detail(UUID id) {
 		return view(load(id));
 	}
@@ -291,6 +318,10 @@ public class OfflineAdmissionAdminService {
 			}
 			else if (!OfflineBatchService.ACTIVE.equals(batch.getStatus())) {
 				problems.add(new FieldErrorDetail("batchId", "This batch is archived and cannot be chosen."));
+			}
+			else if (a.getStudentId() != null && !batch.getId().equals(a.getBatchId())
+					&& admissions.findFirstByStudentIdAndBatchIdAndStatusNot(a.getStudentId(), batch.getId(), CLOSED).isPresent()) {
+				problems.add(new FieldErrorDetail("batchId", "The student already has an admission for this batch. Choose another batch."));
 			}
 		}
 		if (!problems.isEmpty()) {
@@ -395,6 +426,10 @@ public class OfflineAdmissionAdminService {
 		if (!onboarded) {
 			items.saveAndFlush(item);
 			audit.record(AuditRecorder.OFFLINE_ADMISSION_ITEM_ADDED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, id);
+			// A public applicant has no account yet, so nothing is held or overlapped until onboarding (V94).
+			if (a.getStudentId() == null) {
+				return new ItemAdded(view(a), List.of(), false);
+			}
 			List<LiveExamGrantAdminService.QuoteOverlap> overlaps = grants.overlaps(a.getStudentId(), scope, moduleId, examId, now);
 			boolean held = grants.holds(a.getStudentId(), scope, moduleId, examId, now);
 			return new ItemAdded(view(a), overlaps, held);
@@ -459,6 +494,7 @@ public class OfflineAdmissionAdminService {
 		}
 		Instant now = clock.instant();
 		a.setStatus(CHANGES_REQUESTED);
+		clearJoinCode(a);
 		a.setChangesReason(text);
 		a.setChangesRequestedBy(actorId);
 		a.setChangesRequestedAt(now);
@@ -472,6 +508,10 @@ public class OfflineAdmissionAdminService {
 			submissions.saveAndFlush(latest);
 		});
 		audit.record(AuditRecorder.OFFLINE_ADMISSION_CHANGES_REQUESTED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, id);
+		if (a.getStudentId() == null) {
+			sendReopenLink(a, text, now);
+			return view(a);
+		}
 		studentNotices.notice(a.getStudentId(), OfflineAdmissionNotices.ADMISSION_CHANGES_REQUESTED, id + ":" + now.toEpochMilli());
 		studentNotices.mail(a.getStudentId(), OfflineAdmissionNotices.ADMISSION_CHANGES_REQUESTED,
 				a.getStudentId() + "/" + id + "/" + now.toEpochMilli(), Map.of("reason", text));
@@ -479,8 +519,23 @@ public class OfflineAdmissionAdminService {
 	}
 
 	/**
+	 * Changes requested from an applicant with no account (Q4): a private link that reopens the form, valid 7 days. Only its hash is kept,
+	 * and a new link replaces the old one.
+	 */
+	private void sendReopenLink(OfflineAdmission a, String reason, Instant now) {
+		String token = OfflineApplicationMail.newToken();
+		a.setReopenTokenHash(publicMail.hash(token));
+		a.setReopenTokenExpiresAt(now.plus(OfflineApplicationMail.CODE_DAYS, java.time.temporal.ChronoUnit.DAYS));
+		admissions.saveAndFlush(a);
+		String[] batch = a.getBatchId() == null ? new String[] { "", "" } : batches.findById(a.getBatchId())
+			.map(found -> new String[] { found.getNameEn(), found.getNameBn() }).orElse(new String[] { "", "" });
+		publicMail.changesRequested(a.getEmail(), a.getFullName(), reason, batch[1], batch[0], publicMail.reopenLink(token));
+		audit.record(AuditRecorder.OFFLINE_REOPEN_LINK_SENT, AuditRecorder.OFFLINE_ADMISSION_ENTITY, a.getId());
+	}
+
+	/**
 	 * Marks the form ready for the Master Admin (C16, plan 4.2). Refused, with each missing part named, until the form is valid, a batch,
-	 * a fee above zero, the dates and at least one exam or package are all in place. Every Master Admin is told.
+	 * a fee above zero and the dates are in place. Exams and packages are optional (P17 and the 13 Nov decision). Every Master Admin is told.
 	 */
 	@Transactional
 	public AdmissionDetail ready(UUID actorId, UUID id) {
@@ -488,7 +543,7 @@ public class OfflineAdmissionAdminService {
 		if (!SUBMITTED.equals(a.getStatus())) {
 			throw state("Only a form under review can be marked ready. This admission is " + a.getStatus() + ".");
 		}
-		List<FieldErrorDetail> problems = readyProblems(a, photoRows.existsById(a.getStudentId()), activeItemCount(id));
+		List<FieldErrorDetail> problems = readyProblems(a, hasPhoto(a));
 		if (!problems.isEmpty()) {
 			throw validation(problems);
 		}
@@ -518,6 +573,7 @@ public class OfflineAdmissionAdminService {
 		UUID readyBy = a.getReadyBy();
 		Instant now = clock.instant();
 		a.setStatus(SUBMITTED);
+		clearJoinCode(a);
 		a.setReadyBy(null);
 		a.setReadyAt(null);
 		admissions.saveAndFlush(a);
@@ -594,8 +650,18 @@ public class OfflineAdmissionAdminService {
 	@Transactional(readOnly = true)
 	public StudentPhotoService.PhotoFile openPhoto(UUID id) {
 		OfflineAdmission a = load(id);
-		if (!photoRows.existsById(a.getStudentId())) {
-			throw notFound();
+		if (a.getStudentId() == null || !photoRows.existsById(a.getStudentId())) {
+			// A public applicant's photo is kept on the application (V94). Once linked, the account's photo comes first, then this one.
+			if (a.getPhotoStoredName() == null) {
+				throw notFound();
+			}
+			try {
+				return new StudentPhotoService.PhotoFile(java.nio.file.Files.newInputStream(fileStorage.resolve(a.getPhotoStoredName())),
+						a.getPhotoContentType(), a.getPhotoByteSize() == null ? 0L : a.getPhotoByteSize());
+			}
+			catch (IOException exception) {
+				throw notFound();
+			}
 		}
 		return photos.open(a.getStudentId());
 	}
@@ -617,7 +683,70 @@ public class OfflineAdmissionAdminService {
 
 	/** Whether the student has a photo on file, which the form needs (the admission photo is the profile photo). */
 	boolean hasPhoto(OfflineAdmission a) {
-		return photoRows.existsById(a.getStudentId());
+		if (a.getStudentId() == null) {
+			return a.getPhotoStoredName() != null;
+		}
+		return photoRows.existsById(a.getStudentId()) || a.getPhotoStoredName() != null;
+	}
+
+	/** F9: once onboarding links or makes the account, the application's photo becomes the profile photo of an account that has none. */
+	void adoptApplicationPhoto(OfflineAdmission a) {
+		if (a.getStudentId() != null && a.getPhotoStoredName() != null) {
+			photos.adoptIfMissing(a.getStudentId(), a.getPhotoStoredName(), a.getPhotoContentType(),
+					a.getPhotoByteSize() == null ? 0L : a.getPhotoByteSize());
+		}
+	}
+
+	/** R2: a join code belongs to the setup the Master Admin approved. When the admission leaves READY it stops working. */
+	static void clearJoinCode(OfflineAdmission a) {
+		// A6: the roll given with a join code is released too, unless the student already joined (then the roll is theirs).
+		if (a.getJoinCodeUsedAt() == null) {
+			a.setRollNo(null);
+		}
+		a.setJoinCodeHash(null);
+		a.setJoinCodeExpiresAt(null);
+		a.setJoinCodeSentAt(null);
+		a.setJoinCodeSentBy(null);
+		a.setJoinCodeFailures(0);
+	}
+
+	/** F3: the admission waits for the student to join with the code that was sent. */
+	static boolean joinPending(OfflineAdmission a) {
+		return a.getStudentId() != null && READY.equals(a.getStatus()) && a.getJoinCodeSentAt() != null && a.getJoinCodeUsedAt() == null;
+	}
+
+	/**
+	 * F3: a new code can be sent: a join code while the student has not joined, or a new activation code for an account the onboarding
+	 * made that is not activated yet. The same rules as {@link OfflineAdmissionOnboardingService#resendCode}.
+	 */
+	boolean canResendCode(OfflineAdmission a) {
+		if (joinPending(a)) {
+			return true;
+		}
+		if (!ONBOARDED.equals(a.getStatus()) || !OfflineAdmission.SOURCE_PUBLIC.equals(a.getSource()) || a.getMatchedUserId() != null
+				|| a.getStudentId() == null) {
+			return false;
+		}
+		String status = jdbc.queryForList("select status from users where id = ? and deleted_at is null", String.class, a.getStudentId())
+			.stream().findFirst().orElse(null);
+		return "PENDING_ACTIVATION".equals(status);
+	}
+
+	/**
+	 * P14: the English names of the batches the student already has access to (onboarded), not counting this admission. Empty for an
+	 * applicant with no account, or a student with no other batch. The onboard summary and the detail show it.
+	 */
+	List<BatchName> alreadyAccessTo(OfflineAdmission a) {
+		UUID accountId = a.getStudentId() != null ? a.getStudentId()
+				: matcher.find(a.getEmail()).map(User::getId).orElse(null);
+		if (accountId == null) {
+			return List.of();
+		}
+		return jdbc.query("""
+				select b.name_en, b.name_bn from offline_admissions x join offline_batches b on b.id = x.batch_id
+				where x.student_id = ? and x.status = 'ONBOARDED' and x.id <> ?
+				order by x.onboarded_at, x.id
+				""", (rs, row) -> new BatchName(rs.getString("name_en"), rs.getString("name_bn")), accountId, a.getId());
 	}
 
 	/** The count of exams and packages the admission holds, and so the count the ready check needs. */
@@ -629,7 +758,7 @@ public class OfflineAdmissionAdminService {
 	 * Every requirement the ready step checks, one entry per missing part (plan 6.3, principle 2). Empty when the admission may be
 	 * marked ready. The onboarding check uses the same list.
 	 */
-	List<FieldErrorDetail> readyProblems(OfflineAdmission a, boolean hasPhoto, long activeItems) {
+	List<FieldErrorDetail> readyProblems(OfflineAdmission a, boolean hasPhoto) {
 		List<FieldErrorDetail> problems = new ArrayList<>(form.formProblems(a, hasPhoto));
 		if (a.getBatchId() == null) {
 			problems.add(new FieldErrorDetail("batchId", "Choose a batch."));
@@ -654,9 +783,6 @@ public class OfflineAdmissionAdminService {
 		}
 		else if (a.getFirstDueOn() != null && !a.getCourseEndsOn().isAfter(a.getFirstDueOn())) {
 			problems.add(new FieldErrorDetail("courseEndsOn", "The course end date must be after the first due date."));
-		}
-		if (activeItems == 0) {
-			problems.add(new FieldErrorDetail("items", "Add at least one exam or package."));
 		}
 		return problems;
 	}
@@ -722,7 +848,7 @@ public class OfflineAdmissionAdminService {
 
 	/** The admission as the staff detail shows it. NID and date of birth are in the form, so this is for staff only. */
 	AdmissionDetail view(OfflineAdmission a) {
-		boolean hasPhoto = photoRows.existsById(a.getStudentId());
+		boolean hasPhoto = hasPhoto(a);
 		List<OfflineAdmissionItem> active = activeItems(a.getId());
 		List<ItemView> itemViews = new ArrayList<>();
 		for (OfflineAdmissionItem item : active) {
@@ -742,15 +868,26 @@ public class OfflineAdmissionAdminService {
 		Setup setup = new Setup(a.getBatchId(), batch == null ? null : batch.nameEn(), batch == null ? null : batch.nameBn(),
 				a.getMonthlyFee(), a.getAdmittedOn(), a.getFirstDueOn(), a.getCourseEndsOn());
 		List<FieldErrorDetail> readyProblems = SUBMITTED.equals(a.getStatus()) || CHANGES_REQUESTED.equals(a.getStatus())
-				? readyProblems(a, hasPhoto, active.size()) : List.of();
+				? readyProblems(a, hasPhoto) : List.of();
 		SignedCopy signed = a.getSignedStoredName() == null ? null
 				: new SignedCopy(a.getSignedOriginalName(), a.getSignedUploadedAt(), a.getSignedUploadedBy());
+		Optional<User> match = a.getStudentId() == null ? matcher.find(a.getEmail()) : Optional.empty();
+		// W3: once onboarding has linked a matched account, the line names that account.
+		UUID linked = a.getMatchedUserId();
+		String matchedName = linked != null ? matcher.nameOf(linked) : match.map(user -> matcher.nameOf(user.getId())).orElse(null);
+		String matchedEmail = linked != null ? jdbc.queryForList("select email from users where id = ?", String.class, linked).stream()
+			.findFirst().orElse(null) : match.map(User::getEmail).orElse(null);
+		// D3: a phone in use by another account is a warning, never a match.
+		String phoneOwnerName = a.getStudentId() == null && match.isEmpty()
+				? matcher.phoneOwner(a.getMobile()).map(user -> matcher.nameOf(user.getId())).orElse(null) : null;
 		List<ItemOverlaps> overlaps = itemOverlaps(a, active);
 		return new AdmissionDetail(a.getId(), a.getStudentId(), a.getStatus(), a.getVersion() == null ? 0L : a.getVersion(),
 				a.getSubmitCount(), a.getSubmittedAt(), a.getCreatedAt(), hasPhoto, hasPhoto ? photoPath(a) : null,
 				OfflineAdmissionService.form(a), a.getChangesReason(), a.getChangesRequestedAt(), setup, itemViews, history,
 				readyProblems, a.getReadyBy(), a.getReadyAt(), a.getOnboardedBy(), a.getOnboardedAt(), a.getClosedAt(),
-				a.getClosedReason(), signed, overlaps);
+				a.getClosedReason(), signed, overlaps, a.getSource(), matchedName, matchedEmail, a.getJoinCodeSentAt(), alreadyAccessTo(a),
+				match.isPresent() && matchedHasBatch(match.get().getId(), a), linked != null, phoneOwnerName, joinPending(a),
+				canResendCode(a), a.getRollNo());
 	}
 
 	/**
@@ -765,7 +902,7 @@ public class OfflineAdmissionAdminService {
 			boolean live = EXAM.equals(item.getScope())
 					? exams.findByIdAndDeletedAtIsNull(item.getExamId()).isPresent()
 					: modules.findByIdAndDeletedAtIsNull(item.getModuleId()).isPresent();
-			List<LiveExamGrantAdminService.QuoteOverlap> warnings = live
+			List<LiveExamGrantAdminService.QuoteOverlap> warnings = live && a.getStudentId() != null
 					? grants.overlaps(a.getStudentId(), item.getScope(), item.getModuleId(), item.getExamId(), now)
 					: List.of();
 			found.add(new ItemOverlaps(item.getId(), titles == null ? "(removed)" : titles[0],
@@ -879,14 +1016,21 @@ public class OfflineAdmissionAdminService {
 	public record QueueRow(UUID id, UUID studentId, String fullName, String mobile, UUID batchId, String batchNameEn,
 			String batchNameBn, String status, int submitCount, Instant submittedAt, Instant createdAt, boolean hasPhoto,
 			List<String> flags, BigDecimal owedTotal, @JsonInclude(JsonInclude.Include.ALWAYS) LocalDate nextDueOn,
-			boolean activated, @JsonInclude(JsonInclude.Include.ALWAYS) Instant codeExpiresAt) {
+			boolean activated, @JsonInclude(JsonInclude.Include.ALWAYS) Instant codeExpiresAt, String source, String matchedName,
+			String matchedEmail, String rollNo) {
 	}
 
 	public record AdmissionDetail(UUID id, UUID studentId, String state, long version, int submitCount, Instant submittedAt,
 			Instant createdAt, boolean hasPhoto, String photoUrl, OfflineAdmissionService.Form form, String changesReason,
 			Instant changesRequestedAt, Setup setup, List<ItemView> items, List<SubmissionView> submissions,
 			List<FieldErrorDetail> readyProblems, UUID readyBy, Instant readyAt, UUID onboardedBy, Instant onboardedAt,
-			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps) {
+			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps, String source,
+			String matchedName, String matchedEmail, Instant joinCodeSentAt, List<BatchName> alreadyAccessTo, boolean matchedHasBatch,
+			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo) {
+	}
+
+	/** A batch's two names, for the batches a student already has (P14). */
+	public record BatchName(String nameEn, String nameBn) {
 	}
 
 	/**

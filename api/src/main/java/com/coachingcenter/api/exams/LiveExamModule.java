@@ -73,6 +73,10 @@ public class LiveExamModule extends BaseEntity {
 	@Column(nullable = false)
 	private boolean popular;
 
+	/** The package's WhatsApp group or channel link, or null (15 Nov). Never sent on the public package routes. */
+	@Column(name = "whatsapp_url", length = 500)
+	private String whatsappUrl;
+
 	public Integer getDiscountPercent() {
 		return discountPercent;
 	}
@@ -87,6 +91,14 @@ public class LiveExamModule extends BaseEntity {
 
 	public void setDiscountEndsAt(Instant discountEndsAt) {
 		this.discountEndsAt = discountEndsAt;
+	}
+
+	public String getWhatsappUrl() {
+		return whatsappUrl;
+	}
+
+	public void setWhatsappUrl(String whatsappUrl) {
+		this.whatsappUrl = whatsappUrl;
 	}
 
 	public boolean isPopular() {

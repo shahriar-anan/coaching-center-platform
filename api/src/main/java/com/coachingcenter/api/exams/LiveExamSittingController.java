@@ -137,6 +137,28 @@ public class LiveExamSittingController {
 			.body(pdf);
 	}
 
+	/** Saves or replaces the draft answer script of the open written sitting. It is submitted at Submit, or at the deadline. */
+	@org.springframework.web.bind.annotation.PutMapping(value = "/api/v1/live-exams/{id}/answer-draft",
+			consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public LiveExamSittingService.DraftView saveDraft(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+		requireStudent();
+		return sittings.saveDraft(id, actorId(), file);
+	}
+
+	/** The student's draft answer script, so they can check it before they submit. */
+	@GetMapping("/api/v1/live-exams/{id}/answer-draft")
+	public ResponseEntity<byte[]> draft(@PathVariable UUID id) {
+		requireStudent();
+		byte[] pdf = sittings.draftPdf(id, actorId());
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+			.header(HttpHeaders.CACHE_CONTROL, "no-store")
+			.header("X-Content-Type-Options", "nosniff")
+			.header("Content-Security-Policy", frameAncestors())
+			.body(pdf);
+	}
+
 	@PostMapping(value = "/api/v1/live-exams/{id}/answer-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void uploadAnswer(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {

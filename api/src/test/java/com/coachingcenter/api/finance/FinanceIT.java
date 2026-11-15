@@ -191,6 +191,43 @@ class FinanceIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void theEntriesSearchSortAndTotalEveryStreamInReach() throws Exception {
+		Seeded s = seed();
+		JsonNode all = api(entriesUrl(s.jan(), s.jan31()) + "&size=200", s.master);
+
+		// Every stream in reach is totalled, and the totals add up to the page's income and expense.
+		java.math.BigDecimal streams = java.math.BigDecimal.ZERO;
+		for (JsonNode stream : all.get("bySource")) {
+			streams = streams.add(stream.get("total").decimalValue());
+		}
+		assertThat(streams).isEqualByComparingTo(all.get("income").decimalValue().add(all.get("expense").decimalValue()));
+
+		// Largest first, then smallest first.
+		JsonNode largest = api(entriesUrl(s.jan(), s.jan31()) + "&size=200&sort=amount", s.master).get("items");
+		for (int i = 1; i < largest.size(); i++) {
+			assertThat(largest.get(i - 1).get("amount").decimalValue()).isGreaterThanOrEqualTo(largest.get(i).get("amount").decimalValue());
+		}
+		JsonNode smallest = api(entriesUrl(s.jan(), s.jan31()) + "&size=200&sort=amount_asc", s.master).get("items");
+		assertThat(smallest.get(0).get("amount").decimalValue()).isEqualByComparingTo(
+				largest.get(largest.size() - 1).get("amount").decimalValue());
+
+		// A search keeps only the rows whose description or reference holds it, and still totals every stream it reaches.
+		String word = all.get("items").get(0).get("description").asText().split("\\s+")[0];
+		JsonNode found = api(entriesUrl(s.jan(), s.jan31()) + "&size=200&q=" + java.net.URLEncoder.encode(word.toUpperCase(),
+				java.nio.charset.StandardCharsets.UTF_8), s.master);
+		assertThat(found.get("total").asLong()).isPositive().isLessThanOrEqualTo(all.get("total").asLong());
+		for (JsonNode item : found.get("items")) {
+			String text = (item.get("description").asText() + " " + item.path("reference").asText()).toLowerCase();
+			assertThat(text).contains(word.toLowerCase());
+		}
+
+		// Choosing one stream leaves the others in the stream totals, so the page can still offer them.
+		String first = all.get("bySource").get(0).get("source").asText();
+		JsonNode one = api(entriesUrl(s.jan(), s.jan31()) + "&size=200&sources=" + first, s.master);
+		assertThat(one.get("bySource").size()).isEqualTo(all.get("bySource").size());
+	}
+
+	@Test
 	void staffGetForbiddenOnEveryFinanceRoute() throws Exception {
 		Seeded s = seed();
 		String staff = token(seedUser("SYSTEM_ADMIN", "Finance Staff"));
@@ -207,7 +244,8 @@ class FinanceIT extends PostgresIntegrationTest {
 	void aBadRangeOrAnUnknownSourceIsRefused() throws Exception {
 		Seeded s = seed();
 		mockMvc.perform(get(summaryUrl(s.feb1(), s.jan())).header("Authorization", "Bearer " + s.master)).andExpect(status().isBadRequest());
-		mockMvc.perform(get(summaryUrl("2100-01-01", "2103-01-05")).header("Authorization", "Bearer " + s.master))
+		// Longer than the ten years the reports answer.
+		mockMvc.perform(get(summaryUrl("2100-01-01", "2111-01-05")).header("Authorization", "Bearer " + s.master))
 			.andExpect(status().isBadRequest());
 		mockMvc.perform(get(summaryUrl(s.jan(), s.jan31()) + "&sources=NOPE").header("Authorization", "Bearer " + s.master))
 			.andExpect(status().isBadRequest());

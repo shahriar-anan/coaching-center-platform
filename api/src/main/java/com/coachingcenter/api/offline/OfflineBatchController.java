@@ -10,6 +10,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -86,6 +87,19 @@ public class OfflineBatchController {
 	public BatchView uploadRoutine(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
 		require(permissions, Permissions.OFFLINE_BATCH_ROUTINE);
 		return batches.uploadRoutine(id, file, actorId());
+	}
+
+	/** Replaces the batch photo (V93). The picture is re-encoded and resized on the server, as the profile photo is. */
+	@PutMapping(value = "/api/v1/offline-batches/{id}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public BatchView uploadPhoto(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+		require(permissions, Permissions.OFFLINE_BATCH_MANAGE);
+		return batches.uploadPhoto(id, file, actorId());
+	}
+
+	@DeleteMapping("/api/v1/offline-batches/{id}/photo")
+	public BatchView removePhoto(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_BATCH_MANAGE);
+		return batches.removePhoto(id);
 	}
 
 	/** The routine for staff screens. Private: the browser may keep it, no shared cache may. */

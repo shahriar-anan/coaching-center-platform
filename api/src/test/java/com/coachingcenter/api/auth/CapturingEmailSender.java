@@ -16,6 +16,8 @@ public class CapturingEmailSender implements EmailSender {
 
 	private final ConcurrentHashMap<String, List<String>> phoneChanges = new ConcurrentHashMap<>();
 
+	private final ConcurrentHashMap<String, List<String>> rendered = new ConcurrentHashMap<>();
+
 	@Override
 	public void sendEmailVerification(String to, String code) {
 		verifications.computeIfAbsent(to, ignored -> new ArrayList<>()).add(code);
@@ -47,6 +49,21 @@ public class CapturingEmailSender implements EmailSender {
 
 	public String latestReset(String email) {
 		return last(resets.get(email));
+	}
+
+	@Override
+	public void sendRendered(String to, com.coachingcenter.api.common.mail.RenderedEmail mail, String secret) {
+		rendered.computeIfAbsent(to, ignored -> new ArrayList<>()).add((secret == null ? "" : secret) + "|" + mail.subject() + "|" + mail.text());
+	}
+
+	/** The code (or other secret) of the latest rendered mail to the address, and its subject and text, as one string. */
+	public String latestRendered(String email) {
+		return last(rendered.get(email));
+	}
+
+	public int renderedCount(String email) {
+		List<String> mails = rendered.get(email);
+		return mails == null ? 0 : mails.size();
 	}
 
 	public String latestActivation(String email) {

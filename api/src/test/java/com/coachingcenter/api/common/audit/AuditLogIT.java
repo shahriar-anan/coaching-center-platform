@@ -238,7 +238,7 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/live-exams/{id}/submit",
 			"GET /api/v1/live-exams/{id}/result",
 			"GET /api/v1/live-exams/{id}/question-pdf",
-			"POST /api/v1/live-exams/{id}/answer-pdf",
+			"POST /api/v1/live-exams/{id}/answer-pdf","PUT /api/v1/live-exams/{id}/answer-draft","GET /api/v1/live-exams/{id}/answer-draft",
 			"GET /api/v1/live-exam-modules/{moduleId}/submissions",
 			"GET /api/v1/live-exam-participants/{id}",
 			"GET /api/v1/live-exam-participants/{id}/answer-pdf",
@@ -316,6 +316,13 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/offline-class-decisions/approve-many",
 			"GET /api/v1/offline-classes/unsettled",
 			"GET /api/v1/offline-classes/unsettled/counts",
+			"GET /api/v1/offline-batches/{batchId}/results",
+			"POST /api/v1/offline-classes/{classId}/results/preview",
+			"POST /api/v1/offline-classes/{classId}/results",
+			"GET /api/v1/offline-classes/{classId}/results",
+			"POST /api/v1/offline-classes/{classId}/results/publish",
+			"DELETE /api/v1/offline-classes/{classId}/results/staged",
+			"GET /api/v1/offline-classes/{classId}/results/{sheetId}/file",
 			"GET /api/v1/me/admission/routine",
 			"GET /api/v1/finance/summary",
 			"GET /api/v1/finance/monthly",
@@ -347,7 +354,9 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/offline-admissions/{id}/request-changes",
 			"POST /api/v1/offline-admissions/{id}/ready",
 			"GET /api/v1/offline-batches/{id}/routine.pdf",
-			"POST /api/v1/offline-admissions/{id}/onboard",
+			"POST /api/v1/offline-admissions/{id}/onboard","GET /api/v1/live-exam-modules/{id}/whatsapp","PUT /api/v1/live-exam-modules/{id}/whatsapp",
+"GET /api/v1/offline-admissions/{id}/next-roll",
+"PATCH /api/v1/offline-admissions/{id}/roll",
 			"GET /api/v1/offline-fee-payments/{id}/receipt.pdf",
 			"POST /api/v1/offline-batches",
 			"GET /api/v1/offline-admissions",
@@ -356,6 +365,27 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"PATCH /api/v1/offline-batches/{id}",
 			"POST /api/v1/offline-admissions/{id}/back-to-review",
 			"PUT /api/v1/offline-batches/{id}/routine-pdf",
+			"PUT /api/v1/offline-batches/{id}/photo",
+			"DELETE /api/v1/offline-batches/{id}/photo",
+			"POST /api/v1/public/offline-applications",
+			"PUT /api/v1/public/offline-applications/{token}/form",
+			"PUT /api/v1/public/offline-applications/{token}/photo",
+			"POST /api/v1/public/offline-applications/{token}/submit",
+			"GET /api/v1/public/offline-applications/reopen/{linkToken}",
+			"GET /api/v1/me/admissions",
+			"POST /api/v1/me/admission/apply",
+			"POST /api/v1/me/admission/join",
+			"GET /api/v1/me/admissions/{id}/items",
+			"GET /api/v1/me/admissions/{id}/routine",
+			"GET /api/v1/me/admissions/{id}/batch-routine.pdf",
+			"GET /api/v1/me/admissions/{id}/fees",
+			"GET /api/v1/me/admissions/{admissionId}/results",
+			"GET /api/v1/me/admissions/{admissionId}/results/{classId}",
+			"POST /api/v1/offline-admissions/{id}/resend-code",
+			"GET /api/v1/public/offline-batches",
+			"GET /api/v1/public/offline-batches/{id}",
+			"GET /api/v1/public/offline-batches/{id}/photo",
+			"GET /api/v1/public/offline-batches/{id}/routine.pdf",
 			"POST /api/v1/offline-batches/{id}/archive",
 			"GET /api/v1/offline-admissions/{id}/signed-form",
 			"DELETE /api/v1/offline-admissions/{id}/items/{itemId}",
@@ -658,4 +688,9 @@ class AuditLogIT extends PostgresIntegrationTest {
 		return "user-" + UUID.randomUUID() + "@example.com";
 	}
 
+
+	/** A request body with a roll number nobody has yet: onboarding requires one. */
+	private static String rollBody() {
+		return "{\"rollNo\":\"" + java.util.concurrent.ThreadLocalRandom.current().nextLong(100_000_000L, 999_999_999L) + "\"}";
+	}
 }

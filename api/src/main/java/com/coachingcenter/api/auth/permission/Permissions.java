@@ -152,6 +152,12 @@ public final class Permissions {
 	/** Offline batches: view, and upload or replace the routine. Master Admin and System Admin. */
 	public static final String OFFLINE_BATCH_ROUTINE = "OFFLINE_BATCH_ROUTINE";
 
+	/** Offline exam results: upload a result sheet, discard a staged one, and read the sheets. Master Admin and System Admin. */
+	public static final String OFFLINE_RESULT_UPLOAD = "OFFLINE_RESULT_UPLOAD";
+
+	/** Offline exam results: publish a staged sheet, which students then see. The Master Admin only. */
+	public static final String OFFLINE_RESULT_PUBLISH = "OFFLINE_RESULT_PUBLISH";
+
 	/** Offline fees: record a payment (a System Admin's waits for approval). Master Admin and System Admin. */
 	public static final String OFFLINE_FEE_RECORD = "OFFLINE_FEE_RECORD";
 

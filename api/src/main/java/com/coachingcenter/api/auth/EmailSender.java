@@ -1,6 +1,7 @@
 package com.coachingcenter.api.auth;
 
 import com.coachingcenter.api.common.mail.MailRecipient;
+import com.coachingcenter.api.common.mail.RenderedEmail;
 
 public interface EmailSender {
 
@@ -13,6 +14,12 @@ public interface EmailSender {
 	void sendPhoneChanged(String to);
 
 	void sendActivation(String to, String code);
+
+	/**
+	 * A mail rendered by the caller (the offline admission mails, plan section 7), sent to an address after the caller commits. The secret is
+	 * the code the mail carries, if any: it is never logged unless the dev code logging is on, and the test capture keeps it.
+	 */
+	void sendRendered(String to, RenderedEmail mail, String secret);
 
 	/*
 	 * The same five mails with the person's name and role, so a mail can greet them and link to the right site. A sender that only

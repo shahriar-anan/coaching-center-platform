@@ -118,6 +118,11 @@ public class SmtpEmailSender implements EmailSender, DisposableBean {
 		dispatch(to.email(), EmailTemplates.activation(context, to, code), code);
 	}
 
+	@Override
+	public void sendRendered(String to, RenderedEmail mail, String secret) {
+		dispatch(to, mail, secret);
+	}
+
 	public DeliveryResult sendPlainNow(String to, String subject, String text) {
 		return deliverNow(to, new RenderedEmail(subject, null, text), "");
 	}

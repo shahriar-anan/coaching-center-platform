@@ -93,14 +93,15 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void aMasterAdminSetsPricesAndTheCatalogShowsThem() throws Exception {
+	void bothAdminsSetPricesAndTheCatalogShowsThem() throws Exception {
 		String master = token(seed("MASTER_ADMIN"));
 		String system = token(seed("SYSTEM_ADMIN"));
 		UUID module = createModule(master, "Priced", "800.00");
+		// Since 15 Nov the System Admin sets prices too (EXAM_PRICE); publishing stays the Master Admin's.
 		mockMvc.perform(patch("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"price\":900}"))
-			.andExpect(status().isForbidden());
+			.content("{\"price\":800}"))
+			.andExpect(status().isOk());
 		mockMvc.perform(patch("/api/v1/live-exam-modules/" + module).header("Authorization", "Bearer " + master)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"price\":0}"))
@@ -112,8 +113,8 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 				"500.00");
 		mockMvc.perform(patch("/api/v1/live-exams/" + exam).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"price\":50}"))
-			.andExpect(status().isForbidden());
+			.content("{\"price\":500}"))
+			.andExpect(status().isOk());
 		addQuestion(master, exam);
 		finalSaveExam(master, exam);
 		publishExam(master, exam);
@@ -930,7 +931,7 @@ class LiveExamPurchaseIT extends PostgresIntegrationTest {
 	private void publishModule(String token, UUID module) throws Exception {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + module + "/publish").header("Authorization", "Bearer " + bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk());
 	}
 

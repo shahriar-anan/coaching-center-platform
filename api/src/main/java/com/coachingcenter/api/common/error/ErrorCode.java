@@ -58,6 +58,8 @@ public enum ErrorCode {
 	COMPONENT_NOT_ACTIVE,
 	ATTEMPT_ALREADY_USED,
 	ANSWER_ALREADY_SUBMITTED,
+	/** A written sitting was submitted with no answer script uploaded (no draft and no script). */
+	NO_ANSWER_SCRIPT,
 	COMPONENT_EMPTY,
 	ATTEMPT_EXPIRED,
 	SUBMISSION_LOCKED,
@@ -134,6 +136,14 @@ public enum ErrorCode {
 	ADMISSION_PENDING,
 	/** The admission form is not in a state that allows this change. */
 	ADMISSION_STATE,
+	/** The exam class has a result sheet (staged or published), so a routine upload keeps it and a hand cancel is refused (rule A1). */
+	OFFLINE_CLASS_HAS_RESULT,
+	/** A result save or publish raced another one for the same exam (a unique index refused it). Reload and try again (F2). */
+	RESULT_CHANGED,
+	/** The email already has an open application for this batch; a private link to it was emailed (F7). */
+	APPLICATION_EXISTS,
+	/** The desk phone already belongs to a student with an open offline admission (P13). The details name the batch. */
+	OPEN_ADMISSION,
 	/** Someone else changed the same row first (optimistic lock). The client reloads and tries again. */
 	STALE_VERSION,
 	INTERNAL_ERROR

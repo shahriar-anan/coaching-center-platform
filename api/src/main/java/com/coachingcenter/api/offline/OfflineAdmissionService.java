@@ -70,12 +70,14 @@ public class OfflineAdmissionService {
 	}
 
 	/**
-	 * What the student's own screens show: the state, the form, and why it was sent back, if it was. The batch, the fee and the dates
-	 * are filled only once the admission is onboarded or closed (plan 6.4); before that they are null, and hasRoutine is false.
+	 * What the student's own screens show: the state, the form, and why it was sent back, if it was. The batch's names are always there
+	 * (W7); the fee and the dates are filled only once the admission is onboarded or closed (plan 6.4), and hasRoutine is false before
+	 * that. {@code source} is DESK, PUBLIC or ACCOUNT (the gate locks only DESK, F4); {@code joinCodePending} is true while a join code
+	 * waits for the student (W7).
 	 */
 	public record AdmissionView(UUID id, String state, String changesReason, Instant submittedAt, int submitCount,
 			boolean hasPhoto, Form form, String batchNameEn, String batchNameBn, BigDecimal monthlyFee, LocalDate admittedOn,
-			LocalDate courseEndsOn, boolean hasRoutine) {
+			LocalDate courseEndsOn, boolean hasRoutine, UUID batchId, String source, boolean joinCodePending, String rollNo, String whatsappUrl) {
 	}
 
 	/**
@@ -108,9 +110,13 @@ public class OfflineAdmissionService {
 
 	private final StudentProfileRepository profiles;
 
+	private final OfflineApplicationMail publicMail;
+
 	public OfflineAdmissionService(OfflineAdmissionRepository admissions, OfflineAdmissionSubmissionRepository submissions,
 			AccountService accounts, StudentPhotoRepository photos, StaffNotificationWriter notices, JdbcTemplate jdbc,
-			ObjectMapper json, AuditRecorder audit, Clock clock, UserRepository users, StudentProfileRepository profiles) {
+			ObjectMapper json, AuditRecorder audit, Clock clock, UserRepository users, StudentProfileRepository profiles,
+			OfflineApplicationMail publicMail) {
+		this.publicMail = publicMail;
 		this.admissions = admissions;
 		this.submissions = submissions;
 		this.accounts = accounts;
@@ -155,7 +161,16 @@ public class OfflineAdmissionService {
 	/** The student's live access through this admission: active items whose OFFLINE grant is not revoked and not past its end (plan 6.4). */
 	@Transactional(readOnly = true)
 	public List<AdmissionItemView> items(UUID studentId) {
-		OfflineAdmission admission = ownAdmission(studentId);
+		return itemsOf(ownAdmission(studentId));
+	}
+
+	/** The items of one of the student's own admissions (V94). Another student's admission answers 404. */
+	@Transactional(readOnly = true)
+	public List<AdmissionItemView> items(UUID studentId, UUID admissionId) {
+		return itemsOf(ownById(studentId, admissionId));
+	}
+
+	private List<AdmissionItemView> itemsOf(OfflineAdmission admission) {
 		return jdbc.query("""
 				select i.scope, i.exam_id, i.module_id, coalesce(e.title_en, m.title_en) as title_en,
 				  coalesce(e.title_bn, m.title_bn) as title_bn,
@@ -183,7 +198,16 @@ public class OfflineAdmissionService {
 	/** The batch of the student's routine: their own admission's batch, once onboarded. 404 when there is none (plan 5). */
 	@Transactional(readOnly = true)
 	public UUID ownBatchId(UUID studentId) {
-		OfflineAdmission admission = ownAdmission(studentId);
+		return batchOf(ownAdmission(studentId));
+	}
+
+	/** The batch of one of the student's own admissions, once it is onboarded (V94). 404 for another student's or none. */
+	@Transactional(readOnly = true)
+	public UUID ownBatchId(UUID studentId, UUID admissionId) {
+		return batchOf(ownById(studentId, admissionId));
+	}
+
+	private static UUID batchOf(OfflineAdmission admission) {
 		UUID batchId = afterOnboarding(admission) ? admission.getBatchId() : null;
 		if (batchId == null) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
@@ -216,7 +240,7 @@ public class OfflineAdmissionService {
 	public AdmissionView submit(UUID studentId) {
 		OfflineAdmission admission = open(studentId);
 		requireFormOpen(admission);
-		List<FieldErrorDetail> problems = formProblems(admission, photos.existsById(studentId));
+		List<FieldErrorDetail> problems = formProblems(admission, photoOnFile(admission));
 		User account = users.findByIdAndDeletedAtIsNull(studentId).orElseThrow(OfflineSupport::notFound);
 		// A desk account has no email until its form is submitted (V87): the form's email becomes the account's, unless it is taken.
 		boolean copyEmail = !AuthService.hasEmail(account) && admission.getEmail() != null;
@@ -250,19 +274,46 @@ public class OfflineAdmissionService {
 		audit.record(resubmit ? AuditRecorder.OFFLINE_ADMISSION_RESUBMITTED : AuditRecorder.OFFLINE_ADMISSION_SUBMITTED,
 				AuditRecorder.OFFLINE_ADMISSION_ENTITY, admission.getId());
 		notifyAdmins(admission, resubmit ? StaffNotificationKind.ADMISSION_RESUBMITTED : StaffNotificationKind.ADMISSION_SUBMITTED);
+		// N7: a signed-in applicant's first submit is acknowledged by mail. A desk admission has no batch to name yet, and no application to receive.
+		if (!resubmit && OfflineAdmission.SOURCE_ACCOUNT.equals(admission.getSource()) && admission.getBatchId() != null
+				&& AuthService.hasEmail(account)) {
+			String[] batch = jdbc.queryForObject("select name_en, name_bn from offline_batches where id = ?",
+					(rs, index) -> new String[] { rs.getString("name_en"), rs.getString("name_bn") }, admission.getBatchId());
+			publicMail.applicationReceived(account.getEmail(), admission.getFullName(), batch[1], batch[0]);
+		}
 		return view(admission);
 	}
 
-	private OfflineAdmission open(UUID studentId) {
-		return admissions.findFirstByStudentIdAndStatusNot(studentId, OfflineAdmission.CLOSED)
+	OfflineAdmission open(UUID studentId) {
+		// A student may hold several open admissions (V94). The form routes act on one whose form is still open, the newest of them.
+		List<OfflineAdmission> open = admissions.findByStudentIdAndStatusNotOrderByCreatedAtDesc(studentId, OfflineAdmission.CLOSED);
+		return open.stream().filter(admission -> FORM_OPEN.contains(admission.getStatus())).findFirst()
+			.or(() -> open.stream().findFirst())
 			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found."));
 	}
 
-	/** The read path's admission: the open one, else the latest closed one. Only the read routes use it. */
+	/** One of the student's own admissions by id. Another student's, or an unknown id, is 404 (V94). */
+	OfflineAdmission ownById(UUID studentId, UUID admissionId) {
+		return admissions.findById(admissionId).filter(found -> studentId.equals(found.getStudentId()))
+			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found."));
+	}
+
+	/**
+	 * The read path's admission (F10): the same one the form routes act on (an open form first, then the newest open admission), else the
+	 * latest closed one.
+	 */
 	private OfflineAdmission ownAdmission(UUID studentId) {
-		return admissions.findFirstByStudentIdAndStatusNot(studentId, OfflineAdmission.CLOSED)
+		List<OfflineAdmission> open = admissions.findByStudentIdAndStatusNotOrderByCreatedAtDesc(studentId, OfflineAdmission.CLOSED);
+		return open.stream().filter(admission -> FORM_OPEN.contains(admission.getStatus())).findFirst()
+			.or(() -> open.stream().findFirst())
 			.or(() -> admissions.findFirstByStudentIdAndStatusOrderByCreatedAtDesc(studentId, OfflineAdmission.CLOSED))
 			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found."));
+	}
+
+	/** One of the student's own admissions as their screens show it. Another student's, or an unknown id, is 404. */
+	@Transactional(readOnly = true)
+	public AdmissionView viewOwn(UUID studentId, UUID admissionId) {
+		return view(ownById(studentId, admissionId));
 	}
 
 	/** The batch, fee and dates are shown to the student only once the admission is onboarded or closed (plan 6.4). */
@@ -270,7 +321,7 @@ public class OfflineAdmissionService {
 		return OfflineAdmission.ONBOARDED.equals(a.getStatus()) || OfflineAdmission.CLOSED.equals(a.getStatus());
 	}
 
-	private static void requireFormOpen(OfflineAdmission admission) {
+	static void requireFormOpen(OfflineAdmission admission) {
 		if (!FORM_OPEN.contains(admission.getStatus())) {
 			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT,
 					"The admission form cannot be changed right now.");
@@ -359,7 +410,7 @@ public class OfflineAdmissionService {
 	}
 
 	/** Copies each field the body names onto the admission. A field left out keeps its saved value. */
-	private static void apply(JsonNode body, OfflineAdmission a) {
+	static void apply(JsonNode body, OfflineAdmission a) {
 		if (body == null || !body.isObject()) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request validation failed.");
 		}
@@ -427,7 +478,7 @@ public class OfflineAdmissionService {
 		}
 	}
 
-	private void notifyAdmins(OfflineAdmission admission, StaffNotificationKind kind) {
+	void notifyAdmins(OfflineAdmission admission, StaffNotificationKind kind) {
 		String name = admission.getFullName() == null ? "" : StaffNotificationWriter.fitText(admission.getFullName());
 		List<UUID> recipients = jdbc.queryForList(
 				"select id from users where role in ('MASTER_ADMIN', 'SYSTEM_ADMIN') and status = 'ACTIVE' and deleted_at is null",
@@ -439,16 +490,24 @@ public class OfflineAdmissionService {
 		}
 	}
 
-	private String formJson(Form form) {
+	String formJson(Form form) {
 		return json.writeValueAsString(form);
 	}
 
-	private AdmissionView view(OfflineAdmission a) {
+	/** Whether the form has its photo: the student's profile photo, or for a public applicant the one kept on the application (V94). */
+	boolean photoOnFile(OfflineAdmission a) {
+		return a.getStudentId() == null ? a.getPhotoStoredName() != null
+				: photos.existsById(a.getStudentId()) || a.getPhotoStoredName() != null;
+	}
+
+	AdmissionView view(OfflineAdmission a) {
 		boolean after = afterOnboarding(a);
-		BatchLabel batch = after ? batchLabel(a.getBatchId()) : BatchLabel.NONE;
+		BatchLabel batch = batchLabel(a.getBatchId());
 		return new AdmissionView(a.getId(), a.getStatus(), a.getChangesReason(), a.getSubmittedAt(), a.getSubmitCount(),
-				photos.existsById(a.getStudentId()), form(a), batch.nameEn(), batch.nameBn(), after ? a.getMonthlyFee() : null,
-				after ? a.getAdmittedOn() : null, after ? a.getCourseEndsOn() : null, batch.hasRoutine());
+				photoOnFile(a), form(a), batch.nameEn(), batch.nameBn(), after ? a.getMonthlyFee() : null,
+				after ? a.getAdmittedOn() : null, after ? a.getCourseEndsOn() : null, after && batch.hasRoutine(), a.getBatchId(),
+				a.getSource(), OfflineAdmissionAdminService.joinPending(a), after ? a.getRollNo() : null,
+				OfflineAdmission.ONBOARDED.equals(a.getStatus()) ? batch.whatsappUrl() : null);
 	}
 
 	/** The batch's names and whether it has a routine file. A null batch gives {@link BatchLabel#NONE}. */
@@ -456,16 +515,19 @@ public class OfflineAdmissionService {
 		if (batchId == null) {
 			return BatchLabel.NONE;
 		}
-		return jdbc.query("select name_en, name_bn, routine_stored_name is not null as has_routine from offline_batches where id = ?",
-				(rs, row) -> new BatchLabel(rs.getString("name_en"), rs.getString("name_bn"), rs.getBoolean("has_routine")), batchId)
+		// A routine is there once one is confirmed (the routines of plan F1), or when the batch has the single PDF of before V89.
+		return jdbc.query("select name_en, name_bn, (routine_stored_name is not null or exists (select 1 from offline_batch_routines r"
+				+ " where r.batch_id = offline_batches.id and r.status = 'CONFIRMED')) as has_routine, whatsapp_url from offline_batches where id = ?",
+				(rs, row) -> new BatchLabel(rs.getString("name_en"), rs.getString("name_bn"), rs.getBoolean("has_routine"),
+						rs.getString("whatsapp_url")), batchId)
 			.stream()
 			.findFirst()
 			.orElse(BatchLabel.NONE);
 	}
 
-	private record BatchLabel(String nameEn, String nameBn, boolean hasRoutine) {
+	private record BatchLabel(String nameEn, String nameBn, boolean hasRoutine, String whatsappUrl) {
 
-		static final BatchLabel NONE = new BatchLabel(null, null, false);
+		static final BatchLabel NONE = new BatchLabel(null, null, false, null);
 
 	}
 

@@ -27,7 +27,7 @@ final class AdmissionMail {
 
 	private static final String MY_ADMISSION = "/my-admission";
 
-	private static final String FIX_FORM = "/admission";
+	private static final String FIX_FORM = "/admission/form";
 
 	private AdmissionMail() {
 	}
@@ -53,14 +53,24 @@ final class AdmissionMail {
 
 	private static RenderedEmail approved(MailContext ctx, MailRecipient to, JsonNode p) {
 		List<String[]> rows = new ArrayList<>();
-		rows.add(new String[] { "বাচ", "Batch", both(p, "batchBn", "batchEn") });
+		rows.add(new String[] { "ব্যাচ", "Batch", both(p, "batchBn", "batchEn") });
 		rows.add(new String[] { "মাসিক ফি", "Monthly fee", text(p, "monthlyFee") + " BDT" });
 		rows.add(new String[] { "প্রথম পরিশোধের তারিখ", "First due date", day(p, "firstDueOn") });
 		rows.add(new String[] { "কোর্স শেষ", "Course ends", day(p, "courseEndsOn") });
-		rows.add(new String[] { "পরীক্ষা ও প্যাকেজ", "Exams and packages", both(p, "itemsBn", "itemsEn") });
+		// Exams and packages are optional (P18): with none, the row and the sentence about them are left out.
+		boolean hasItems = !text(p, "itemsEn").isEmpty();
+		if (hasItems) {
+			rows.add(new String[] { "পরীক্ষা ও প্যাকেজ", "Exams and packages", both(p, "itemsBn", "itemsEn") });
+		}
+		// P14: a student who already has another batch sees every batch they now have access to.
+		if (text(p, "batchesEn").contains(";")) {
+			rows.add(new String[] { "আপনার সব ব্যাচ", "Batches you have access to", both(p, "batchesBn", "batchesEn") });
+		}
 		return EmailTemplates.admissionNotice(ctx, to, "ভর্তি অনুমোদিত হয়েছে", "Admission approved",
-				"আপনার ভর্তি অনুমোদিত হয়েছে। এখন থেকে নিচের পরীক্ষা ও প্যাকেজগুলো আপনার জন্য খোলা।",
-				"your admission is approved. From now on the exams and packages below are open to you.", rows, "আমার ভর্তি দেখুন",
+				hasItems ? "আপনার ভর্তি অনুমোদিত হয়েছে। এখন থেকে নিচের পরীক্ষা ও প্যাকেজগুলো আপনার জন্য খোলা।"
+						: "আপনার ভর্তি অনুমোদিত হয়েছে। ব্যাচের তথ্য নিচে দেওয়া হলো।",
+				hasItems ? "your admission is approved. From now on the exams and packages below are open to you."
+						: "your admission is approved. The details of your batch are below.", rows, "আমার ভর্তি দেখুন",
 				"View my admission", ctx.site(MY_ADMISSION));
 	}
 

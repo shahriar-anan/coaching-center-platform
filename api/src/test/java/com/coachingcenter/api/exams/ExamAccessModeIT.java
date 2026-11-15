@@ -136,7 +136,7 @@ class ExamAccessModeIT extends PostgresIntegrationTest {
 		mockMvc.perform(patch("/api/v1/exam-modules/" + createModule(system)).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"price\":1}"))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk());
 
 		UUID saEnrolled = createModule(system);
 		mockMvc.perform(patch("/api/v1/exam-modules/" + saEnrolled + "/access").header("Authorization", "Bearer " + system)

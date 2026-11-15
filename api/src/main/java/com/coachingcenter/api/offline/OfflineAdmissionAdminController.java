@@ -131,9 +131,35 @@ public class OfflineAdmissionAdminController {
 	}
 
 	@PostMapping("/api/v1/offline-admissions/{id}/onboard")
-	public AdmissionDetail onboard(@PathVariable UUID id) {
+	public AdmissionDetail onboard(@PathVariable UUID id, @RequestBody(required = false) JsonNode body) {
 		require(permissions, Permissions.OFFLINE_ADMISSION_ONBOARD);
-		return onboarding.onboard(actorId(), id);
+		String rollNo = body != null && body.hasNonNull("rollNo") ? body.get("rollNo").asText() : null;
+		return onboarding.onboard(actorId(), id, rollNo);
+	}
+
+	/** The next free roll for the admission's batch, or null when the batch has none to start from (rule A7). */
+	@GetMapping("/api/v1/offline-admissions/{id}/next-roll")
+	public OfflineAdmissionOnboardingService.SuggestedRoll nextRoll(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_ADMISSION_ONBOARD);
+		return onboarding.suggestRoll(id);
+	}
+
+	/** The Master Admin sets or changes a student's roll number once onboarded (plan O3). */
+	@PatchMapping("/api/v1/offline-admissions/{id}/roll")
+	public AdmissionDetail setRoll(@PathVariable UUID id, @RequestBody JsonNode body) {
+		require(permissions, Permissions.OFFLINE_ADMISSION_ONBOARD);
+		String rollNo = body != null && body.hasNonNull("rollNo") ? body.get("rollNo").asText() : null;
+		return onboarding.setRoll(actorId(), id, rollNo);
+	}
+
+	/**
+	 * A new code for an admission that waits for one (P8): the join code, or the activation code of an account the onboarding made. The
+	 * old code stops working. Only the Master Admin, who onboards.
+	 */
+	@PostMapping("/api/v1/offline-admissions/{id}/resend-code")
+	public AdmissionDetail resendCode(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_ADMISSION_ONBOARD);
+		return onboarding.resendCode(actorId(), id);
 	}
 
 	@PatchMapping("/api/v1/offline-admissions/{id}/terms")

@@ -148,7 +148,7 @@ final class PackageFixtures {
 	void finalSaveAndPublish(String token, UUID packageId) throws Exception {
 		mockMvc.perform(post("/api/v1/live-exam-modules/" + packageId + "/final-save").header("Authorization", "Bearer " + token))
 			.andExpect(status().isOk());
-		mockMvc.perform(post("/api/v1/live-exam-modules/" + packageId + "/publish").header("Authorization", "Bearer " + token))
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + packageId + "/publish").header("Authorization", "Bearer " + com.coachingcenter.api.PostgresIntegrationTest.bootstrapMasterToken(mockMvc)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PUBLISHED"));
 	}

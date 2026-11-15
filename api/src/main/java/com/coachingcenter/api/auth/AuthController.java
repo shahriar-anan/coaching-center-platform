@@ -51,7 +51,7 @@ public class AuthController {
 
 	@PostMapping("/auth/activate")
 	public ResponseEntity<Void> activate(@Valid @RequestBody ActivateRequest request) {
-		auth.activate(request.phone(), request.code(), request.password());
+		auth.activate(request.email(), request.phone(), request.code(), request.password());
 		return ResponseEntity.noContent().build();
 	}
 
@@ -215,7 +215,8 @@ public class AuthController {
 			@NotBlank @Size(min = 8, max = 72) String password) {
 	}
 
-	public record ActivateRequest(@NotBlank String phone, @NotBlank String code,
+	/** The account is found by the email or the phone (plan Q5); one of the two is needed. */
+	public record ActivateRequest(String email, String phone, @NotBlank String code,
 			@NotBlank @Size(min = 8, max = 72) String password) {
 	}
 

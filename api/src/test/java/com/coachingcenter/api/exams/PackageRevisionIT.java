@@ -222,9 +222,12 @@ class PackageRevisionIT extends PostgresIntegrationTest {
 		assertThat(access.canSit(holder, exams.findById(exam).orElseThrow(), TEN_AM)).isTrue();
 	}
 
-	/** The discount is the Master Admin's, as the price is (EXAM_PRICE): a System Admin cannot stage one (NR-01, B4). */
+	/**
+	 * Since 15 Nov the System Admin sets the discount too (EXAM_PRICE). On a published package it is staged, and only the Master Admin
+	 * publishes it: the students see the old discount until then.
+	 */
 	@Test
-	void aSystemAdminCannotStageADiscountButTheMasterAdminCan() throws Exception {
+	void aSystemAdminStagesADiscountAndOnlyTheMasterAdminPublishesIt() throws Exception {
 		String system = fx.token(fx.seed("SYSTEM_ADMIN"));
 		String master = fx.token(fx.seed("MASTER_ADMIN"));
 		UUID pkg = publishedPackage(system, "Discounted package");
@@ -232,18 +235,16 @@ class PackageRevisionIT extends PostgresIntegrationTest {
 		mockMvc.perform(patch("/api/v1/live-exam-modules/" + pkg).header("Authorization", "Bearer " + system)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"discountPercent\":15}"))
-			.andExpect(status().isForbidden())
-			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
-		mockMvc.perform(get("/api/v1/live-exam-modules/" + pkg + "/pending-changes").header("Authorization", "Bearer " + system))
-			.andExpect(status().isNotFound());
-
-		mockMvc.perform(patch("/api/v1/live-exam-modules/" + pkg).header("Authorization", "Bearer " + master)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"discountPercent\":15}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.pendingChanges").value(true));
 		assertThat(field(fx.body(system, "/api/v1/live-exam-modules/" + pkg + "/pending-changes"), "discountPercent")
 			.get("after").asInt()).isEqualTo(15);
+
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + pkg + "/publish").header("Authorization", "Bearer " + system))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mockMvc.perform(post("/api/v1/live-exam-modules/" + pkg + "/publish").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
 	}
 
 	/** A package with a title and no edits waiting, published by the Master Admin's first publish path. */

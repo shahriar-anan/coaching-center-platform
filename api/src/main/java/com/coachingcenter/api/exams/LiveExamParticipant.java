@@ -89,6 +89,51 @@ public class LiveExamParticipant extends BaseEntity {
 	@Column(name = "answer_content_type", length = 255)
 	private String answerContentType;
 
+	/** The uploaded script that is not submitted yet: replaced by each upload, promoted to the answer at submit or the deadline. */
+	@Column(name = "draft_stored_file_name", length = 255)
+	private String draftStoredFileName;
+
+	@Column(name = "draft_original_file_name", length = 500)
+	private String draftOriginalFileName;
+
+	@Column(name = "draft_byte_size")
+	private Long draftByteSize;
+
+	@Column(name = "draft_uploaded_at")
+	private java.time.Instant draftUploadedAt;
+
+	public String getDraftStoredFileName() {
+		return draftStoredFileName;
+	}
+
+	public void setDraftStoredFileName(String draftStoredFileName) {
+		this.draftStoredFileName = draftStoredFileName;
+	}
+
+	public String getDraftOriginalFileName() {
+		return draftOriginalFileName;
+	}
+
+	public void setDraftOriginalFileName(String draftOriginalFileName) {
+		this.draftOriginalFileName = draftOriginalFileName;
+	}
+
+	public Long getDraftByteSize() {
+		return draftByteSize;
+	}
+
+	public void setDraftByteSize(Long draftByteSize) {
+		this.draftByteSize = draftByteSize;
+	}
+
+	public java.time.Instant getDraftUploadedAt() {
+		return draftUploadedAt;
+	}
+
+	public void setDraftUploadedAt(java.time.Instant draftUploadedAt) {
+		this.draftUploadedAt = draftUploadedAt;
+	}
+
 	@Column(columnDefinition = "TEXT")
 	private String comment;
 

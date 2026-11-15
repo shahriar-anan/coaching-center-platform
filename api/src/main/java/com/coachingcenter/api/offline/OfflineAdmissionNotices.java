@@ -31,6 +31,18 @@ class OfflineAdmissionNotices {
 
 	static final String BATCH_ROUTINE_UPDATED = "BATCH_ROUTINE_UPDATED";
 
+	/** The join code of an admitted batch is ready for the account holder (V94). The notice carries no code. */
+	static final String ADMISSION_JOIN_CODE = "ADMISSION_JOIN_CODE";
+
+	/** A student who already has access to a batch was onboarded to another one (P14). */
+	static final String ADMISSION_BATCH_ADDED = "ADMISSION_BATCH_ADDED";
+
+	/** A result sheet was published for an exam of the student's batch (V97). The key is the sheet and the student. */
+	static final String OFFLINE_RESULT_PUBLISHED = "OFFLINE_RESULT_PUBLISHED";
+
+	/** A newer result sheet was published for the exam, so the result changed (V97). The key is the sheet and the student. */
+	static final String OFFLINE_RESULT_UPDATED = "OFFLINE_RESULT_UPDATED";
+
 	private static final String INSERT_NOTICE = """
 			insert into student_notices (id, user_id, kind, message_key, exam_id, module_id, participant_id, created_at)
 			select ?, u.id, ?, ?, null, null, null, ?

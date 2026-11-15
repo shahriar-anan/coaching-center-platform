@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -194,6 +195,38 @@ class StudentAccessIT extends PostgresIntegrationTest {
 		mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + student))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.modules.length()").value(2));
+	}
+
+	@Test
+	void aPackageWhatsAppLinkReachesOnlyTheOwnersOfAPublishedPackage() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID studentId = seedStudent();
+		String student = token(studentId);
+		UUID owned = createModule(master, "WhatsApp " + UUID.randomUUID().toString().substring(0, 8));
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+		grant(jdbc, studentId, "MODULE", owned, null, null, "MANUAL", false);
+		String link = "https://chat.whatsapp.com/AbCdEf123456";
+
+		// Only a WhatsApp group or channel link is taken; staff can read it, a student cannot.
+		mockMvc.perform(put("/api/v1/live-exam-modules/" + owned + "/whatsapp").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"url\":\"https://example.com/group\"}"))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(put("/api/v1/live-exam-modules/" + owned + "/whatsapp").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"url\":\"" + link + "\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.url").value(link));
+		mockMvc.perform(get("/api/v1/live-exam-modules/" + owned + "/whatsapp").header("Authorization", "Bearer " + student))
+			.andExpect(status().isForbidden());
+
+		// While the package is not published, the owner is not given the link.
+		JsonNode draft = json.readTree(mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		assertThat(row(draft.get("modules"), "moduleId", owned).hasNonNull("whatsappUrl")).isFalse();
+
+		jdbc.update("update live_exam_modules set status = 'PUBLISHED' where id = ?", owned);
+		JsonNode published = json.readTree(mockMvc.perform(get("/api/v1/me/live-exam-access").header("Authorization", "Bearer " + student))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		assertThat(row(published.get("modules"), "moduleId", owned).get("whatsappUrl").asText()).isEqualTo(link);
 	}
 
 	private static String moduleVia(JsonNode body, UUID moduleId) {

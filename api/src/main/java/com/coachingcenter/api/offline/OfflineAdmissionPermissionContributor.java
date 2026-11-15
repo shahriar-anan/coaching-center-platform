@@ -25,12 +25,15 @@ public class OfflineAdmissionPermissionContributor implements PermissionContribu
 				Permissions.OFFLINE_BATCH_MANAGE,
 				Permissions.OFFLINE_BATCH_ROUTINE,
 				Permissions.OFFLINE_FEE_RECORD,
-				Permissions.OFFLINE_FEE_APPROVE }) {
+				Permissions.OFFLINE_FEE_APPROVE,
+				Permissions.OFFLINE_RESULT_UPLOAD,
+				Permissions.OFFLINE_RESULT_PUBLISH }) {
 			registry.grant(Role.MASTER_ADMIN, permission, PermissionScope.ANY);
 		}
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.OFFLINE_ADMISSION_READ, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.OFFLINE_ADMISSION_REVIEW, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.OFFLINE_BATCH_ROUTINE, PermissionScope.ANY);
 		registry.grant(Role.SYSTEM_ADMIN, Permissions.OFFLINE_FEE_RECORD, PermissionScope.ANY);
+		registry.grant(Role.SYSTEM_ADMIN, Permissions.OFFLINE_RESULT_UPLOAD, PermissionScope.ANY);
 	}
 }

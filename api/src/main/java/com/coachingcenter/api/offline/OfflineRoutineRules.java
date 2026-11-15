@@ -26,7 +26,8 @@ final class OfflineRoutineRules {
 
 	static final String DATE_UNREADABLE = "DATE_UNREADABLE";
 
-	static final String DATE_OUT_OF_MONTH = "DATE_OUT_OF_MONTH";
+	/** The date is before the day the routine counts from: it still becomes a class, as an earlier class. */
+	static final String DATE_PAST = "DATE_PAST";
 
 	static final String DATE_OUT_OF_ORDER = "DATE_OUT_OF_ORDER";
 
@@ -75,8 +76,8 @@ final class OfflineRoutineRules {
 		return name == null ? "" : name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
 	}
 
-	/** The rows the reader found, checked, with flags. */
-	static List<OfflineRoutineRow> build(List<RawRow> raw, YearMonth month, int defaultMinutes, Map<String, UUID> instructors) {
+	/** The rows the reader found, checked, with flags. {@code from} is the day the routine counts from (the day it is uploaded). */
+	static List<OfflineRoutineRow> build(List<RawRow> raw, LocalDate from, int defaultMinutes, Map<String, UUID> instructors) {
 		List<OfflineRoutineRow> rows = new ArrayList<>();
 		for (RawRow row : raw) {
 			LocalDate date = date(row.date());
@@ -98,11 +99,14 @@ final class OfflineRoutineRules {
 					times == null ? null : times.start().toString(), times == null ? null : times.end().toString(), subject, topic, kind,
 					instructor, instructorId, List.of()));
 		}
-		return flag(rows, month);
+		return flag(rows, from);
 	}
 
-	/** The same rows with their flags set again, for a routine that has been edited or matched. */
-	static List<OfflineRoutineRow> flag(List<OfflineRoutineRow> rows, YearMonth month) {
+	/**
+	 * The same rows with their flags set again, for a routine that has been edited or matched. A date before {@code from}, the day the
+	 * routine counts from, is flagged as past.
+	 */
+	static List<OfflineRoutineRow> flag(List<OfflineRoutineRow> rows, LocalDate from) {
 		Map<String, List<Integer>> lectures = new LinkedHashMap<>();
 		for (int index = 0; index < rows.size(); index++) {
 			OfflineRoutineRow row = rows.get(index);
@@ -124,8 +128,8 @@ final class OfflineRoutineRules {
 				found.add(flag(DATE_UNREADABLE, "The date could not be read."));
 			}
 			else {
-				if (!YearMonth.from(date).equals(month)) {
-					found.add(flag(DATE_OUT_OF_MONTH, "Date is outside " + monthName(month) + "."));
+				if (from != null && date.isBefore(from)) {
+					found.add(flag(DATE_PAST, "This date has passed: it is added as an earlier class."));
 				}
 				if (previous != null && date.isBefore(previous)) {
 					found.add(flag(DATE_OUT_OF_ORDER, "Date is earlier than the row above."));
@@ -143,7 +147,7 @@ final class OfflineRoutineRules {
 				found.add(flag(NO_INSTRUCTOR, "No instructor yet."));
 			}
 			if (named && row.instructorId() == null) {
-				found.add(flag(INSTRUCTOR_UNKNOWN, "Instructor name not in the list yet: " + row.instructorText() + "."));
+				found.add(flag(INSTRUCTOR_UNKNOWN, "New instructor: " + row.instructorText() + " is added to the instructors when the routine is confirmed."));
 			}
 			if (OfflineClass.KIND_EXAM.equals(row.kind())) {
 				found.add(flag(EXAM_ROW, "Exam row: set who is paid."));
@@ -271,10 +275,6 @@ final class OfflineRoutineRules {
 	/** A dash on its own is a blank cell (the routine writes "-" for no instructor or no topic). */
 	private static String noDash(String text) {
 		return "-".equals(text) || "–".equals(text) || "—".equals(text) ? "" : text;
-	}
-
-	private static String monthName(YearMonth month) {
-		return month.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " " + month.getYear();
 	}
 
 	private static OfflineRoutineRow.Flag flag(String code, String reason) {

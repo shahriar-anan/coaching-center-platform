@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.context.event.EventListener;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ import com.coachingcenter.api.auth.PhoneNumbers;
 import com.coachingcenter.api.auth.UserActivated;
 import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
+import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.error.FieldErrorDetail;
 import com.coachingcenter.api.users.AccountService;
 import com.coachingcenter.api.users.User;
@@ -49,8 +52,11 @@ public class OfflineAdmissionDeskService {
 
 	private final Clock clock;
 
+	private final JdbcTemplate jdbc;
+
 	public OfflineAdmissionDeskService(OfflineAdmissionRepository admissions, AccountService accounts, AuthService auth,
-			UserRepository users, AuditRecorder audit, Clock clock) {
+			UserRepository users, AuditRecorder audit, Clock clock, JdbcTemplate jdbc) {
+		this.jdbc = jdbc;
 		this.admissions = admissions;
 		this.accounts = accounts;
 		this.auth = auth;
@@ -82,12 +88,15 @@ public class OfflineAdmissionDeskService {
 	@Transactional
 	public DeskCreated create(String phone, UUID createdBy) {
 		String normalized = normalizedPhone(phone);
+		refuseIfOpenAdmission(normalized);
 		Instant expiresAt = clock.instant().plus(CODE_LIFETIME);
 		AccountService.CreatedAccount created = accounts.createDeskStudent(normalized, createdBy, expiresAt);
 		OfflineAdmission admission = new OfflineAdmission();
 		admission.setId(UUID.randomUUID());
 		admission.setStudentId(created.id());
 		admission.setStatus(OfflineAdmission.AWAITING_FORM);
+		// The form starts with the phone the desk entered (as 01...), so the student does not type it twice.
+		admission.setMobile(normalized.substring(3));
 		admission.setCreatedBy(createdBy);
 		admission.setCreatedAt(clock.instant());
 		admission.setSubmitCount(0);
@@ -131,6 +140,10 @@ public class OfflineAdmissionDeskService {
 		if (OfflineAdmission.CLOSED.equals(admission.getStatus())) {
 			throw state("This admission is closed, so it has no activation code.");
 		}
+		// F13: a 10-minute desk code is made only for a desk admission; an online applicant gets a join code or a 7-day activation code.
+		if (!OfflineAdmission.SOURCE_DESK.equals(admission.getSource())) {
+			throw state("This admission is not a desk admission, so a desk code cannot be made for it.");
+		}
 		User student = student(admission);
 		if (activated(student)) {
 			throw state("The student has already activated the account.");
@@ -150,7 +163,7 @@ public class OfflineAdmissionDeskService {
 	 */
 	@EventListener
 	public void onActivated(UserActivated event) {
-		admissions.findFirstByStudentIdAndStatusNot(event.userId(), OfflineAdmission.CLOSED).ifPresent(admission -> {
+		admissions.findFirstByStudentIdAndStatusNotOrderByCreatedAtDesc(event.userId(), OfflineAdmission.CLOSED).ifPresent(admission -> {
 			admission.setActivationCode(null);
 			admission.setActivationCodeExpiresAt(null);
 			if (admission.getActivatedAt() == null) {
@@ -170,6 +183,31 @@ public class OfflineAdmissionDeskService {
 	/** Activated means the student has set a password, so the account is no longer pending. */
 	static boolean activated(User student) {
 		return !PENDING.equals(student.getStatus());
+	}
+
+	/**
+	 * P13: the desk is for new students. A phone that belongs to a student with an open offline admission is refused, and the message names the
+	 * batch they are in. An account with no open admission is refused as a duplicate phone, as before (the account step).
+	 */
+	private void refuseIfOpenAdmission(String phone) {
+		users.findByPhoneAndDeletedAtIsNull(phone).ifPresent(existing -> admissions
+			.findFirstByStudentIdAndStatusNotOrderByCreatedAtDesc(existing.getId(), OfflineAdmission.CLOSED).ifPresent(open -> {
+				String[] batch = open.getBatchId() == null ? new String[] { null, null } : batchNames(open.getBatchId());
+				String text = "This phone number already has an offline admission" + (batch[0] == null ? "." : " in " + batch[0] + ".")
+					+ " Use the batch page to apply instead.";
+				throw new ApiException(ErrorCode.OPEN_ADMISSION, HttpStatus.CONFLICT, text, new OpenAdmissionDetails(batch[0], batch[1]));
+			}));
+	}
+
+	/** The batch's English and Bangla names, or nulls when the batch is gone. */
+	private String[] batchNames(UUID batchId) {
+		return jdbc.query("select name_en, name_bn from offline_batches where id = ?",
+				(rs, row) -> new String[] { rs.getString("name_en"), rs.getString("name_bn") }, batchId).stream().findFirst()
+			.orElse(new String[] { null, null });
+	}
+
+	/** The batch the refusal names, in both languages (the web reads these as the batch's names). */
+	public record OpenAdmissionDetails(String batchNameEn, String batchNameBn) {
 	}
 
 	private static String normalizedPhone(String phone) {
