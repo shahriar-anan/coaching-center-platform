@@ -175,3 +175,24 @@ Known limits of a rollback to the 15 Nov release after V100:
 - **Open:**
   - one real email (a join or reset code) to confirm Brevo delivers;
   - the office checks that the batch's course fee and instalments are right.
+
+## 11. Released: the join code in the notice and on the staff screen (15 Nov, 17:19 Dhaka)
+
+- **Commit and builds:** `8224ca8`, Flyway 101 (two nullable columns: `student_notices.code`, `offline_admissions.sent_code`). Jar
+  `api-8224ca8.jar` (SHA-256 `44ee7d60…`). Web `web-8224ca8-20261115-110335.tgz`, build `slHCI3-_hORD-LNRWTyTl`.
+- **Suites:**
+  - Web 2168/2168.
+  - API 1267/1268. The one failure was `StaffAssignmentWatcherIT`, duplicate rows from a background watcher run racing the test,
+    in staff pay, which this change does not touch. It passed 3/3 alone and in both earlier full runs today.
+- **Backup (17:06):** `coaching-pre-joincode-20261115-110606.dump` (581 entries) and the files tar, on the box and in
+  `F:\cc-releases\backup-pre-joincode-20261115-110606` (hashes match). `api.jar.before-joincode-20261115-110606` is on the box.
+- **Swap:**
+  - The API started in 17 s, Flyway 101, 0 failed.
+  - Web up after 1 s; the previous site is kept at `/opt/coaching-web.before-20261115-112004`.
+  - 2 sittings were open (one written, a late starter, with no draft yet). The swap was not held for them.
+- **Smoke:**
+  - 9 pages and APIs answer 200; staff routes 401;
+  - 0 errors and 0 5xx (4 warnings: the PDF font fallback);
+  - both columns exist; counts as expected (users 202, participants 192, scripts 18, orders 7, grants 31).
+- **Rollback:** put back `api.jar.before-joincode-20261115-110606` (V101 only adds columns, so `191e097` runs on it) and the web
+  directory.
