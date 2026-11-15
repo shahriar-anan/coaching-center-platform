@@ -66,8 +66,9 @@ class ExamMailIT extends PostgresIntegrationTest {
 		clock.set(START);
 	}
 
+	/** Exam-time mail is off (client decision, 14 Nov 2026): students get the in-app notice only, and the admin is never kept waiting. */
 	@Test
-	void aDatedExamMailsActiveStudentsWhenTheModuleIsPublished() {
+	void publishingAPackageWithADatedExamMailsNobody() {
 		Instant liveAt = START.plus(Duration.ofHours(2));
 		Fixture fixture = seed("DRAFT", liveAt, "CPC Written", "সিপিসি");
 		Student active = student("ACTIVE");
@@ -82,23 +83,18 @@ class ExamMailIT extends PostgresIntegrationTest {
 		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isZero();
 
 		modules.publish(fixture.moduleId);
-		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isZero();
 		assertThat(count(inactive.id, ExamOutboundMail.EXAM_TIME)).isZero();
 		assertThat(count(stranger.id, ExamOutboundMail.EXAM_TIME)).isZero();
-		assertThat(mailStatus(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(ExamOutboundMail.SENT);
-		String text = sender.sentTo(active.email).get(0).text();
-		assertThat(text).contains("সিপিসি");
-		assertThat(text).contains("CPC Written");
-		assertThat(text).contains("2026-10-20 12:00");
-		assertThat(text).doesNotContain(active.phone);
-		assertThat(text).doesNotContain(stranger.email);
+		assertThat(sender.sentTo(active.email)).isEmpty();
 
 		examMail.onExamPublished(fixture.examId);
-		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isZero();
+		assertThat(sender.sentTo(active.email)).isEmpty();
 	}
 
 	@Test
-	void aStandaloneExamMailsItsExamGrantHoldersAndNobodyElse() {
+	void aStandaloneExamMailsNobodyWhenPublished() {
 		// NR-01: an exam in no package has no module to publish or to read recipients from. The exam grant is its access.
 		Instant liveAt = START.plus(Duration.ofHours(2));
 		Fixture fixture = seed("PUBLISHED", liveAt, "Standalone paper", "একক পরীক্ষা");
@@ -112,9 +108,9 @@ class ExamMailIT extends PostgresIntegrationTest {
 
 		exams.publish(fixture.examId);
 
-		assertThat(count(holder.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(holder.id, ExamOutboundMail.EXAM_TIME)).isZero();
 		assertThat(count(stranger.id, ExamOutboundMail.EXAM_TIME)).isZero();
-		assertThat(sender.sentTo(holder.email).get(0).text()).contains("Standalone paper");
+		assertThat(sender.sentTo(holder.email)).isEmpty();
 	}
 
 	@Test
@@ -130,21 +126,20 @@ class ExamMailIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void republishWithANewInstantSendsOnceForThatInstant() {
+	void aChangedExamTimeMailsNobody() {
 		Instant first = START.plus(Duration.ofHours(3));
 		Fixture fixture = seed("PUBLISHED", first, "Second sitting", "দ্বিতীয়");
 		Student active = student("ACTIVE");
 		roster.mark(fixture.moduleId, active.id);
 		exams.publish(fixture.examId);
-		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isZero();
 
 		Instant second = first.plus(Duration.ofDays(1));
 		jdbc.update("update live_exams set live_at = ?, ends_at = CAST(? AS timestamptz) + make_interval(mins => duration_minutes)"
 				+ " where id = ?", Timestamp.from(second), Timestamp.from(second), fixture.examId);
 		examMail.onExamPublished(fixture.examId);
-		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(2);
-		examMail.onExamPublished(fixture.examId);
-		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(2);
+		assertThat(count(active.id, ExamOutboundMail.EXAM_TIME)).isZero();
+		assertThat(sender.sentTo(active.email)).isEmpty();
 	}
 
 	@Test
@@ -182,21 +177,21 @@ class ExamMailIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void publishInsideTheHourSendsBothAndInsideFifteenMinutesSendsOnlyTheTime() {
+	void publishingShortlyBeforeTheExamMailsNobody() {
 		Student early = student("ACTIVE");
 		Instant soon = clock.instant().plus(Duration.ofMinutes(40));
 		Fixture earlyFixture = seed("PUBLISHED", soon, "Soon", "শীঘ্রই");
 		roster.mark(earlyFixture.moduleId, early.id);
 		exams.publish(earlyFixture.examId);
-		assertThat(count(early.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
-		assertThat(count(early.id, ExamOutboundMail.HOUR_BEFORE)).isEqualTo(1);
+		assertThat(count(early.id, ExamOutboundMail.EXAM_TIME)).isZero();
+		assertThat(count(early.id, ExamOutboundMail.HOUR_BEFORE)).isZero();
 
 		Student late = student("ACTIVE");
 		Instant almost = clock.instant().plus(Duration.ofMinutes(10));
 		Fixture lateFixture = seed("PUBLISHED", almost, "Almost", "প্রায়");
 		roster.mark(lateFixture.moduleId, late.id);
 		exams.publish(lateFixture.examId);
-		assertThat(count(late.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(late.id, ExamOutboundMail.EXAM_TIME)).isZero();
 		assertThat(count(late.id, ExamOutboundMail.HOUR_BEFORE)).isZero();
 		examMail.scan();
 		assertThat(count(late.id, ExamOutboundMail.HOUR_BEFORE)).isZero();
@@ -209,13 +204,9 @@ class ExamMailIT extends PostgresIntegrationTest {
 		Student active = student("ACTIVE");
 		roster.mark(fixture.moduleId, active.id);
 		exams.publish(fixture.examId);
+		UUID mailId = legacyExamTimeRow(active.id, fixture.examId, liveAt);
 		jdbc.update("delete from live_exam_roster where module_id = ? and student_id = ?", fixture.moduleId, active.id);
 		jdbc.update("delete from live_exam_grants where student_id = ?", active.id);
-		jdbc.update(
-				"update exam_outbound_mail set status = 'PENDING', attempt_count = 0 where user_id = ? and kind = 'EXAM_TIME'",
-				active.id);
-		UUID mailId = jdbc.queryForObject(
-				"select id from exam_outbound_mail where user_id = ? and kind = 'EXAM_TIME'", UUID.class, active.id);
 		sender.clear();
 		delivery.deliverOne(mailId);
 		assertThat(mailStatus(active.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(ExamOutboundMail.SKIPPED);
@@ -229,10 +220,7 @@ class ExamMailIT extends PostgresIntegrationTest {
 		Student active = student("ACTIVE");
 		roster.mark(fixture.moduleId, active.id);
 		exams.publish(fixture.examId);
-		jdbc.update("update exam_outbound_mail set status = 'PENDING', attempt_count = 0 where user_id = ? and kind = 'EXAM_TIME'",
-				active.id);
-		UUID mailId = jdbc.queryForObject(
-				"select id from exam_outbound_mail where user_id = ? and kind = 'EXAM_TIME'", UUID.class, active.id);
+		UUID mailId = legacyExamTimeRow(active.id, fixture.examId, liveAt);
 		jdbc.update("update live_exams set deleted_at = now() where id = ?", fixture.examId);
 		sender.clear();
 		delivery.deliverOne(mailId);
@@ -269,7 +257,7 @@ class ExamMailIT extends PostgresIntegrationTest {
 		assertThat(mailStatus(adminId, ExamOutboundMail.PURCHASE_NOTICE)).isEqualTo(ExamOutboundMail.SENT);
 
 		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isEqualTo(1);
-		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isZero();
 		assertThat(orderStatus(order.getId())).isEqualTo(LiveExamOrder.SUCCEEDED);
 		String text = sender.sentTo(buyer.email).stream()
 			.filter(message -> message.subject().contains("Payment receipt"))
@@ -285,11 +273,11 @@ class ExamMailIT extends PostgresIntegrationTest {
 		assertThat(text).doesNotContain(buyer.phone);
 
 		roster.mark(fixture.moduleId, buyer.id);
-		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(1);
+		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isZero();
 	}
 
 	@Test
-	void aModulePurchaseMailsTheReceiptAndEachDatedExamOnce() {
+	void aModulePurchaseMailsTheReceiptAndNoExamTimes() {
 		Instant first = START.plus(Duration.ofHours(4));
 		Fixture fixture = seed("PUBLISHED", first, "First paper", "প্রথম");
 		UUID second = UUID.randomUUID();
@@ -312,7 +300,7 @@ class ExamMailIT extends PostgresIntegrationTest {
 		orders.verify(order.getTranId(),
 				LiveExamPaymentGateway.Verification.valid(order.getTranId(), amount, "BDT", "VAL-SECRET-99"));
 		assertThat(count(buyer.id, ExamOutboundMail.PAYMENT_RECEIPT)).isEqualTo(1);
-		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isEqualTo(2);
+		assertThat(count(buyer.id, ExamOutboundMail.EXAM_TIME)).isZero();
 		assertThat(sender.sentTo(buyer.email).stream().filter(message -> message.subject().contains("Payment receipt")).findFirst()
 			.orElseThrow()
 			.text()).contains("মডিউল");
@@ -462,6 +450,19 @@ class ExamMailIT extends PostgresIntegrationTest {
 		release.countDown();
 		first.join(5000);
 		assertThat(sender.sentCount()).isEqualTo(1);
+	}
+
+	/**
+	 * A pending exam-time row as the old code queued it (same key: student / exam / live time). New code queues none, but rows made
+	 * before the change can still be waiting, and delivery must still skip them when the student lost access or the exam is gone.
+	 */
+	private UUID legacyExamTimeRow(UUID studentId, UUID examId, Instant liveAt) {
+		UUID id = UUID.randomUUID();
+		jdbc.update("""
+				insert into exam_outbound_mail (id, kind, message_key, user_id, attempt_count, status, created_at, updated_at)
+				values (?, 'EXAM_TIME', ?, ?, 0, 'PENDING', now(), now())
+				""", id, studentId + "/" + examId + "/" + liveAt, studentId);
+		return id;
 	}
 
 	private int count(UUID userId, String kind) {

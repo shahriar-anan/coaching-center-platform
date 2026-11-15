@@ -43,6 +43,11 @@ class ExamMailWorker implements DisposableBean {
 		return new ExamMailWorker((ThreadPoolExecutor) null);
 	}
 
+	/** Whether jobs run on the calling thread (tests, or {@code app.exam-mail.async=false}). */
+	boolean runsInline() {
+		return pool == null;
+	}
+
 	/** Returns false when the batch was refused because the queue is full. The rows stay pending for the scan. */
 	boolean submit(Runnable batch) {
 		if (pool == null) {

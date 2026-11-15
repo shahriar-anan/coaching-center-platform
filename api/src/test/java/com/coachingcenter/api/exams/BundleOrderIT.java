@@ -149,7 +149,8 @@ class BundleOrderIT extends PostgresIntegrationTest {
 		assertThat(grantsFor(studentId)).isEqualTo(3);
 		assertThat(noticeCount("PURCHASE_GRANTED", studentId)).isEqualTo(3);
 		assertThat(mailCount(studentId, "PAYMENT_RECEIPT")).isEqualTo(1);
-		assertThat(examTimeMail(studentId)).containsExactlyInAnyOrder(first, second, third).doesNotContain(outside);
+		// The receipt still goes; exam-time mail is off (14 Nov 2026), so the bundle's exams send none.
+		assertThat(examTimeMail(studentId)).isEmpty();
 
 		ipn(tranId);
 		assertThat(grantsFor(studentId)).isEqualTo(3);

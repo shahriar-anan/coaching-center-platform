@@ -131,6 +131,13 @@ public class ExamMailService {
 		if (ids.isEmpty()) {
 			return;
 		}
+		// On the calling thread the rows are sent at once, inside the transaction that queued them (as before the worker), so the
+		// SENT or FAILED mark commits with it. Deferring to an after-commit callback would join a transaction already committed and
+		// lose the mark.
+		if (worker.runsInline()) {
+			deliver(ids);
+			return;
+		}
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 				@Override

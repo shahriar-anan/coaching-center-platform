@@ -91,7 +91,7 @@ class PackageEnrolmentRulesIT extends InstallmentTestSupport {
 	}
 
 	@Test
-	void aDirectPackageEnrolmentSendsTheExamTimeEmailOnlyForExamsThatHaveNotEnded() throws Exception {
+	void aDirectPackageEnrolmentSendsNoExamTimeEmail() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Email Package Master"));
 		String system = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID student = seed("STUDENT", "Emailed Package Student");
@@ -104,12 +104,13 @@ class PackageEnrolmentRulesIT extends InstallmentTestSupport {
 			.content(grantBody(student, module, "Package with dates")))
 			.andExpect(status().isCreated());
 
-		assertThat(examMails(student, upcoming)).isEqualTo(1);
+		// Exam-time mail is off (14 Nov 2026): the student gets the in-app notice only.
+		assertThat(examMails(student, upcoming)).isZero();
 		assertThat(examMails(student, ended)).isZero();
 	}
 
 	@Test
-	void aDirectExamEnrolmentSendsTheExamTimeEmail() throws Exception {
+	void aDirectExamEnrolmentSendsNoExamTimeEmail() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Email Exam Master"));
 		String system = token(seed("SYSTEM_ADMIN", "Staff"));
 		UUID student = seed("STUDENT", "Emailed Exam Student");
@@ -121,7 +122,7 @@ class PackageEnrolmentRulesIT extends InstallmentTestSupport {
 			.content(examGrantBody(student, exam, "Exam enrolment")))
 			.andExpect(status().isCreated());
 
-		assertThat(examMails(student, exam)).isEqualTo(1);
+		assertThat(examMails(student, exam)).isZero();
 	}
 
 	@Test
