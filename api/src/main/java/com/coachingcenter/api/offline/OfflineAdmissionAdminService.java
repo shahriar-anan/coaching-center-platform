@@ -322,6 +322,10 @@ public class OfflineAdmissionAdminService {
 			else if (!OfflineBatchService.ACTIVE.equals(batch.getStatus())) {
 				problems.add(new FieldErrorDetail("batchId", "This batch is archived and cannot be chosen."));
 			}
+			else if (!batch.isPublished() && !batch.getId().equals(a.getBatchId())) {
+				// A draft is not offered for new admissions (V103); an admission already set up with it keeps it.
+				problems.add(new FieldErrorDetail("batchId", "This batch is a draft. Publish it first, then choose it."));
+			}
 			else if (a.getStudentId() != null && !batch.getId().equals(a.getBatchId())
 					&& admissions.findFirstByStudentIdAndBatchIdAndStatusNot(a.getStudentId(), batch.getId(), CLOSED).isPresent()) {
 				problems.add(new FieldErrorDetail("batchId", "The student already has an admission for this batch. Choose another batch."));

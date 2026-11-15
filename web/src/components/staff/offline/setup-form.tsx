@@ -40,7 +40,8 @@ export function SetupForm({
   const { formatDate, formatMoney, pickTitle } = useFormat();
   const role = useRole();
   const batches = useBatches("ACTIVE");
-  const batchOptions = batches.data ?? [];
+  // A draft batch is not offered (V103); the batch already chosen stays, so the select can show it.
+  const batchOptions = (batches.data ?? []).filter((batch) => batch.published !== false || batch.id === draft.batchId);
   const currentBatchMissing = draft.batchId !== "" && !batchOptions.some((batch) => batch.id === draft.batchId);
   const chosen = batchOptions.find((batch) => batch.id === draft.batchId) ?? null;
   const disabled = !editable;

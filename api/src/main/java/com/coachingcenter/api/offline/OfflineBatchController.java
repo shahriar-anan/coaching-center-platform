@@ -59,6 +59,32 @@ public class OfflineBatchController {
 		return batches.update(id, body);
 	}
 
+	/**
+	 * The batch photo for the staff screens (the batch page and the batch form). The upload and removal routes share this path; before
+	 * this route a GET here answered 405, so the photo never showed to staff. Private: no shared cache keeps it.
+	 */
+	@GetMapping("/api/v1/offline-batches/{id}/photo")
+	public ResponseEntity<InputStreamResource> photo(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_BATCH_ROUTINE);
+		OfflineBatchService.PhotoFile file = batches.openStaffPhoto(id);
+		return FileResponses.inline(file.body(), file.contentType() == null ? MediaType.IMAGE_JPEG_VALUE : file.contentType(),
+				file.byteSize(), "batch-photo", "private, no-cache");
+	}
+
+	/** Publishes a draft batch (Master Admin, V103). */
+	@PostMapping("/api/v1/offline-batches/{id}/publish")
+	public BatchView publish(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_BATCH_MANAGE);
+		return batches.publish(id, actorId());
+	}
+
+	/** Moves a published batch back to draft so its form can be edited (Master Admin, V103). */
+	@PostMapping("/api/v1/offline-batches/{id}/unpublish")
+	public BatchView unpublish(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_BATCH_MANAGE);
+		return batches.unpublish(id);
+	}
+
 	@PostMapping("/api/v1/offline-batches/{id}/archive")
 	public BatchView archive(@PathVariable UUID id) {
 		require(permissions, Permissions.OFFLINE_BATCH_MANAGE);

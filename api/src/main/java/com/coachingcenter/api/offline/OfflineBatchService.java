@@ -149,11 +149,12 @@ public class OfflineBatchService {
 		return view(batch);
 	}
 
-	/** Changes the fields the body names. An archived batch cannot be changed. */
+	/** Changes the fields the body names. An archived batch cannot be changed, and a published one only once it is a draft again. */
 	@Transactional
 	public BatchView update(UUID id, JsonNode body) {
 		OfflineBatch batch = find(id);
 		requireActive(batch);
+		requireDraft(batch);
 		List<FieldErrorDetail> problems = new ArrayList<>();
 		if (has(body, "rollStart")) {
 			String rollStart = rollNumber(body, "rollStart", problems);
@@ -395,14 +396,18 @@ public class OfflineBatchService {
 				batch.getRoutineStoredName() != null, batch.getRoutineOriginalName(), batch.getRoutineUploadedAt(),
 				uploaderName(batch.getRoutineUploadedBy()), batch.getRoutineStudentsNotified(), batch.getDefaultClassMinutes(),
 				batch.getDescriptionEn(), batch.getDescriptionBn(), batch.getPhotoStoredName() != null, batch.isAdmissionsOpen(),
-				batch.getDisplayOrder() == null ? 0 : batch.getDisplayOrder(), batch.getRollStart(), batch.getWhatsappUrl());
+				batch.getDisplayOrder() == null ? 0 : batch.getDisplayOrder(), batch.getRollStart(), batch.getWhatsappUrl(),
+				batch.isPublished(), batch.getPublishedAt(), batch.getPhotoUploadedAt());
 	}
 
-	/** The public cards: the batches that are not archived, the lowest display order first (plan section 3.2). */
+	/** The public cards: the published batches that are not archived, the lowest display order first (plan section 3.2, V103). */
 	@Transactional(readOnly = true)
 	public List<PublicBatchView> publicList() {
 		List<PublicBatchView> views = new ArrayList<>();
 		for (OfflineBatch batch : batches.findByStatusOrderByDisplayOrderAscNameEnAsc(ACTIVE)) {
+			if (!batch.isPublished()) {
+				continue;
+			}
 			views.add(publicView(batch));
 		}
 		return views;
@@ -423,7 +428,19 @@ public class OfflineBatchService {
 	/** The batch photo for the public cards, or 404 when there is none or the batch is archived. */
 	@Transactional(readOnly = true)
 	public PhotoFile openPhoto(UUID id) {
-		OfflineBatch batch = publicFind(id);
+		return photoOf(publicFind(id));
+	}
+
+	/**
+	 * The batch photo for the staff screens: any batch, draft or archived included, since staff edit and review it there. 404 when it has
+	 * no photo.
+	 */
+	@Transactional(readOnly = true)
+	public PhotoFile openStaffPhoto(UUID id) {
+		return photoOf(find(id));
+	}
+
+	private PhotoFile photoOf(OfflineBatch batch) {
 		if (batch.getPhotoStoredName() == null) {
 			throw notFound();
 		}
@@ -442,7 +459,8 @@ public class OfflineBatchService {
 
 	private OfflineBatch publicFind(UUID id) {
 		OfflineBatch batch = find(id);
-		if (!ACTIVE.equals(batch.getStatus())) {
+		// A draft is not shown to students (V103), like an archived batch.
+		if (!ACTIVE.equals(batch.getStatus()) || !batch.isPublished()) {
 			throw notFound();
 		}
 		return batch;
@@ -465,6 +483,7 @@ public class OfflineBatchService {
 	public BatchView uploadPhoto(UUID id, MultipartFile file, UUID actorId) {
 		OfflineBatch batch = find(id);
 		requireActive(batch);
+		requireDraft(batch);
 		if (file == null || file.isEmpty()) {
 			throw validation(List.of(new FieldErrorDetail("file", "Choose a photo.")));
 		}
@@ -498,6 +517,7 @@ public class OfflineBatchService {
 	public BatchView removePhoto(UUID id) {
 		OfflineBatch batch = find(id);
 		requireActive(batch);
+		requireDraft(batch);
 		String previous = batch.getPhotoStoredName();
 		if (previous == null) {
 			return view(batch);
@@ -515,6 +535,51 @@ public class OfflineBatchService {
 	}
 
 	/** An archived batch cannot take a photo, the same as it cannot be edited. */
+	/** The batch form is locked while the batch is published (V103): the Master Admin moves it to draft to edit it. */
+	private static void requireDraft(OfflineBatch batch) {
+		if (batch.isPublished()) {
+			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT,
+					"This batch is published. Move it to draft to edit it.");
+		}
+	}
+
+	/**
+	 * Publishes a draft batch (Master Admin, V103): students see it on the Admission page and admissions can choose it. Publishing a
+	 * published batch changes nothing.
+	 */
+	@Transactional
+	public BatchView publish(UUID id, UUID actorId) {
+		OfflineBatch batch = find(id);
+		requireActive(batch);
+		if (!batch.isPublished()) {
+			Instant now = clock.instant();
+			batch.setPublishedAt(now);
+			batch.setPublishedBy(actorId);
+			batch.setUpdatedAt(now);
+			batches.saveAndFlush(batch);
+			audit.record(AuditRecorder.OFFLINE_BATCH_PUBLISHED, AuditRecorder.OFFLINE_BATCH_ENTITY, id);
+		}
+		return view(batch);
+	}
+
+	/**
+	 * Moves a published batch back to draft (Master Admin, V103) so its form can be edited. It leaves the Admission page and new admissions
+	 * cannot choose it; students already in it keep their batch, routine, fees and results.
+	 */
+	@Transactional
+	public BatchView unpublish(UUID id) {
+		OfflineBatch batch = find(id);
+		requireActive(batch);
+		if (batch.isPublished()) {
+			batch.setPublishedAt(null);
+			batch.setPublishedBy(null);
+			batch.setUpdatedAt(clock.instant());
+			batches.saveAndFlush(batch);
+			audit.record(AuditRecorder.OFFLINE_BATCH_UNPUBLISHED, AuditRecorder.OFFLINE_BATCH_ENTITY, id);
+		}
+		return view(batch);
+	}
+
 	private static void requireActive(OfflineBatch batch) {
 		if (!ACTIVE.equals(batch.getStatus())) {
 			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT, "This batch is archived, so it cannot be changed.");
@@ -678,7 +743,8 @@ public class OfflineBatchService {
 			BigDecimal courseFee, int defaultInstallments, String status, long studentCount, boolean routineUploaded, String routineFileName,
 			Instant routineUploadedAt, @JsonInclude(JsonInclude.Include.ALWAYS) String routineUploadedBy,
 			@JsonInclude(JsonInclude.Include.ALWAYS) Integer studentsNotified, int defaultClassMinutes, String descriptionEn,
-			String descriptionBn, boolean photoUploaded, boolean admissionsOpen, int displayOrder, String rollStart, String whatsappUrl) {
+			String descriptionBn, boolean photoUploaded, boolean admissionsOpen, int displayOrder, String rollStart, String whatsappUrl,
+			boolean published, Instant publishedAt, Instant photoUploadedAt) {
 	}
 
 	/**

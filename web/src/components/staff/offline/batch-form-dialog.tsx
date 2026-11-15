@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
 import {
+  batchPhotoPath,
   useCreateBatch,
   useRemoveBatchPhoto,
   useSaveBatch,
@@ -223,7 +224,7 @@ export function BatchFormDialog({
         <p className="-mt-3 text-meta text-muted">{t("staffOffline.batches.catalogue.descriptionHelp")}</p>
 
         <BatchPhotoField
-          storedPath={batch ? `/api/v1/offline-batches/${batch.id}/photo` : null}
+          storedPath={batch ? batchPhotoPath(batch) : null}
           hasPhoto={batch?.photoUploaded ?? false}
           change={photo}
           onChange={setPhoto}

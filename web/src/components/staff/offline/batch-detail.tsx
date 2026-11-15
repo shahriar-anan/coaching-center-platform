@@ -17,7 +17,16 @@ import { useRole } from "@/lib/auth/guards";
 import { useAuthorizedObjectUrl } from "@/lib/hooks/use-authorized-object-url";
 import { useFormat } from "@/lib/format/use-format";
 import { useListParams } from "@/lib/url/list-params";
-import { useArchiveBatch, useBatch, useBatchStudents, type BatchStudent, type BatchView } from "@/lib/api/exam/offline-admin";
+import {
+  batchPhotoPath,
+  useArchiveBatch,
+  useBatch,
+  useBatchStudents,
+  usePublishBatch,
+  useUnpublishBatch,
+  type BatchStudent,
+  type BatchView,
+} from "@/lib/api/exam/offline-admin";
 import { AdmissionMoneyPills } from "./money-pills";
 import { BatchFormDialog } from "./batch-form-dialog";
 import { BatchClasses } from "./batch-classes";
@@ -44,6 +53,8 @@ export function BatchDetail({ id }: { id: string }) {
   const batch = useBatch(id);
   const students = useBatchStudents(id);
   const archive = useArchiveBatch(id);
+  const publish = usePublishBatch(id);
+  const unpublish = useUnpublishBatch(id);
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
@@ -117,13 +128,58 @@ export function BatchDetail({ id }: { id: string }) {
           { label: name },
         ]}
         actions={
-          tab === "overview" && role.canManageOfflineBatches && !archived ? (
-            <Button variant="secondary" onClick={() => setEditing(true)}>
-              {t("staffOffline.batches.edit")}
-            </Button>
+          role.canManageOfflineBatches && !archived ? (
+            // A draft is edited and then published; a published batch is moved back to draft to edit it (V103).
+            b.published ? (
+              <Button
+                variant="secondary"
+                loading={unpublish.isPending}
+                onClick={() =>
+                  unpublish.mutate(undefined, {
+                    onSuccess: () => toast({ title: t("staffOffline.batches.publish.movedToDraft"), tone: "ok" }),
+                    onError: (error) => toast({ title: offlineErrorText(error, t), tone: "danger" }),
+                  })
+                }
+              >
+                {t("staffOffline.batches.publish.toDraft")}
+              </Button>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {tab === "overview" ? (
+                  <Button variant="secondary" onClick={() => setEditing(true)}>
+                    {t("staffOffline.batches.edit")}
+                  </Button>
+                ) : null}
+                <Button
+                  loading={publish.isPending}
+                  onClick={() =>
+                    publish.mutate(undefined, {
+                      onSuccess: () => toast({ title: t("staffOffline.batches.publish.published"), tone: "ok" }),
+                      onError: (error) => toast({ title: offlineErrorText(error, t), tone: "danger" }),
+                    })
+                  }
+                >
+                  {t("staffOffline.batches.publish.publish")}
+                </Button>
+              </div>
+            )
           ) : undefined
         }
       />
+
+      {!archived ? (
+        <p
+          role="status"
+          className={
+            b.published
+              ? "rounded-control border border-ok/40 bg-ok/5 px-3 py-2 text-body text-text"
+              : "rounded-control border border-warn/50 bg-warn/5 px-3 py-2 text-body text-text"
+          }
+        >
+          <span className="font-semibold">{t(b.published ? "staffOffline.batches.publish.publishedLabel" : "staffOffline.batches.publish.draftLabel")}</span>{" "}
+          {t(b.published ? "staffOffline.batches.publish.publishedNote" : "staffOffline.batches.publish.draftNote")}
+        </p>
+      ) : null}
 
       <Tabs tabs={tabs} value={tab} onChange={(value) => setParams({ tab: value })} ariaLabel={t("batchPay.tabs.label")} wrap />
 
@@ -261,7 +317,7 @@ function FieldCell({ icon: Icon, label, value }: { icon: LucideIcon; label: stri
  */
 function BatchPresentation({ batch }: { batch: BatchView }) {
   const { t } = useLocale();
-  const photo = useAuthorizedObjectUrl(batch.photoUploaded ? `/api/v1/offline-batches/${batch.id}/photo` : null);
+  const photo = useAuthorizedObjectUrl(batch.photoUploaded ? batchPhotoPath(batch) : null);
   const paragraphs = (text: string | null) => (text ? text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean) : []);
   const en = paragraphs(batch.descriptionEn);
   const bn = paragraphs(batch.descriptionBn);

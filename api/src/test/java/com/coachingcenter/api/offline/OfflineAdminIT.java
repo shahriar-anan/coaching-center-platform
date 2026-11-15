@@ -701,6 +701,16 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		String masterToken = token(seed("MASTER_ADMIN", "Master"));
 		UUID batch = batch(masterToken, "2027-05-31", "2500");
 
+		// V103: a published batch's form is locked; the Master Admin moves it to draft to edit it. Staff can do neither.
+		JsonNode locked = respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"courseFee\":\"2700\"}"), 409);
+		assertThat(locked.get("message").asText()).contains("Move it to draft");
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", staff, null), 403);
+		JsonNode draft = respond(post("/api/v1/offline-batches/" + batch + "/unpublish", masterToken, null), 200);
+		assertThat(draft.get("published").asBoolean()).isFalse();
+		// A draft is hidden from students: the public card and list leave it out.
+		mockMvc.perform(get("/api/v1/public/offline-batches/" + batch)).andExpect(status().isNotFound());
+
 		JsonNode changed = respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"courseFee\":\"2700\",\"defaultInstallments\":3}"),
 				200);
 		assertThat(changed.get("courseFee").decimalValue()).isEqualByComparingTo("2700");
@@ -708,6 +718,9 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		assertThat(jdbc().queryForObject("select default_monthly_fee from offline_batches where id = ?", BigDecimal.class, batch))
 			.isEqualByComparingTo("900");
 		respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"defaultInstallments\":25}"), 400);
+		JsonNode published = respond(post("/api/v1/offline-batches/" + batch + "/publish", masterToken, null), 200);
+		assertThat(published.get("published").asBoolean()).isTrue();
+		mockMvc.perform(get("/api/v1/public/offline-batches/" + batch)).andExpect(status().isOk());
 		JsonNode archived = respond(post("/api/v1/offline-batches/" + batch + "/archive", masterToken, null), 200);
 		assertThat(archived.get("status").asText()).isEqualTo("ARCHIVED");
 		respond(patch("/api/v1/offline-batches/" + batch, masterToken, "{\"nameEn\":\"Changed\"}"), 409);
@@ -836,7 +849,11 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 					+ "\",\"courseFee\":" + fee + "}"))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		// A batch starts as a draft (V103); the helper publishes it, as the Master Admin does before students apply.
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches/" + id + "/publish").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		return id;
 	}
 
 	private UUID publishedExam() {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, FileText } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import {
   dhakaParts,
@@ -126,6 +126,67 @@ function ClassRow({ item, isNext }: { item: StudentClass; isNext: boolean }) {
   );
 }
 
+/** The next exam that has not ended, from the classes given, or null. */
+export function nextExamOf(classes: readonly StudentClass[], now: number): StudentClass | null {
+  return nextClassOf(
+    classes.filter((item) => item.kind === "EXAM"),
+    now,
+  );
+}
+
+/** Where the reader's choice to hide the routine is kept on this device. A missing or blocked store means "shown". */
+const HIDDEN_KEY = "myAdmission.routineHidden";
+
+function readHidden(): boolean {
+  try {
+    return window.localStorage.getItem(HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeHidden(hidden: boolean) {
+  try {
+    window.localStorage.setItem(HIDDEN_KEY, hidden ? "1" : "0");
+  } catch {
+    // A blocked store only means the choice is not remembered.
+  }
+}
+
+/**
+ * The routine folded away (15 Nov): only the next class and the next exam, from this month or the next, so a long routine does not make
+ * the reader scroll. The same rows as the agenda, with their date.
+ */
+function NextOnly({ admissionId, current, now }: { admissionId?: string; current: string; now: number }) {
+  const { t, locale } = useLocale();
+  const thisMonth = useMyAdmissionRoutine(current, { admissionId });
+  const nextMonth = useMyAdmissionRoutine(shiftMonth(current, 1), { admissionId, enabled: thisMonth.isSuccess });
+  if (thisMonth.isPending || (thisMonth.isSuccess && nextMonth.isPending)) {
+    return <Skeleton variant="card" />;
+  }
+  const classes = [...(thisMonth.data ?? []), ...(nextMonth.data ?? [])];
+  const nextClass = nextClassOf(classes, now);
+  const nextExam = nextExamOf(classes, now);
+  const shown = [nextClass, nextExam && nextExam !== nextClass ? nextExam : null].filter((item): item is StudentClass => item != null);
+  if (shown.length === 0) {
+    return <SectionEmpty>{t("myAdmission.routine.nothingNext")}</SectionEmpty>;
+  }
+  return (
+    <ol className="grid gap-2">
+      {shown.map((item) => (
+        <li key={`${item.date}-${item.startsAt}-${item.subject}`} className="grid gap-1">
+          <span className="text-meta font-semibold text-muted">
+            {formatDate(item.date, locale, { year: "auto" })} · {t(`myAdmission.routine.days.${item.day}`)}
+          </span>
+          <ul className="grid">
+            <ClassRow item={item} isNext={item === nextClass} />
+          </ul>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /**
  * The month as an agenda: one row per day with a date tile (the weekday and the day of the month), then that day's classes.
  * Today is filled in the accent colour and the days already gone are dimmed. The same markup serves the phone and the desktop.
@@ -187,6 +248,12 @@ export function RoutineSection({ admission, admissionId }: { admission: Admissio
   const [current] = useState(() => monthOf(serverNow()));
   const [month, setMonth] = useState(current);
   const [pdfOpen, setPdfOpen] = useState(false);
+  // Hidden: only the next class and the next exam. Remembered on this device; the first render is "shown", then the stored choice.
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the stored choice is only readable in the browser, after load
+    setHidden(readHidden());
+  }, []);
   const now = useServerNow(60_000);
   const hasRoutine = admission.hasRoutine === true;
   const routine = useMyAdmissionRoutine(month, { enabled: hasRoutine, admissionId });
@@ -224,12 +291,33 @@ export function RoutineSection({ admission, admissionId }: { admission: Admissio
       tint="routine"
       title={t("myAdmission.routine.title")}
       action={
-        <Button variant="secondary" size="sm" onClick={() => setPdfOpen((open) => !open)} aria-expanded={pdfOpen}>
-          <FileText aria-hidden="true" className="size-4" />
-          {pdfOpen ? t("myAdmission.routine.closePdf") : t("myAdmission.routine.openPdf")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-expanded={!hidden}
+            onClick={() => {
+              const next = !hidden;
+              setHidden(next);
+              writeHidden(next);
+              if (next) setPdfOpen(false);
+            }}
+          >
+            {hidden ? <Eye aria-hidden="true" className="size-4" /> : <EyeOff aria-hidden="true" className="size-4" />}
+            {hidden ? t("myAdmission.routine.show") : t("myAdmission.routine.hide")}
+          </Button>
+          {hidden ? null : (
+            <Button variant="secondary" size="sm" onClick={() => setPdfOpen((open) => !open)} aria-expanded={pdfOpen}>
+              <FileText aria-hidden="true" className="size-4" />
+              {pdfOpen ? t("myAdmission.routine.closePdf") : t("myAdmission.routine.openPdf")}
+            </Button>
+          )}
+        </div>
       }
     >
+      {hidden ? (
+        <NextOnly admissionId={admissionId} current={current} now={now} />
+      ) : (
       <div className="grid gap-4">
         <div className="flex items-center justify-between gap-2 rounded-full border border-border bg-bg p-0.5">
           <IconButton
@@ -263,6 +351,7 @@ export function RoutineSection({ admission, admissionId }: { admission: Admissio
 
         {body}
       </div>
+      )}
     </SectionCard>
   );
 }

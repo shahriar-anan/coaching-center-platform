@@ -434,7 +434,11 @@ class FinanceIT extends PostgresIntegrationTest {
 			.content("{\"nameEn\":\"Finance\",\"nameBn\":\"ফিন্যান্স\",\"endsOn\":\"2200-06-30\",\"courseFee\":3000}"))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		// A batch starts as a draft (V103); the helper publishes it, as the Master Admin does before students apply.
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches/" + id + "/publish").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		return id;
 	}
 
 	/** A live exam, published, so an order and a grant can point at it. */

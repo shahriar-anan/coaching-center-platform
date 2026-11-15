@@ -126,6 +126,12 @@ public class AuditRecorder {
 
 	public static final String OFFLINE_BATCH_ARCHIVED = "OFFLINE_BATCH_ARCHIVED";
 
+	/** The Master Admin published a draft batch (V103): students see it and admissions can use it. */
+	public static final String OFFLINE_BATCH_PUBLISHED = "OFFLINE_BATCH_PUBLISHED";
+
+	/** The Master Admin moved a published batch back to draft (V103), to edit it. */
+	public static final String OFFLINE_BATCH_UNPUBLISHED = "OFFLINE_BATCH_UNPUBLISHED";
+
 	public static final String OFFLINE_BATCH_ROUTINE_UPLOADED = "OFFLINE_BATCH_ROUTINE_UPLOADED";
 
 	/** An exam's result sheet: one staged sheet (its row is the exam class). */

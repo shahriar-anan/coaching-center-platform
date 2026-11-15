@@ -77,6 +77,9 @@ const myAdmission = {
     accessUntil: "Access until {date}",
   },
   routine: {
+    hide: "Hide routine",
+    show: "Show full routine",
+    nothingNext: "No class or exam is coming up in the routine.",
     title: "Routine",
     empty: "Your routine will appear here",
     noClasses: "No classes are scheduled for this month yet.",

@@ -360,7 +360,8 @@ public class OfflineApplicationService {
 
 	/** A batch that is archived, or whose admissions are closed, takes no new application (plan section 9). */
 	private static void requireOpenBatch(OfflineBatch batch) {
-		if (batch == null || !OfflineBatchService.ACTIVE.equals(batch.getStatus())) {
+		// A draft batch takes no application (V103): students do not see it.
+		if (batch == null || !OfflineBatchService.ACTIVE.equals(batch.getStatus()) || !batch.isPublished()) {
 			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT, "This batch is not open for applications.");
 		}
 		if (!batch.isAdmissionsOpen()) {

@@ -39,6 +39,13 @@ public class OfflineBatch {
 	@Column(name = "default_monthly_fee", nullable = false, precision = 12, scale = 2)
 	private BigDecimal defaultMonthlyFee;
 
+	/** When the Master Admin published the batch, or null while it is a draft (V103). */
+	@Column(name = "published_at")
+	private Instant publishedAt;
+
+	@Column(name = "published_by")
+	private UUID publishedBy;
+
 	/** The total a student pays for the batch (V100, course-fee-plan.md). */
 	@Column(name = "course_fee", nullable = false, precision = 12, scale = 2)
 	private BigDecimal courseFee;
@@ -190,6 +197,27 @@ public class OfflineBatch {
 
 	public void setDefaultMonthlyFee(BigDecimal defaultMonthlyFee) {
 		this.defaultMonthlyFee = defaultMonthlyFee;
+	}
+
+	public Instant getPublishedAt() {
+		return publishedAt;
+	}
+
+	public void setPublishedAt(Instant publishedAt) {
+		this.publishedAt = publishedAt;
+	}
+
+	public UUID getPublishedBy() {
+		return publishedBy;
+	}
+
+	public void setPublishedBy(UUID publishedBy) {
+		this.publishedBy = publishedBy;
+	}
+
+	/** True once the Master Admin has published the batch and not moved it back to draft (V103). */
+	public boolean isPublished() {
+		return publishedAt != null;
 	}
 
 	public BigDecimal getCourseFee() {

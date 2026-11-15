@@ -38,6 +38,11 @@ The offline pages are in the staff menu under **Offline admission**: **Admission
 - Optional: a cover photo, a description, and the **WhatsApp group link**. Students see a "Join the WhatsApp group" button
   once they are admitted.
 - **Admissions open** decides whether the batch is shown on the public Admission page, where new students can apply.
+- **A new batch is a draft.** Students don't see it and it can't be chosen for an admission. When it is ready, the Master Admin
+  presses **Publish** on the batch page.
+- **A published batch can't be edited.** To change its details, fee, photo or WhatsApp link, press **Move to draft**, edit it, then
+  **Publish** again. While it is a draft it leaves the Admission page; students already in the batch keep everything. Routines,
+  classes, instructor rates and results can be managed at any time.
 
 ---
 

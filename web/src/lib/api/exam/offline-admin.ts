@@ -315,6 +315,11 @@ export type BatchView = {
   rollStart?: string | null;
   /** The batch's WhatsApp group or channel link, or null (15 Nov). Staff only; students get it once onboarded. */
   whatsappUrl?: string | null;
+  /** When the photo was last uploaded; the staff photo address carries it, so a new photo shows at once. */
+  photoUploadedAt?: string | null;
+  /** True once the Master Admin published the batch (V103); a draft is hidden from students. */
+  published?: boolean;
+  publishedAt?: string | null;
   /** Off shows "Admissions closed" on the public cards and refuses new applications. */
   admissionsOpen: boolean;
   /** The order of the batches on the cards and in lists; lower first. */
@@ -765,6 +770,16 @@ export function useSaveBatch(id: string) {
   return useOfflineCall<BatchBody, BatchView>((body) => ({ path: `/api/v1/offline-batches/${id}`, method: "PATCH", body }));
 }
 
+/** Publishes a draft batch (Master Admin, V103): students see it and admissions can choose it. */
+export function usePublishBatch(id: string) {
+  return useOfflineCall<void, BatchView>(() => ({ path: `/api/v1/offline-batches/${id}/publish`, method: "POST" }));
+}
+
+/** Moves a published batch back to draft (Master Admin, V103), so its form can be edited. */
+export function useUnpublishBatch(id: string) {
+  return useOfflineCall<void, BatchView>(() => ({ path: `/api/v1/offline-batches/${id}/unpublish`, method: "POST" }));
+}
+
 export function useArchiveBatch(id: string) {
   return useOfflineCall<void, BatchView>(() => ({ path: `/api/v1/offline-batches/${id}/archive`, method: "POST" }));
 }
@@ -788,4 +803,10 @@ export async function openAuthorizedFile(path: string): Promise<void> {
     window.open(url, "_blank");
   }
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** The batch photo for the staff screens, with the upload time so a new photo is fetched at once (the old one is not reused). */
+export function batchPhotoPath(batch: Pick<BatchView, "id" | "photoUploadedAt">): string {
+  const version = batch.photoUploadedAt ? `?v=${encodeURIComponent(batch.photoUploadedAt)}` : "";
+  return `/api/v1/offline-batches/${batch.id}/photo${version}`;
 }

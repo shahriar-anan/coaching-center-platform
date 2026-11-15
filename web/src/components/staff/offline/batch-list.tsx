@@ -73,7 +73,14 @@ export function BatchList() {
       key: "status",
       header: t("staffOffline.batches.columns.status"),
       mobileLabel: t("staffOffline.batches.columns.status"),
-      cell: (batch) => <Pill tone={batch.status === "ARCHIVED" ? "muted" : "accent"}>{t(batch.status === "ARCHIVED" ? "staffOffline.batches.archived" : "staffOffline.batches.active")}</Pill>,
+      cell: (batch) =>
+        batch.status === "ARCHIVED" ? (
+          <Pill tone="muted">{t("staffOffline.batches.archived")}</Pill>
+        ) : batch.published ? (
+          <Pill tone="ok">{t("staffOffline.batches.publish.publishedLabel")}</Pill>
+        ) : (
+          <Pill tone="warn">{t("staffOffline.batches.publish.draftLabel")}</Pill>
+        ),
     },
   ];
 

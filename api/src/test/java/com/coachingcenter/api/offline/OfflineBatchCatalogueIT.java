@@ -135,12 +135,23 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 		UUID master = seed("MASTER_ADMIN", "Master");
 		String masterToken = token(master);
 		UUID batch = batch(masterToken, "Photo " + unique(), 0, true);
+		// The photo is part of the batch form, locked while the batch is published (V103).
+		respondTo(multipart(HttpMethod.PUT, "/api/v1/offline-batches/" + batch + "/photo")
+			.file(new MockMultipartFile("file", "cover.png", "image/png", png()))
+			.header("Authorization", "Bearer " + masterToken), 409);
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", masterToken, null), 200);
 
 		JsonNode photo = respondTo(multipart(HttpMethod.PUT, "/api/v1/offline-batches/" + batch + "/photo")
 			.file(new MockMultipartFile("file", "cover.png", "image/png", png()))
 			.header("Authorization", "Bearer " + masterToken), 200);
 		assertThat(photo.get("photoUploaded").asBoolean()).isTrue();
 		assertThat(photo.get("admissionsOpen").asBoolean()).isTrue();
+		assertThat(photo.hasNonNull("photoUploadedAt")).isTrue();
+		// Staff read the photo on its own route, draft or not: before this route a GET here answered 405 and the photo never showed.
+		MvcResult staffPhoto = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/offline-batches/" + batch + "/photo").header("Authorization", "Bearer " + masterToken))
+			.andExpect(status().isOk()).andExpect(header().string("Content-Type", "image/jpeg")).andReturn();
+		assertThat(staffPhoto.getResponse().getContentAsByteArray().length).isPositive();
+		respond(post("/api/v1/offline-batches/" + batch + "/publish", masterToken, null), 200);
 
 		JsonNode card = json.readTree(get("/api/v1/public/offline-batches/" + batch).andExpect(status().isOk()).andReturn()
 			.getResponse().getContentAsString());
@@ -151,6 +162,7 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 		assertThat(served.getResponse().getContentAsByteArray().length).isPositive();
 
 		// A second upload replaces the first; the old file is no longer the batch's.
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", masterToken, null), 200);
 		respondTo(multipart(HttpMethod.PUT, "/api/v1/offline-batches/" + batch + "/photo")
 			.file(new MockMultipartFile("file", "again.jpg", "image/jpeg", jpeg()))
 			.header("Authorization", "Bearer " + masterToken), 200);
@@ -207,6 +219,7 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 	void theOfficeEditsTheDescriptionsSwitchAndOrderAndACleanedDescriptionIsNull() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		UUID batch = batch(master, "Edit " + unique(), 0, true);
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", master, null), 200);
 		JsonNode edited = respond(patch("/api/v1/offline-batches/" + batch, master,
 				"{\"descriptionBn\":\"সন্ধ্যার ক্লাস\",\"admissionsOpen\":false,\"displayOrder\":5}"), 200);
 		assertThat(edited.get("descriptionBn").asText()).isEqualTo("সন্ধ্যার ক্লাস");
@@ -280,7 +293,11 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 					""".formatted(name, open, order)))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		// A batch starts as a draft (V103); the helper publishes it, as the Master Admin does before students apply.
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches/" + id + "/publish").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		return id;
 	}
 
 	private UUID seed(String role, String name) {

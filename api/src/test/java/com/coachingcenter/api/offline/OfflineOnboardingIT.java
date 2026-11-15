@@ -344,8 +344,10 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		UUID batch = batch(master, "WhatsApp " + unique());
 		String link = "https://chat.whatsapp.com/GroupInvite1234";
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", master, null), 200);
 		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"whatsappUrl\":\"https://example.com/group\"}"), 400);
 		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"whatsappUrl\":\"" + link + "\"}"), 200);
+		respond(post("/api/v1/offline-batches/" + batch + "/publish", master, null), 200);
 
 		// The public batch list never carries the link.
 		String publicList = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/public/offline-batches")).andExpect(status().isOk())
@@ -407,7 +409,9 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		UUID batch = batch(master, "Suggest " + unique());
 		UUID other = batch(master, "Other " + unique());
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", master, null), 200);
 		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"rollStart\":\"192001\"}"), 200);
+		respond(post("/api/v1/offline-batches/" + batch + "/publish", master, null), 200);
 
 		UUID first = submittedApplication(batch, uniqueEmail(), validMobile());
 		readyAdmission(first, batch, master);
@@ -423,6 +427,7 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		assertThat(suggestion(second, master)).isEqualTo("192003");
 
 		// The starting roll cannot move once the batch has a roll in use.
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", master, null), 200);
 		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"rollStart\":\"500001\"}"), 400);
 	}
 
@@ -618,7 +623,11 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 					""".formatted(name)))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		// A batch starts as a draft (V103); the helper publishes it, as the Master Admin does before students apply.
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches/" + id + "/publish").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		return id;
 	}
 
 	private UUID publishedExam() {

@@ -155,3 +155,24 @@ describe("the PDF button", () => {
     );
   });
 });
+
+describe("hiding the routine (15 Nov)", () => {
+  it("folds the routine to the next class and the next exam, remembers it, and shows it all again", async () => {
+    const user = userEvent.setup();
+    window.localStorage.removeItem("myAdmission.routineHidden");
+    renderRoutine();
+    expect(await classItem("Evidence Act")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Hide routine" }));
+    // Only the next class and the next exam are left: the other classes, the month switcher and the PDF button are gone.
+    expect(await screen.findByText("MCQ Exam")).toBeInTheDocument();
+    expect(screen.queryByText("Evidence Act")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next month" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open the PDF" })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("myAdmission.routineHidden")).toBe("1");
+
+    await user.click(screen.getByRole("button", { name: "Show full routine" }));
+    expect(await screen.findByRole("button", { name: "Next month" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("myAdmission.routineHidden")).toBe("0");
+  });
+});

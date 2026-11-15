@@ -308,7 +308,11 @@ class OfflineApplicationIT extends PostgresIntegrationTest {
 					""".formatted(name, open)))
 			.andExpect(status().isCreated())
 			.andReturn();
-		return UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		UUID id = UUID.fromString(json.readTree(result.getResponse().getContentAsString()).get("id").asText());
+		// A batch starts as a draft (V103); the helper publishes it, as the Master Admin does before students apply.
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/offline-batches/" + id + "/publish").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+		return id;
 	}
 
 	/** The public start body: the batch, the email, and a phone, with the rest of the form left for the form route. */
