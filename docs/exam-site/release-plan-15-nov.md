@@ -1,6 +1,38 @@
 # Release plan: demo/client-review to the live site (written 15 Nov 2026, revised the same day)
 
-Status: **plan only, nothing deployed.** Decisions of 15 Nov (Shahriar):
+## Update, 15 Nov afternoon: release brought forward to today
+
+Shahriar asked to deploy **today**, as soon as it is safe, because the client wants the features now. The phone and browser
+checks of section 5 were dropped by his choice; everything else below was done.
+
+**Done (15 Nov, 13:40 to 14:06 Dhaka):**
+- **Date rule** built and tested (commit `c59a881`).
+- **Suites on the release code:** full API suite 1,267/1,267; full web suite 2,151/2,151; typecheck clean.
+- **Rehearsal** on a dump of live taken at 13:44 Dhaka (users 200, students 192, 187 sittings with 18 answer scripts,
+  1,202 notices), restored locally, release jar with the dev profile, no mail or payment credentials, jobs off, offline on:
+  - **Migrations:** 19 applied (80 to 99) in 0.38 s, started in 20 s, 0 errors.
+  - **Data:** row counts identical in 10 tables.
+  - **Smoke:** 16/16 checks passed (student sign-in, earlier results and written script record, notices, packages, no
+    admission form for existing students, Finance on real money, offline routes up and empty).
+  - **Rollback:** the previous live jar `9bb0ec6` starts on the upgraded copy (0 errors); only the new features are missing.
+  - **Cleanup:** the dump was removed from the box after the copy was checked (SHA-256 match).
+- **Production web build:**
+  - The first build failed: the five new admission and offline-activities pages lacked the Suspense boundary a production
+    build needs; dev never showed it. Fixed in `c1e7d54`.
+  - Then built: package `web-c1e7d54-20261115-080231.tgz`, build `Y5y_KkpDafToUJat8uHxb`, release checks passed (API base
+    empty, hosts `https://symamlaw.com` and `https://admin.symamlaw.com`).
+  - Run locally: the menu's Admission link goes to `/admission`, and the offline pages answer.
+- **Jar** `api-c59a881.jar`, SHA-256 `e1e0bcb7…f793`, uploaded to `/tmp/api.jar` on the box and verified.
+- **Web package** staged on the box by a dry run, nothing swapped.
+
+**Held:** at 14:06 Dhaka a written LIVE exam was running (14:00 to 17:10) with an open sitting. The swap waits until it ends
+and no sitting is open (section 6.2, step 1).
+
+**Still needed from Shahriar before the swap:** `OFFLINE_ADMISSION_ENABLED=true` in `/etc/coaching-api.env`.
+
+---
+
+Status before the update: **plan only, nothing deployed.** Decisions of 15 Nov (Shahriar):
 - **Offline admission ships switched on.**
 - **Window:** about 01:00 Dhaka on the night of 16 to 17 Nov.
 - **Students are told by staff announcements.**
