@@ -20,6 +20,7 @@ export function ConfirmDialog({
   confirmLabel,
   tone,
   typeToConfirm,
+  confirmDisabled = false,
   children,
   onConfirm,
 }: {
@@ -30,6 +31,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   tone?: "danger";
   typeToConfirm?: string;
+  /** Holds the confirm button off for a value the dialog checks itself (such as a roll number). */
+  confirmDisabled?: boolean;
   /** More than `body` can say, such as a list of consequences. */
   children?: ReactNode;
   onConfirm: () => Promise<void>;
@@ -74,7 +77,7 @@ export function ConfirmDialog({
           <Button
             variant={tone === "danger" ? "danger" : "primary"}
             loading={busy}
-            disabled={!matches}
+            disabled={!matches || confirmDisabled}
             onClick={confirm}
           >
             {confirmLabel}

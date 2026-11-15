@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
-import AdmissionPage from "@/app/(site)/admission/page";
+import AdmissionPage from "@/app/(site)/admission/form/page";
 import { admissionView, completeForm } from "./admission-fixture";
 
 describe("confirm email while under review", () => {
@@ -13,7 +13,7 @@ describe("confirm email while under review", () => {
     renderWithProviders(<AdmissionPage />, {
       user: { ...fixtures.student, emailVerifiedAt: null },
       locale: "en",
-      route: "/admission",
+      route: "/admission/form",
     });
 
     expect(await screen.findByRole("heading", { name: "Confirm your email" })).toBeInTheDocument();
@@ -27,7 +27,7 @@ describe("confirm email while under review", () => {
     renderWithProviders(<AdmissionPage />, {
       user: { ...fixtures.student, emailVerifiedAt: "2026-11-10T04:00:00Z" },
       locale: "en",
-      route: "/admission",
+      route: "/admission/form",
     });
 
     expect(await screen.findByRole("heading", { name: "Your admission is under review" })).toBeInTheDocument();
@@ -44,7 +44,7 @@ describe("confirm email while under review", () => {
     renderWithProviders(<AdmissionPage />, {
       user: { ...fixtures.student, emailVerifiedAt: null },
       locale: "en",
-      route: "/admission",
+      route: "/admission/form",
     });
 
     await user.click(await screen.findByRole("button", { name: "Send me a code" }));

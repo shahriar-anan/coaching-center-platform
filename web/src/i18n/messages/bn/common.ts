@@ -110,7 +110,11 @@ const common = {
       payments: "{count}টি পেমেন্ট সিদ্ধান্তের অপেক্ষায়",
       admissions: "{count}টি ভর্তির ফরম যাচাইয়ের অপেক্ষায়",
       offlineFees: "{count}টি পেমেন্ট আপনার অনুমোদনের অপেক্ষায়",
+      instructorPayments: "{count}টি অফলাইন ক্লাসের পেমেন্ট বাকি",
     },
+    finance: "আর্থিক হিসাব",
+    instructorPayments: "শিক্ষকদের পেমেন্ট",
+    offlineInstructors: "অফলাইন শিক্ষক",
     admissions: "ভর্তি",
     offlineFees: "পেমেন্ট অনুমোদন",
     offlineBatches: "ব্যাচ",
@@ -143,6 +147,10 @@ const common = {
     staffLoginHere: "অ্যাডমিন প্যানেলে লগইন করুন",
     studentLoginHere: "শিক্ষার্থীদের সাইটে লগইন করুন",
   },
+  whatsapp: {
+    join: "হোয়াটসঅ্যাপ গ্রুপে যোগ দিন",
+    newTab: "(নতুন ট্যাবে হোয়াটসঅ্যাপ খুলবে)",
+  },
   actions: {
     retry: "আবার চেষ্টা করুন",
     cancel: "বাতিল",
@@ -172,8 +180,10 @@ const common = {
     placeholder: "খুঁজুন",
     label: "খুঁজুন",
     clear: "লেখা মুছুন",
+    noResults: "খোঁজার সঙ্গে কিছু মেলেনি।",
   },
   file: {
+    uploadedAt: "আপলোড {time}",
     choose: "পিডিএফ ফাইল বেছে নিন",
     drop: "ফাইলটি এখানে টেনে আনুন, অথবা",
     replace: "ফাইল বদলান",

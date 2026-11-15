@@ -30,7 +30,7 @@ describe("a pending student is held on the admission form (plan 4.5)", () => {
   it("is sent to /admission from another student page, with no tab bar and no page content", async () => {
     renderShell("/my-modules", admissionView("AWAITING_FORM"));
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission"));
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission/form"));
     expect(screen.queryByText("page content")).not.toBeInTheDocument();
     await waitFor(() => expect(tabBar()).toBeNull());
   });
@@ -38,11 +38,11 @@ describe("a pending student is held on the admission form (plan 4.5)", () => {
   it("is sent from the home page too, for every pending state", async () => {
     renderShell("/", admissionView("SUBMITTED"));
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission"));
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission/form"));
   });
 
   it("stays on the admission form, which shows the content and no tab bar", async () => {
-    renderShell("/admission", admissionView("CHANGES_REQUESTED", { changesReason: "Fix the photo." }));
+    renderShell("/admission/form", admissionView("CHANGES_REQUESTED", { changesReason: "Fix the photo." }));
 
     expect(await screen.findByText("page content")).toBeInTheDocument();
     await waitFor(() => expect(tabBar()).toBeNull());

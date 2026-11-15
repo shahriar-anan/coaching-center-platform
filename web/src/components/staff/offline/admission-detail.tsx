@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill, type PillTone } from "@/components/ui/pill";
@@ -8,7 +9,9 @@ import { cn } from "@/components/ui/cn";
 import { useLocale } from "@/i18n/locale-context";
 import { useRole } from "@/lib/auth/guards";
 import { useFormat } from "@/lib/format/use-format";
-import { useAdmission, type AdmissionDetail } from "@/lib/api/exam/offline-admin";
+import { useToast } from "@/components/ui/toast";
+import { offlineErrorText } from "./offline-error";
+import { useAdmission, useResendCode, type AdmissionDetail } from "@/lib/api/exam/offline-admin";
 import type { AdmissionState } from "@/lib/api/exam/offline-admission";
 import { useListParams } from "@/lib/url/list-params";
 import { AdmissionPhoto } from "./admission-photo";
@@ -70,8 +73,9 @@ export function AdmissionDetailView({ id }: { id: string }) {
       />
 
       <Header admission={a} />
+      {canOnboard && (a.state === "ONBOARDED" || a.joinPending) ? <CodeStatus admission={a} /> : null}
       <Progress state={a.state} />
-      <WaitingLine state={a.state} role={role.role} />
+      <WaitingLine state={a.state} role={role.role} admission={a} />
 
       {after ? (
         <AfterOnboarding
@@ -105,6 +109,44 @@ export function AdmissionDetailView({ id }: { id: string }) {
   );
 }
 
+/**
+ * After onboarding: when the join or activation code was sent, and a button for a new one (plan P8). The new code replaces the old one,
+ * which stops working at once. Only the Master Admin sees it, as only the Master Admin onboards.
+ */
+function CodeStatus({ admission }: { admission: AdmissionDetail }) {
+  const { t } = useLocale();
+  const { formatDate } = useFormat();
+  const { toast } = useToast();
+  const resend = useResendCode(admission.id);
+  if (!admission.joinCodeSentAt) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-control bg-card px-3 py-2">
+      <p className="text-body text-text">
+        {admission.joinPending
+          ? t("staffOffline.onboard.waiting", { date: formatDate(admission.joinCodeSentAt) })
+          : t("staffOffline.onboard.codeSent", { date: formatDate(admission.joinCodeSentAt) })}
+      </p>
+      {admission.canResendCode ? (
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={resend.isPending}
+        onClick={() =>
+          resend.mutate(undefined, {
+            onSuccess: () => toast({ title: t("staffOffline.onboard.resent"), tone: "ok" }),
+            onError: (error) => toast({ title: offlineErrorText(error, t), tone: "danger" }),
+          })
+        }
+      >
+        {t("staffOffline.onboard.resend")}
+      </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function Header({ admission }: { admission: AdmissionDetail }) {
   const { t } = useLocale();
   const { pickTitle } = useFormat();
@@ -118,6 +160,7 @@ function Header({ admission }: { admission: AdmissionDetail }) {
           <span className="font-latin text-body text-text">{admission.form.mobile ?? "—"}</span>
           <Pill tone={STATE_TONE[admission.state]}>{t(stateLabelKey(admission.state))}</Pill>
           {batch ? <Pill tone="muted">{batch}</Pill> : null}
+          {admission.rollNo ? <Pill tone="muted">{t("staffOffline.detail.roll", { roll: admission.rollNo })}</Pill> : null}
         </div>
         <AdmissionMoneyPills admissionId={admission.id} enabled={isAfterOnboarding(admission.state)} />
       </div>
@@ -150,11 +193,26 @@ function Progress({ state }: { state: AdmissionState }) {
 }
 
 /** Who the admission waits for, in words. Shown only where someone has to act. */
-function WaitingLine({ state, role }: { state: AdmissionState; role: Parameters<typeof waitingFor>[1] }) {
+function WaitingLine({
+  state,
+  role,
+  admission,
+}: {
+  state: AdmissionState;
+  role: Parameters<typeof waitingFor>[1];
+  admission: AdmissionDetail;
+}) {
   const { t } = useLocale();
   const wait = waitingFor(state, role);
   if (wait === "none") {
     return null;
+  }
+  // "You can onboard" is true only when nothing stops it: a code already out, or a clash shown under Next step, changes the line.
+  if (wait === "onboard" && admission.joinPending) {
+    return <p className="rounded-control bg-bg px-3 py-2 text-body text-text">{t("staffOffline.onboard.waitingStudent")}</p>;
+  }
+  if (wait === "onboard" && (admission.phoneOwnerName || admission.matchedHasBatch)) {
+    return <p className="rounded-control bg-bg px-3 py-2 text-body text-text">{t("staffOffline.waiting.blocked")}</p>;
   }
   const key =
     wait === "student"

@@ -45,6 +45,14 @@ export type RoleInfo = {
   canRecordOfflineFee: boolean;
   /** Approve, reject and void offline fee payments. The Master Admin only. */
   canApproveOfflineFee: boolean;
+  /** Record a payment or a not-taken mark on an offline class (staff: pending until approved). Both admin roles. */
+  canSettleOfflineClass: boolean;
+  /** Approve, reject offline instructor payments and not-taken marks. The Master Admin only. */
+  canApproveOfflineClass: boolean;
+  /** Upload, check and discard an exam's result sheet (OFFLINE_RESULT_UPLOAD). Both admin roles. */
+  canUploadOfflineResult: boolean;
+  /** Publish a staged result sheet (OFFLINE_RESULT_PUBLISH). The Master Admin only. */
+  canPublishOfflineResult: boolean;
 };
 
 type Capability = Exclude<keyof RoleInfo, "role" | `is${string}`>;
@@ -71,14 +79,22 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "canUploadRoutine",
     "canRecordOfflineFee",
     "canApproveOfflineFee",
+    "canSettleOfflineClass",
+    "canApproveOfflineClass",
+    "canUploadOfflineResult",
+    "canPublishOfflineResult",
   ],
   SYSTEM_ADMIN: [
+    // 15 Nov: the System Admin sets prices and discounts too; a change to a published item waits for the Master Admin to publish.
+    "canEditPrice",
     "canSeePayments",
     "canAuthor",
     "canSeeStudents",
     "canSeeAdmissions",
     "canUploadRoutine",
     "canRecordOfflineFee",
+    "canSettleOfflineClass",
+    "canUploadOfflineResult",
   ],
   INSTRUCTOR: ["canEvaluate"],
   STUDENT: [],
@@ -113,6 +129,10 @@ export function roleInfo(role: Role | null | undefined): RoleInfo {
     canUploadRoutine: has("canUploadRoutine"),
     canRecordOfflineFee: has("canRecordOfflineFee"),
     canApproveOfflineFee: has("canApproveOfflineFee"),
+    canSettleOfflineClass: has("canSettleOfflineClass"),
+    canApproveOfflineClass: has("canApproveOfflineClass"),
+    canUploadOfflineResult: has("canUploadOfflineResult"),
+    canPublishOfflineResult: has("canPublishOfflineResult"),
   };
 }
 

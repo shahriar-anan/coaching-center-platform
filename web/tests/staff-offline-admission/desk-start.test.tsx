@@ -5,7 +5,7 @@ import StaffStudentsPage from "@/app/(staff)/staff/students/page";
 import { AdmissionQueue } from "@/components/staff/offline/admission-queue";
 import { DeskActivationDialog } from "@/components/staff/offline/desk-activation-dialog";
 import { DeskStartDialog } from "@/components/staff/offline/desk-start-dialog";
-import { fixtures, mockApi, renderWithProviders } from "../helpers";
+import { ErrorBody, fixtures, mockApi, renderWithProviders } from "../helpers";
 import { counts, page, queueRow } from "./fixtures";
 
 const inTenMinutes = () => new Date(Date.now() + 600_000).toISOString();
@@ -123,5 +123,30 @@ describe("the Waiting for the student tab", () => {
     expect((await screen.findAllByText("Not activated")).length).toBeGreaterThan(0);
     await user.click((await screen.findAllByRole("button", { name: "Show code" }))[0]);
     expect(await screen.findByText("ABCD-1234", { selector: "p" })).toBeInTheDocument();
+  });
+});
+
+describe("a phone that already has an open offline admission (plan P13)", () => {
+  it("refuses it, names the batch, and offers no way to start an admission", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "POST /api/v1/offline-admissions/desk": new ErrorBody(409, {
+        code: "OPEN_ADMISSION",
+        message: "This phone already has an open admission.",
+        details: { batchNameEn: "Batch 3 (Evening)", batchNameBn: "ব্যাচ ৩ (সন্ধ্যা)" },
+      } as unknown as { code: string; message: string }),
+    });
+    renderWithProviders(<DeskStartDialog open onOpenChange={() => undefined} onCreated={() => undefined} />, {
+      user: fixtures.systemAdmin,
+      locale: "en",
+    });
+    await user.type(screen.getByRole("textbox", { name: /Phone/ }), "01711000009");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This phone number is already in Batch 3 (Evening). Desk admissions are for new students only.",
+    );
+    expect(screen.queryByRole("button", { name: "Create" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /Phone/ })).toBeNull();
   });
 });

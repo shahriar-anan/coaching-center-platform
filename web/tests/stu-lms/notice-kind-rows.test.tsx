@@ -45,6 +45,20 @@ const rows: Record<(typeof NOTICE_KINDS)[number], { notice: Record<string, unkno
   INSTALLMENT_OVERDUE: { notice: { exam: null, installment }, href: "/my-modules?tab=offline" },
   INSTALLMENT_PAYMENT_VOIDED: { notice: { exam: null, installment }, href: "/my-modules?tab=offline" },
   INSTALLMENT_SCHEDULE_CHANGED: { notice: { exam: null, installment: { paid: 2100, due: 4200 } }, href: "/my-modules?tab=offline" },
+  ADMISSION_APPROVED: { notice: { exam: null }, href: "/offline-activities" },
+  ADMISSION_CHANGES_REQUESTED: { notice: { exam: null }, href: "/offline-activities" },
+  ADMISSION_UPDATED: { notice: { exam: null }, href: "/offline-activities" },
+  ADMISSION_CLOSED: { notice: { exam: null }, href: "/offline-activities" },
+  ADMISSION_JOIN_CODE: { notice: { exam: null }, href: "/admission/join" },
+  ADMISSION_BATCH_ADDED: { notice: { exam: null }, href: "/offline-activities" },
+  BATCH_ROUTINE_UPDATED: { notice: { exam: null }, href: "/offline-activities" },
+  OFFLINE_FEE_RECEIVED: { notice: { exam: null }, href: "/offline-activities" },
+  OFFLINE_FEE_VOIDED: { notice: { exam: null }, href: "/offline-activities" },
+  OFFLINE_FEE_DUE_SOON: { notice: { exam: null }, href: "/offline-activities" },
+  OFFLINE_FEE_DUE_TODAY: { notice: { exam: null }, href: "/offline-activities" },
+  OFFLINE_FEE_OVERDUE: { notice: { exam: null }, href: "/offline-activities" },
+  OFFLINE_RESULT_PUBLISHED: { notice: { exam: null }, href: "/offline-activities#results" },
+  OFFLINE_RESULT_UPDATED: { notice: { exam: null }, href: "/offline-activities#results" },
 };
 
 function renderOne(kind: string, extra: Record<string, unknown>) {

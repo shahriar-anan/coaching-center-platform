@@ -7,6 +7,7 @@ import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { CoverUploader } from "@/components/staff/catalog/cover-uploader";
 import { RoutinePdfUploader } from "@/components/staff/catalog/routine-pdf-uploader";
+import { WhatsAppLinkCard } from "@/components/staff/catalog/whatsapp-link-card";
 import {
   primaryExamAction,
   useCategoryTree,
@@ -523,6 +524,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
       ) : null}
 
       {module && role.canManageCover ? <CoverUploader module={module} /> : null}
+      {module && role.canManageCover ? <WhatsAppLinkCard moduleId={module.id} /> : null}
 
       {module && (role.canManageCover || module.routinePdf) ? (
         <RoutinePdfUploader module={module} canManage={role.canManageCover} />
@@ -537,6 +539,7 @@ function DetailsBody({ module }: { module?: StaffModule }) {
             {status ? <StatusPill status={status.status} /> : null}
           </div>
           <ExamChecklist items={checklist} />
+          {!masterAdmin ? <p role="status" className="text-meta text-muted">{t("staffCatalog.moduleForm.publishMasterOnly")}</p> : null}
           {status?.status === "PUBLISHED" && !anythingStaged && !archived ? (
             <p className="text-meta text-muted">{t("staffCatalog.moduleForm.nothingWaiting")}</p>
           ) : null}

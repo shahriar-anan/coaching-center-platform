@@ -123,7 +123,7 @@ describe("module details", () => {
     expect(patch?.body).toMatchObject({ descriptionEn: "", descriptionBn: "" });
   });
 
-  it("shows the price input to Master Admin only", async () => {
+  it("shows the price input to both admins, and tells the System Admin that the Master Admin publishes (15 Nov)", async () => {
     mockApi({ "GET /api/v1/live-exam-categories": [category] });
     const { unmount } = renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.masterAdmin });
     expect(await screen.findByLabelText("মূল্য (৳)")).toBeInTheDocument();
@@ -131,7 +131,9 @@ describe("module details", () => {
 
     renderWithProviders(<ModuleDetails module={moduleFixture} />, { user: fixtures.systemAdmin });
     await screen.findByRole("heading", { name: "প্রকাশের আগে" });
-    expect(screen.queryByLabelText("মূল্য (৳)")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("মূল্য (৳)")).toBeInTheDocument();
+    expect(screen.getByText("শুধু মাস্টার অ্যাডমিন প্যাকেজ বা এর পরিবর্তন প্রকাশ করতে পারেন।")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "প্রকাশ করুন" })).not.toBeInTheDocument();
   });
 });
 

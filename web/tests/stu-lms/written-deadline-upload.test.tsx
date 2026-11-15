@@ -7,58 +7,57 @@ import type { StudentExam } from "@/lib/api/exam/sitting";
 import { renderWithProviders } from "../helpers";
 
 const MINUTE = 60_000;
-const uploadMock = vi.fn();
+const draftMock = vi.fn();
+const submitMock = vi.fn();
 
 vi.mock("@/lib/api/exam/sitting", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/exam/sitting")>();
-  return { ...actual, useUploadAnswer: () => ({ mutateAsync: uploadMock, isPending: false }) };
+  return {
+    ...actual,
+    useSaveAnswerDraft: () => ({ mutateAsync: draftMock, isPending: false }),
+    useSubmitExam: () => ({ mutateAsync: submitMock, isPending: false }),
+  };
 });
 
 const exam = { id: "ex-w", questionPdf: null } as unknown as StudentExam;
 
-describe("the deadline passes during a written upload (ST-6)", () => {
+describe("the deadline passes during a written sitting (ST-6)", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    uploadMock.mockReset();
+    draftMock.mockReset();
+    submitMock.mockReset();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("the upload after the deadline is refused, and the paper shows the deadline state", async () => {
+  it("a submit after the deadline is refused, and the page reports the draft so the server's submission counts", async () => {
     const onClosed = vi.fn();
     const deadlineAt = new Date(Date.now() + MINUTE).toISOString();
-
-    // Attach the assertion before anything runs, so the refusal is caught by it.
-    const refusal = new ApiError({
-      code: "DEADLINE_PASSED",
-      message: "deadline passed",
-      requestId: "r1",
-      timestamp: new Date().toISOString(),
-    });
-    const refused = Promise.reject(refusal);
-    const refusedAssertion = expect(refused).rejects.toMatchObject({ code: "DEADLINE_PASSED" });
-    uploadMock.mockReturnValue(refused);
+    draftMock.mockResolvedValue({ fileName: "late.pdf", byteSize: 8, uploadedAt: new Date().toISOString() });
+    submitMock.mockRejectedValue(
+      new ApiError({ code: "DEADLINE_PASSED", message: "deadline passed", requestId: "r1", timestamp: new Date().toISOString() }),
+    );
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderWithProviders(
-      <WrittenSitting exam={exam} deadlineAt={deadlineAt} studentLine="নাঈম"onClosed={onClosed} onSubmitted={() => undefined} />,
+      <WrittenSitting exam={exam} deadlineAt={deadlineAt} studentLine="নাঈম" onClosed={onClosed} onSubmitted={() => undefined} />,
       { locale: "bn" },
     );
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     await user.upload(input, new File(["%PDF-1.4"], "late.pdf", { type: "application/pdf" }));
+    await screen.findByText(/আপলোড হয়েছে/);
 
-    // Time passes the deadline while the student is still holding the file.
+    // Time passes the deadline before the student presses Submit.
     vi.advanceTimersByTime(2 * MINUTE);
     await user.click(screen.getByRole("button", { name: "খাতা জমা দিন" }));
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "হ্যাঁ, জমা দিন" }));
 
-    await refusedAssertion;
-    expect(uploadMock).toHaveBeenCalledWith(expect.objectContaining({ name: "late.pdf" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("সময় শেষ, তাই আর খাতা জমা দেওয়া যাবে না।");
     expect(document.querySelector('input[type="file"]')).toBeNull();
-    expect(onClosed).toHaveBeenCalled();
+    // The draft was on the server at the deadline, so the page says a script exists (the server submits it).
+    expect(onClosed).toHaveBeenCalledWith(true);
   });
 });

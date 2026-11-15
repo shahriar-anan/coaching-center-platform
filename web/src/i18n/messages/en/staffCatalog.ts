@@ -2,6 +2,17 @@ import type { MessageTree } from "../types";
 
 /** Staff catalog copy (WS5), written for an English reader. Keys match bn/staffCatalog.ts. */
 const staffCatalog = {
+  whatsapp: {
+    heading: "WhatsApp group",
+    label: "WhatsApp group or channel link",
+    hint: "Students who hold this package get the link once it is published. Paste a group invite link (https://chat.whatsapp.com/...) or a channel link (https://whatsapp.com/channel/...).",
+    save: "Save link",
+    remove: "Remove link",
+    saved: "WhatsApp link saved.",
+    removed: "WhatsApp link removed.",
+    invalid: "Paste a WhatsApp group invite link (https://chat.whatsapp.com/...) or a channel link (https://whatsapp.com/channel/...).",
+    failed: "The link could not be saved. Try again.",
+  },
   routinePdf: {
     heading: "Routine PDF",
     hint: "A PDF of the routine, up to 20 MB. Students and visitors see it on the package's Routine tab. The change shows at once.",
@@ -161,6 +172,7 @@ const staffCatalog = {
     roster: "Direct enrolment",
   },
   moduleForm: {
+    publishMasterOnly: "Only the Master Admin can publish a package or its changes.",
     savedStaged: "Saved. The change waits until the Master Admin publishes it.",
     stagedHint: "On a published package, edits wait until the Master Admin publishes them.",
     popular: "Popular package",
@@ -725,7 +737,7 @@ const staffCatalog = {
       schedule: "When it opens, how long it runs, and how it is marked.",
       mcq: "The questions, their options and the correct answers.",
       written: "The question paper and its full marks.",
-      price: "Only the Master Admin sets the price, the discount and the access.",
+      price: "The price, the discount and the access. On a published exam a change waits until the Master Admin publishes it.",
       publish: "Check every step before the exam goes live.",
     },
     state: { done: "Done", todo: "To do", error: "Needs fixing" },

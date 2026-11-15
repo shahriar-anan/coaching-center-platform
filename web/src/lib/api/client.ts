@@ -306,10 +306,11 @@ export async function apiUpload<T>(
 }
 
 export const api = {
-  activate(phone: string, code: string, password: string) {
+  /** Activates with the code, given with the email or the phone the code was sent to (plan Q5). */
+  activate(identity: { email: string } | { phone: string }, code: string, password: string) {
     return apiRequest<void>("/api/v1/auth/activate", {
       method: "POST",
-      body: { phone, code, password },
+      body: { ...identity, code, password },
       skipAuthRetry: true,
     });
   },

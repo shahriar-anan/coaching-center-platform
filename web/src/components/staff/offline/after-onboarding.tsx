@@ -13,6 +13,7 @@ import { CloseDialog, TermsDialog } from "./admission-dialogs";
 import { FeesTab } from "./fees-tab";
 import { FormTab } from "./form-tab";
 import { ItemsPanel } from "./items-panel";
+import { RollChangeDialog } from "./roll-change-dialog";
 import { historyLabelKey } from "./history";
 import { moneyPills, nextOwedDue, toNumber } from "./offline-model";
 import { stateLabelKey } from "./labels";
@@ -76,6 +77,7 @@ function OverviewPanel({ admission, canOnboard }: { admission: AdmissionDetail; 
   const fees = useAdmissionFees(admission.id);
   const [terms, setTerms] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [rolling, setRolling] = useState(false);
   const schedule: FeeSchedule | undefined = fees.data;
   const next = schedule ? nextOwedDue(schedule.dues) : null;
   const batch = pickTitle({ titleEn: admission.setup.batchNameEn, titleBn: admission.setup.batchNameBn });
@@ -91,6 +93,19 @@ function OverviewPanel({ admission, canOnboard }: { admission: AdmissionDetail; 
       <dl className="grid gap-3 rounded-card border border-border-control bg-card p-4 sm:grid-cols-2">
         <Item label={t("staffOffline.overview.batch")} value={batch || "—"} />
         <Item label={t("staffOffline.overview.state")} value={<Pill tone={closed ? "muted" : "ok"}>{t(stateLabelKey(admission.state))}</Pill>} />
+        <Item
+          label={t("staffOffline.overview.roll")}
+          value={
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-latin">{admission.rollNo ?? "—"}</span>
+              {canOnboard ? (
+                <Button size="sm" variant="ghost" onClick={() => setRolling(true)}>
+                  {t("staffOffline.overview.changeRoll")}
+                </Button>
+              ) : null}
+            </span>
+          }
+        />
         <Item label={t("staffOffline.overview.admittedOn")} value={admission.setup.admittedOn ? formatDate(admission.setup.admittedOn) : "—"} />
         <Item label={t("staffOffline.overview.courseEnds")} value={admission.setup.courseEndsOn ? formatDate(admission.setup.courseEndsOn) : "—"} />
         <Item label={t("staffOffline.overview.fee")} value={formatMoney(toNumber(admission.setup.monthlyFee)) ?? "—"} />
@@ -118,6 +133,7 @@ function OverviewPanel({ admission, canOnboard }: { admission: AdmissionDetail; 
           <CloseDialog admission={admission} open={closing} onOpenChange={setClosing} />
         </>
       ) : null}
+      {rolling ? <RollChangeDialog admission={admission} open onOpenChange={(open) => !open && setRolling(false)} /> : null}
     </div>
   );
 }

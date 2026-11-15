@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -12,13 +13,19 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TextInput } from "@/components/ui/text-input";
 import { CODE_DEAD, FormError, FormNotice, codeOf, focusFirst } from "@/app/(auth)/_components/auth-ui";
+import { destinationFor, useSession } from "@/lib/auth/session-context";
 import { readCodeFromHash, scrubHash } from "@/app/(auth)/_components/code-hash";
 import { isPasswordLength, isPhone, normalizePhone } from "@/app/(auth)/_components/validate";
 
-/** For a student an admin created. Success does not sign them in; they go to the login page. */
+/** A plain email check; the server checks it again. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** For a student an admin created. Success signs them in with the password they just set and opens their home page. */
 export default function ActivatePage() {
   const { t } = useLocale();
-  const [values, setValues] = useState({ phone: "", code: "", password: "", confirmPassword: "" });
+  const router = useRouter();
+  const { login } = useSession();
+  const [values, setValues] = useState({ email: "", phone: "", code: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof values, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -34,8 +41,24 @@ export default function ActivatePage() {
   }, []);
 
   const mutation = useMutation({
-    mutationFn: (body: typeof values) => api.activate(normalizePhone(body.phone), body.code.trim(), body.password),
-    onSuccess: () => setDone(true),
+    // The email the code was sent to, or the phone. An email wins when both are typed (plan Q5).
+    mutationFn: (body: typeof values) =>
+      api.activate(
+        body.email.trim() ? { email: body.email.trim() } : { phone: normalizePhone(body.phone) },
+        body.code.trim(),
+        body.password,
+      ),
+    onSuccess: async (_data, body) => {
+      // The account is active now: sign in with the same email or phone and the new password, then open the home page.
+      const identifier = body.email.trim() || normalizePhone(body.phone);
+      try {
+        const me = await login(identifier, body.password);
+        router.replace(destinationFor(me));
+      } catch {
+        // The account is active even if this sign-in fails; the success screen keeps the login link.
+        setDone(true);
+      }
+    },
     onError: (err) => {
       const cd = codeOf(err);
       if (cd && CODE_DEAD.has(cd)) {
@@ -58,8 +81,15 @@ export default function ActivatePage() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next: typeof errors = {};
-    if (!values.phone.trim()) next.phone = t("auth.register.fieldRequired");
-    else if (!isPhone(values.phone)) next.phone = t("auth.register.invalidPhone");
+    // The email or the phone is enough; with neither, both boxes say so.
+    if (!values.email.trim() && !values.phone.trim()) {
+      next.email = t("auth.activate.emailOrPhone");
+      next.phone = t("auth.activate.emailOrPhone");
+    } else if (values.email.trim() && !EMAIL_PATTERN.test(values.email.trim())) {
+      next.email = t("auth.activate.invalidEmail");
+    } else if (!values.email.trim() && !isPhone(values.phone)) {
+      next.phone = t("auth.register.invalidPhone");
+    }
     if (!values.code.trim()) next.code = t("auth.register.fieldRequired");
     if (!values.password) next.password = t("auth.register.fieldRequired");
     else if (!isPasswordLength(values.password)) next.password = t("auth.register.passwordLength");
@@ -68,7 +98,7 @@ export default function ActivatePage() {
     else if (values.confirmPassword !== values.password) next.confirmPassword = t("auth.activate.passwordMismatch");
     setErrors(next);
     setFormError(null);
-    const first = (["phone", "code", "password", "confirmPassword"] as const).find((key) => next[key]);
+    const first = (["email", "phone", "code", "password", "confirmPassword"] as const).find((key) => next[key]);
     if (first) {
       focusFirst([`activate-${first}`]);
       return;
@@ -97,7 +127,19 @@ export default function ActivatePage() {
       <Card padding="lg" className="grid gap-5">
         <p className="text-body text-muted">{t("auth.activate.intro")}</p>
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
-          <Field label={t("auth.activate.phone")} error={errors.phone} required>
+          <Field label={t("auth.activate.email")} hint={t("auth.activate.eitherHint")} error={errors.email}>
+            <TextInput
+              id="activate-email"
+              name="email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={values.email}
+              onChange={(e) => set("email", e.target.value)}
+              invalid={Boolean(errors.email)}
+            />
+          </Field>
+          <Field label={t("auth.activate.phone")} error={errors.phone}>
             <TextInput
               id="activate-phone"
               name="phone"

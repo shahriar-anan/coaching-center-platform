@@ -17,6 +17,12 @@ import { offlineErrorText } from "./offline-error";
 
 const METHODS = ["CASH", "BKASH", "NAGAD", "ROCKET", "BANK"] as const;
 
+/** The API needs a reference for every payment. For cash it is filled in from the paid-on date, as the direct-enrolment dialog does. */
+const REFERENCE = /^[ -~]{1,100}$/;
+function cashReference(paidOn: string): string {
+  return `CASH-${paidOn.replaceAll("-", "")}`;
+}
+
 /**
  * Record a monthly payment (plan 6.3). It is prefilled with the next due amount and today's Dhaka date. A payment by staff waits for the
  * Master Admin's approval and counts only then; the Master Admin's own counts at once (plan D15).
@@ -40,8 +46,10 @@ export function RecordPaymentDialog({
   const record = useRecordPayment(admissionId);
   const [amount, setAmount] = useState(nextDue ? String(toNumber(nextDue.amount)) : "");
   const [method, setMethod] = useState<(typeof METHODS)[number]>("CASH");
-  const [reference, setReference] = useState("");
   const [paidOn, setPaidOn] = useState(dhakaToday());
+  const [reference, setReference] = useState(() => cashReference(dhakaToday()));
+  // The filled-in cash reference follows the date and the method until the admin types one.
+  const [referenceTyped, setReferenceTyped] = useState(false);
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -53,6 +61,9 @@ export function RecordPaymentDialog({
     }
     if (!paidOn) {
       problems.paidOn = t("staffOffline.pay.errors.paidOn");
+    }
+    if (!REFERENCE.test(reference.trim())) {
+      problems.reference = t("staffOffline.pay.errors.reference");
     }
     return problems;
   }
@@ -67,7 +78,7 @@ export function RecordPaymentDialog({
       const payment: FeePayment = await record.mutateAsync({
         amount: amount.trim(),
         method,
-        reference: reference.trim() || undefined,
+        reference: reference.trim(),
         paidOn,
         note: note.trim() || undefined,
       });
@@ -77,7 +88,18 @@ export function RecordPaymentDialog({
       });
       onOpenChange(false);
     } catch (error) {
-      const fields = error instanceof ApiError && error.fieldErrors ? Object.fromEntries(error.fieldErrors.map((p) => [p.field, p.message])) : {};
+      // Each field the API names is marked with this dialog's own words, so the highlighted field matches the summary line.
+      const fields: Record<string, string> = {};
+      for (const problem of error instanceof ApiError && error.fieldErrors ? error.fieldErrors : []) {
+        fields[problem.field] =
+          problem.field === "reference"
+            ? t("staffOffline.pay.errors.reference")
+            : problem.field === "amount"
+              ? t("staffOffline.pay.errors.amount")
+              : problem.field === "paidOn"
+                ? t("staffOffline.pay.errors.paidOn")
+                : problem.message;
+      }
       setErrors({ form: offlineErrorText(error, t), ...fields });
     }
   }
@@ -113,7 +135,14 @@ export function RecordPaymentDialog({
             <TextInput inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} invalid={Boolean(errors.amount)} />
           </Field>
           <Field label={t("staffOffline.pay.method")} required>
-            <Select value={method} onChange={(event) => setMethod(event.target.value as (typeof METHODS)[number])}>
+            <Select
+              value={method}
+              onChange={(event) => {
+                const next = event.target.value as (typeof METHODS)[number];
+                setMethod(next);
+                if (!referenceTyped) setReference(next === "CASH" ? cashReference(paidOn) : "");
+              }}
+            >
               {METHODS.map((value) => (
                 <option key={value} value={value}>
                   {t(methodLabelKey(value))}
@@ -122,10 +151,30 @@ export function RecordPaymentDialog({
             </Select>
           </Field>
           <Field label={t("staffOffline.pay.paidOn")} error={errors.paidOn} required>
-            <TextInput type="date" value={paidOn} onChange={(event) => setPaidOn(event.target.value)} invalid={Boolean(errors.paidOn)} />
+            <TextInput
+              type="date"
+              value={paidOn}
+              onChange={(event) => {
+                setPaidOn(event.target.value);
+                if (!referenceTyped && method === "CASH") setReference(cashReference(event.target.value));
+              }}
+              invalid={Boolean(errors.paidOn)}
+            />
           </Field>
-          <Field label={t("staffOffline.pay.reference")} hint={t("staffOffline.pay.referenceHint")}>
-            <TextInput value={reference} onChange={(event) => setReference(event.target.value)} />
+          <Field
+            label={t("staffOffline.pay.reference")}
+            hint={method === "CASH" && !referenceTyped ? t("staffOffline.pay.referenceHintCash") : t("staffOffline.pay.referenceHint")}
+            error={errors.reference}
+            required
+          >
+            <TextInput
+              value={reference}
+              onChange={(event) => {
+                setReference(event.target.value);
+                setReferenceTyped(true);
+              }}
+              invalid={Boolean(errors.reference)}
+            />
           </Field>
         </div>
         <Field label={t("staffOffline.pay.note")}>

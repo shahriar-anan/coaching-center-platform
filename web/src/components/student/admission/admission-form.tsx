@@ -9,8 +9,10 @@ import { TextInput } from "@/components/ui/text-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocale } from "@/i18n/locale-context";
 import {
+  ADMISSION_PHOTO_PATH,
   useSaveAdmissionForm,
   useSubmitAdmission,
+  useUploadAdmissionPhoto,
   type AdmissionForm,
   type AdmissionFormField,
   type AdmissionView,
@@ -31,20 +33,56 @@ const AUTOCOMPLETE: Partial<Record<AdmissionFormField, string>> = {
 };
 
 /**
+ * Where the form sends its changes. A signed-in student uses their own admission (`useAccountFormApi`). A visitor who applies
+ * without signing in uses the public application routes (`usePublicFormApi`), so the same form serves both (plan 8, A and B).
+ */
+export type AdmissionFormApi = {
+  /** Saves the whole form as a draft. */
+  save: (form: AdmissionForm) => Promise<unknown>;
+  /** Sends the picked photo. The form is given too, so an application not yet started can be started from its email. */
+  uploadPhoto: (file: File, form: AdmissionForm) => Promise<unknown>;
+  /** Sends the form to the office. */
+  submit: (form: AdmissionForm) => Promise<AdmissionView>;
+  /** The authorised path the saved photo is read from, or null when it cannot be read. */
+  photoPath: string | null;
+};
+
+/** The signed-in student's own admission: the `/api/v1/me/admission/...` routes, which answer the newest admission. */
+export function useAccountFormApi(): AdmissionFormApi {
+  const saveForm = useSaveAdmissionForm();
+  const uploadPhoto = useUploadAdmissionPhoto();
+  const submitForm = useSubmitAdmission();
+  return {
+    save: (form) => saveForm.mutateAsync(form),
+    uploadPhoto: (file) => uploadPhoto.mutateAsync(file),
+    submit: () => submitForm.mutateAsync(),
+    photoPath: ADMISSION_PHOTO_PATH,
+  };
+}
+
+/**
  * The registration form for a student whose admission is open (plan 6.2). It saves a draft as the student types, shows the
  * office's reason when the form was sent back, and asks before it submits. Field problems from the API are shown under
- * each field they belong to.
+ * each field they belong to. `api` defaults to the signed-in student's own admission; `onSubmitted` runs once the office has the form.
  */
-export function AdmissionFormView({ admission }: { admission: AdmissionView }) {
+export function AdmissionFormView({
+  admission,
+  api,
+  onSubmitted,
+}: {
+  admission: AdmissionView;
+  api?: AdmissionFormApi;
+  onSubmitted?: (view: AdmissionView) => void;
+}) {
   const { t } = useLocale();
-  const [form, setForm] = useState<AdmissionForm>(() => ({ ...admission.form }));
+  const account = useAccountFormApi();
+  const formApi = api ?? account;
+  const [form, setForm] = useState<AdmissionForm>(() => localNumbers(admission.form));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const saveForm = useSaveAdmissionForm();
-  const submitForm = useSubmitAdmission();
-  const draft = useDraftSaver((next) => saveForm.mutateAsync(next));
+  const draft = useDraftSaver((next) => formApi.save(next));
   const changesRequested = admission.state === "CHANGES_REQUESTED";
   const submitLabel = changesRequested ? t("admission.submit.again") : t("admission.submit.button");
 
@@ -167,8 +205,9 @@ export function AdmissionFormView({ admission }: { admission: AdmissionView }) {
     if (!saved) {
       throw new Error(t("admission.draft.failed"));
     }
+    let view: AdmissionView;
     try {
-      await submitForm.mutateAsync();
+      view = await formApi.submit(form);
     } catch (error) {
       if (error instanceof ApiError && error.code === "VALIDATION_FAILED" && error.fieldErrors?.length) {
         setErrors(fieldErrorsOf(error, t));
@@ -181,6 +220,7 @@ export function AdmissionFormView({ admission }: { admission: AdmissionView }) {
       }
       throw new Error(t("admission.errors.submitFailed"));
     }
+    onSubmitted?.(view);
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -217,7 +257,12 @@ export function AdmissionFormView({ admission }: { admission: AdmissionView }) {
           {PERSONAL_FIELDS.map((key) => (key === "gender" ? <div key={key}>{genderField()}</div> : textField(key)))}
         </section>
 
-        <PhotoField hasPhoto={admission.hasPhoto} error={errors.photo} />
+        <PhotoField
+          hasPhoto={admission.hasPhoto}
+          error={errors.photo}
+          photoPath={formApi.photoPath}
+          onSend={(file) => formApi.uploadPhoto(file, form)}
+        />
 
         <section aria-labelledby="admission-address-heading" className="grid gap-4 rounded-card border border-border bg-card p-4">
           <h2 id="admission-address-heading" className="text-label font-semibold text-text">
@@ -270,4 +315,10 @@ function DraftNote({ status, onRetry }: { status: "idle" | "saving" | "saved" | 
     );
   }
   return null;
+}
+
+/** The API keeps a sent form's numbers as +8801...; the form shows them as the student types them, 01... (the hint asks for that). */
+function localNumbers(form: AdmissionForm): AdmissionForm {
+  const local = (value: string | null | undefined) => (value && /^\+8801\d{9}$/.test(value) ? value.slice(3) : value);
+  return { ...form, mobile: local(form.mobile), emergencyMobile: local(form.emergencyMobile) };
 }

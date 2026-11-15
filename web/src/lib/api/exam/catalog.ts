@@ -388,6 +388,8 @@ export interface OwnModuleGrant {
   grantedAt?: string;
   endsAt?: string | null;
   expired?: boolean;
+  /** The package's WhatsApp group or channel link: sent only for a published package while the access is live (15 Nov). */
+  whatsappUrl?: string | null;
 }
 
 export interface OwnExamGrant {

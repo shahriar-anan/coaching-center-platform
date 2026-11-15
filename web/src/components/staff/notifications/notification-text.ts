@@ -32,6 +32,9 @@ const KNOWN_KINDS = new Set([
   "OFFLINE_PAYMENT_APPROVED",
   "OFFLINE_PAYMENT_REJECTED",
   "OFFLINE_FEE_OVERDUE",
+  "OFFLINE_CLASSES_TO_SETTLE",
+  "OFFLINE_CLASSES_OVERDUE",
+  "OFFLINE_ENTRIES_DECIDED",
 ]);
 
 /** A payload value as text: empty for a missing value. */
@@ -219,6 +222,20 @@ export function notificationText(
         student: personLabel(payload, t),
         amount: money(payload.amount, locale),
         date: dayLabel(payload.dueOn, locale),
+      });
+    case "OFFLINE_CLASSES_TO_SETTLE": {
+      // The Master Admin's notice also carries the entries waiting for approval; that is a second sentence after the first.
+      const settle = t("staffNotifications.kind.OFFLINE_CLASSES_TO_SETTLE", { count: count(payload.count) });
+      return payload.waiting === undefined || payload.waiting === null
+        ? settle
+        : `${settle} ${t("staffNotifications.kind.OFFLINE_ENTRIES_WAITING", { waiting: count(payload.waiting) })}`;
+    }
+    case "OFFLINE_CLASSES_OVERDUE":
+      return t("staffNotifications.kind.OFFLINE_CLASSES_OVERDUE", { count: count(payload.count) });
+    case "OFFLINE_ENTRIES_DECIDED":
+      return t("staffNotifications.kind.OFFLINE_ENTRIES_DECIDED", {
+        approved: count(payload.approved),
+        rejected: count(payload.rejected),
       });
     case "EXAM_ASSIGNED":
     case "EXAM_UNASSIGNED":

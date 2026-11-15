@@ -23,12 +23,14 @@ export function ModuleSetup({ module }: { module: StaffModule }) {
   const draftsWithoutContent = drafts.filter((exam) =>
     exam.examType === "MCQ" ? (exam.questions?.length ?? 0) === 0 : exam.questionPdf !== true,
   ).length;
-  const isMaster = role.canEditPrice;
+  // Each step follows its own right: the price is both admins' (15 Nov), the roster stays the Master Admin's.
+  const canPrice = role.canEditPrice;
+  const canRoster = role.canManageRoster;
   const masterOnly = t("staffCatalog.setup.masterOnly");
 
   const steps: StepperStep[] = [
     { key: "details", label: t("staffCatalog.setup.steps.details"), state: "done", href: `/staff/modules/${module.id}?tab=details` },
-    isMaster
+    canPrice
       ? {
           key: "price",
           label: t("staffCatalog.setup.steps.price"),
@@ -51,7 +53,7 @@ export function ModuleSetup({ module }: { module: StaffModule }) {
       note: module.status === "PUBLISHED" ? undefined : t("staffCatalog.setup.notPublished"),
       href: `/staff/modules/${module.id}?tab=details`,
     },
-    isMaster
+    canRoster
       ? {
           key: "roster",
           label: t("staffCatalog.setup.steps.roster"),

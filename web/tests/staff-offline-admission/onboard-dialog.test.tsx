@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { AdmissionDetailView } from "@/components/staff/offline/admission-detail";
-import type { AdmissionItem } from "@/lib/api/exam/offline-admin";
+import type { AdmissionDetail, AdmissionItem } from "@/lib/api/exam/offline-admin";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { ADMISSION_ID, detail, page } from "./fixtures";
 
@@ -48,10 +48,11 @@ const TWELVE_ITEMS: AdmissionItem[] = [
 ];
 
 /** Opens the Onboard dialog of a ready admission as the Master Admin, and returns the dialog and the user. */
-async function openOnboard(items: AdmissionItem[]) {
+async function openOnboard(items: AdmissionItem[], overrides: Partial<AdmissionDetail> = {}) {
   mockApi({
-    [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: detail({ state: "READY", readyProblems: [], items }),
+    [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: detail({ state: "READY", readyProblems: [], items, ...overrides }),
     [`GET /api/v1/offline-admissions/${ADMISSION_ID}/history`]: [],
+    [`GET /api/v1/offline-admissions/${ADMISSION_ID}/next-roll`]: { suggestion: "192007" },
     "GET /api/v1/offline-batches": [],
     "GET /api/v1/live-exams": page([]),
     "GET /api/v1/live-exam-modules": page(PACKAGES),
@@ -130,5 +131,40 @@ describe("the onboard dialog lists the exams and packages as rows (plan 6.3)", (
     // 3,000 a month for three dues from 9 December 2026 to 9 February 2027.
     expect(factValue(dialog, "Total")).toHaveTextContent("9,000");
     expect(factValue(dialog, "Email")).toHaveTextContent("The student is emailed.");
+  });
+});
+
+describe("an applicant who already has access to another batch (plan P14)", () => {
+  it("says so in one line, naming every batch the student is already in", async () => {
+    const { dialog } = await openOnboard([examItem(1)], {
+      alreadyAccessTo: [
+        { nameEn: "Batch 3 (Evening)", nameBn: "ব্যাচ ৩ (সন্ধ্যা)" },
+        { nameEn: "Batch 4", nameBn: "ব্যাচ ৪" },
+      ],
+    });
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Rahim Uddin already has access to Batch 3 (Evening), Batch 4.");
+  });
+
+  it("shows no such line when the student has no other batch", async () => {
+    const { dialog } = await openOnboard([examItem(1)]);
+    expect(within(dialog).queryByText(/already has access to/)).toBeNull();
+  });
+});
+
+describe("the roll number at onboarding (rules R4, A7)", () => {
+  it("fills in the suggested roll, and Onboard uses it", async () => {
+    const { dialog } = await openOnboard([examItem(1)]);
+    const roll = within(dialog).getByRole("textbox", { name: /Roll number/ });
+    expect(roll).toHaveValue("192007");
+    expect(within(dialog).getByRole("button", { name: "Onboard student" })).toBeEnabled();
+  });
+
+  it("holds Onboard off for a roll that is not 4 to 12 digits", async () => {
+    const { dialog, user } = await openOnboard([examItem(1)]);
+    const roll = within(dialog).getByRole("textbox", { name: /Roll number/ });
+    await user.clear(roll);
+    await user.type(roll, "12");
+    expect(within(dialog).getByText("Use 4 to 12 digits.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Onboard student" })).toBeDisabled();
   });
 });

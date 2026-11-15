@@ -6,7 +6,7 @@ import { mockApi, renderWithProviders } from "../helpers";
 
 /** The eight entries of the main menu, in order. Exam is two exam types, so no entry is "Exam" itself. */
 const ENTRIES = [
-  { label: "Admission form", href: "/register" },
+  { label: "Admission form", href: "/admission" },
   { label: "MCQ", href: "/mcq" },
   { label: "Written", href: "/written" },
   { label: "Packages", href: "/packages" },

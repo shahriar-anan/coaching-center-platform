@@ -19,6 +19,7 @@ export function detail(overrides: Partial<AdmissionDetail> = {}): AdmissionDetai
   return {
     id: ADMISSION_ID,
     studentId: "stu-0001",
+    source: "DESK",
     state: "SUBMITTED" as AdmissionState,
     version: 3,
     submitCount: 1,
@@ -26,6 +27,16 @@ export function detail(overrides: Partial<AdmissionDetail> = {}): AdmissionDetai
     createdAt: "2026-11-09T04:00:00Z",
     hasPhoto: false,
     photoUrl: null,
+    matchedName: null,
+    matchedEmail: null,
+    matchedHasBatch: false,
+    alreadyAccessTo: [],
+
+    joinCodeSentAt: null,
+    joinPending: false,
+    canResendCode: false,
+    matchedLinked: false,
+    phoneOwnerName: null,
     form: {
       fullName: "Rahim Uddin",
       fatherName: "Karim Uddin",
@@ -74,6 +85,7 @@ export function queueRow(overrides: Partial<AdmissionQueueRow> = {}): AdmissionQ
   return {
     id: ADMISSION_ID,
     studentId: "stu-0001",
+    source: "DESK",
     fullName: "Rahim Uddin",
     mobile: "01711000001",
     batchId: "batch-1",

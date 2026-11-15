@@ -4,10 +4,13 @@ import {
   CalendarClock,
   ClipboardCheck,
   ClipboardList,
+  Coins,
   CreditCard,
   FileCheck,
   GraduationCap,
   HandCoins,
+  IdCard,
+  Landmark,
   LayoutDashboard,
   Megaphone,
   MessageSquareQuote,
@@ -53,7 +56,10 @@ export type StaffNavKey =
   | "myPay"
   | "admissions"
   | "offlineFees"
-  | "offlineBatches";
+  | "offlineBatches"
+  | "instructorPayments"
+  | "offlineInstructors"
+  | "finance";
 
 /** The sidebar groups, in the order they show. Group names are in `common.staffNavGroup`. */
 export type StaffNavGroup = "overview" | "catalog" | "exams" | "people" | "money" | "offline" | "admin";
@@ -181,6 +187,13 @@ export const STAFF_NAV: StaffNavItem[] = [
   { key: "instructors", group: "people", href: "/staff/instructors", access: { MASTER_ADMIN: "full" }, icon: UserCheck },
   { key: "admins", group: "people", href: "/staff/admins", access: { MASTER_ADMIN: "full" }, icon: ShieldCheck },
   {
+    key: "finance",
+    group: "money",
+    href: "/staff/finance",
+    access: { MASTER_ADMIN: "full" },
+    icon: Landmark,
+  },
+  {
     key: "payments",
     group: "money",
     href: "/staff/payments",
@@ -228,6 +241,20 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/offline-batches",
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
     icon: GraduationCap,
+  },
+  {
+    key: "instructorPayments",
+    group: "offline",
+    href: "/staff/offline-instructor-payments",
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    icon: Coins,
+  },
+  {
+    key: "offlineInstructors",
+    group: "offline",
+    href: "/staff/offline-instructors",
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    icon: IdCard,
   },
   { key: "audit", group: "admin", href: "/staff/audit", access: { MASTER_ADMIN: "full" }, icon: ScrollText },
   {

@@ -1,5 +1,5 @@
 import type { AdmissionState, AdmissionView } from "@/lib/api/exam/offline-admission";
-import type { AdmissionItem, StudentDue, StudentPayment, StudentSchedule } from "@/lib/api/exam/my-admission";
+import type { AdmissionItem, StudentClass, StudentDue, StudentPayment, StudentSchedule } from "@/lib/api/exam/my-admission";
 
 /** The admission as the student API answers it. */
 export function admission(state: AdmissionState, overrides: Partial<AdmissionView> = {}): AdmissionView {
@@ -85,4 +85,48 @@ export function packageItem(
     packageExamCount,
     accessEndsAt,
   };
+}
+
+/** The instructor of the batch's classes. The student routine never shows this name. */
+export const ROUTINE_INSTRUCTOR = "Milon Hossain";
+
+/**
+ * The classes of one month as the student routine API answers them: a lecture, a lecture with no topic, and an exam. The API
+ * sends no instructor; `instructorName` is added on purpose, as a server that leaked it would, so the tests can show the page
+ * does not render it.
+ */
+export function routineClasses(month: string): (StudentClass & { instructorName: string })[] {
+  const base = { instructorName: ROUTINE_INSTRUCTOR };
+  return [
+    {
+      ...base,
+      date: `${month}-05`,
+      day: "Thursday",
+      startsAt: "18:00:00",
+      endsAt: "19:10:00",
+      subject: "Constitutional Law",
+      topic: "Fundamental rights",
+      kind: "LECTURE",
+    },
+    {
+      ...base,
+      date: `${month}-07`,
+      day: "Saturday",
+      startsAt: "09:00:00",
+      endsAt: "10:10:00",
+      subject: "Evidence Act",
+      topic: null,
+      kind: "LECTURE",
+    },
+    {
+      ...base,
+      date: `${month}-09`,
+      day: "Monday",
+      startsAt: "19:00:00",
+      endsAt: "20:00:00",
+      subject: "MCQ Exam",
+      topic: "Mock 4",
+      kind: "EXAM",
+    },
+  ];
 }

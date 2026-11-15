@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiBlob, apiRequest } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import type { AdmissionForm, AdmissionState } from "@/lib/api/exam/offline-admission";
 import type { PageResponse, Role } from "@/lib/api/exam/types";
 
@@ -17,9 +18,37 @@ export const offlineAdminKeys = {
 
 // ---- views -------------------------------------------------------------------------------------------------------------
 
+/** Where an application came from: the public form (Website), a signed-in student (Account), or the desk (Desk). */
+export type AdmissionSource = "PUBLIC" | "ACCOUNT" | "DESK";
+
+/** A batch the student already has access to (plan P14), with both names. */
+export type AccessibleBatch = { nameEn: string; nameBn: string };
+
+/**
+ * The refusal of a desk start for a phone that already has an open offline admission (plan P13). The API answers 409 OPEN_ADMISSION and
+ * names the batch in `details`. Returns null for any other error; `batch` is null when the answer names no batch.
+ */
+export function openAdmissionRefusal(error: unknown): { batch: AccessibleBatch | null } | null {
+  if (!(error instanceof ApiError) || error.code !== "OPEN_ADMISSION") {
+    return null;
+  }
+  const details = error.details as Partial<{ batchNameEn: unknown; batchNameBn: unknown }> | null | undefined;
+  if (!details || typeof details.batchNameEn !== "string") {
+    return { batch: null };
+  }
+  const nameBn = typeof details.batchNameBn === "string" ? details.batchNameBn : details.batchNameEn;
+  return { batch: { nameEn: details.batchNameEn, nameBn } };
+}
+
+/** The account an applicant without one matches at review (plan Q3), by email then phone. */
+/** The account an applicant with no account is matched to (by email, then phone). Joining it is the onboarding, not a new account. */
+export type MatchedAccount = { id: string; fullName: string; email: string | null };
+
 export type AdmissionQueueRow = {
   id: string;
-  studentId: string;
+  studentId: string | null;
+  /** Website, Account or Desk. */
+  source: AdmissionSource;
   fullName: string;
   mobile: string;
   batchId: string | null;
@@ -106,7 +135,17 @@ export type ItemOverlaps = {
 
 export type AdmissionDetail = {
   id: string;
-  studentId: string;
+  /** Null for an application from someone who has no account yet (until onboarding). */
+  studentId: string | null;
+  /** Website, Account or Desk. */
+  source: AdmissionSource;
+  /** The account the applicant matches by email (plan Q3, 13 Nov D3), as the API sends it: its name and email, or null. */
+  matchedName: string | null;
+  matchedEmail: string | null;
+  /** True when the matched account already has an open admission for this batch: onboarding it again is refused. */
+  matchedHasBatch: boolean;
+  /** The batches the student already has access to (plan P14). Empty when there are none. */
+  alreadyAccessTo: AccessibleBatch[];
   state: AdmissionState;
   version: number;
   submitCount: number;
@@ -129,6 +168,18 @@ export type AdmissionDetail = {
   closedReason: string | null;
   signedCopy: SignedCopy | null;
   overlaps: ItemOverlaps[];
+  /** The student's roll number, once onboarded (rule R4). */
+  rollNo?: string | null;
+  /** When the join or activation code went out, or null when none has. */
+  joinCodeSentAt: string | null;
+  /** True once the matched or linked account is set (the form's email is that account's). */
+  matchedLinked: boolean;
+  /** Set when the form's phone belongs to another account: staff are warned and onboarding is refused (13 Nov D3). */
+  phoneOwnerName: string | null;
+  /** True while a join code waits for the student to join. Onboarding is not offered again then. */
+  joinPending: boolean;
+  /** True when a new code can be sent (a join code, or a new activation code for an account not yet activated). */
+  canResendCode: boolean;
 };
 
 export type ItemAdded = { admission: AdmissionDetail; overlaps: ItemOverlap[]; alreadyHeld: boolean };
@@ -241,6 +292,18 @@ export type BatchView = {
   endsOn: string;
   defaultMonthlyFee: number | string;
   status: "ACTIVE" | "ARCHIVED";
+  descriptionEn: string | null;
+  descriptionBn: string | null;
+  /** True when a photo is stored; the photo is read with the staff token. */
+  photoUploaded: boolean;
+  /** The roll the batch's first student gets (rule R5). Null when none is set. */
+  rollStart?: string | null;
+  /** The batch's WhatsApp group or channel link, or null (15 Nov). Staff only; students get it once onboarded. */
+  whatsappUrl?: string | null;
+  /** Off shows "Admissions closed" on the public cards and refuses new applications. */
+  admissionsOpen: boolean;
+  /** The order of the batches on the cards and in lists; lower first. */
+  displayOrder: number;
   studentCount: number;
   routineUploaded: boolean;
   routineFileName: string | null;
@@ -249,6 +312,8 @@ export type BatchView = {
   routineUploadedBy: string | null;
   /** How many students the last routine upload told. Null when it has not been sent. */
   studentsNotified: number | null;
+  /** The default length of a class, in minutes, for a routine time that gives only a start. */
+  defaultClassMinutes: number;
 };
 
 export type BatchStudent = {
@@ -257,6 +322,8 @@ export type BatchStudent = {
   fullName: string;
   mobile: string;
   status: AdmissionState;
+  /** The student's roll number, once onboarded. Missing or null means none yet. */
+  roll?: string | null;
 };
 
 // ---- reads -------------------------------------------------------------------------------------------------------------
@@ -264,6 +331,7 @@ export type BatchStudent = {
 export type QueueFilters = {
   status?: string;
   batchId?: string;
+  source?: string;
   q?: string;
   flag?: QueueMoneyFilter;
   page?: number;
@@ -291,6 +359,7 @@ export function useAdmissionQueue(filters: QueueFilters) {
         `/api/v1/offline-admissions${queryString({
           status: filters.status,
           batchId: filters.batchId,
+          source: filters.source,
           q: filters.q,
           flag: filters.flag,
           page: filters.page ?? 0,
@@ -416,7 +485,9 @@ export function useOfflineStudentStates(enabled: boolean) {
       const byStudent = new Map<string, { admissionId: string; status: AdmissionState }>();
       for (const page of pages) {
         for (const row of page.content) {
-          byStudent.set(row.studentId, { admissionId: row.id, status: row.status });
+          if (row.studentId) {
+            byStudent.set(row.studentId, { admissionId: row.id, status: row.status });
+          }
         }
       }
       return byStudent;
@@ -548,7 +619,27 @@ export function useBackToReview(id: string) {
 }
 
 export function useOnboard(id: string) {
-  return useOfflineCall<void>(() => ({ path: `/api/v1/offline-admissions/${id}/onboard`, method: "POST" }));
+  return useOfflineCall<{ rollNo: string }>((body) => ({ path: `/api/v1/offline-admissions/${id}/onboard`, method: "POST", body }));
+}
+
+/** The suggested roll of the admission's batch (rule A7): the next free one, or null when the batch has none to start from. */
+export function useNextRoll(id: string, enabled = true) {
+  return useQuery({
+    queryKey: [...offlineAdminKeys.all, "next-roll", id],
+    queryFn: ({ signal }) => apiRequest<{ suggestion: string | null }>(`/api/v1/offline-admissions/${id}/next-roll`, { signal }),
+    enabled,
+    staleTime: 0,
+  });
+}
+
+/** A new code for an onboarded admission (plan P8): the join code or the activation code, whichever it was. The old one stops working. */
+export function useResendCode(id: string) {
+  return useOfflineCall<void>(() => ({ path: `/api/v1/offline-admissions/${id}/resend-code`, method: "POST" }));
+}
+
+/** Changes the roll of an onboarded admission (plan O3). Only the Master Admin; the API refuses it for any other admission state. */
+export function useChangeRoll(id: string) {
+  return useOfflineCall<{ rollNo: string }>((body) => ({ path: `/api/v1/offline-admissions/${id}/roll`, method: "PATCH", body }));
 }
 
 export function useSaveTerms(id: string) {
@@ -608,12 +699,44 @@ export function useRejectPayment() {
 }
 
 export type BatchBody = {
+  rollStart?: string | null;
+  /** The batch's WhatsApp group or channel link, or null (15 Nov). Staff only; students get it once onboarded. */
+  whatsappUrl?: string | null;
   nameEn?: string;
   nameBn?: string;
   startsOn?: string | null;
   endsOn?: string;
   defaultMonthlyFee?: string | number;
+  descriptionEn?: string | null;
+  descriptionBn?: string | null;
+  admissionsOpen?: boolean;
+  displayOrder?: number;
 };
+
+/** The batch's id is given at each call, because a batch being created has none until it is saved. */
+function useBatchSubcall<TVars, TResult>(build: (vars: TVars) => { id: string } & Call) {
+  const queryClient = useQueryClient();
+  return useMutation<TResult, Error, TVars>({
+    mutationFn: (vars) => {
+      const call = build(vars);
+      return apiRequest<TResult>(call.path, { method: call.method, body: call.body });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: offlineAdminKeys.all }),
+  });
+}
+
+/** Uploads the batch photo. The server re-encodes it, the same as the profile photo. */
+export function useUploadBatchPhoto() {
+  return useBatchSubcall<{ id: string; file: File }, BatchView>(({ id, file }) => {
+    const body = new FormData();
+    body.append("file", file);
+    return { id, path: `/api/v1/offline-batches/${id}/photo`, method: "PUT", body };
+  });
+}
+
+export function useRemoveBatchPhoto() {
+  return useBatchSubcall<{ id: string }, BatchView>(({ id }) => ({ id, path: `/api/v1/offline-batches/${id}/photo`, method: "DELETE" }));
+}
 
 export function useCreateBatch() {
   return useOfflineCall<BatchBody, BatchView>((body) => ({ path: "/api/v1/offline-batches", method: "POST", body }));

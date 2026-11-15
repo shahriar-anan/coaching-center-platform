@@ -5,6 +5,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { LocaleMenuItem, ThemeMenuItem } from "@/components/shell/pills";
+import { offlineAdmissionEnabled } from "@/lib/config";
 
 type NavLink = { label: string; href: string };
 
@@ -18,7 +19,8 @@ export type SiteNavItem = NavLink | { label: string; types: NavLink[] };
 export function useSiteNav(): SiteNavItem[] {
   const { t } = useLocale();
   return [
-    { label: t("landing.navAdmission"), href: "/register" },
+    // With the offline switch on, Admission opens the batch cards; with it off, the register page as before.
+    { label: t("landing.navAdmission"), href: offlineAdmissionEnabled ? "/admission" : "/register" },
     {
       label: t("landing.navExam"),
       types: [

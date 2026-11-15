@@ -7,7 +7,7 @@ import { useMyAdmission } from "@/lib/api/exam/offline-admission";
 import { useMyAdmissionFees } from "@/lib/api/exam/my-admission";
 import { Card } from "@/components/ui/card";
 
-export const MY_ADMISSION_HREF = "/my-admission";
+export const MY_ADMISSION_HREF = "/offline-activities";
 
 /**
  * The home card: "My admission: next payment ৳X on <date>". It shows only for an onboarded admission, and only for a signed-in

@@ -1085,3 +1085,21 @@ export function useInstructorDirectory(params: InstructorListParams) {
     placeholderData: keepPreviousData,
   });
 }
+
+/** A package's WhatsApp group or channel link (15 Nov), read by staff. */
+export function useModuleWhatsApp(id: string) {
+  return useQuery({
+    queryKey: ["staffCatalog", "whatsapp", id],
+    queryFn: ({ signal }) => apiRequest<{ url: string | null }>(`/api/v1/live-exam-modules/${id}/whatsapp`, { signal }),
+  });
+}
+
+/** Sets the package's WhatsApp link, or removes it with null. Saved at once, apart from the package's revision. */
+export function useSaveModuleWhatsApp(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (url: string | null) =>
+      apiRequest<{ url: string | null }>(`/api/v1/live-exam-modules/${id}/whatsapp`, { method: "PUT", body: { url } }),
+    onSuccess: (link) => queryClient.setQueryData(["staffCatalog", "whatsapp", id], link),
+  });
+}

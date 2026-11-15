@@ -1,11 +1,17 @@
 import { ApiError } from "@/lib/api/errors";
 
+/** The refusals the API gives with a clear reason: the admission is not in a state for it, or the student already has the access. */
+const REFUSED_CODES = ["ADMISSION_STATE", "GRANT_ALREADY_ACTIVE", "OPEN_ADMISSION"];
+
 /**
  * The sentence for a failed offline call. The API's own messages are English and are not shown: a conflict (someone else changed the
  * admission first), a refusal and anything else each get a Bangla or English sentence from the offline error messages.
  */
 export function offlineErrorText(error: unknown, t: (key: string) => string): string {
   if (error instanceof ApiError) {
+    if (error.status === 409 && REFUSED_CODES.includes(error.code ?? "")) {
+      return t("staffOffline.errors.refused");
+    }
     if (error.status === 409) {
       return t("staffOffline.errors.conflict");
     }

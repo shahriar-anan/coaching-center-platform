@@ -7,7 +7,8 @@ import { Field } from "@/components/ui/field";
 import { TextInput } from "@/components/ui/text-input";
 import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
-import { useDeskStart, type DeskStart } from "@/lib/api/exam/offline-admin";
+import { useDeskStart, openAdmissionRefusal, type AccessibleBatch, type DeskStart } from "@/lib/api/exam/offline-admin";
+import { pickTitle } from "@/lib/format";
 import { PHONE_PATTERN } from "@/components/staff/people/new-person-dialog";
 
 /**
@@ -23,14 +24,17 @@ export function DeskStartDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: (desk: DeskStart) => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Set when the phone already has an open offline admission (plan P13): the dialog then only closes, with the batch named.
+  const [refusal, setRefusal] = useState<{ batch: AccessibleBatch | null } | null>(null);
   const start = useDeskStart();
 
   function close() {
     setPhone("");
     setError(null);
+    setRefusal(null);
     onOpenChange(false);
   }
 
@@ -48,6 +52,11 @@ export function DeskStartDialog({
       onOpenChange(false);
       onCreated(desk);
     } catch (caught) {
+      const open = openAdmissionRefusal(caught);
+      if (open) {
+        setRefusal(open);
+        return;
+      }
       const code = caught instanceof ApiError ? caught.code : null;
       setError(code === "DUPLICATE_PHONE" ? t("staffPeople.form.phoneInUse") : t("common.error.body"));
     }
@@ -55,6 +64,20 @@ export function DeskStartDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(next) : close())} title={t("staffOffline.desk.startTitle")} description={t("staffOffline.desk.startBody")}>
+      {refusal ? (
+        <div className="grid gap-4">
+          <p role="alert" className="rounded-control border border-warn/40 bg-warn/10 px-3 py-2 text-body text-text">
+            {refusal.batch
+              ? t("staffOffline.desk.openElsewhere", { batch: pickTitle({ titleEn: refusal.batch.nameEn, titleBn: refusal.batch.nameBn }, locale) })
+              : t("staffOffline.desk.openElsewhereAny")}
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={close}>
+              {t("common.actions.cancel")}
+            </Button>
+          </div>
+        </div>
+      ) : (
       <form className="grid gap-4" onSubmit={onSubmit} noValidate>
         <Field label={t("staffPeople.form.phone")} hint={t("staffPeople.form.phoneFormat")} error={error ?? undefined} required>
           <TextInput
@@ -78,6 +101,7 @@ export function DeskStartDialog({
           </Button>
         </div>
       </form>
+      )}
     </Dialog>
   );
 }

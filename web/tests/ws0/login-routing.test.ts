@@ -40,9 +40,10 @@ describe("destinationFor", () => {
 });
 
 describe("roleInfo", () => {
-  it("lets only the Master Admin price, delete and see audit", () => {
-    expect(roleInfo("MASTER_ADMIN")).toMatchObject({ canEditPrice: true, canDelete: true, canSeeAudit: true });
-    expect(roleInfo("SYSTEM_ADMIN")).toMatchObject({ canEditPrice: false, canDelete: false, canSeeAudit: false });
+  it("lets both admins price, and only the Master Admin delete, publish and see audit (15 Nov)", () => {
+    expect(roleInfo("MASTER_ADMIN")).toMatchObject({ canEditPrice: true, canDelete: true, canSeeAudit: true, canPublishExam: true });
+    expect(roleInfo("SYSTEM_ADMIN")).toMatchObject({ canEditPrice: true, canDelete: false, canSeeAudit: false, canPublishExam: false });
+    expect(roleInfo("INSTRUCTOR")).toMatchObject({ canEditPrice: false });
   });
 
   it("lets the System Admin author and see payments, but not publish", () => {

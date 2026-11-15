@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { WhatsAppJoinLink } from "@/components/student/whatsapp-join-link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, ListChecks, Package } from "lucide-react";
@@ -78,6 +79,7 @@ function PackageRow({ grant, pkg, pending }: { grant: OwnModuleGrant; pkg: Publi
       access={<AccessPill end={accessEnd(grant)} />}
       facts={[sourceKey ? t(sourceKey) : null]}
       orderId={grant.orderId}
+      footer={grant.whatsappUrl ? <WhatsAppJoinLink url={grant.whatsappUrl} /> : null}
     />
   );
 }

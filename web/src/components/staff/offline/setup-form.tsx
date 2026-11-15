@@ -125,7 +125,7 @@ export function SetupForm({
       ) : null}
 
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-        <Field label={t("staffOffline.setup.monthlyFee")} error={errors.monthlyFee} reserveHint required>
+        <Field label={t("staffOffline.setup.studentMonthlyFee")} error={errors.monthlyFee} reserveHint required>
           <TextInput
             className="h-11"
             inputMode="decimal"

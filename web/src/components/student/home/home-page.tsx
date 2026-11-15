@@ -14,7 +14,10 @@ import { Countdown } from "@/components/ui/countdown";
 import { ErrorState } from "@/components/ui/error-state";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
-import { staffHref } from "@/lib/config";
+import { offlineAdmissionEnabled, staffHref } from "@/lib/config";
+import { useMyAdmissions } from "@/lib/api/exam/my-admission";
+import { usePublicBatches, type PublicBatch } from "@/lib/api/exam/public-admission";
+import { batchFeeLine, batchName } from "@/components/public-admission/batch-parts";
 import { examPath, isLive } from "@/components/student/catalog/catalog-helpers";
 import { ExamStatusPill, TypePill } from "@/components/student/catalog/status-pill";
 import { LandingPage } from "@/components/student/landing/landing-page";
@@ -134,6 +137,100 @@ function ShopDoors() {
   );
 }
 
+/** The admission states the tile names, in the order a student meets them: onboarded first, then what the office is doing. */
+const TILE_STATES = ["ONBOARDED", "CHANGES_REQUESTED", "SUBMITTED", "READY"] as const;
+
+/**
+ * "Offline activities" on the dashboard, below the door cards (plan P9, section 8): one status line for each admission that is in
+ * progress (your batch, changes requested, under review), then up to three batches on offer and a link to every batch. Hidden while
+ * the offline switch is off.
+ */
+export function OfflineActivitiesTile() {
+  const { t, locale } = useLocale();
+  const admissions = useMyAdmissions({ enabled: offlineAdmissionEnabled });
+  const batches = usePublicBatches(offlineAdmissionEnabled);
+  if (!offlineAdmissionEnabled) {
+    return null;
+  }
+  // A list that is not an array (an unexpected answer) is shown as empty: the dashboard must not fail on the tile.
+  const admissionList = Array.isArray(admissions.data) ? admissions.data : [];
+  const batchList: PublicBatch[] = Array.isArray(batches.data) ? batches.data : [];
+  const lines = admissionList
+    .filter((admission) => (TILE_STATES as readonly string[]).includes(admission.state))
+    .sort((a, b) => TILE_STATES.indexOf(a.state as (typeof TILE_STATES)[number]) - TILE_STATES.indexOf(b.state as (typeof TILE_STATES)[number]));
+  const offers: PublicBatch[] = batchList.filter((batch) => batch.admissionsOpen).slice(0, 3);
+
+  return (
+    <section aria-labelledby="offline-activities" className="mt-8 grid gap-4 rounded-card border border-border bg-card p-5">
+      <h2 id="offline-activities" className="text-card-title font-bold">
+        <Link href="/offline-activities" className="hover:text-text-accent">
+          {t("publicAdmission.tile.title")}
+        </Link>
+      </h2>
+      {lines.length > 0 ? (
+        <ul className="grid gap-2">
+          {lines.map((admission) => {
+            const name = pickTitle({ titleEn: admission.batchNameEn ?? null, titleBn: admission.batchNameBn ?? null }, locale) || "—";
+            if (admission.state === "ONBOARDED") {
+              return (
+                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">{t("publicAdmission.tile.yourBatch", { name })}</span>
+                  <Link href="/offline-activities" className="text-label font-bold text-accent underline">
+                    {t("publicAdmission.tile.openMy")}
+                  </Link>
+                </li>
+              );
+            }
+            if (admission.state === "CHANGES_REQUESTED") {
+              return (
+                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">{t("publicAdmission.tile.changesRequested", { batch: name })}</span>
+                  <Link href="/admission/form" className="text-label font-bold text-accent underline">
+                    {t("publicAdmission.tile.openForm")}
+                  </Link>
+                </li>
+              );
+            }
+            return (
+              <li key={admission.id}>
+                <span className="font-semibold">{t("publicAdmission.tile.underReview", { batch: name })}</span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-label font-bold text-text">{t("publicAdmission.tile.onOffer")}</h3>
+          <Link href="/admission" className="text-label font-semibold text-accent">
+            {t("publicAdmission.tile.seeAll")}
+          </Link>
+        </div>
+        {batches.isPending ? (
+          <Skeleton variant="card" />
+        ) : offers.length === 0 ? (
+          <p className="text-body text-muted">{t("publicAdmission.tile.none")}</p>
+        ) : (
+          <ul className="grid gap-2">
+            {offers.map((batch) => (
+              <li key={batch.id}>
+                <Link
+                  href={`/admission/batches/${batch.id}`}
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-control border border-border bg-bg px-3 py-2 text-body transition hover:border-accent"
+                >
+                  <span className="min-w-0 break-words font-semibold">{batchName(batch, locale)}</span>
+                  <span className="shrink-0 text-meta tabular-nums text-muted">{batchFeeLine(batch, locale, t)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function Nudges({ phoneRequired, emailVerified, live }: {
   phoneRequired: boolean;
   emailVerified: boolean;
@@ -225,6 +322,7 @@ function SignedInHome({ phoneRequired, emailVerified, name }: {
 
       <ExamDoors />
       <ShopDoors />
+      <OfflineActivitiesTile />
 
       <section className="mt-6" aria-labelledby="next-exam">
         <h2 id="next-exam" className="mb-2 text-card-title font-bold">{t("home.nextExam")}</h2>

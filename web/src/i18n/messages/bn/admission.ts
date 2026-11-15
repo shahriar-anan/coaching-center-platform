@@ -46,6 +46,7 @@ const admission = {
     chooseGallery: "গ্যালারি থেকে ছবি বেছে নিন",
     preview: "আপনার ছবি",
     missing: "এখনও কোনো ছবি দেওয়া হয়নি।",
+    onFile: "একটি ছবি জমা আছে।",
     uploading: "ছবি সেভ হচ্ছে…",
     uploaded: "ছবি সেভ হয়েছে।",
     failed: "ছবি সেভ করা যায়নি। আবার চেষ্টা করুন।",
@@ -102,6 +103,8 @@ const admission = {
   },
   print: {
     formTitle: "Registration Form",
+    brand: "SYMAM LAW- সাইমাম ল’",
+    picture: "ছবি",
     centre: "SYMAM SCHOOL OF LAW",
     centreAddress:
       "Binodpur Bazar (2nd Floor of Dutch Bangla Booth), East Side of Bangla Tiffin, Motihar, Rajshahi",

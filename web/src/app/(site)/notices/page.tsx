@@ -29,7 +29,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
-import { noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
+import { noticeActionKey, noticeHref, noticeKindLabelKey } from "./_components/notice-kind";
 import { announcementTarget, announcementText, packageDoor } from "./_components/announcement";
 import {
   INSTALLMENT_HREF,
@@ -280,7 +280,7 @@ function NoticeRow({ notice, tab, onOpen }: { notice: Notice; tab: NoticeGroup; 
   const hasScore = !isMissing(notice.score) && !isMissing(notice.maximum);
   const hasPassed = !isMissing(notice.passed);
   const isPurchase = notice.kind === "PURCHASE_GRANTED";
-  const actionLabel = tab === "RESULTS" ? t("notices.viewResult") : t("notices.openExamAction");
+  const actionLabel = t(noticeActionKey(notice));
   const { icon, tone } = kindIcon(notice.kind);
 
   return (
@@ -292,10 +292,13 @@ function NoticeRow({ notice, tab, onOpen }: { notice: Notice; tab: NoticeGroup; 
           unread={unread}
           time={{ iso: notice.createdAt, text: formatDateTime(notice.createdAt, locale) }}
         />
-        <p className="text-meta text-muted">
-          {kindLabel}
-          {startsAt ? ` · ${t("notices.startsAt", { time: formatDateTime(startsAt, locale) })}` : ""}
-        </p>
+        {/* Without an exam the title already is the kind's label, so the label is not repeated under it. */}
+        {title ? (
+          <p className="text-meta text-muted">
+            {kindLabel}
+            {startsAt ? ` · ${t("notices.startsAt", { time: formatDateTime(startsAt, locale) })}` : ""}
+          </p>
+        ) : null}
         {hasScore || hasPassed ? (
           <div className="flex flex-wrap items-center gap-2">
             {hasScore ? (

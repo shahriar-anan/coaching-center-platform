@@ -61,7 +61,7 @@ export function dueStateKey(state: "PAID" | "UNPAID" | "PART_PAID"): string {
   }
 }
 
-export function checklistLabelKey(key: "form" | "batchId" | "monthlyFee" | "admittedOn" | "firstDueOn" | "courseEndsOn" | "items"): string {
+export function checklistLabelKey(key: "form" | "batchId" | "monthlyFee" | "admittedOn" | "firstDueOn" | "courseEndsOn"): string {
   switch (key) {
     case "form":
       return "staffOffline.checklist.rows.form";
@@ -75,7 +75,5 @@ export function checklistLabelKey(key: "form" | "batchId" | "monthlyFee" | "admi
       return "staffOffline.checklist.rows.firstDueOn";
     case "courseEndsOn":
       return "staffOffline.checklist.rows.courseEndsOn";
-    case "items":
-      return "staffOffline.checklist.rows.items";
   }
 }

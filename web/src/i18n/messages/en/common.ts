@@ -110,7 +110,11 @@ const common = {
       payments: "{count} payments waiting for a decision",
       admissions: "{count} admission forms waiting for review",
       offlineFees: "{count} payments waiting for your approval",
+      instructorPayments: "{count} offline classes to settle",
     },
+    finance: "Finance",
+    instructorPayments: "Instructor payments",
+    offlineInstructors: "Offline instructors",
     admissions: "Admissions",
     offlineFees: "Fee approvals",
     offlineBatches: "Batches",
@@ -143,6 +147,10 @@ const common = {
     staffLoginHere: "Log in to the admin panel",
     studentLoginHere: "Log in on the student site",
   },
+  whatsapp: {
+    join: "Join the WhatsApp group",
+    newTab: "(opens WhatsApp in a new tab)",
+  },
   actions: {
     retry: "Try again",
     cancel: "Cancel",
@@ -172,8 +180,10 @@ const common = {
     placeholder: "Search",
     label: "Search",
     clear: "Clear search",
+    noResults: "Nothing matches your search.",
   },
   file: {
+    uploadedAt: "Uploaded {time}",
     choose: "Choose a PDF file",
     drop: "Drag the file here, or",
     replace: "Replace file",

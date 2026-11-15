@@ -59,7 +59,7 @@ describe("home card (plan 6.4): only for an onboarded admission", () => {
     renderHome(admission("ONBOARDED"));
 
     const card = await screen.findByRole("link", { name: /My admission: next payment ৳2,000\.00 on 15 Dec/ });
-    expect(card).toHaveAttribute("href", "/my-admission");
+    expect(card).toHaveAttribute("href", "/offline-activities");
   });
 
   it("is not shown to an online student, and makes no fee request", async () => {
@@ -89,7 +89,7 @@ describe("account menu entry: only for an admission that is not closed", () => {
     renderShell(admission("ONBOARDED"));
 
     await openMenu();
-    expect(await screen.findByRole("menuitem", { name: "My admission" })).toHaveAttribute("href", "/my-admission");
+    expect(await screen.findByRole("menuitem", { name: "My admission" })).toHaveAttribute("href", "/offline-activities");
   });
 
   it("is not listed for an online student", async () => {
@@ -113,7 +113,7 @@ describe("account page row: same rule as the menu", () => {
   it("is shown for an onboarded admission", async () => {
     renderAccount(admission("ONBOARDED"));
 
-    expect(await screen.findByRole("link", { name: "My admission" })).toHaveAttribute("href", "/my-admission");
+    expect(await screen.findByRole("link", { name: "My admission" })).toHaveAttribute("href", "/offline-activities");
   });
 
   it("is not shown for an online student", async () => {

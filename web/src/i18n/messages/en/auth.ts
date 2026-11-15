@@ -40,6 +40,7 @@ const auth = {
     noneBody: "Click the button in your email again. For safety, the code is removed from the address after it is shown.",
     toLogin: "Go to sign in",
     next: {
+      join: "Join the batch",
       activate: "Activate account",
       reset: "Choose a new password",
       verify: "Open my account",
@@ -108,8 +109,12 @@ const auth = {
   activate: {
     title: "Activate account with a code",
     breadcrumb: "Activate account",
-    intro: "An admin created your account. Enter your phone number, the code and a new password.",
+    intro: "Enter the email the code was sent to, or your phone number, the code and a new password.",
+    email: "Email",
     phone: "Phone",
+    eitherHint: "Enter your email or your phone number. You need only one.",
+    emailOrPhone: "Enter your email or your phone number.",
+    invalidEmail: "Enter a valid email address.",
     code: "Code",
     password: "New password",
     passwordHelp: "8 to 72 characters.",

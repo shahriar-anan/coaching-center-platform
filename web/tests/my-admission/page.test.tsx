@@ -1,4 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MyAdmissionPage } from "@/components/student/my-admission/my-admission-page";
 import { apiError, fixtures, mockApi, renderWithProviders, routerState } from "../helpers";
@@ -24,6 +25,8 @@ function renderPage(admissionAnswer: unknown, feesAnswer?: unknown, itemsAnswer:
     "GET /api/v1/me/admission": admissionAnswer,
     "GET /api/v1/me/admission/items": itemsAnswer,
     [ROUTINE]: { routine: true },
+    "GET /api/v1/me/admission/routine": [],
+    "GET /api/v1/me/admissions/adm-1/results": { batchNameEn: null, batchNameBn: null, roll: null, exams: [] },
   };
   if (feesAnswer !== undefined) {
     routes["GET /api/v1/me/admission/fees"] = feesAnswer;
@@ -44,14 +47,17 @@ describe("a student without an admission (D22)", () => {
 });
 
 describe("the page sections (plan 6.4)", () => {
-  it("shows the state, then the sections in plan order", async () => {
+  it("shows the state and the glance strip, then the sections in the order a student uses them", async () => {
     renderPage(admission("ONBOARDED"), schedule());
 
     expect(await screen.findByText("Active")).toBeInTheDocument();
     const headings = (await screen.findAllByRole("heading", { level: 2 })).map((h) => h.textContent);
-    expect(headings).toEqual(["Payments", "Exams", "Packages", "Routine", "My form"]);
-    expect(screen.getByText("Your exams will appear here.")).toBeInTheDocument();
-    expect(screen.getByText("Your packages will appear here.")).toBeInTheDocument();
+    expect(headings).toEqual(["Routine", "Results", "Payments", "Exams and packages", "My form"]);
+    const glance = screen.getByRole("region", { name: "At a glance" });
+    expect(glance).toHaveTextContent("Next class");
+    expect(glance).toHaveTextContent("Next payment");
+    expect(glance).toHaveTextContent("Exams and packages");
+    expect(await screen.findByText("Your exams and packages will appear here.")).toBeInTheDocument();
     expect(screen.getByText("Your routine will appear here")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View / print my form" })).toHaveAttribute("href", "/admission/print");
   });
@@ -62,10 +68,15 @@ describe("the page sections (plan 6.4)", () => {
       schedule({ dues: [due(1, "2026-11-15", 3000, 3000), due(2, "2026-12-15", 3000, 1000)] }),
     );
 
-    // The amount also shows as the owed figure in the schedule, so look for it in the next-payment card.
-    expect((await screen.findAllByText("৳2,000.00")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/due on 15 Dec/)).toBeInTheDocument();
+    // The next-payment tile of the glance strip shows what is still owed on the earliest unpaid due.
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    await waitFor(() => expect(glance).toHaveTextContent("৳2,000.00"));
+    expect(glance).toHaveTextContent(/Due on 15 Dec/);
     expect(screen.getByText("Next payment")).toBeInTheDocument();
+    // In the schedule the paid due says so, and the part-paid one is marked as the next, with what is left on it.
+    expect(screen.getByText("Paid")).toBeInTheDocument();
+    expect(screen.getByText("Next")).toBeInTheDocument();
+    expect(screen.getByText("৳2,000.00 left")).toBeInTheDocument();
   });
 
   it("marks a closed admission as course ended, with the same history", async () => {
@@ -132,8 +143,7 @@ describe("exams and packages (items)", () => {
     expect(pkg).toHaveTextContent("12 exams");
 
     expect(screen.getAllByText("Access until 28 February 2027")).toHaveLength(2);
-    expect(screen.queryByText("Your exams will appear here.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Your packages will appear here.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your exams and packages will appear here.")).not.toBeInTheDocument();
   });
 });
 
@@ -146,11 +156,16 @@ describe("routine (hasRoutine)", () => {
     expect(api.calls.some((call) => call.path === "/api/v1/me/admission/batch-routine.pdf")).toBe(false);
   });
 
-  it("opens the routine PDF viewer when the batch has one", async () => {
+  it("opens the routine PDF viewer from the Open the PDF button when the batch has one", async () => {
     const api = renderPage(admission("ONBOARDED", { hasRoutine: true }), schedule());
 
-    expect(await screen.findByText("routine viewer")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Open the PDF" })).toBeInTheDocument();
+    expect(screen.queryByText("routine viewer")).not.toBeInTheDocument();
+    expect(api.calls.some((call) => call.path === "/api/v1/me/admission/batch-routine.pdf")).toBe(false);
     expect(screen.queryByText("Your routine will appear here")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Open the PDF" }));
+    expect(await screen.findByText("routine viewer")).toBeInTheDocument();
     await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/me/admission/batch-routine.pdf")).toBe(true));
   });
 });
@@ -168,7 +183,8 @@ describe("a closed admission is read-only history", () => {
     expect(screen.getByRole("link", { name: /Physics Mock 1/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Download receipt" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /pay/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /pay/i })).not.toBeInTheDocument();
+    // The glance strip's "Payments" link jumps to the history; only a link that starts with "Pay" would be an action.
+    expect(screen.queryByRole("link", { name: /^pay/i })).not.toBeInTheDocument();
   });
 });
 
@@ -182,6 +198,8 @@ describe("the overdue line (D21)", () => {
     const line = await screen.findByText(/was due on 15 Jan/);
     expect(line).toHaveTextContent("৳3,000.00 was due on 15 Jan");
     expect(line).toHaveClass("text-warn");
+    expect(screen.getByText("A payment is overdue")).toBeInTheDocument();
+    expect(screen.getByText("Overdue since 15 January")).toBeInTheDocument();
   });
 
   it("does not appear when nothing is overdue", async () => {
@@ -209,7 +227,7 @@ describe("payments (approved only)", () => {
   it("sends a student with a pending admission to the form, and shows none of the sections", async () => {
     renderPage(admission("AWAITING_FORM"));
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission"));
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission/form"));
     expect(screen.queryByRole("heading", { name: "Payments" })).not.toBeInTheDocument();
   });
 });

@@ -78,12 +78,12 @@ describe("exam editor sections (U5)", () => {
     expect(screen.getByRole("link", { name: /৩\s*সময় ও নম্বর/ })).toHaveAttribute("href", "#exam-schedule");
   });
 
-  it("System Admin sees the price as text and no delete control", async () => {
+  it("System Admin sets the price (15 Nov), but has no delete control", async () => {
     mockApi(routes(mcqExam));
     renderWithProviders(<ExamEditor examId={examId} />, { user: fixtures.systemAdmin });
 
-    expect(await screen.findByText("মূল্য শুধু মাস্টার অ্যাডমিন ঠিক করতে পারেন।")).toBeInTheDocument();
-    expect(screen.queryByLabelText("মূল্য (৳)")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("মূল্য (৳)")).toBeInTheDocument();
+    expect(screen.queryByText("মূল্য শুধু মাস্টার অ্যাডমিন ঠিক করতে পারেন।")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "পরীক্ষা মুছুন" })).not.toBeInTheDocument();
   });
 

@@ -11,16 +11,17 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { copyText, readCodeFromHash, readHashParams, scrubHash } from "@/app/(auth)/_components/code-hash";
 
-type Purpose = "activate" | "reset" | "verify";
+type Purpose = "activate" | "reset" | "verify" | "join";
 
 const NEXT_PATH: Record<Purpose, (code: string) => string> = {
   activate: (code) => `/activate#code=${encodeURIComponent(code)}`,
   reset: (code) => `/reset-password#code=${encodeURIComponent(code)}`,
   verify: () => "/account",
+  join: (code) => `/admission/join#code=${encodeURIComponent(code)}`,
 };
 
 function purposeOf(value: string | null): Purpose {
-  return value === "reset" || value === "verify" ? value : "activate";
+  return value === "reset" || value === "verify" || value === "join" ? value : "activate";
 }
 
 /**

@@ -13,23 +13,26 @@ describe("the admission gate (plan 4.5)", () => {
     expect(isPendingAdmission(undefined)).toBe(false);
   });
 
-  it("opens only the form and its print view to a pending student", () => {
+  it("opens the admission pages (the form, the print view, the cards, apply, join, reopen) to a pending student", () => {
     expect(isAdmissionPath("/admission")).toBe(true);
     expect(isAdmissionPath("/admission/")).toBe(true);
+    expect(isAdmissionPath("/admission/form")).toBe(true);
     expect(isAdmissionPath("/admission/print")).toBe(true);
-    expect(isAdmissionPath("/admission/other")).toBe(false);
+    expect(isAdmissionPath("/admission/apply/b-1")).toBe(true);
+    expect(isAdmissionPath("/admission/join")).toBe(true);
+    expect(isAdmissionPath("/admissions")).toBe(false);
     expect(isAdmissionPath("/my-modules")).toBe(false);
     expect(isAdmissionPath("/")).toBe(false);
   });
 
   it("sends a pending student from every other student page to the form", () => {
     for (const pathname of ["/", "/my-modules", "/results", "/notices", "/account", "/mcq/c/civil"]) {
-      expect(admissionRedirect({ pathname, role: "STUDENT", state: "AWAITING_FORM" })).toBe("/admission");
+      expect(admissionRedirect({ pathname, role: "STUDENT", state: "AWAITING_FORM" })).toBe("/admission/form");
     }
   });
 
   it("leaves a pending student on the form and the print view", () => {
-    expect(admissionRedirect({ pathname: "/admission", role: "STUDENT", state: "CHANGES_REQUESTED" })).toBeNull();
+    expect(admissionRedirect({ pathname: "/admission/form", role: "STUDENT", state: "CHANGES_REQUESTED" })).toBeNull();
     expect(admissionRedirect({ pathname: "/admission/print", role: "STUDENT", state: "SUBMITTED" })).toBeNull();
   });
 

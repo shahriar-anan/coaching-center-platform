@@ -43,12 +43,12 @@ export function parseQueueTab(raw: string | null | undefined, role: Role | null 
 // ---- the ready checklist -----------------------------------------------------------------------------------------------
 
 /** The setup parts the checklist names, in the order it shows them. Any other problem is a form problem. */
-export const CHECKLIST_KEYS = ["form", "batchId", "monthlyFee", "admittedOn", "firstDueOn", "courseEndsOn", "items"] as const;
+export const CHECKLIST_KEYS = ["form", "batchId", "monthlyFee", "admittedOn", "firstDueOn", "courseEndsOn"] as const;
 export type ChecklistKey = (typeof CHECKLIST_KEYS)[number];
 
 export type ChecklistRow = { key: ChecklistKey; missing: FieldProblem[] };
 
-const SETUP_FIELDS = new Set<string>(["batchId", "monthlyFee", "admittedOn", "firstDueOn", "courseEndsOn", "items"]);
+const SETUP_FIELDS = new Set<string>(["batchId", "monthlyFee", "admittedOn", "firstDueOn", "courseEndsOn"]);
 
 /**
  * One row per requirement, each with the problems the API found for it. A row with no problems is ticked. The Ready button is

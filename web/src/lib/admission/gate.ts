@@ -6,12 +6,15 @@ import type { AdmissionState } from "@/lib/api/exam/offline-admission";
  * the tests share one rule.
  */
 
-export const ADMISSION_HOME = "/admission";
+export const ADMISSION_HOME = "/admission/form";
 
 const PENDING_STATES: readonly AdmissionState[] = ["AWAITING_FORM", "SUBMITTED", "CHANGES_REQUESTED", "READY"];
 
-/** The form and its print view: the only student pages a pending student may open. */
-const OPEN_TO_PENDING = /^\/admission(\/print)?\/?$/;
+/**
+ * The admission pages: the student's form and its print view, the batch cards and batch pages, the apply and reopen forms, and the join
+ * page. A pending student may open these; every other student page sends them to the form.
+ */
+const OPEN_TO_PENDING = /^\/admission(\/.*)?$/;
 
 export function isPendingAdmission(state: AdmissionState | null | undefined): boolean {
   return state != null && PENDING_STATES.includes(state);

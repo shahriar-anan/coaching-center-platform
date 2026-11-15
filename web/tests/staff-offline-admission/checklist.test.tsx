@@ -30,7 +30,7 @@ describe("the ready checklist (plan 6.3, principle 2)", () => {
     renderWithProviders(<ReadyChecklist problems={[]} />, { user: fixtures.systemAdmin, locale: "en" });
 
     expect(screen.getByText("Batch chosen")).toBeInTheDocument();
-    expect(screen.getAllByText("Ticked")).toHaveLength(7);
+    expect(screen.getAllByText("Ticked")).toHaveLength(6);
     expect(screen.queryByText("Missing")).not.toBeInTheDocument();
     expect(screen.getByText("Everything is ticked. You can mark this ready for approval.")).toBeInTheDocument();
   });
@@ -40,7 +40,6 @@ describe("the ready checklist (plan 6.3, principle 2)", () => {
       <ReadyChecklist
         problems={[
           { field: "batchId", message: "Choose a batch." },
-          { field: "items", message: "Add at least one exam or package." },
         ]}
       />,
       { user: fixtures.systemAdmin, locale: "en" },
@@ -49,9 +48,8 @@ describe("the ready checklist (plan 6.3, principle 2)", () => {
     const batchRow = screen.getByText("Batch chosen").closest("li");
     expect(batchRow).toHaveTextContent("Missing");
     expect(batchRow).toHaveTextContent("Choose a batch.");
-    expect(screen.getByText("At least one exam or package").closest("li")).toHaveTextContent(
-      "Add at least one exam or package.",
-    );
+    // Exams and packages are optional: the checklist has no row for them.
+    expect(screen.queryByText("At least one exam or package")).not.toBeInTheDocument();
     expect(screen.getByText("Form is complete").closest("li")).toHaveTextContent("Ticked");
     expect(screen.getByText("Ready for approval stays off until every line is ticked.")).toBeInTheDocument();
   });

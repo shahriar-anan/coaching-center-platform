@@ -66,6 +66,10 @@ const staffNotifications = {
     OFFLINE_PAYMENT_APPROVED: "{student}-এর {amount} ({method}) পেমেন্ট অনুমোদন হয়েছে।",
     OFFLINE_PAYMENT_REJECTED: "{student}-এর {amount} ({method}) পেমেন্ট বাতিল হয়েছে। কারণ: {reason}",
     OFFLINE_FEE_OVERDUE: "{student}-এর {amount} ফি {date} তারিখে পরিশোধের কথা ছিল, এখনও বাকি আছে।",
+    OFFLINE_CLASSES_TO_SETTLE: "{count}টি অফলাইন ক্লাসের পেমেন্ট বা 'হয়নি' চিহ্ন এখনও বাকি আছে।",
+    OFFLINE_CLASSES_OVERDUE: "{count}টি অফলাইন ক্লাস এক সপ্তাহের বেশি সময় ধরে বাকি আছে।",
+    OFFLINE_ENTRIES_DECIDED: "আপনার {approved}টি এন্ট্রি অনুমোদন হয়েছে, {rejected}টি বাতিল হয়েছে।",
+    OFFLINE_ENTRIES_WAITING: "{waiting}টি এন্ট্রি আপনার অনুমোদনের অপেক্ষায় আছে।",
     UNKNOWN: "আপনার একটি নতুন নোটিফিকেশন আছে।",
   },
 } satisfies MessageTree;

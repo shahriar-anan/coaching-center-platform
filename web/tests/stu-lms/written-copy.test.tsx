@@ -11,22 +11,26 @@ const MINUTE = 60_000;
 
 vi.mock("@/lib/api/exam/sitting", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/exam/sitting")>();
-  return { ...actual, useUploadAnswer: () => ({ mutateAsync: vi.fn(), isPending: false }) };
+  return {
+    ...actual,
+    useSaveAnswerDraft: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useSubmitExam: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  };
 });
 
-const BN_LATE = "খাতা একবারই জমা দেওয়া যায়। নিশ্চিত করার আগে ফাইলটি দেখে নিন।";
-const EN_LATE =
-  "You can submit your script only once. Check the file before you confirm.";
+const BN_FINAL = "জমা দেওয়ার পর আর খাতা বদলানো যাবে না।";
+const BN_AUTO = "সময় শেষ হলে সবশেষে আপলোড করা ফাইলটি নিজে থেকে জমা হয়ে যাবে, এই পাতা বন্ধ থাকলেও।";
 
-describe("written paper copy (S-024)", () => {
-  it("the submit-once sentence is in both languages, and the instruction no longer asks for a submit click", () => {
-    expect(bn.written.lateUpload).toBe(BN_LATE);
-    expect(en.written.lateUpload).toBe(EN_LATE);
-    expect(bn.written.instruction).not.toContain("জমা দিন");
-    expect(en.written.instruction).not.toMatch(/submit/i);
+describe("written paper copy (written-draft plan)", () => {
+  it("says, in both languages, that the script is final after submit and that the server submits the last upload", () => {
+    expect(bn.written.replaceNote).toBe(BN_FINAL);
+    expect(en.written.replaceNote).toBe("After you submit, the script cannot be changed.");
+    expect(bn.written.autoSendNote).toBe(BN_AUTO);
+    expect(en.written.autoSendNote).toMatch(/last file you uploaded is submitted for you/);
+    expect(en.written.instruction).toMatch(/replace it until you submit or the time ends/);
   });
 
-  it("the paper page shows the submit-once sentence", () => {
+  it("the paper page shows both sentences", () => {
     renderWithProviders(
       <WrittenSitting
         exam={{ id: "ex-w", questionPdf: null } as unknown as StudentExam}
@@ -37,7 +41,8 @@ describe("written paper copy (S-024)", () => {
       />,
       { locale: "bn" },
     );
-    expect(screen.getByText(BN_LATE)).toBeInTheDocument();
+    expect(screen.getByText(BN_FINAL)).toBeInTheDocument();
+    expect(screen.getByText(BN_AUTO)).toBeInTheDocument();
   });
 
   it("a written exam that could not finish says so", async () => {

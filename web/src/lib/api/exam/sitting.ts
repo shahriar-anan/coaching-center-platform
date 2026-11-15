@@ -70,6 +70,8 @@ export type StudentExam = {
   sitting: SittingBlock | null;
   /** True once the student's written script is stored on the server (API: `answerStored`). */
   answerStored?: boolean | null;
+  /** The written script uploaded but not submitted yet (a draft on the server), or null. */
+  answerDraft?: AnswerDraft | null;
   /** For a submitted MCQ whose review is still closed: when its answers and explanations open (API: `reviewOpensAt`). */
   reviewOpensAt?: string | null;
 };
@@ -267,6 +269,27 @@ export function useLeaderboard(examId: string) {
     staleTime: 60_000,
     enabled: Boolean(examId),
   });
+}
+
+/** A written script saved on the server as a draft: submitted at Submit, or by the server when the time ends. */
+export type AnswerDraft = { fileName: string; byteSize: number; uploadedAt: string | null };
+
+/** Saves or replaces the draft script of the open sitting. Progress comes from XHR. */
+export function useSaveAnswerDraft(examId: string, onProgress?: (percent: number) => void) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiUpload<AnswerDraft>(`/api/v1/live-exams/${examId}/answer-draft`, form, { method: "PUT", onProgress });
+    },
+    onSuccess: () => invalidateSittingReads(client, examId),
+  });
+}
+
+/** The draft script, for the student to check before they submit. */
+export function answerDraftPath(examId: string) {
+  return `/api/v1/live-exams/${examId}/answer-draft`;
 }
 
 /** Uploads a written answer script. Progress comes from XHR. */

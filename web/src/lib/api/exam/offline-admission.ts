@@ -40,6 +40,8 @@ export type AdmissionFormField = keyof AdmissionForm;
 
 export interface AdmissionView {
   id: string;
+  /** The batch this admission is for. The Offline activities page leaves it out of the batches on offer. */
+  batchId?: string | null;
   state: AdmissionState;
   /** Why the office sent the form back. Set only in CHANGES_REQUESTED. */
   changesReason?: string | null;
@@ -58,6 +60,14 @@ export interface AdmissionView {
   courseEndsOn?: string | null;
   /** True when the batch has a routine PDF to show. */
   hasRoutine?: boolean;
+  /** Where the application came from. Only a desk admission locks the student out of the site (F4). */
+  source?: "PUBLIC" | "ACCOUNT" | "DESK" | null;
+  /** True while a join code waits for the student to join: the page links to the join form. */
+  joinCodePending?: boolean;
+  /** The roll number, once the student is onboarded (rule R4). */
+  rollNo?: string | null;
+  /** The batch's WhatsApp group or channel link, sent only while the student is onboarded (15 Nov). */
+  whatsappUrl?: string | null;
 }
 
 /** The student's own photo, the same picture as the profile photo (plan side effect 10). */

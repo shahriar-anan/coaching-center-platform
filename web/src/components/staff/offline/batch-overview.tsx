@@ -1,0 +1,187 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { BadgeCheck, Ban, CalendarClock, CircleAlert, FileText, Hourglass, Users, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
+import { ErrorState } from "@/components/ui/error-state";
+import { Pill, type PillTone } from "@/components/ui/pill";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useLocale } from "@/i18n/locale-context";
+import { useBatchClasses, useBatchRates, useBatchRoutines } from "@/lib/api/exam/offline-batch-pay";
+import { useFormat } from "@/lib/format/use-format";
+import { amountOf } from "./batch-pay-format";
+import { instructorLines } from "./batch-rates";
+
+type Tone = "neutral" | "accent" | "ok" | "warn" | "danger";
+
+/** The coloured top edge and the icon tint of each tile: a quick read of what the figure means. */
+const EDGE: Record<Tone, string> = {
+  neutral: "border-t-border-control",
+  accent: "border-t-accent",
+  ok: "border-t-ok",
+  warn: "border-t-warn",
+  danger: "border-t-danger",
+};
+
+const ICON_TINT: Record<Tone, string> = {
+  neutral: "bg-bg text-muted",
+  accent: "bg-accent/15 text-text-accent",
+  ok: "bg-ok/10 text-ok-text",
+  warn: "bg-warn/10 text-warn",
+  danger: "bg-danger/10 text-danger",
+};
+
+/** One figure: an icon tile, the label, the big number, and the amount or note under it. */
+function Tile({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tone = "neutral",
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  sub?: ReactNode;
+  tone?: Tone;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid min-w-0 content-start gap-3 rounded-card border border-border bg-card p-4 shadow-[var(--card-shadow)] border-t-4",
+        EDGE[tone],
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-meta font-medium text-muted">{label}</span>
+        <span aria-hidden="true" className={cn("flex size-8 shrink-0 items-center justify-center rounded-control", ICON_TINT[tone])}>
+          <Icon className="size-4" strokeWidth={1.9} />
+        </span>
+      </div>
+      <div className="grid min-w-0 gap-1">
+        <span className="text-section font-bold tabular-nums text-text">{value}</span>
+        {sub ? <span className="break-words text-meta tabular-nums text-muted">{sub}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The batch's Overview, above its details: the current routine, the classes by where they stand, the instructors, and the default class
+ * length. Everything is read from the routines, classes and rates the other tabs use, so nothing here is kept in two places.
+ */
+export function BatchOverview({ batchId, minutes, onGo }: { batchId: string; minutes: number; onGo: (tab: string) => void }) {
+  const { t } = useLocale();
+  const { formatDate, formatMoney, formatNumber } = useFormat();
+  const routines = useBatchRoutines(batchId);
+  const classes = useBatchClasses(batchId);
+  const rates = useBatchRates(batchId);
+
+  if (routines.isPending || classes.isPending || rates.isPending) {
+    return <Skeleton variant="card" count={2} />;
+  }
+  if (routines.isError || classes.isError || rates.isError) {
+    return (
+      <ErrorState
+        onRetry={() => void Promise.all([routines.refetch(), classes.refetch(), rates.refetch()])}
+        error={routines.error ?? classes.error ?? rates.error}
+      />
+    );
+  }
+
+  const current = routines.data.find((routine) => routine.status === "CONFIRMED");
+  const waiting = routines.data.find((routine) => routine.status === "PREVIEW");
+  const items = classes.data;
+  const count = (status: string) => items.filter((item) => item.status === status).length;
+  const sum = (status: string) => items.filter((item) => item.status === status).reduce((total, item) => total + (amountOf(item.amount) ?? 0), 0);
+  const teaching = new Set(items.filter((item) => item.instructorId && item.status !== "CANCELLED").map((item) => item.instructorId));
+  const needRate = instructorLines(rates.data, items).filter((line) => line.rate === null && line.classes > 0).length;
+  const held = count("HELD");
+  const pillTone: PillTone = current?.studentCopy ? "ok" : "muted";
+
+  return (
+    <section aria-labelledby="batch-overview" className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="batch-overview" className="text-card-title text-text">
+          {t("batchPay.overview.title")}
+        </h3>
+        <span className="text-meta text-muted">
+          {t("batchPay.overview.classLength")}: {t("batchPay.overview.minutes", { count: formatNumber(minutes) })}
+        </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Tile icon={CalendarClock} label={t("batchPay.overview.scheduled")} value={formatNumber(count("SCHEDULED"))} tone="accent" />
+        <Tile
+          icon={Hourglass}
+          label={t("batchPay.overview.waitingPayment")}
+          value={formatNumber(held)}
+          sub={formatMoney(sum("HELD")) ?? undefined}
+          tone={held > 0 ? "warn" : "neutral"}
+        />
+        <Tile
+          icon={BadgeCheck}
+          label={t("batchPay.overview.paid")}
+          value={formatNumber(count("PAID"))}
+          sub={formatMoney(sum("PAID")) ?? undefined}
+          tone="ok"
+        />
+        <Tile icon={Ban} label={t("batchPay.overview.notTaken")} value={formatNumber(count("NOT_TAKEN"))} tone="neutral" />
+        <Tile icon={Users} label={t("batchPay.overview.instructors")} value={formatNumber(teaching.size)} tone="accent" />
+        <Tile
+          icon={CircleAlert}
+          label={t("batchPay.overview.noRate")}
+          value={formatNumber(needRate)}
+          sub={needRate > 0 ? t("batchPay.overview.noRateNote") : undefined}
+          tone={needRate > 0 ? "danger" : "neutral"}
+        />
+      </div>
+
+      <div className="grid gap-3 rounded-card border border-border bg-card p-4 shadow-[var(--card-shadow)] sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-text-accent">
+              <FileText className="size-5" strokeWidth={1.75} />
+            </span>
+            <div className="grid min-w-0 gap-0.5">
+              <span className="text-meta text-muted">{t("batchPay.overview.routine")}</span>
+              <span className="text-card-title font-bold text-text">
+                {current ? t("batchPay.overview.fromDate", { date: formatDate(current.effectiveFrom, { year: "auto" }) }) : t("batchPay.overview.none")}
+              </span>
+            </div>
+          </div>
+          {current ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Pill tone="accent">{t("batchPay.overview.classesIn", { count: current.rowCount })}</Pill>
+              <Pill tone={pillTone}>{t(current.studentCopy ? "batchPay.overview.studentCopy" : "batchPay.overview.noStudentCopy")}</Pill>
+            </div>
+          ) : null}
+        </div>
+
+        {waiting ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-warn/50 bg-warn/5 px-3 py-2.5">
+            <span className="text-body text-text">{t("batchPay.overview.waiting")}</span>
+            <Button size="sm" href={`/staff/offline-batches/${batchId}/routines/${waiting.id}`}>
+              {t("batchPay.overview.checkRoutine")}
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-3">
+          <Button size="sm" variant="ghost" className="px-0 text-text-accent" onClick={() => onGo("routines")}>
+            {t("batchPay.overview.viewRoutines")}
+          </Button>
+          <Button size="sm" variant="ghost" className="px-0 text-text-accent" onClick={() => onGo("classes")}>
+            {t("batchPay.overview.viewClasses")}
+          </Button>
+          {needRate > 0 ? (
+            <Button size="sm" variant="ghost" className="px-0 text-danger" onClick={() => onGo("rates")}>
+              {t("batchPay.overview.setRates")}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}

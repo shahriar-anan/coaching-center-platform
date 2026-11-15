@@ -10,9 +10,11 @@ import { TextInput } from "@/components/ui/text-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
+import { ApiError } from "@/lib/api/errors";
 import { useFormat } from "@/lib/format/use-format";
 import {
   useCloseAdmission,
+  useNextRoll,
   useOnboard,
   useSaveTerms,
   type AdmissionDetail,
@@ -38,24 +40,48 @@ export function OnboardDialog({ admission, open, onOpenChange }: { admission: Ad
   const { t } = useLocale();
   const { toast } = useToast();
   const onboard = useOnboard(admission.id);
+  const suggested = useNextRoll(admission.id, open);
+  const [typed, setTyped] = useState<string | null>(null);
+  const suggestion = suggested.data?.suggestion ?? null;
+  // The suggestion fills the box until the person types their own roll number.
+  const roll = (typed ?? suggestion ?? "").trim();
+  const valid = /^\d{4,12}$/.test(roll);
   return (
     <ConfirmDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next) setTyped(null);
+        onOpenChange(next);
+      }}
       title={t("staffOffline.onboard.title", { name: studentName(admission) })}
       body={t("staffOffline.onboard.body")}
       confirmLabel={t("staffOffline.onboard.confirm")}
+      confirmDisabled={!valid}
       onConfirm={async () => {
         try {
-          await onboard.mutateAsync();
+          await onboard.mutateAsync({ rollNo: roll });
           toast({ title: t("staffOffline.onboard.done"), tone: "ok" });
         } catch (error) {
-          // The dialog shows the message it is given, so it gets the localised sentence, not the API text.
-          throw new Error(offlineErrorText(error, t));
+          // A roll the batch already uses is named under its field; anything else gets the localised sentence.
+          const field = error instanceof ApiError ? error.fieldErrors?.find((problem) => problem.field === "rollNo") : undefined;
+          throw new Error(field ? field.message : offlineErrorText(error, t));
         }
       }}
     >
       <OnboardSummary admission={admission} />
+      <Field
+        label={t("staffOffline.onboard.roll")}
+        hint={suggested.isPending ? undefined : suggestion ? t("staffOffline.onboard.rollSuggested") : t("staffOffline.onboard.rollNone")}
+        error={roll && !valid ? t("staffOffline.onboard.rollInvalid") : undefined}
+        required
+      >
+        <TextInput
+          inputMode="numeric"
+          value={roll}
+          onChange={(event) => setTyped(event.target.value)}
+          invalid={Boolean(roll) && !valid}
+        />
+      </Field>
     </ConfirmDialog>
   );
 }
@@ -84,8 +110,14 @@ function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
     .filter(Boolean)
     .join(", ");
 
+  const existing = admission.alreadyAccessTo.map((batch) => pickTitle({ titleEn: batch.nameEn, titleBn: batch.nameBn })).filter(Boolean);
   return (
     <div className="grid min-w-0 gap-4">
+      {existing.length > 0 ? (
+        <p role="status" className="rounded-control border border-accent/40 bg-accent/5 px-3 py-2 text-body text-text">
+          {t("staffOffline.onboard.alreadyAccess", { student: studentName(admission), batches: existing.join(", ") })}
+        </p>
+      ) : null}
       <dl className="grid gap-2 text-body">
         <Row label={t("staffOffline.onboard.student")} value={studentName(admission)} />
         <Row
@@ -98,6 +130,7 @@ function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
         <Row label={t("staffOffline.onboard.payments")} value={String(totals.months)} />
         <Row label={t("staffOffline.onboard.total")} value={formatMoney(totals.total) ?? "—"} />
         <Row label={t("staffOffline.onboard.emailed")} value={t("staffOffline.onboard.emailedValue")} />
+        <Row label={t("staffOffline.onboard.codeTo")} value={codeLine(admission, t)} />
       </dl>
 
       <section aria-labelledby="onboard-items" className="grid min-w-0 gap-2">
@@ -126,6 +159,20 @@ function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
       </section>
     </div>
   );
+}
+
+/**
+ * Which code goes to which email (plan Q3, P8). A student who already has an account, or whose application matched one, gets the join
+ * code; a new applicant gets the activation code that makes the account. The code lasts 7 days.
+ */
+function codeLine(admission: AdmissionDetail, t: (key: string, params?: Record<string, string | number>) => string): string {
+  if (admission.source === "DESK") {
+    return t("staffOffline.onboard.codeDesk");
+  }
+  const joining = admission.source !== "PUBLIC" || Boolean(admission.matchedName);
+  const email = admission.matchedEmail ?? admission.form.email ?? admission.form.mobile ?? "—";
+  const message = joining ? t("staffOffline.onboard.codeJoin", { email }) : t("staffOffline.onboard.codeActivation", { email });
+  return `${message} ${t("staffOffline.onboard.codeLasts")}`;
 }
 
 /** One exam or package of the onboarding list: its type, its title and, for a package, how many exams it holds. */
@@ -256,12 +303,13 @@ export function CloseDialog({ admission, open, onOpenChange }: { admission: Admi
       open={open}
       onOpenChange={onOpenChange}
       title={t("staffOffline.close.title", { name: studentName(admission) })}
-      body={t("staffOffline.close.body")}
+      body={t(admission.state === "ONBOARDED" ? "staffOffline.close.body" : "staffOffline.close.bodyBefore")}
       confirmLabel={t("staffOffline.close.confirm")}
       tone="danger"
+      confirmDisabled={reason.trim().length === 0}
       onConfirm={async () => {
         try {
-          await close.mutateAsync(reason.trim() || null);
+          await close.mutateAsync(reason.trim());
           toast({ title: t("staffOffline.close.done"), tone: "ok" });
         } catch (error) {
           // The dialog shows the message it is given, so it gets the localised sentence, not the API text.
@@ -269,7 +317,7 @@ export function CloseDialog({ admission, open, onOpenChange }: { admission: Admi
         }
       }}
     >
-      <Field label={t("staffOffline.close.reasonLabel")}>
+      <Field label={t("staffOffline.close.reasonLabel")} hint={t("staffOffline.close.reasonHint")} required>
         <Textarea rows={2} value={reason} onChange={(event) => setReason(event.target.value)} />
       </Field>
     </ConfirmDialog>

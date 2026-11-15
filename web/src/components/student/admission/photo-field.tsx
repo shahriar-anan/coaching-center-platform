@@ -19,9 +19,23 @@ function subscribeNever() {
  * On a phone, "Take a photo" opens the phone's camera through the capture input. On a laptop, which ignores that hint, it opens
  * an in-page camera instead. Both send the photo to the same upload.
  */
-export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: string }) {
+export function PhotoField({
+  hasPhoto,
+  error,
+  photoPath = ADMISSION_PHOTO_PATH,
+  onSend,
+}: {
+  hasPhoto: boolean;
+  error?: string;
+  /** The authorised path the saved photo is read from, or null when it cannot be read (the public form). */
+  photoPath?: string | null;
+  /** Sends the picked photo. The signed-in form uses the student's own upload when this is not given. */
+  onSend?: (file: File) => Promise<unknown>;
+}) {
   const { t } = useLocale();
   const upload = useUploadAdmissionPhoto();
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -29,8 +43,10 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
   const [cameraOpen, setCameraOpen] = useState(false);
   // On the server there is no window, so the in-page camera is off until the browser answers.
   const inPageCamera = useSyncExternalStore(subscribeNever, inPageCameraSupported, () => false);
-  const saved = useAuthorizedObjectUrl(hasPhoto ? ADMISSION_PHOTO_PATH : null);
+  const saved = useAuthorizedObjectUrl(hasPhoto && photoPath ? photoPath : null);
   const shown = preview ?? saved;
+  // A photo on file that cannot be read here (no path) is still on file: say so, instead of showing an empty box.
+  const onFile = hasPhoto && !shown;
 
   // The preview of a pick is released when it is replaced, and when the screen goes.
   useEffect(() => {
@@ -44,10 +60,20 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
   /** Shows the picture and sends it: the same path for a gallery pick and a camera photo. */
   function send(file: File) {
     setLocalError(null);
+    setSent(false);
+    setSending(true);
     setPreview(URL.createObjectURL(file));
-    upload.mutate(file, {
-      onError: () => setLocalError(t("admission.photo.failed")),
-    });
+    const sendFile = onSend ?? ((picked: File) => upload.mutateAsync(picked));
+    sendFile(file).then(
+      () => {
+        setSending(false);
+        setSent(true);
+      },
+      () => {
+        setSending(false);
+        setLocalError(t("admission.photo.failed"));
+      },
+    );
   }
 
   function pick(event: ChangeEvent<HTMLInputElement>) {
@@ -73,11 +99,7 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
   }
 
   const message = localError ?? error ?? null;
-  const status = upload.isPending
-    ? t("admission.photo.uploading")
-    : upload.isSuccess && !localError
-      ? t("admission.photo.uploaded")
-      : null;
+  const status = sending ? t("admission.photo.uploading") : sent && !localError ? t("admission.photo.uploaded") : null;
 
   return (
     <section aria-labelledby="admission-photo-heading" className="grid gap-3 rounded-card border border-border bg-card p-4">
@@ -89,7 +111,7 @@ export function PhotoField({ hasPhoto, error }: { hasPhoto: boolean; error?: str
           {shown ? (
             <img src={shown} alt={t("admission.photo.preview")} className="size-full object-cover" />
           ) : (
-            <span className="px-3 text-center text-meta text-muted">{t("admission.photo.missing")}</span>
+            <span className="px-3 text-center text-meta text-muted">{t(onFile ? "admission.photo.onFile" : "admission.photo.missing")}</span>
           )}
         </div>
         <div className="grid flex-1 gap-3">

@@ -50,10 +50,10 @@ function MasterControls({ exam }: { exam: StaffExam }) {
       <SettingRow
         id="exam-popular"
         label={t("staffCatalog.examMeta.popular")}
-        description={role.canEditPrice ? t("staffCatalog.examMeta.popularHint") : t("staffCatalog.examMeta.masterOnlyReason")}
+        description={role.canPublishExam ? t("staffCatalog.examMeta.popularHint") : t("staffCatalog.examMeta.masterOnlyReason")}
         checked={exam.popular ?? false}
         onCheckedChange={(value) => togglePopular(value)}
-        disabled={!role.canEditPrice || popular.isPending}
+        disabled={!role.canPublishExam || popular.isPending}
       />
       {failure ? (
         <p role="alert" className="text-meta text-danger">

@@ -66,6 +66,10 @@ const staffNotifications = {
     OFFLINE_PAYMENT_APPROVED: "Your payment of {amount} by {method} from {student} was approved.",
     OFFLINE_PAYMENT_REJECTED: "Your payment of {amount} by {method} from {student} was rejected. Reason: {reason}",
     OFFLINE_FEE_OVERDUE: "{student}'s fee of {amount} was due on {date} and is still unpaid.",
+    OFFLINE_CLASSES_TO_SETTLE: "{count} offline classes are waiting for payment or a not-taken mark.",
+    OFFLINE_CLASSES_OVERDUE: "{count} offline classes have waited more than a week.",
+    OFFLINE_ENTRIES_DECIDED: "{approved} of your entries were approved, {rejected} rejected.",
+    OFFLINE_ENTRIES_WAITING: "{waiting} entries wait for your approval.",
     UNKNOWN: "You have a new notification.",
   },
 } satisfies MessageTree;

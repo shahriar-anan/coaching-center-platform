@@ -27,6 +27,7 @@ import {
   type QueueMoneyFilter,
 } from "@/lib/api/exam/offline-admin";
 import type { AdmissionState } from "@/lib/api/exam/offline-admission";
+import type { AdmissionSource } from "@/lib/api/exam/offline-admin";
 import type { Role } from "@/lib/api/exam/types";
 import { AdmissionPhoto } from "./admission-photo";
 import { DeskActivationDialog, type ShownCode } from "./desk-activation-dialog";
@@ -87,7 +88,7 @@ export function AdmissionQueue() {
   const { t } = useLocale();
   const { formatRelative, pickTitle } = useFormat();
   const role = useRole();
-  const [params, setParams] = useListParams({ tab: "", batch: "", flag: "", q: "", page: 0, size: 20 });
+  const [params, setParams] = useListParams({ tab: "", batch: "", source: "", flag: "", q: "", page: 0, size: 20 });
   const tab = parseQueueTab(params.tab, role.role);
   const isMaster = role.role === "MASTER_ADMIN";
   const reviewer = isMaster || role.role === "SYSTEM_ADMIN";
@@ -100,6 +101,7 @@ export function AdmissionQueue() {
   const queue = useAdmissionQueue({
     status: tab,
     batchId: params.batch || undefined,
+    source: params.source || undefined,
     q: params.q || undefined,
     flag: parseMoneyFilter(params.flag),
     page: params.page,
@@ -142,6 +144,12 @@ export function AdmissionQueue() {
       header: t("staffOffline.queue.columns.batch"),
       mobileLabel: t("staffOffline.queue.columns.batch"),
       cell: (row) => pickTitle({ titleEn: row.batchNameEn, titleBn: row.batchNameBn }) || "—",
+    },
+    {
+      key: "source",
+      header: t("staffOffline.queue.sourceLabel"),
+      mobileLabel: t("staffOffline.queue.sourceLabel"),
+      cell: (row) => t(`staffOffline.queue.sources.${row.source}`),
     },
     {
       key: "state",
@@ -198,7 +206,7 @@ export function AdmissionQueue() {
         ariaLabel={t("staffOffline.queue.tabsLabel")}
         wrap
       />
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,auto)_minmax(12rem,auto)]">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,auto)_minmax(10rem,auto)_minmax(12rem,auto)]">
         <SearchInput
           className="self-end"
           id="admissions-q"
@@ -212,6 +220,16 @@ export function AdmissionQueue() {
             {(batches.data ?? []).map((batch) => (
               <option key={batch.id} value={batch.id}>
                 {batchName(batch.id)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t("staffOffline.queue.sourceLabel")}>
+          <Select value={params.source} onChange={(event) => setParams({ source: event.target.value, page: 0 })}>
+            <option value="">{t("staffOffline.queue.sourceAll")}</option>
+            {SOURCES.map((source) => (
+              <option key={source} value={source}>
+                {t(`staffOffline.queue.sources.${source}`)}
               </option>
             ))}
           </Select>
@@ -272,6 +290,9 @@ export function AdmissionQueue() {
     </div>
   );
 }
+
+/** The sources of an application, in the order the filter lists them. */
+const SOURCES: AdmissionSource[] = ["PUBLIC", "ACCOUNT", "DESK"];
 
 /** The copy key of each money filter. */
 const FLAG_KEY: Record<QueueMoneyFilter, "unpaid" | "overdue" | "pendingApproval"> = {

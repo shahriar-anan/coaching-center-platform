@@ -71,20 +71,25 @@ describe("exam price section (R2, U5)", () => {
     expect(patchBodies(api.calls)).toHaveLength(0);
   });
 
-  it("System Admin sees the price as text with who can change it, and no save", () => {
-    mockApi({});
-    renderWithProviders(<ExamMetaForm exam={{ ...exam, price: 400 }} canEdit onDirtyChange={() => undefined} section="price" />, { user: fixtures.systemAdmin });
+  it("System Admin types a price and it is sent with the price section's save (15 Nov)", async () => {
+    const api = mockApi({
+      [patchPath]: (req: { body: unknown }) => ({ ...exam, price: (req.body as { price: number }).price }),
+    });
+    renderWithProviders(<ExamMetaForm exam={exam} canEdit onDirtyChange={() => undefined} section="price" />, { user: fixtures.systemAdmin });
 
-    expect(screen.queryByLabelText("মূল্য (৳)")).not.toBeInTheDocument();
-    expect(screen.getByText("মূল্য শুধু মাস্টার অ্যাডমিন ঠিক করতে পারেন।")).toBeInTheDocument();
-    expect(screen.getByText("৳৪০০")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "সেভ করুন" })).not.toBeInTheDocument();
+    expect(screen.queryByText("মূল্য শুধু মাস্টার অ্যাডমিন ঠিক করতে পারেন।")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("মূল্য (৳)"), "400");
+    await userEvent.click(screen.getByRole("button", { name: "সেভ করুন" }));
+
+    await waitFor(() => expect(patchBodies(api.calls)).toHaveLength(1));
+    expect(patchBodies(api.calls)[0]).toEqual({ free: false, price: 400, discountPercent: null, discountEndsAt: null, accessDays: null });
   });
 
-  it("System Admin sees 'price not set' for a blank price, not zero", () => {
+  it("an instructor never gets the price input", () => {
     mockApi({});
-    renderWithProviders(<ExamMetaForm exam={exam} canEdit onDirtyChange={() => undefined} section="price" />, { user: fixtures.systemAdmin });
-    expect(screen.getByText("মূল্য এখনো ঠিক হয়নি")).toBeInTheDocument();
+    renderWithProviders(<ExamMetaForm exam={{ ...exam, price: 400 }} canEdit onDirtyChange={() => undefined} section="price" />, { user: fixtures.instructor });
+    expect(screen.queryByLabelText("মূল্য (৳)")).not.toBeInTheDocument();
+    expect(screen.getByText("৳৪০০")).toBeInTheDocument();
   });
 
   it("System Admin's schedule save never sends the price", async () => {
