@@ -154,3 +154,24 @@ Known limits of a rollback to the 15 Nov release after V100:
   admission, list, fees and results, Finance and the catalog (9/9). It shows the new instalments as written.
 - V100 was changed during the rehearsal (the old columns now get the first instalment). It was rebuilt and rehearsed again on a fresh
   restore. The offline ITs passed on it (38/38). The review DB's V100 checksum was updated to match (-1696437556).
+
+## 10. Released (15 Nov, 16:41 Dhaka), with the admission access fix
+
+- **Commit and builds:** `191e097`. Jar `api-191e097.jar` (SHA-256 `a654956d…`). Web `web-191e097-20261115-103612.tgz`, build
+  `bY2MNX63xjjvXVvRZwmMv`, offline on.
+- **Timing:** swapped during the written live exam (14:00 to 17:10, 1 open sitting, no draft yet) by Shahriar's choice.
+- **Backup (16:39):**
+  - `coaching-pre-coursefee-20261115-103912.dump` (581 entries) and `files-pre-coursefee-20261115-103912.tgz`, both on the box and
+    in `F:\cc-releases\backup-pre-coursefee-20261115-103912` (hashes match);
+  - `api.jar.before-coursefee-20261115-103912` and the env copy are on the box.
+- **API:** Flyway 100, 0 failed, 1 migration applied, started in 19 s. Live values: the batch ৳9,000 in 7 (old column ৳1,285); the
+  closed admission ৳7,000 in 6.
+- **Web:** up after 1 s. Previous site kept at `/opt/coaching-web.before-20261115-104207`.
+- **Smoke:**
+  - offline switch on; nine pages and APIs answer 200; staff routes answer 401 unauthenticated;
+  - 0 errors and 0 5xx since the start (4 warnings: the PDF font fallback, as before);
+  - counts unchanged (users 201, participants 190, scripts 18, orders 7, grants 31);
+  - the public card serves the course fee ৳9,000 in 7.
+- **Open:**
+  - one real email (a join or reset code) to confirm Brevo delivers;
+  - the office checks that the batch's course fee and instalments are right.
