@@ -25,6 +25,23 @@ import { formatDateTime, formatNumber } from "@/lib/format";
 
 export const MAX_ANSWER_BYTES = 80 * 1024 * 1024;
 
+/** Waits before the automatic retries of a dropped upload. Two retries, then the student is asked to try again. */
+const RETRY_DELAYS_MS = [2_000, 5_000];
+
+/**
+ * A copy of the chosen file held in memory. On a phone the picked file is only a pointer to the original: if the original is re-saved,
+ * synced or its access lapses while the exam runs, every upload of the pointer fails at once, and Try again fails the same way
+ * (written-upload incident, 15 Nov 2026). The copy is read once, when the student chooses it.
+ */
+export async function snapshot(file: File): Promise<File> {
+  const bytes = await file.arrayBuffer();
+  return new File([bytes], file.name, { type: "application/pdf", lastModified: file.lastModified });
+}
+
+function isNetworkError(caught: unknown): boolean {
+  return caught instanceof TypeError || (caught instanceof DOMException && caught.name === "AbortError");
+}
+
 /** Accepts a file with a `%PDF` header within its first kilobyte. A renamed image is refused here. */
 export async function isPdf(file: Blob): Promise<boolean> {
   const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
@@ -78,7 +95,21 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
     setError(null);
     setProgress(0);
     try {
-      const saved = await saveDraft.mutateAsync(file);
+      // A dropped connection is retried by itself (twice), so a weak signal does not need the student to notice and tap.
+      let saved: AnswerDraft | null = null;
+      for (let attempt = 0; saved === null; attempt += 1) {
+        try {
+          saved = await saveDraft.mutateAsync(file);
+        } catch (caught) {
+          if (!isNetworkError(caught) || attempt >= RETRY_DELAYS_MS.length || Date.now() >= Date.parse(deadlineAt)) {
+            throw caught;
+          }
+          setError(t("sitting.written.retrying", { attempt: n(attempt + 2), total: n(RETRY_DELAYS_MS.length + 1) }));
+          await new Promise((resolve) => window.setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+          setProgress(0);
+        }
+      }
+      setError(null);
       setDraft(saved);
       setFailed(null);
     } catch (caught) {
@@ -91,8 +122,15 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
         setError(t("sitting.written.deadlinePassed"));
         return;
       }
+      // The server could not open this PDF (for example it needs a password): sending it again will not help, so Try again is not
+      // offered; the student chooses another file.
+      if (caught instanceof ApiError && caught.code === "VALIDATION_FAILED") {
+        setFailed(null);
+        setError(t("sitting.written.badPdf"));
+        return;
+      }
       setFailed(file);
-      const network = caught instanceof TypeError || (caught instanceof DOMException && caught.name === "AbortError");
+      const network = isNetworkError(caught);
       setError(
         caught instanceof ApiError && caught.code === "FILE_TOO_LARGE"
           ? t("sitting.written.tooLarge")
@@ -120,7 +158,14 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
       setError(t("sitting.written.onlyPdf"));
       return;
     }
-    await upload(file);
+    let copy: File;
+    try {
+      copy = await snapshot(file);
+    } catch {
+      setError(t("sitting.written.readFailed"));
+      return;
+    }
+    await upload(copy);
   };
 
   const submit = async () => {
@@ -208,6 +253,10 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
             {t("sitting.written.tryAgain")}
           </Button>
         ) : null}
+        {/* A replacement that did not upload leaves the earlier file on the server: Submit still sends that one, and says so. */}
+        {failed && draft && !saveDraft.isPending && !closed && !submitted ? (
+          <p className="mt-2 text-body text-text">{t("sitting.written.earlierStillSaved", { name: draft.fileName })}</p>
+        ) : null}
         {draft || submitted ? (
           <Button variant="secondary" className="mt-3" onClick={() => setViewing(true)}>
             {t("sitting.written.viewUploaded")}
@@ -221,7 +270,7 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
           <Button
             variant="primary"
             loading={submitExam.isPending}
-            disabled={!draft || Boolean(failed) || closed || busy}
+            disabled={!draft || closed || busy}
             onClick={() => setConfirming(true)}
           >
             {saveDraft.isPending ? `${t("sitting.written.uploading")} ${n(progress)}%` : t("sitting.written.script")}

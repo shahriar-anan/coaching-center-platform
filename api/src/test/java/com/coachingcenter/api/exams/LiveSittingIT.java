@@ -778,6 +778,72 @@ class LiveSittingIT extends PostgresIntegrationTest {
 				sitting.examId(), sitting.studentId());
 	}
 
+	private org.springframework.test.web.servlet.ResultActions uploadDraftBytes(WrittenSitting sitting, String name, byte[] bytes)
+			throws Exception {
+		return mockMvc.perform(multipart(org.springframework.http.HttpMethod.PUT, sitting.path() + "/answer-draft")
+			.file(new MockMultipartFile("file", name, "application/pdf", bytes))
+			.header("Authorization", "Bearer " + sitting.token()));
+	}
+
+	private byte[] draftBytes(WrittenSitting sitting) throws Exception {
+		return mockMvc.perform(get(sitting.path() + "/answer-draft").header("Authorization", "Bearer " + sitting.token()))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsByteArray();
+	}
+
+	/** A one-page PDF made by PDFBox, locked with these passwords (an empty user password opens it without asking). */
+	private static byte[] lockedPdf(String ownerPassword, String userPassword) throws Exception {
+		try (org.apache.pdfbox.pdmodel.PDDocument document = new org.apache.pdfbox.pdmodel.PDDocument();
+				java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+			document.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+			org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy policy = new org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy(
+					ownerPassword, userPassword, new org.apache.pdfbox.pdmodel.encryption.AccessPermission());
+			policy.setEncryptionKeyLength(128);
+			document.protect(policy);
+			document.save(out);
+			return out.toByteArray();
+		}
+	}
+
+	/**
+	 * Written-upload incident (15 Nov 2026): a PDF the page accepts must not be refused by the server, or every retry fails the same
+	 * way. Bytes before the header, an owner-locked scan and a PDF the server cannot rewrite are all kept; only a PDF that needs a
+	 * password to open is refused, with a reason the student can act on.
+	 */
+	@Test
+	void aPdfThePageAcceptsIsKeptEvenWhenTheServerCannotShrinkIt() throws Exception {
+		WrittenSitting sitting = openWrittenSitting();
+
+		byte[] valid = compressiblePdf();
+		byte[] prefixed = new byte[valid.length + 6];
+		System.arraycopy("\r\n  \r\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII), 0, prefixed, 0, 6);
+		System.arraycopy(valid, 0, prefixed, 6, valid.length);
+		uploadDraftBytes(sitting, "prefixed.pdf", prefixed).andExpect(status().isOk()).andExpect(jsonPath("$.fileName").value("prefixed.pdf"));
+
+		uploadDraftBytes(sitting, "scanner.pdf", lockedPdf("owner-secret", "")).andExpect(status().isOk());
+		try (org.apache.pdfbox.pdmodel.PDDocument stored = org.apache.pdfbox.Loader.loadPDF(draftBytes(sitting))) {
+			assertThat(stored.isEncrypted()).isFalse();
+		}
+
+		byte[] damaged = "%PDF-1.4\nnot a page tree, only text a reader may still show\n%%EOF\n"
+			.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+		uploadDraftBytes(sitting, "damaged.pdf", damaged).andExpect(status().isOk());
+		assertThat(draftBytes(sitting)).isEqualTo(damaged);
+
+		uploadDraftBytes(sitting, "locked.pdf", lockedPdf("owner-secret", "open-secret"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+			.andExpect(jsonPath("$.fieldErrors[0].field").value("file"));
+		// The refused file did not replace the draft.
+		assertThat(draftBytes(sitting)).isEqualTo(damaged);
+
+		uploadDraftBytes(sitting, "notes.pdf", "plain text, not a PDF".getBytes(java.nio.charset.StandardCharsets.US_ASCII))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+	}
+
 	@Test
 	void aDraftIsKeptOnTheServerReplacedUntilSubmitAndThenFinal() throws Exception {
 		WrittenSitting sitting = openWrittenSitting();

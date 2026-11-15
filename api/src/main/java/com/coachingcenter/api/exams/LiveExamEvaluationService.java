@@ -579,7 +579,8 @@ public class LiveExamEvaluationService {
 		catch (IOException exception) {
 			throw validationFailed();
 		}
-		if (original.length < 5 || original[0] != '%' || original[1] != 'P' || original[2] != 'D' || original[3] != 'F') {
+		// The header may start a little into the file, as the browser's own check allows (scanner apps add bytes before it).
+		if (!PdfCompressor.looksLikePdf(original)) {
 			throw validationFailed();
 		}
 		byte[] compressed = pdfs.compress(original);

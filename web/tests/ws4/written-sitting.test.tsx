@@ -143,6 +143,61 @@ describe("written sitting: the script is a draft on the server until it is submi
     expect(screen.getByRole("button", { name: "খাতা জমা দিন" })).toBeEnabled();
   });
 
+  // Written-upload incident (15 Nov 2026): a phone's picked file can become unreadable during the exam, and every retry of it failed.
+  it("uploads a copy read when the file is chosen, so a retry never depends on the original", async () => {
+    draftMock.mockRejectedValueOnce(new Error("server")).mockResolvedValueOnce(draftOf("script.pdf"));
+    renderSitting();
+    const original = pdf("script.pdf");
+
+    await userEvent.upload(fileInput(), original);
+    await userEvent.click(await screen.findByRole("button", { name: "আবার চেষ্টা করুন" }));
+    await screen.findByText(/আপলোড হয়েছে/);
+
+    const sent = draftMock.mock.calls.map(([file]) => file as File);
+    expect(sent).toHaveLength(2);
+    for (const file of sent) {
+      expect(file).not.toBe(original);
+      expect(file.name).toBe("script.pdf");
+      expect(await file.text()).toBe("%PDF-1.4 test");
+    }
+  });
+
+  it("retries a dropped connection by itself before asking the student", async () => {
+    draftMock.mockRejectedValueOnce(new TypeError("Network request failed")).mockResolvedValueOnce(draftOf("script.pdf"));
+    renderSitting();
+
+    await userEvent.upload(fileInput(), pdf("script.pdf"));
+
+    expect(await screen.findByText(/আবার পাঠানো হচ্ছে/)).toBeInTheDocument();
+    expect(await screen.findByText(/আপলোড হয়েছে/, undefined, { timeout: 4000 })).toBeInTheDocument();
+    expect(draftMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "আবার চেষ্টা করুন" })).not.toBeInTheDocument();
+  });
+
+  it("asks for another file when the server cannot open the PDF, instead of offering Try again", async () => {
+    draftMock.mockRejectedValueOnce(new ApiError({ code: "VALIDATION_FAILED", message: "bad", timestamp: "", requestId: "" }, 400));
+    renderSitting();
+
+    await userEvent.upload(fileInput(), pdf("locked.pdf"));
+
+    expect(await screen.findByText(/এই পিডিএফটি খোলা যায়নি/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "আবার চেষ্টা করুন" })).not.toBeInTheDocument();
+    expect(draftMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Submit on for the earlier draft when a replacement does not upload, and says which file it sends", async () => {
+    draftMock.mockRejectedValueOnce(new Error("server"));
+    submitMock.mockResolvedValueOnce({ status: "SUBMITTED" });
+    renderSitting({ answerDraft: draftOf("earlier.pdf") });
+
+    await userEvent.upload(fileInput(), pdf("newer.pdf"));
+
+    expect(await screen.findByText(/আগে আপলোড করা earlier\.pdf জমা হবে/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "খাতা জমা দিন" })).toBeEnabled();
+    await confirmSubmit();
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1));
+  });
+
   it("goes to the submitted page when the server says the script was already submitted", async () => {
     draftMock.mockRejectedValue(new ApiError({ code: "ANSWER_ALREADY_SUBMITTED", message: "already", timestamp: "", requestId: "" }, 409));
     renderSitting();
