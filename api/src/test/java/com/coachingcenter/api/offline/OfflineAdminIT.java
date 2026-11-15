@@ -505,6 +505,75 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 		assertThat(after.get("dues").get(2).get("paid").decimalValue()).isEqualByComparingTo("0");
 	}
 
+	@Test
+	void aRecordedFeePaymentIsCorrectedTheMasterAdminFinalizesItAndFinanceShowsIt() throws Exception {
+		// payment-records-edit-plan.md: a System Admin's correction waits; the Master Admin finalizes or rejects it.
+		UUID master = seed("MASTER_ADMIN", "Master");
+		String token = token(master);
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID admission = onboarded(seed("STUDENT", "Corrected Payer"), master);
+		JsonNode paid = respond(post("/api/v1/offline-admissions/" + admission + "/payments", token, payment("3000", "FIX-1")), 201);
+		String id = paid.get("id").asText();
+		BigDecimal before = income(token);
+
+		JsonNode waiting = respond(post("/api/v1/payment-records/FEE/" + id + "/edits", staff,
+				"{\"amount\":\"3500\",\"reason\":\"The student paid 3,500\"}"), 200);
+		assertThat(waiting.get("status").asText()).isEqualTo("PENDING");
+		String editId = waiting.get("id").asText();
+		// While it waits nothing changes, Finance included; a second correction of the same payment waits its turn.
+		assertThat(income(token)).isEqualByComparingTo(before);
+		respond(post("/api/v1/payment-records/FEE/" + id + "/edits", staff, "{\"amount\":\"3600\",\"reason\":\"Again\"}"), 409);
+		respond(post("/api/v1/payment-edits/" + editId + "/finalize", staff, null), 403);
+		JsonNode rows = respondTo(get("/api/v1/payment-records?kind=FEE&from=2026-10-20&to=2026-10-20").header("Authorization",
+				"Bearer " + token), 200);
+		boolean listed = false;
+		for (JsonNode row : rows) {
+			if (id.equals(row.get("id").asText())) {
+				listed = true;
+				assertThat(row.get("pendingEdit").get("after").get("amount").decimalValue()).isEqualByComparingTo("3500");
+			}
+		}
+		assertThat(listed).isTrue();
+		assertThat(respondTo(get("/api/v1/payment-records/edits").header("Authorization", "Bearer " + token), 200).toString())
+			.contains(editId);
+
+		// Finalized: the payment is 3,500, matched again (3,000 to the first instalment, 500 to the second), and Finance shows it.
+		assertThat(respond(post("/api/v1/payment-edits/" + editId + "/finalize", token, null), 200).get("status").asText())
+			.isEqualTo("FINALIZED");
+		JsonNode fees = respondTo(get("/api/v1/offline-admissions/" + admission + "/fees").header("Authorization", "Bearer " + token), 200);
+		assertThat(fees.get("owed").decimalValue()).isEqualByComparingTo("8500");
+		assertThat(fees.get("dues").get(0).get("paid").decimalValue()).isEqualByComparingTo("3000");
+		assertThat(fees.get("dues").get(1).get("paid").decimalValue()).isEqualByComparingTo("500");
+		assertThat(income(token).subtract(before)).isEqualByComparingTo("500");
+		assertThat(jdbc().queryForObject("select receipt_no from offline_fee_payments where id = ?", String.class, UUID.fromString(id)))
+			.isEqualTo(paid.get("receiptNo").asText());
+		mockMvc.perform(get("/api/v1/offline-fee-payments/" + id + "/receipt.pdf").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk());
+
+		// The Master Admin's own correction is final at once, and cannot take more than is owed.
+		respond(post("/api/v1/payment-records/FEE/" + id + "/edits", token, "{\"amount\":\"13000\",\"reason\":\"Too much\"}"), 400);
+		JsonNode own = respond(post("/api/v1/payment-records/FEE/" + id + "/edits", token,
+				"{\"reference\":\"FIX-1-B\",\"reason\":\"Receipt book number\"}"), 200);
+		assertThat(own.get("status").asText()).isEqualTo("FINALIZED");
+
+		// A rejected correction leaves the payment as it was.
+		String rejected = respond(post("/api/v1/payment-records/FEE/" + id + "/edits", staff,
+				"{\"paidOn\":\"2026-10-19\",\"reason\":\"Paid the day before\"}"), 200).get("id").asText();
+		respond(post("/api/v1/payment-edits/" + rejected + "/reject", token, "{\"reason\":\"The receipt book says 20 October\"}"), 200);
+		assertThat(jdbc().queryForObject("select paid_on::text from offline_fee_payments where id = ?", String.class, UUID.fromString(id)))
+			.isEqualTo("2026-10-20");
+		JsonNode history = respondTo(get("/api/v1/payment-records/edits?status=DECIDED").header("Authorization", "Bearer " + token), 200);
+		assertThat(history.toString()).contains(rejected).contains("The receipt book says 20 October").doesNotContain("\"PENDING\"");
+		assertThat(respondTo(get("/api/v1/payment-records/edits").header("Authorization", "Bearer " + token), 200).toString())
+			.doesNotContain(rejected);
+	}
+
+	/** Income in Finance on the test day, as the Master Admin sees it. */
+	private BigDecimal income(String token) throws Exception {
+		return respondTo(get("/api/v1/finance/summary?from=2026-10-20&to=2026-10-20").header("Authorization", "Bearer " + token), 200)
+			.get("income").decimalValue();
+	}
+
 	private static String payment(String amount, String reference) {
 		return "{\"amount\":\"" + amount + "\",\"method\":\"CASH\",\"reference\":\"" + reference + "\",\"paidOn\":\"2026-10-20\"}";
 	}

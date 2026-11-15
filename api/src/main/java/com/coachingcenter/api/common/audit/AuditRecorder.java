@@ -126,6 +126,15 @@ public class AuditRecorder {
 
 	public static final String OFFLINE_BATCH_ARCHIVED = "OFFLINE_BATCH_ARCHIVED";
 
+	/** A recorded payment's correction, its finalizing and its rejection (V104, payment-records-edit-plan.md). */
+	public static final String PAYMENT_EDIT_REQUESTED = "PAYMENT_EDIT_REQUESTED";
+
+	public static final String PAYMENT_EDIT_FINALIZED = "PAYMENT_EDIT_FINALIZED";
+
+	public static final String PAYMENT_EDIT_REJECTED = "PAYMENT_EDIT_REJECTED";
+
+	public static final String PAYMENT_EDIT_ENTITY = "PAYMENT_EDIT";
+
 	/** The Master Admin published a draft batch (V103): students see it and admissions can use it. */
 	public static final String OFFLINE_BATCH_PUBLISHED = "OFFLINE_BATCH_PUBLISHED";
 

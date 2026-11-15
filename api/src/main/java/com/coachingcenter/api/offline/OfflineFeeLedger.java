@@ -45,7 +45,7 @@ class OfflineFeeLedger {
 	record Payment(UUID id, UUID admissionId, UUID studentId, String personName, BigDecimal amount, String method,
 			String reference, LocalDate paidOn, String note, String status, String receiptNo, UUID recordedBy,
 			String recordedByName, Instant recordedAt, Instant decidedAt, String decisionReason, Instant voidedAt,
-			String voidReason, String name, @JsonInclude(JsonInclude.Include.ALWAYS) String batchNameEn) {
+			String voidReason, String name, @JsonInclude(JsonInclude.Include.ALWAYS) String batchNameEn, Instant correctedAt) {
 	}
 
 	/** An admission as the fee code needs it: who it belongs to and where it stands. */
@@ -56,7 +56,7 @@ class OfflineFeeLedger {
 			select p.id, p.admission_id, a.student_id, coalesce(a.full_name, sp.full_name, '') as person_name,
 			  p.amount, p.method, p.reference, p.paid_on, p.note, p.status, p.receipt_no, p.recorded_by,
 			  coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.decided_at, p.decision_reason,
-			  p.voided_at, p.void_reason, b.name_en as batch_name_en
+			  p.voided_at, p.void_reason, b.name_en as batch_name_en, p.corrected_at
 			from offline_fee_payments p
 			join offline_admissions a on a.id = p.admission_id
 			left join offline_batches b on b.id = a.batch_id
@@ -302,7 +302,7 @@ class OfflineFeeLedger {
 				rs.getString("status"), rs.getString("receipt_no"), rs.getObject("recorded_by", UUID.class),
 				rs.getString("recorded_by_name"), instant(rs, "recorded_at"), instant(rs, "decided_at"),
 				rs.getString("decision_reason"), instant(rs, "voided_at"), rs.getString("void_reason"),
-				rs.getString("person_name"), rs.getString("batch_name_en"));
+				rs.getString("person_name"), rs.getString("batch_name_en"), instant(rs, "corrected_at"));
 	}
 
 	private static Instant instant(ResultSet rs, String column) throws SQLException {

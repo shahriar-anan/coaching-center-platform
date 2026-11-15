@@ -113,6 +113,7 @@ const common = {
       instructorPayments: "{count}টি অফলাইন ক্লাসের পেমেন্ট বাকি",
     },
     finance: "আর্থিক হিসাব",
+    paymentRecords: "পেমেন্টের রেকর্ড",
     instructorPayments: "শিক্ষকদের পেমেন্ট",
     offlineInstructors: "অফলাইন শিক্ষক",
     admissions: "ভর্তি",

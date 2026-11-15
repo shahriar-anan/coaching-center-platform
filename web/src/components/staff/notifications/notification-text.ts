@@ -35,6 +35,9 @@ const KNOWN_KINDS = new Set([
   "OFFLINE_CLASSES_TO_SETTLE",
   "OFFLINE_CLASSES_OVERDUE",
   "OFFLINE_ENTRIES_DECIDED",
+  "PAYMENT_EDIT_PENDING",
+  "PAYMENT_EDIT_FINALIZED",
+  "PAYMENT_EDIT_REJECTED",
 ]);
 
 /** A payload value as text: empty for a missing value. */
@@ -236,6 +239,15 @@ export function notificationText(
       return t("staffNotifications.kind.OFFLINE_ENTRIES_DECIDED", {
         approved: count(payload.approved),
         rejected: count(payload.rejected),
+      });
+    case "PAYMENT_EDIT_PENDING":
+    case "PAYMENT_EDIT_FINALIZED":
+      return t(`staffNotifications.kind.${kind}`, { person: personLabel(payload, t), amount: money(payload.amount, locale) });
+    case "PAYMENT_EDIT_REJECTED":
+      return t("staffNotifications.kind.PAYMENT_EDIT_REJECTED", {
+        person: personLabel(payload, t),
+        amount: money(payload.amount, locale),
+        reason: text(payload.reason) || "—",
       });
     case "EXAM_ASSIGNED":
     case "EXAM_UNASSIGNED":

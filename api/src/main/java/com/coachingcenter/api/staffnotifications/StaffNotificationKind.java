@@ -110,5 +110,14 @@ public enum StaffNotificationKind {
 	 * To the person who recorded offline payments or not-taken marks: the Master Admin approved or rejected them. One notice per decision
 	 * batch. Payload: approved, rejected (the counts in that batch).
 	 */
-	OFFLINE_ENTRIES_DECIDED
+	OFFLINE_ENTRIES_DECIDED,
+
+	/** To the Master Admin: a staff member corrected a recorded payment, and the edit waits to be finalized. Payload: personName, amount. */
+	PAYMENT_EDIT_PENDING,
+
+	/** To the person who asked: the Master Admin finalized their correction of a payment. Payload: personName, amount. */
+	PAYMENT_EDIT_FINALIZED,
+
+	/** To the person who asked: the Master Admin rejected their correction of a payment. Payload: personName, amount, reason. */
+	PAYMENT_EDIT_REJECTED
 }

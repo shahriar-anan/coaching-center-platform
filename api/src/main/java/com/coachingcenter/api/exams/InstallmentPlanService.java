@@ -187,6 +187,83 @@ public class InstallmentPlanService {
 	}
 
 	/**
+	 * Corrects a direct payment that is not voided (payment-records-edit-plan.md, section 4). The date, method, reference and note can
+	 * change on any such payment. The amount only on the latest one, as only the latest can be voided: each later receipt carries a
+	 * running total. Its running total, what is due after it and the next due are then worked out again. The receipt keeps its number,
+	 * and corrected_at says when. The caller has checked who may do this and keeps the record of the edit.
+	 */
+	@Transactional
+	public void correctPayment(UUID paymentId, BigDecimal amount, LocalDate paidOn, String methodText, String referenceText,
+			String noteText) {
+		List<UUID> planIds = jdbc.queryForList("select plan_id from live_exam_direct_payments where id = ?", UUID.class, paymentId);
+		if (planIds.isEmpty()) {
+			throw notFound();
+		}
+		PlanHead plan = lockPlan(planIds.get(0));
+		var current = jdbc.queryForMap("select amount, reference, voided_at from live_exam_direct_payments where id = ?", paymentId);
+		if (current.get("voided_at") != null) {
+			throw new ApiException(ErrorCode.ADMISSION_STATE, HttpStatus.CONFLICT, "A voided payment cannot be corrected.");
+		}
+		List<FieldErrorDetail> errors = new ArrayList<>();
+		String method = methodText == null ? "" : methodText.trim().toUpperCase(Locale.ROOT);
+		if (!LiveExamPaymentPlanService.METHODS.contains(method)) {
+			errors.add(new FieldErrorDetail("method", "Choose a payment method."));
+		}
+		String reference = referenceText == null ? "" : referenceText.trim();
+		if (!LiveExamPaymentPlanService.REFERENCE.matcher(reference).matches()) {
+			errors.add(new FieldErrorDetail("reference", "A reference is required: 1 to 100 printable characters, no accents."));
+		}
+		String note = blankToNull(noteText);
+		if (note != null && note.length() > LiveExamPaymentPlanService.MAX_NOTE) {
+			errors.add(new FieldErrorDetail("note", "The note is at most 500 characters."));
+		}
+		if (amount == null || !InstallmentSchedule.isMoney(amount) || amount.signum() <= 0) {
+			errors.add(new FieldErrorDetail("amount", "The amount must be more than zero, with at most two decimals."));
+		}
+		if (paidOn == null || paidOn.isAfter(today())) {
+			errors.add(new FieldErrorDetail("paidOn", "The payment date cannot be in the future."));
+		}
+		throwIfAny(errors);
+		BigDecimal oldAmount = (BigDecimal) current.get("amount");
+		if (!reference.equalsIgnoreCase(String.valueOf(current.get("reference")).trim())) {
+			Integer taken = jdbc.queryForObject("""
+					select count(*) from live_exam_direct_payments
+					where plan_id = ? and voided_at is null and id <> ? and upper(btrim(reference)) = upper(?)
+					""", Integer.class, plan.id(), paymentId, reference);
+			if (taken != null && taken > 0) {
+				throw new ApiException(ErrorCode.INSTALLMENT_DUPLICATE_REFERENCE, HttpStatus.CONFLICT,
+						"This reference is already recorded on this plan.");
+			}
+		}
+		if (amount.compareTo(oldAmount) != 0) {
+			List<UUID> latest = jdbc.queryForList("""
+					select id from live_exam_direct_payments where plan_id = ? and voided_at is null
+					order by created_at desc, receipt_no desc limit 1
+					""", UUID.class, plan.id());
+			if (latest.isEmpty() || !latest.get(0).equals(paymentId)) {
+				throw new ApiException(ErrorCode.INSTALLMENT_VOID_NOT_LATEST, HttpStatus.CONFLICT,
+						"Only the latest payment of a plan can change its amount, as each later receipt carries the running total.");
+			}
+			BigDecimal paidBefore = paidTotal(plan.id()).subtract(oldAmount);
+			if (amount.compareTo(plan.agreedTotal().subtract(paidBefore)) > 0) {
+				throw new ApiException(ErrorCode.INSTALLMENT_OVERPAYMENT, HttpStatus.CONFLICT,
+						"The payment is more than the amount still due.");
+			}
+			InstallmentSchedule.Position position = InstallmentSchedule.position(rows(plan.id()), plan.agreedTotal(), paidBefore, amount);
+			jdbc.update("""
+					update live_exam_direct_payments set paid_to_date = ?, due_after = ?, next_due_on = ?, next_due_amount = ?,
+					  installment_no = ?, installment_count = ? where id = ?
+					""", position.paidToDate(), position.dueAfter(),
+					position.nextDueOn() == null ? null : Date.valueOf(position.nextDueOn()), position.nextDueAmount(),
+					position.installmentNo(), position.installmentCount(), paymentId);
+		}
+		jdbc.update("""
+				update live_exam_direct_payments set amount = ?, paid_on = ?, method = ?, reference = ?, note = ?, corrected_at = ?
+				where id = ?
+				""", amount, Date.valueOf(paidOn), method, reference, note, Timestamp.from(clock.instant()), paymentId);
+	}
+
+	/**
 	 * Replaces the unpaid rows of a schedule (plan section 4). {@code schedule} is the whole schedule after the change: its first
 	 * rows, the ones the payments already cover, must be exactly as they are, and the rest must add up to what is left.
 	 */

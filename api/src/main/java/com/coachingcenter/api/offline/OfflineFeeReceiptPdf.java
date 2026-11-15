@@ -190,13 +190,17 @@ public class OfflineFeeReceiptPdf {
 	private static void details(Sheet sheet, OfflineFeeService.Receipt receipt) throws IOException {
 		Payment payment = receipt.payment();
 		String batch = receipt.batchName() == null ? "" : ascii(receipt.batchName());
-		List<String[]> rows = List.of(
+		List<String[]> rows = new java.util.ArrayList<>(List.of(
 				new String[] { "Status", "Paid" },
 				new String[] { "Paid on", DAY.format(payment.paidOn()) },
 				new String[] { "Payment method", OfflineFeeRules.methodLabel(payment.method()) },
 				new String[] { "Reference", text(payment.reference()) },
 				new String[] { "Receipt number", text(payment.receiptNo()) },
-				new String[] { "Batch", batch.isEmpty() ? "-" : batch });
+				new String[] { "Batch", batch.isEmpty() ? "-" : batch }));
+		// A corrected payment keeps its receipt number and says when it was corrected (payment-records-edit-plan.md, P4).
+		if (payment.correctedAt() != null) {
+			rows.add(new String[] { "Corrected on", DAY.format(payment.correctedAt().atZone(OfflineFeeSchedule.DHAKA).toLocalDate()) });
+		}
 		float height = 30 + rows.size() * 17;
 		if (!sheet.fits(height)) {
 			sheet.newPage();

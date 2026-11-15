@@ -333,6 +333,41 @@ class OfflineClassSettleIT extends PostgresIntegrationTest {
 
 	// ---- helpers ----------------------------------------------------------------------------------------------------------
 
+	@Test
+	void anInstructorPaymentIsCorrectedOnThePaymentRecordsPage() throws Exception {
+		Setup s = setup();
+		UUID instructor = instructor(s.master, "Correct");
+		UUID batch = batch(s.master);
+		UUID held = id(classAt(s.master, batch, "2026-10-19", "10:00", "11:20", instructor));
+		respond(post("/api/v1/offline-classes/" + held + "/payment", s.master, payment("400", "2026-10-19")), 200);
+		String paymentId = classView(s.master, batch, held).get("payment").get("id").asText();
+		String url = "/api/v1/payment-records/class/" + paymentId + "/edits";
+
+		respond(post(url, s.master, "{\"amount\":350,\"note\":\"\",\"reason\":\"Paid less\"}"), 400);
+		respond(post(url, s.master, "{\"amount\":400,\"reason\":\"Nothing\"}"), 400);
+		JsonNode applied = respond(post(url, s.master, "{\"amount\":350,\"note\":\"Left early\",\"reason\":\"Paid less\"}"), 200);
+		assertThat(applied.get("status").asText()).isEqualTo("FINALIZED");
+		assertThat(jdbc().queryForObject("select amount from offline_class_payments where id = ?::uuid", java.math.BigDecimal.class,
+				paymentId)).isEqualByComparingTo("350");
+
+		JsonNode waiting = respond(post(url, s.staff, "{\"reference\":\"R-2\",\"reason\":\"Typo\"}"), 200);
+		assertThat(waiting.get("status").asText()).isEqualTo("PENDING");
+		assertThat(jdbc().queryForObject("select reference from offline_class_payments where id = ?::uuid", String.class, paymentId))
+			.isEqualTo("R-1");
+
+		JsonNode rows = respondTo(get("/api/v1/payment-records").param("kind", "CLASS").param("instructorId", instructor.toString())
+			.header("Authorization", "Bearer " + s.master), 200);
+		assertThat(rows).hasSize(1);
+		assertThat(rows.get(0).get("amount").decimalValue()).isEqualByComparingTo("350");
+		assertThat(rows.get(0).hasNonNull("correctedAt")).isTrue();
+		assertThat(rows.get(0).get("pendingEdit").get("after").get("reference").asText()).isEqualTo("R-2");
+
+		respond(post("/api/v1/payment-edits/" + waiting.get("id").asText() + "/finalize", s.staff, "{}"), 403);
+		respond(post("/api/v1/payment-edits/" + waiting.get("id").asText() + "/finalize", s.master, "{}"), 200);
+		assertThat(jdbc().queryForObject("select reference from offline_class_payments where id = ?::uuid", String.class, paymentId))
+			.isEqualTo("R-2");
+	}
+
 	private record Setup(String master, String staff) {
 	}
 

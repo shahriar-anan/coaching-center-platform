@@ -240,6 +240,25 @@ be thrown away with **Discard staged**. If another admin's staged version is abo
   instructor** (paid, owed and waiting for approval).
 - **All entries** lists every amount behind the figures, and **Export CSV** downloads it for Excel.
 
+### Correcting a recorded payment
+
+**Money → Payment records** lists every recorded payment: course fees, instructor payments and (Master Admin only) direct
+enrolment payments.
+
+- **Filters**: today, this month, last month or custom dates; the kind; a batch; an instructor; a search by name, reference or
+  receipt number.
+- **Edit** a payment to change its amount, date, method, reference or note. Say why: the reason is kept.
+- **A System Admin's correction waits** for the Master Admin. Until then the payment and Finance stay as they were, and the row
+  says **Correction waiting**.
+- **The Master Admin's own correction applies at once.**
+- **Waiting corrections** (the second tab) shows each waiting correction with the old and new values. The Master Admin presses
+  **Finalize** or **Reject** (with a reason). The admin who asked gets a notification either way.
+- **Correction history** lists the finalized and rejected ones.
+- Once finalized, **Finance, the fee pages and the instructor pages all show the new amount**. A corrected fee receipt keeps its
+  number and says **Corrected on** with the date.
+- Limits: a fee payment cannot be more than the student owes. An instructor payment that differs from the class amount needs a
+  note. On a direct enrolment plan, only the latest payment's amount can change.
+
 ---
 
 ## 11. Two changes for all students

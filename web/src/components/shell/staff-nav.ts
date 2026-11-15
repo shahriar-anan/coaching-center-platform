@@ -7,6 +7,7 @@ import {
   Coins,
   CreditCard,
   FileCheck,
+  FilePenLine,
   GraduationCap,
   HandCoins,
   IdCard,
@@ -59,7 +60,8 @@ export type StaffNavKey =
   | "offlineBatches"
   | "instructorPayments"
   | "offlineInstructors"
-  | "finance";
+  | "finance"
+  | "paymentRecords";
 
 /** The sidebar groups, in the order they show. Group names are in `common.staffNavGroup`. */
 export type StaffNavGroup = "overview" | "catalog" | "exams" | "people" | "money" | "offline" | "admin";
@@ -192,6 +194,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/finance",
     access: { MASTER_ADMIN: "full" },
     icon: Landmark,
+  },
+  {
+    key: "paymentRecords",
+    group: "money",
+    href: "/staff/payment-records",
+    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    icon: FilePenLine,
   },
   {
     key: "payments",

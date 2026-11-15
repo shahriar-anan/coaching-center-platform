@@ -146,6 +146,64 @@ class InstallmentPlanIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aRecordedPaymentIsCorrectedOnThePaymentRecordsPage() throws Exception {
+		// payment-records-edit-plan.md: the Master Admin's correction is final at once. The amount only on the latest payment, as only
+		// the latest can be voided; the other fields on any. Direct enrolment payments are the Master Admin's only.
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String system = token(seed("SYSTEM_ADMIN", "Staff"));
+		UUID student = seed("STUDENT", "Corrected Student");
+		UUID module = module(system, "Corrected");
+		String plan = enrol(master, student, module, null, "300", "100", "TXN-4001", row("100", TODAY),
+				row("100", "2026-11-20"), row("100", "2026-12-20")).get("paymentPlanId").asText();
+		mockMvc.perform(post("/api/v1/installment-plans/" + plan + "/payments").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(paymentBody("50", "BKASH", "REF-C")))
+			.andExpect(status().isCreated());
+		JsonNode before = detail(master, plan);
+		String first = before.get("payments").get(0).get("id").asText();
+		String latest = before.get("payments").get(1).get("id").asText();
+
+		mockMvc.perform(post("/api/v1/payment-records/DIRECT/" + first + "/edits").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"amount\":\"120\",\"reason\":\"Typo\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("INSTALLMENT_VOID_NOT_LATEST"));
+		mockMvc.perform(post("/api/v1/payment-records/DIRECT/" + first + "/edits").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"method\":\"NAGAD\",\"reference\":\"TXN-4001-B\",\"reason\":\"Paid by Nagad\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FINALIZED"));
+		mockMvc.perform(post("/api/v1/payment-records/DIRECT/" + latest + "/edits").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"amount\":\"80\",\"reason\":\"Paid 80\"}"))
+			.andExpect(status().isOk());
+
+		JsonNode after = detail(master, plan);
+		assertThat(after.get("plan").get("due").decimalValue()).isEqualByComparingTo("120");
+		assertThat(after.get("payments").get(0).get("method").asText()).isEqualTo("NAGAD");
+		assertThat(after.get("payments").get(1).get("paidToDate").decimalValue()).isEqualByComparingTo("180");
+
+		// Staff do not see or correct direct enrolment payments.
+		mockMvc.perform(post("/api/v1/payment-records/DIRECT/" + latest + "/edits").header("Authorization", "Bearer " + system)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"amount\":\"70\",\"reason\":\"x\"}"))
+			.andExpect(status().isForbidden());
+		MvcResult list = mockMvc.perform(get("/api/v1/payment-records").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk()).andReturn();
+		JsonNode rows = json.readTree(list.getResponse().getContentAsString());
+		boolean shown = false;
+		for (JsonNode row : rows) {
+			if (latest.equals(row.get("id").asText())) {
+				shown = true;
+				assertThat(row.get("kind").asText()).isEqualTo("DIRECT");
+				assertThat(row.get("amount").decimalValue()).isEqualByComparingTo("80");
+				assertThat(row.hasNonNull("correctedAt")).isTrue();
+			}
+		}
+		assertThat(shown).isTrue();
+	}
+
+	@Test
 	void aScheduleChangeKeepsTheIdOfEveryRowItUpdatesOrKeeps() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		String system = token(seed("SYSTEM_ADMIN", "Staff"));
