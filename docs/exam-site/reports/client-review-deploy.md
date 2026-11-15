@@ -331,3 +331,56 @@ Rollback:
   database, but the old screens cannot show them.
 - Website: stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261108-194517` back, start it. Roll
   the website back first if direct enrolment misbehaves, so nobody can record more payments.
+
+## Offline admission, results, instructor pay, Finance, written drafts, exam mail off, 15 November 2026 (Dhaka)
+
+API and website, Flyway 80 to 99. Release code `c1e7d54` (`demo/client-review`), plan
+`../release-plan-15-nov.md`. Released by the agent on Shahriar's go, 14:08 to 14:11 Dhaka, **during a live written exam
+(14:00 to 17:10), by Shahriar's explicit choice**; one sitting was open at the time.
+
+- **Ships** (19 migrations, V81 to V99):
+  - offline admission with the switch **on** (`OFFLINE_ADMISSION_ENABLED=true` added to `/etc/coaching-api.env`, web built
+    with `NEXT_PUBLIC_OFFLINE_ADMISSION=1`): desk and public admissions, roll numbers, fees, routines with the wrong-date rule,
+    offline results, instructor pay;
+  - the Finance page;
+  - written answers saved as drafts and submitted at the deadline, with the upload fixes;
+  - no exam-time or hour-before mail (receipts and purchase notices still sent, from a background worker);
+  - System Admin pricing; WhatsApp links; notice link words.
+- **Tests on the release code:** full API suite 1,267/1,267 on a fresh database; full web suite 2,151/2,151; typecheck clean.
+  The browser and phone checks were dropped by Shahriar's choice.
+- **Rehearsal** on a dump of live (13:44 Dhaka), dev profile, no mail or payment credentials, jobs off, offline on:
+  - 19 migrations in 0.38 s, 0 errors;
+  - row counts identical in 10 tables;
+  - smoke 16/16;
+  - the previous jar `9bb0ec6` starts on the upgraded copy.
+- **Production build** caught missing Suspense boundaries on the five new pages (fixed in `c1e7d54`).
+- **Jar:**
+  - `F:\cc-releases\api-c59a881.jar`, SHA-256 `e1e0bcb7dadcda86a43ca0fc46af3e0a43f3c75e211782088190c829cddbf793` (same API code
+    as `c1e7d54`).
+  - Restarted at 08:10:17 UTC, started in 20.0 s, 19 migrations applied, 0 failed.
+- **Website:**
+  - `F:\cc-releases\web-c1e7d54-20261115-080231.tgz`, build `Y5y_KkpDafToUJat8uHxb`, swapped at 08:10:55 UTC, up after 1 s.
+  - Previous release `/opt/coaching-web.before-20261115-081055`.
+- **Backups** (stamp `20261115-080828`), all also in `F:\exam-vps-backups\` and checked by SHA-256:
+  - `/var/backups/coaching/coaching-pre-offline-20261115-080828.dump` (464 entries, `f7e6fdf9…3e55`);
+  - `files-pre-offline-20261115-080828.tgz` (`5141fd5f…6c31`);
+  - `/etc/coaching-api.env.before-offline-20261115-080828`;
+  - `/opt/coaching-api/api.jar.before-offline-20261115-080828` (the `9bb0ec6` jar).
+- **Checks after:**
+  - Flyway 99, none failed; offline status `{"enabled":true}`.
+  - Every public page and API checked answers 200; offline and finance routes 401 without a sign-in.
+  - API log: 0 errors, 0 5xx; 4 warnings, all PDF font fallbacks (as before).
+  - Data present: 201 users, 188 sittings, 18 answer scripts, 7 orders, 31 grants, 1,210 notices.
+  - One password-reset mail to the named test account went out with no send failure; arrival to be confirmed by Shahriar.
+- **Not checked by the agent** (needs the Master Admin's sign-in):
+  - confirming a routine on the box, which renders the student copy on Linux;
+  - the staff pages in a browser.
+
+Rollback:
+- **API:**
+  1. Stop `coaching-api`.
+  2. Copy `api.jar.before-offline-20261115-080828` over `api.jar` and `coaching-api.env.before-offline-20261115-080828` over the
+     env.
+  3. Start it. The previous jar runs on Flyway 99 (proved in the rehearsal); new tables and drafts stay, unused.
+- **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261115-081055` back, start
+  it.
