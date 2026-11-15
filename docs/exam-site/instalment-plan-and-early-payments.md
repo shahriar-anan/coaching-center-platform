@@ -1,6 +1,6 @@
 # Plan: instalments set one by one, and payments before onboarding (15 Nov 2026)
 
-Status: **built 15 Nov; offline ITs and web suite green, browser check 19/19; full API suite running.** Builds on the course fee release (`course-fee-plan.md`).
+Status: **LIVE 15 Nov 2026, 19:25 Dhaka** (`ebdc417`, Flyway 102). See section 6. Builds on the course fee release (`course-fee-plan.md`).
 
 ## 1. Decisions (Shahriar, 15 Nov)
 
@@ -82,3 +82,25 @@ after onboarding as now. Not before the form is submitted, and not once closed.
   - wrong dates are kept as written.
 - Checked: OfflineRoutineIT confirms the client's PDF with its typos (`aWrongDateOnlyWarnsAndTheRoutineConfirmsAsWritten`); the
   browser check confirmed 43 classes with the warnings in view.
+
+## 6. Released (15 Nov, 19:25 Dhaka)
+
+- **Commit and builds:** `ebdc417`. Jar `api-ebdc417.jar` (SHA-256 `0cee61aa…`). Web `web-ebdc417-20261115-132019.tgz`, build
+  `JoBC6K7fuY8f__ol7HtYC`, offline on.
+- **Suites:**
+  - Web 2174/2174, typecheck clean; browser check 19/19.
+  - Offline and Finance ITs 192/192.
+  - Full API suite 1269/1270. The one failure is `StaffAssignmentWatcherIT`, the 2-minute schedule racing the test's own call; it
+    passes 3/3 alone.
+- **Backup (19:22):** `coaching-pre-plan-20261115-132241.dump` (581 entries) and the files tar, on the box and in
+  `F:\cc-releasesackup-pre-plan-20261115-132241` (hashes match). `api.jar.before-plan-20261115-132241` is on the box.
+- **Swap:** checked first: no sitting open, no payment starting, no exam within 3 h.
+  - API: Flyway 102, 0 failed, started in 19 s.
+  - Web: up after 1 s; the previous site is kept at `/opt/coaching-web.before-20261115-132604`.
+- **Smoke:**
+  - 9 pages and APIs answer 200; staff routes 401;
+  - 0 errors and 0 5xx (4 PDF font warnings, as before);
+  - the column exists; counts are as expected (users 203, participants 192, orders 7, grants 31).
+  - Live admissions: 1 onboarded and 2 closed. The office onboarded one before this release, so it keeps the even split it was
+    onboarded with.
+- **Rollback:** put back `api.jar.before-plan-20261115-132241` (V102 only adds a column) and the web directory.
