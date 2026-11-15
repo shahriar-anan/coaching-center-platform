@@ -93,7 +93,7 @@ after onboarding as now. Not before the form is submitted, and not once closed.
   - Full API suite 1269/1270. The one failure is `StaffAssignmentWatcherIT`, the 2-minute schedule racing the test's own call; it
     passes 3/3 alone.
 - **Backup (19:22):** `coaching-pre-plan-20261115-132241.dump` (581 entries) and the files tar, on the box and in
-  `F:\cc-releasesackup-pre-plan-20261115-132241` (hashes match). `api.jar.before-plan-20261115-132241` is on the box.
+  `F:\cc-releases\backup-pre-plan-20261115-132241` (hashes match). `api.jar.before-plan-20261115-132241` is on the box.
 - **Swap:** checked first: no sitting open, no payment starting, no exam within 3 h.
   - API: Flyway 102, 0 failed, started in 19 s.
   - Web: up after 1 s; the previous site is kept at `/opt/coaching-web.before-20261115-132604`.
