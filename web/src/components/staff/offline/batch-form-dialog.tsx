@@ -159,7 +159,7 @@ export function BatchFormDialog({
           <Field label={t("staffOffline.batches.endsOn")} error={errors.endsOn} required>
             <TextInput type="date" value={endsOn} onChange={(event) => setEndsOn(event.target.value)} invalid={Boolean(errors.endsOn)} />
           </Field>
-          <Field label={t("staffOffline.batches.fee")} error={errors.defaultMonthlyFee} required>
+          <Field label={t("staffOffline.batches.fee")} hint={t("staffOffline.batches.feeHint")} error={errors.defaultMonthlyFee} required>
             <TextInput inputMode="decimal" value={fee} onChange={(event) => setFee(event.target.value)} invalid={Boolean(errors.defaultMonthlyFee)} />
           </Field>
           <Field label={t("staffOffline.batches.whatsapp")} hint={t("staffOffline.batches.whatsappHelp")} error={errors.whatsappUrl}>

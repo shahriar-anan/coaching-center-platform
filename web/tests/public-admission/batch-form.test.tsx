@@ -38,7 +38,7 @@ describe("the batch form takes the catalogue fields (plan 3.1, 6)", () => {
     await user.type(screen.getByRole("textbox", { name: /Name \(English\)/ }), "Batch 5");
     await user.type(screen.getByRole("textbox", { name: /Name \(Bangla\)/ }), "ব্যাচ ৫");
     fireEvent.change(screen.getByLabelText(/Ends on/), { target: { value: "2027-05-31" } });
-    await user.type(screen.getByRole("textbox", { name: /Default monthly fee/ }), "2500");
+    await user.type(screen.getByRole("textbox", { name: /Course fee per month/ }), "2500");
     await user.type(screen.getByRole("textbox", { name: /Description \(English\)/ }), "Morning classes.");
     await user.clear(screen.getByRole("textbox", { name: /Display order/ }));
     await user.type(screen.getByRole("textbox", { name: /Display order/ }), "1");
