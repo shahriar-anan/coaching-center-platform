@@ -100,6 +100,8 @@ export function flagKey(code: string): string | null {
       return "batchPay.preview.flags.DATE_OUT_OF_ORDER";
     case "WEEKDAY_MISMATCH":
       return "batchPay.preview.flags.WEEKDAY_MISMATCH";
+    case "DATE_OUTSIDE_BATCH":
+      return "batchPay.preview.flags.DATE_OUTSIDE_BATCH";
     case "TIME_UNREADABLE":
       return "batchPay.preview.flags.TIME_UNREADABLE";
     case "NO_INSTRUCTOR":

@@ -148,8 +148,52 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 
 		// "Milon" is not known yet: every row with that name is listed as a new instructor, and the confirm is not blocked by it.
 		assertThat(count(rows, "instructorText", "Milon")).isEqualTo(12);
-		assertThat(routine.get("canConfirm").asBoolean()).isTrue();
 		assertThat(unmatchedNames(routine)).containsExactly("Milon:12");
+
+		// The 27-07 typo is a wrong date: it blocks the confirm (decision of 15 Nov 2026) until the admin fixes it in the preview.
+		assertThat(routine.get("canConfirm").asBoolean()).isFalse();
+		assertThat(routine.get("blockers").toString()).contains("earlier than the row above");
+		JsonNode fixed = fixTypo(master, id(routine));
+		assertThat(fixed.get("canConfirm").asBoolean()).isTrue();
+		assertThat(codes(findRow(fixed, "2026-10-27", "Contract Act"))).doesNotContain("DATE_OUT_OF_ORDER", "WEEKDAY_MISMATCH");
+	}
+
+	/**
+	 * Decision of 15 Nov 2026: a wrong date blocks the confirm (out of order, or outside the batch's dates, worked out against the batch
+	 * as it is now); a weekday that does not match its date only warns, since the admin fixes it in the preview.
+	 */
+	@Test
+	void aWrongDateBlocksTheConfirmAndAWeekdayMismatchOnlyWarns() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		ensureKnown(master, "Tuhin Hossain");
+		ensureKnown(master, "Anarul Islam");
+		ensureKnown(master, "Milon");
+		JsonNode created = respond(post("/api/v1/offline-batches", master, "{\"nameEn\":\"BJS Foundation\",\"nameBn\":\"বিজেএস ফাউন্ডেশন\","
+				+ "\"startsOn\":\"2026-10-26\",\"endsOn\":\"2027-06-30\",\"defaultMonthlyFee\":3000}"), 201);
+		UUID batch = UUID.fromString(created.get("id").asText());
+		JsonNode routine = upload(master, batch, "2026-11", sample(), 201);
+		UUID id = id(routine);
+
+		// 25 October is before the batch starts (26 October): flagged, and it blocks, like the 27-07 typo.
+		assertThat(codes(findRow(routine, "2026-10-25", "Succession"))).contains("DATE_OUTSIDE_BATCH");
+		assertThat(codes(findRow(routine, "2026-07-27", "Contract Act"))).contains("DATE_OUTSIDE_BATCH", "DATE_OUT_OF_ORDER");
+		assertThat(routine.get("canConfirm").asBoolean()).isFalse();
+		assertThat(routine.get("blockers").toString()).contains("outside the batch's dates");
+		respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 409);
+		assertThat(classCount(batch)).isZero();
+
+		// The batch's dates are read as they are now: starting the batch on 1 October clears the 25 October rows.
+		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"startsOn\":\"2026-10-01\"}"), 200);
+		JsonNode reread = respondTo(get("/api/v1/offline-routines/" + id).header("Authorization", "Bearer " + master), 200);
+		assertThat(codes(findRow(reread, "2026-10-25", "Succession"))).doesNotContain("DATE_OUTSIDE_BATCH");
+		assertThat(reread.get("canConfirm").asBoolean()).isFalse();
+
+		// Fixing the typo unblocks it. The 7 December row still says Wednesday (it is a Monday): only a warning.
+		JsonNode fixed = fixTypo(master, id);
+		assertThat(codes(findRow(fixed, "2026-12-07", "Monthly Exam"))).contains("WEEKDAY_MISMATCH");
+		assertThat(fixed.get("canConfirm").asBoolean()).isTrue();
+		respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
+		assertThat(classCount(batch)).isEqualTo(SAMPLE_ROWS);
 	}
 
 	@Test
@@ -168,6 +212,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(codes(findRow(first, "2026-11-24", "Registration Act"))).doesNotContain("DATE_PAST");
 
 		// The past rows still become classes.
+		fixTypo(master, id(first));
 		respond(post("/api/v1/offline-routines/" + id(first) + "/confirm", master, null), 200);
 		assertThat(classOn(batch, "2026-11-07", "Constitution")).isNotNull();
 		assertThat(classOn(batch, "2026-11-24", "Registration Act")).isNotNull();
@@ -181,6 +226,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		clock.set(Instant.parse("2026-11-20T04:00:00Z"));
 		JsonNode second = upload(master, batch, null, sample(), 201);
 		assertThat(second.get("effectiveFrom").asText()).isEqualTo("2026-11-20");
+		fixTypo(master, id(second));
 		respond(post("/api/v1/offline-routines/" + id(second) + "/confirm", master, null), 200);
 
 		assertThat(classOn(batch, "2026-11-07", "Constitution").getTopic()).isEqualTo("Changed by hand");
@@ -209,7 +255,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 				"{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
 
 		assertThat(unmatchedNames(matched)).isEmpty();
-		assertThat(matched.get("canConfirm").asBoolean()).isTrue();
+		assertThat(fixTypo(master, id).get("canConfirm").asBoolean()).isTrue();
 		JsonNode after = findRow(matched, "2026-11-07", "Constitution");
 		assertThat(after.hasNonNull("instructorId")).isTrue();
 		assertThat(codes(after)).doesNotContain("INSTRUCTOR_UNKNOWN");
@@ -257,6 +303,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(listed.get(0).get("studentCopy").asBoolean()).isFalse();
 
 		// Nobody matched "Milon": the confirm adds him as an instructor under the name the PDF uses and assigns his classes to him.
+		fixTypo(master, id);
 		JsonNode confirmed = respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
 		assertThat(confirmed.get("status").asText()).isEqualTo("CONFIRMED");
 		assertThat(unmatchedNames(confirmed)).isEmpty();
@@ -281,6 +328,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		UUID id = id(upload(master, batch, "2026-11", sample(), 201));
 		respond(post("/api/v1/offline-routines/" + id + "/instructor-matches", master, "{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
 
+		fixTypo(master, id);
 		JsonNode confirmed = respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
 
 		assertThat(confirmed.get("status").asText()).isEqualTo("CONFIRMED");
@@ -314,10 +362,16 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		UUID batch = batch(master, "2027-06-30");
 		UUID first = id(upload(master, batch, "2026-11", sample(), 201));
 		respond(post("/api/v1/offline-routines/" + first + "/instructor-matches", master, "{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
+		fixTypo(master, first);
 		respond(post("/api/v1/offline-routines/" + first + "/confirm", master, null), 200);
 
+		// The same PDF again still has the 27-07 typo: until it is fixed, that row is an added earlier class, as the first routine's
+		// row was fixed to 27 October.
 		JsonNode second = upload(master, batch, "2026-11", sample(), 201);
 		UUID secondId = id(second);
+		assertThat(second.get("difference").get("added").size()).isEqualTo(1);
+		assertThat(second.get("difference").get("added").get(0).get("date").asText()).isEqualTo("2026-07-27");
+		second = fixTypo(master, secondId);
 		assertThat(second.get("difference").isNull()).isFalse();
 		assertThat(second.get("difference").get("added").size()).isZero();
 		assertThat(second.get("difference").get("cancelled").size()).isZero();
@@ -471,6 +525,13 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 			}
 		}
 		throw new AssertionError("No row " + date + " " + subject);
+	}
+
+	/** Fixes the sample's one wrong date, 27-07-2026 among October's dates, to 27 October, as the admin does in the preview. */
+	private JsonNode fixTypo(String master, UUID routineId) throws Exception {
+		JsonNode routine = respondTo(get("/api/v1/offline-routines/" + routineId).header("Authorization", "Bearer " + master), 200);
+		JsonNode typo = findRow(routine, "2026-07-27", "Contract Act");
+		return respond(patch("/api/v1/offline-routines/" + routineId + "/rows/" + index(routine, typo), master, "{\"date\":\"2026-10-27\"}"), 200);
 	}
 
 	private static int index(JsonNode routine, JsonNode row) {

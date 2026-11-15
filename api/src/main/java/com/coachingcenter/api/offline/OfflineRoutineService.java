@@ -181,11 +181,12 @@ public class OfflineRoutineService {
 		findBatch(batchId);
 		List<RoutineSummary> summaries = new ArrayList<>();
 		for (OfflineBatchRoutine routine : routines.findByBatchIdOrderByEffectiveFromDescRevisionDesc(batchId)) {
+			List<OfflineRoutineRow> rows = rowsFor(routine);
+			List<String> blockers = blockers(rows);
 			Report report = report(routine);
-			List<String> blockers = blockers(report.rows());
 			summaries.add(new RoutineSummary(routine.getId(), routine.getEffectiveFrom().toString(), routine.getRevision(),
 					routine.getStatus(), routine.isLegacyOriginal(), routine.getOriginalName(), routine.getStudentFile() != null,
-					routine.getUploadedAt(), routine.getConfirmedAt(), report.rows().size(), flagged(report.rows()),
+					routine.getUploadedAt(), routine.getConfirmedAt(), rows.size(), flagged(rows),
 					OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()) && blockers.isEmpty()));
 		}
 		return summaries;
@@ -330,7 +331,7 @@ public class OfflineRoutineService {
 			throw state("This batch is archived, so its routine cannot be confirmed.");
 		}
 		Report report = report(routine);
-		List<String> blockers = blockers(report.rows());
+		List<String> blockers = blockers(OfflineRoutineRules.withBatchDates(report.rows(), batch.getStartsOn(), batch.getEndsOn()));
 		if (!blockers.isEmpty()) {
 			throw state("This routine cannot be confirmed yet. " + String.join(" ", blockers));
 		}
@@ -447,21 +448,22 @@ public class OfflineRoutineService {
 
 	private RoutineView view(OfflineBatchRoutine routine) {
 		Report report = report(routine);
+		List<OfflineRoutineRow> checked = rowsFor(routine);
 		Map<UUID, String> names = instructorNames();
 		List<RowView> rows = new ArrayList<>();
-		for (int index = 0; index < report.rows().size(); index++) {
-			rows.add(rowView(index, report.rows().get(index), names));
+		for (int index = 0; index < checked.size(); index++) {
+			rows.add(rowView(index, checked.get(index), names));
 		}
 		Difference difference = null;
 		if (OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())
 				&& routines.findByBatchIdAndStatus(routine.getBatchId(), OfflineBatchRoutine.STATUS_CONFIRMED).isPresent()) {
 			difference = difference(routine.getBatchId(), routine.getEffectiveFrom(), report.rows(), names);
 		}
-		List<String> blockers = blockers(report.rows());
+		List<String> blockers = blockers(checked);
 		return new RoutineView(routine.getId(), routine.getBatchId(), routine.getEffectiveFrom().toString(),
 				routine.getRevision(), routine.getStatus(), routine.isLegacyOriginal(), routine.getOriginalName(),
 				routine.getStudentFile() != null, routine.getUploadedAt(), routine.getConfirmedAt(), report.rows().size(),
-				flagged(report.rows()), unmatched(report.rows()), blockers,
+				flagged(checked), unmatched(report.rows()), blockers,
 				OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus()) && blockers.isEmpty(), rows, difference);
 	}
 
@@ -509,13 +511,22 @@ public class OfflineRoutineService {
 				item.getSubject(), item.getTopic(), item.getInstructorText(), item.getStatus(), keptForResult);
 	}
 
-	/** What stops a confirm: a row without a date, time or subject, and a name nobody matched yet. */
+	/**
+	 * What stops a confirm: a row without a date, time or subject, and a wrong date: one earlier than the row above it, or outside the
+	 * batch's dates (decision of 15 Nov 2026). A weekday that does not match its date only warns: the admin fixes it in the preview.
+	 */
 	private static List<String> blockers(List<OfflineRoutineRow> rows) {
 		List<String> blockers = new ArrayList<>();
 		for (int index = 0; index < rows.size(); index++) {
 			OfflineRoutineRow row = rows.get(index);
 			if (row.date() == null) {
 				blockers.add("Row " + (index + 1) + " has no readable date.");
+			}
+			if (OfflineRoutineRules.has(row, OfflineRoutineRules.DATE_OUT_OF_ORDER)) {
+				blockers.add("Row " + (index + 1) + " has a date earlier than the row above it.");
+			}
+			if (OfflineRoutineRules.has(row, OfflineRoutineRules.DATE_OUTSIDE_BATCH)) {
+				blockers.add("Row " + (index + 1) + " has a date outside the batch's dates.");
 			}
 			if (row.startsAt() == null) {
 				blockers.add("Row " + (index + 1) + " has no readable time.");
@@ -637,6 +648,12 @@ public class OfflineRoutineService {
 	// ---- helpers ----------------------------------------------------------------------------------------------------------
 
 	/** The routine's stored rows and counts. A routine with no stored report (the old single routine) has no rows. */
+	/** The routine's rows with the batch-date check applied (worked out on each read, as the batch's dates can change). */
+	private List<OfflineRoutineRow> rowsFor(OfflineBatchRoutine routine) {
+		OfflineBatch batch = findBatch(routine.getBatchId());
+		return OfflineRoutineRules.withBatchDates(report(routine).rows(), batch.getStartsOn(), batch.getEndsOn());
+	}
+
 	private Report report(OfflineBatchRoutine routine) {
 		if (routine.getParseReport() == null) {
 			return new Report(0, 0, List.of());

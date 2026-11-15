@@ -82,3 +82,35 @@ describe("import preview (plan 8.1)", () => {
     expect(await screen.findByRole("button", { name: "Confirm 2 classes" })).toBeEnabled();
   });
 });
+
+describe("import preview: a wrong date blocks Confirm (15 Nov 2026)", () => {
+  it("says to fix the dates, keeps Confirm off, and shows an earlier row with a wrong date without folding it away", async () => {
+    const base = previewRoutine();
+    previewApi(
+      previewRoutine({
+        unmatchedNames: [],
+        canConfirm: false,
+        blockers: ["Row 1 has a date outside the batch's dates."],
+        rows: [
+          {
+            ...base.rows[0],
+            date: "2026-07-27",
+            day: "Tuesday",
+            instructorId: "i1",
+            instructorName: "Milon Hossain",
+            flags: [{ code: "DATE_OUTSIDE_BATCH", reason: "outside" }],
+          },
+          { ...base.rows[1], flags: [{ code: "WEEKDAY_MISMATCH", reason: "weekday" }] },
+        ],
+      }),
+    );
+    renderWithProviders(<RoutinePreview batchId="b1" routineId={ROUTINE_ID} />, { user: fixtures.masterAdmin, locale: "en" });
+
+    expect(await screen.findByText("Fix the dates marked below before confirming (1).")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm 2 classes" })).toBeDisabled();
+    // The 27 July row is an earlier date, folded by default, but it is shown because it must be fixed.
+    expect(screen.getByText("This date is outside the batch's dates. Fix the date.")).toBeInTheDocument();
+    // The weekday mismatch is a warning only: it is listed, and it is not counted as a date to fix.
+    expect(screen.getByText("The weekday does not match the date.")).toBeInTheDocument();
+  });
+});

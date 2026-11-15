@@ -130,7 +130,10 @@ function ConfirmBar({ routine, batchId }: { routine: RoutineView; batchId: strin
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Names no instructor has do not block: confirming adds them as new instructors (the PDF assigns the instructors).
-  const reason = routine.blockers.join(" ");
+  // A wrong date blocks (15 Nov 2026): the rows say which; this line counts them in the reader's language. Other blockers (no time,
+  // no subject) keep the API's own sentence.
+  const wrongDates = routine.rows.filter(hasWrongDate).length;
+  const reason = wrongDates > 0 ? t("batchPay.preview.fixDates", { count: wrongDates }) : routine.blockers.join(" ");
   const newNames = routine.unmatchedNames.map((name) => name.name).join(", ");
 
   async function onConfirm() {
@@ -342,6 +345,8 @@ function RowsList({ routine, editable, instructors }: { routine: RoutineView; ed
   const isEarlier = (row: RoutineRow) => row.date != null && row.date < routine.effectiveFrom;
   const current = routine.rows.filter((row) => !isEarlier(row));
   const earlier = routine.rows.filter(isEarlier);
+  // An earlier row with a wrong date (the typo case) is not folded away: the admin must see it to fix it.
+  const earlierNeedsFix = earlier.some(hasWrongDate);
 
   const groups = (rows: RoutineRow[]) =>
     groupByDate(rows).map((group) => (
@@ -407,7 +412,7 @@ function RowsList({ routine, editable, instructors }: { routine: RoutineView; ed
               {showEarlier ? t("batchPay.preview.hideEarlier") : t("batchPay.preview.showEarlier")}
             </Button>
           </div>
-          {showEarlier ? groups(earlier) : null}
+          {showEarlier || earlierNeedsFix ? groups(earlier) : null}
         </section>
       ) : null}
       {changing ? (
@@ -691,4 +696,11 @@ function EditableText({
       onKeyDown={onKey}
     />
   );
+}
+
+/** The flags that block a confirm because the date itself is wrong. A weekday mismatch only warns. */
+const WRONG_DATE_FLAGS = ["DATE_UNREADABLE", "DATE_OUT_OF_ORDER", "DATE_OUTSIDE_BATCH"];
+
+function hasWrongDate(row: RoutineRow): boolean {
+  return row.flags.some((flag) => WRONG_DATE_FLAGS.includes(flag.code));
 }

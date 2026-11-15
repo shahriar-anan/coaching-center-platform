@@ -498,6 +498,17 @@ class OfflineClassSettleIT extends PostgresIntegrationTest {
 			.header("Authorization", "Bearer " + master), 201);
 		UUID id = id(routine);
 		respond(post("/api/v1/offline-routines/" + id + "/instructor-matches", master, "{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
+		// The sample's 27-07 typo blocks the confirm (15 Nov 2026); the admin fixes it to 27 October first.
+		JsonNode view = respondTo(get("/api/v1/offline-routines/" + id).header("Authorization", "Bearer " + master), 200);
+		int typo = -1;
+		for (int index = 0; index < view.get("rows").size(); index++) {
+			if ("2026-07-27".equals(view.get("rows").get(index).get("date").asText())) {
+				typo = index;
+			}
+		}
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/offline-routines/" + id + "/rows/" + typo)
+			.header("Authorization", "Bearer " + master).contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"date\":\"2026-10-27\"}")).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
 		respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
 		return id;
 	}

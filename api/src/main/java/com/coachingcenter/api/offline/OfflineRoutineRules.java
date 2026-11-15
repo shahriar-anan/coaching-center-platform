@@ -33,6 +33,9 @@ final class OfflineRoutineRules {
 
 	static final String WEEKDAY_MISMATCH = "WEEKDAY_MISMATCH";
 
+	/** The date is before the batch starts or after it ends: a typo such as 27-07 among October dates. It blocks the confirm. */
+	static final String DATE_OUTSIDE_BATCH = "DATE_OUTSIDE_BATCH";
+
 	static final String TIME_UNREADABLE = "TIME_UNREADABLE";
 
 	static final String NO_INSTRUCTOR = "NO_INSTRUCTOR";
@@ -275,6 +278,35 @@ final class OfflineRoutineRules {
 	/** A dash on its own is a blank cell (the routine writes "-" for no instructor or no topic). */
 	private static String noDash(String text) {
 		return "-".equals(text) || "–".equals(text) || "—".equals(text) ? "" : text;
+	}
+
+	/**
+	 * The rows with {@link #DATE_OUTSIDE_BATCH} set against the batch's dates as they are now (the batch can be edited after the
+	 * upload, so this is worked out when the routine is read, not stored). A missing start or end does not limit that side.
+	 */
+	static List<OfflineRoutineRow> withBatchDates(List<OfflineRoutineRow> rows, LocalDate startsOn, LocalDate endsOn) {
+		List<OfflineRoutineRow> out = new ArrayList<>(rows.size());
+		for (OfflineRoutineRow row : rows) {
+			List<OfflineRoutineRow.Flag> flags = new ArrayList<>();
+			for (OfflineRoutineRow.Flag existing : row.flags()) {
+				if (!DATE_OUTSIDE_BATCH.equals(existing.code())) {
+					flags.add(existing);
+				}
+			}
+			LocalDate date = row.date() == null ? null : LocalDate.parse(row.date());
+			if (date != null && ((startsOn != null && date.isBefore(startsOn)) || (endsOn != null && date.isAfter(endsOn)))) {
+				flags.add(flag(DATE_OUTSIDE_BATCH, "This date is outside the batch, which runs " + (startsOn == null ? "…" : startsOn)
+						+ " to " + (endsOn == null ? "…" : endsOn) + ". Fix the date."));
+			}
+			out.add(new OfflineRoutineRow(row.page(), row.date(), row.day(), row.time(), row.startsAt(), row.endsAt(), row.subject(),
+					row.topic(), row.kind(), row.instructorText(), row.instructorId(), List.copyOf(flags)));
+		}
+		return out;
+	}
+
+	/** Whether a row has a flag with this code. */
+	static boolean has(OfflineRoutineRow row, String code) {
+		return row.flags().stream().anyMatch(flag -> code.equals(flag.code()));
 	}
 
 	private static OfflineRoutineRow.Flag flag(String code, String reason) {
