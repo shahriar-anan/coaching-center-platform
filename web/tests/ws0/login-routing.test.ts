@@ -30,7 +30,7 @@ describe("safeStudentNext", () => {
 describe("destinationFor", () => {
   it("sends a student to ?next= when it is safe, else the student home", () => {
     expect(destinationFor(fixtures.student, "/exam/abc")).toBe("/exam/abc");
-    expect(destinationFor(fixtures.student, "/staff")).toBe("/");
+    expect(destinationFor(fixtures.student, "/staff")).toBe("/dashboard");
   });
 
   it("sends staff to the staff home whatever ?next= says", () => {

@@ -53,7 +53,7 @@ export function UnderReview({ admission }: { admission: AdmissionView }) {
             {t("admission.review.logout")}
           </Button>
         ) : (
-          <Button href="/" variant="ghost" size="lg">
+          <Button href="/dashboard" variant="ghost" size="lg">
             {t("admission.review.goHome")}
           </Button>
         )}

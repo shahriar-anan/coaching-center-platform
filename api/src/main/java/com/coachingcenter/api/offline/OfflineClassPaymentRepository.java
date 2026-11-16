@@ -12,4 +12,8 @@ public interface OfflineClassPaymentRepository extends JpaRepository<OfflineClas
 	/** How many payments have this status (the digest counts the ones waiting for approval). */
 	long countByStatus(String status);
 
+
+	/** True when any payment row, in any state, belongs to the class (16 Nov: such a class is cancelled, not erased). */
+	boolean existsByClassId(java.util.UUID classId);
+
 }

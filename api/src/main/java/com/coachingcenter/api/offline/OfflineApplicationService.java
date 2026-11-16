@@ -67,7 +67,8 @@ public class OfflineApplicationService {
 
 	public OfflineApplicationService(OfflineAdmissionRepository admissions, OfflineAdmissionSubmissionRepository submissions,
 			OfflineBatchRepository batches, OfflineAdmissionService form, OfflineApplicationMail publicMail, ExamImageStorage images,
-			LocalFileStorage fileStorage, UserRepository users, AuditRecorder audit, JdbcTemplate jdbc, Clock clock) {
+			LocalFileStorage fileStorage, UserRepository users, AuditRecorder audit, JdbcTemplate jdbc, Clock clock,
+			StudentPhotoService photos) {
 		this.admissions = admissions;
 		this.submissions = submissions;
 		this.batches = batches;
@@ -79,7 +80,10 @@ public class OfflineApplicationService {
 		this.audit = audit;
 		this.jdbc = jdbc;
 		this.clock = clock;
+		this.photos = photos;
 	}
+
+	private final StudentPhotoService photos;
 
 	/**
 	 * Whether a visitor with no account may start a new application (16 Nov, issue 3). Off by default: a visitor signs up or logs in
@@ -202,7 +206,9 @@ public class OfflineApplicationService {
 			throw validation(problems);
 		}
 		admission.setMobile(PhoneNumbers.normalize(admission.getMobile()));
-		admission.setEmergencyMobile(PhoneNumbers.normalize(admission.getEmergencyMobile()));
+		// The emergency number is optional (16 Nov): a blank one is kept empty.
+		admission.setEmergencyMobile(admission.getEmergencyMobile() == null || admission.getEmergencyMobile().isBlank() ? null
+				: PhoneNumbers.normalize(admission.getEmergencyMobile()));
 		boolean resubmit = OfflineAdmission.CHANGES_REQUESTED.equals(admission.getStatus()) || admission.getSubmitCount() > 0;
 		Instant now = clock.instant();
 		admission.setStatus(OfflineAdmission.SUBMITTED);
@@ -297,8 +303,13 @@ public class OfflineApplicationService {
 		if (open != null) {
 			return form.view(open);
 		}
-		requireOpenBatch(batch);
 		User account = users.findByIdAndDeletedAtIsNull(studentId).orElseThrow(OfflineApplicationService::notFound);
+		// 16 Nov: an application this person started without an account carries on under the account, with what they typed.
+		OfflineAdmission started = ownNoAccountApplication(account, batchId);
+		if (started != null) {
+			return form.view(started);
+		}
+		requireOpenBatch(batch);
 		Instant now = clock.instant();
 		OfflineAdmission admission = new OfflineAdmission();
 		admission.setId(UUID.randomUUID());
@@ -313,9 +324,90 @@ public class OfflineApplicationService {
 			.stream().findFirst().orElse(null));
 		admission.setEmail(account.getEmail());
 		admission.setMobile(account.getPhone());
+		carryForward(studentId, admission);
 		admissions.saveAndFlush(admission);
 		audit.record(AuditRecorder.OFFLINE_APPLICATION_STARTED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, admission.getId());
 		return form.view(admission);
+	}
+
+	/**
+	 * A new application starts from the student's last form (17 Nov): the form they last sent in, or, when none was sent, the last one
+	 * with anything typed. The name, email and mobile stay the account's; a field the account lacks (a mobile, for an account made
+	 * without one) is taken from that form too. The photo is the account's profile photo, so it is there already. The student can change
+	 * anything before sending it.
+	 */
+	private void carryForward(UUID studentId, OfflineAdmission next) {
+		List<OfflineAdmission> earlier = admissions.findByStudentIdAndDeletedAtIsNullOrderByCreatedAtDesc(studentId);
+		OfflineAdmission last = earlier.stream().filter(a -> a.getSubmittedAt() != null).findFirst()
+			.orElseGet(() -> earlier.stream().filter(OfflineApplicationService::hasFormFields).findFirst().orElse(null));
+		if (last == null) {
+			return;
+		}
+		if (next.getFullName() == null || next.getFullName().isBlank()) {
+			next.setFullName(last.getFullName());
+		}
+		if (next.getMobile() == null || next.getMobile().isBlank()) {
+			next.setMobile(last.getMobile());
+		}
+		next.setFatherName(last.getFatherName());
+		next.setMotherName(last.getMotherName());
+		next.setDateOfBirth(last.getDateOfBirth());
+		next.setGender(last.getGender());
+		next.setUniversity(last.getUniversity());
+		next.setSemesterBatch(last.getSemesterBatch());
+		next.setNid(last.getNid());
+		next.setEmergencyMobile(last.getEmergencyMobile());
+		next.setHallMess(last.getHallMess());
+		next.setPresentAddress(last.getPresentAddress());
+		next.setPermanentAddress(last.getPermanentAddress());
+	}
+
+	/** True when anything beyond the name, email and mobile was typed into the form. */
+	private static boolean hasFormFields(OfflineAdmission a) {
+		return a.getFatherName() != null || a.getMotherName() != null || a.getDateOfBirth() != null || a.getUniversity() != null
+				|| a.getPresentAddress() != null || a.getPermanentAddress() != null || a.getHallMess() != null;
+	}
+
+	/**
+	 * The open application for this batch that the account's owner started without an account (16 Nov), linked to the account and
+	 * returned; null when there is none. Email checks are optional and mail may not arrive, so an unverified email alone is not proof:
+	 * it is linked only when the account's email is verified, or when both its email and its phone are the application's. The browser
+	 * token and the emailed link of the application stop working, and its photo becomes the account's when the account has none.
+	 */
+	private OfflineAdmission ownNoAccountApplication(User account, UUID batchId) {
+		if (account.getEmail() == null) {
+			return null;
+		}
+		OfflineAdmission a = admissions.findOpenPublicApplication(account.getEmail(), batchId, OfflineAdmission.CLOSED)
+			.filter(found -> found.getDeletedAt() == null)
+			.orElse(null);
+		if (a == null) {
+			return null;
+		}
+		boolean verified = account.getEmailVerifiedAt() != null;
+		boolean samePhone = false;
+		if (account.getPhone() != null && a.getMobile() != null && !a.getMobile().isBlank()) {
+			try {
+				samePhone = account.getPhone().equals(PhoneNumbers.normalize(a.getMobile()));
+			}
+			catch (ApiException invalid) {
+				samePhone = false;
+			}
+		}
+		if (!verified && !samePhone) {
+			return null;
+		}
+		a.setStudentId(account.getId());
+		a.setAccessTokenHash(null);
+		a.setReopenTokenHash(null);
+		a.setReopenTokenExpiresAt(null);
+		admissions.saveAndFlush(a);
+		if (a.getPhotoStoredName() != null) {
+			photos.adoptIfMissing(account.getId(), a.getPhotoStoredName(), a.getPhotoContentType(),
+					a.getPhotoByteSize() == null ? 0L : a.getPhotoByteSize());
+		}
+		audit.record(AuditRecorder.OFFLINE_APPLICATION_LINKED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, a.getId());
+		return a;
 	}
 
 	/** Every admission of the signed-in student, one per batch and newest first (P11). */

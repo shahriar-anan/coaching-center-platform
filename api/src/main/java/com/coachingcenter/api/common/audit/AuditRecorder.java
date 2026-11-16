@@ -92,7 +92,13 @@ public class AuditRecorder {
 	public static final String OFFLINE_ADMISSION_SIGNED_UPLOADED = "OFFLINE_ADMISSION_SIGNED_UPLOADED";
 
 	/** A public applicant (no account) started an application, or a signed-in student applied for a batch (V94). */
+	/** Staff gave a student a password reset code to hand over (16 Nov). */
+	public static final String PASSWORD_RESET_CODE_ISSUED = "PASSWORD_RESET_CODE_ISSUED";
+
 	public static final String OFFLINE_APPLICATION_STARTED = "OFFLINE_APPLICATION_STARTED";
+
+	/** A signed-in student's Apply carried on the application they had started without an account (16 Nov). */
+	public static final String OFFLINE_APPLICATION_LINKED = "OFFLINE_APPLICATION_LINKED";
 
 	/** The reopen link of a changes-requested public application was mailed (V94, Q4). */
 	public static final String OFFLINE_REOPEN_LINK_SENT = "OFFLINE_REOPEN_LINK_SENT";

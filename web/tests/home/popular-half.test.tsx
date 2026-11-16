@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { HomePage } from "@/components/student/home/home-page";
+import { DashboardPage as HomePage } from "@/components/student/home/home-page";
 import { PopularSection } from "@/components/student/home/popular-section";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 

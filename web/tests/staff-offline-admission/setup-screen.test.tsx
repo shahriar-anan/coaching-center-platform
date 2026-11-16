@@ -141,15 +141,17 @@ describe("the setup on its own screen", () => {
 
     await user.clear(screen.getByLabelText("Instalment 1 amount (৳)"));
     await user.type(screen.getByLabelText("Instalment 1 amount (৳)"), "5000");
-    // The course fee is now the sum: 11,000.
-    expect(screen.getByText(/Course fee: .*11,000.* in 3 instalments/)).toBeInTheDocument();
+    // 16 Nov: the course fee stays 9,000, and the rows after the edited one share the rest: 2,000 each.
+    expect(screen.getByLabelText("Instalment 2 amount (৳)")).toHaveValue("2000");
+    expect(screen.getByLabelText("Instalment 3 amount (৳)")).toHaveValue("2000");
+    expect(screen.getByText(/Course fee: .*9,000.* in 3 instalments/)).toBeInTheDocument();
 
     await waitFor(
       () => {
         const sent = api.calls.filter((call) => call.method === "PATCH" && call.path.endsWith("/setup")).pop()?.body as
           | { installmentPlan?: { dueOn: string; amount: string }[]; courseFee?: unknown }
           | undefined;
-        expect(sent?.installmentPlan?.[0]).toEqual({ dueOn: "2026-12-09", amount: "5000" });
+        expect(sent?.installmentPlan?.map((row) => row.amount)).toEqual(["5000", "2000", "2000"]);
         expect(sent && "courseFee" in sent).toBe(false);
       },
       { timeout: 3000 },

@@ -38,7 +38,7 @@ describe("under review (plan 6.2)", () => {
     mockApi({ "GET /api/v1/me/admission": own, "GET /api/v1/me/admissions": [own] });
     renderWithProviders(<AdmissionPage />, { user: fixtures.student, locale: "en", route: "/admission/form" });
 
-    expect(await screen.findByRole("link", { name: "Go to home" })).toHaveAttribute("href", "/");
+    expect(await screen.findByRole("link", { name: "Go to home" })).toHaveAttribute("href", "/dashboard");
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe("under review (plan 6.2)", () => {
     mockApi({ "GET /api/v1/me/admission": apiError(404, "RESOURCE_NOT_FOUND", "Resource not found.") });
     renderWithProviders(<AdmissionPage />, { user: fixtures.student, locale: "en", route: "/admission" });
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/dashboard"));
   });
 });
 
@@ -91,7 +91,7 @@ describe("the print view (plan 6.2, the paper registration form)", () => {
       "Email",
       "Gender",
       "University",
-      "Semester / batch",
+      "Session / Batch",
       "National ID number",
       "Mobile number",
       "Emergency mobile number",
@@ -117,6 +117,6 @@ describe("the print view (plan 6.2, the paper registration form)", () => {
     mockApi({ "GET /api/v1/me/admission": apiError(404, "RESOURCE_NOT_FOUND", "Resource not found.") });
     renderWithProviders(<AdmissionPrintPage />, { user: fixtures.student, locale: "en", route: "/admission/print" });
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/dashboard"));
   });
 });

@@ -47,7 +47,8 @@ function NavEntry({
     <>
       {current ? <CurrentBar /> : null}
       <Icon aria-hidden="true" className="size-5 shrink-0" />
-      <span className={cn("min-w-0 flex-1 truncate text-start", collapsed && "sr-only")}>{label}</span>
+      {/* A long label (such as "Staff and online instructor pay") wraps onto a second line instead of being cut off. */}
+      <span className={cn("min-w-0 flex-1 py-1.5 text-start leading-snug break-words line-clamp-2", collapsed && "sr-only")}>{label}</span>
       {badge}
     </>
   );

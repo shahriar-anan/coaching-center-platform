@@ -1,5 +1,6 @@
 "use client";
 
+import { RequireStudent } from "@/lib/auth/guards";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRoutine, type RoutineRow } from "@/lib/api/exam/catalog";
@@ -8,7 +9,7 @@ import { formatDate, formatTime, pickTitle } from "@/lib/format";
 import { useLocale } from "@/i18n/locale-context";
 import { useServerNow } from "@/lib/time/clock";
 import { Button } from "@/components/ui/button";
-import { ListChecks, Package, PenLine, ShoppingBag, type LucideIcon } from "lucide-react";
+import { GraduationCap, ListChecks, Package, PenLine, School, ShoppingBag, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Countdown } from "@/components/ui/countdown";
 import { ErrorState } from "@/components/ui/error-state";
@@ -18,7 +19,6 @@ import { offlineAdmissionEnabled, staffHref } from "@/lib/config";
 import { useMyAdmissions } from "@/lib/api/exam/my-admission";
 import { admissionStep } from "@/lib/admission/gate";
 import { usePublicBatches, type PublicBatch } from "@/lib/api/exam/public-admission";
-import { batchFeeLine, batchName } from "@/components/public-admission/batch-parts";
 import { examPath, isLive } from "@/components/student/catalog/catalog-helpers";
 import { ExamStatusPill, TypePill } from "@/components/student/catalog/status-pill";
 import { LandingPage } from "@/components/student/landing/landing-page";
@@ -79,7 +79,9 @@ function writeDismissed(list: string[]) {
 }
 
 /** Each door's line icon and its own soft tint, so the four read apart at a glance in both themes. */
-const DOORS: Record<"mcq" | "written" | "orders" | "packages", { Icon: LucideIcon; tone: string }> = {
+const DOORS: Record<"mcq" | "written" | "orders" | "packages" | "myBatches" | "batchOffers", { Icon: LucideIcon; tone: string }> = {
+  myBatches: { Icon: GraduationCap, tone: "bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300" },
+  batchOffers: { Icon: School, tone: "bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300" },
   mcq: { Icon: ListChecks, tone: "bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300" },
   written: { Icon: PenLine, tone: "bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300" },
   orders: { Icon: ShoppingBag, tone: "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300" },
@@ -138,16 +140,16 @@ function ShopDoors() {
   );
 }
 
-/** The admission states the tile names, in the order a student meets them: onboarded first, then what the office is doing. */
-const TILE_STATES = ["ONBOARDED", "READY", "CHANGES_REQUESTED", "AWAITING_FORM", "SUBMITTED"] as const;
+/** The admission states that are still on their way: the form, the review, and Ready before the join code is used. */
+const IN_PROGRESS_STATES = ["AWAITING_FORM", "SUBMITTED", "CHANGES_REQUESTED", "READY"] as const;
 
 /**
- * "Offline activities" on the dashboard, below the door cards (plan P9, section 8): one status line for each admission that is in
- * progress (your batch, changes requested, under review), then up to three batches on offer and a link to every batch. Hidden while
- * the offline switch is off.
+ * "Offline activities" on the dashboard (16 Nov): a segment like the exam and shop ones, two doors with one line each. My offline
+ * batches says how many batches the student is in (and a join code waiting); Batches on offer says how many are open. Each opens its
+ * tab of the offline activities page. Hidden while the offline switch is off.
  */
 export function OfflineActivitiesTile() {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const admissions = useMyAdmissions({ enabled: offlineAdmissionEnabled });
   const batches = usePublicBatches(offlineAdmissionEnabled);
   if (!offlineAdmissionEnabled) {
@@ -156,98 +158,27 @@ export function OfflineActivitiesTile() {
   // A list that is not an array (an unexpected answer) is shown as empty: the dashboard must not fail on the tile.
   const admissionList = Array.isArray(admissions.data) ? admissions.data : [];
   const batchList: PublicBatch[] = Array.isArray(batches.data) ? batches.data : [];
-  const lines = admissionList
-    .filter((admission) => (TILE_STATES as readonly string[]).includes(admission.state))
-    .sort((a, b) => TILE_STATES.indexOf(a.state as (typeof TILE_STATES)[number]) - TILE_STATES.indexOf(b.state as (typeof TILE_STATES)[number]));
-  const offers: PublicBatch[] = batchList.filter((batch) => batch.admissionsOpen).slice(0, 3);
+  const onboarded = admissionList.filter((admission) => admission.state === "ONBOARDED").length;
+  const joining = admissionList.filter((admission) => admissionStep(admission) === "JOIN").length;
+  const inProgress = admissionList.filter(
+    (admission) => (IN_PROGRESS_STATES as readonly string[]).includes(admission.state) && admissionStep(admission) !== "JOIN",
+  ).length;
+  const mine = [
+    onboarded > 0 ? t(onboarded === 1 ? "publicAdmission.tile.onboardedOne" : "publicAdmission.tile.onboardedMany", { count: onboarded }) : null,
+    joining > 0 ? t("publicAdmission.tile.joinWaiting", { count: joining }) : null,
+    onboarded === 0 && joining === 0 && inProgress > 0 ? t("publicAdmission.tile.inProgress") : null,
+  ].filter(Boolean).join(" · ") || t("publicAdmission.tile.noBatch");
+  const open = batchList.filter((batch) => batch.admissionsOpen).length;
+  const offers = batches.isPending ? "…" : open > 0 ? t("publicAdmission.tile.openCount", { count: open }) : t("publicAdmission.tile.none");
 
   return (
-    <section aria-labelledby="offline-activities" className="mt-8 grid gap-4 rounded-card border border-border bg-card p-5">
-      <h2 id="offline-activities" className="text-card-title font-bold">
-        <Link href="/offline-activities" className="hover:text-text-accent">
-          {t("publicAdmission.tile.title")}
-        </Link>
+    <section aria-labelledby="offline-activities" className="mt-8 border-t border-border pt-6">
+      <h2 id="offline-activities" className="mb-3 text-card-title font-bold">
+        {t("publicAdmission.tile.title")}
       </h2>
-      {lines.length > 0 ? (
-        <ul className="grid gap-2">
-          {lines.map((admission) => {
-            const name = pickTitle({ titleEn: admission.batchNameEn ?? null, titleBn: admission.batchNameBn ?? null }, locale) || "—";
-            if (admission.state === "ONBOARDED") {
-              return (
-                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold">{t("publicAdmission.tile.yourBatch", { name })}</span>
-                  <Link href="/offline-activities" className="text-label font-bold text-accent underline">
-                    {t("publicAdmission.tile.openMy")}
-                  </Link>
-                </li>
-              );
-            }
-            if (admissionStep(admission) === "JOIN") {
-              return (
-                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold">{t("publicAdmission.tile.approved", { batch: name })}</span>
-                  <Link href="/admission/join" className="text-label font-bold text-accent underline">
-                    {t("publicAdmission.tile.enterCode")}
-                  </Link>
-                </li>
-              );
-            }
-            if (admission.state === "AWAITING_FORM") {
-              return (
-                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold">{t("publicAdmission.tile.formNotSent", { batch: name })}</span>
-                  <Link href="/admission/form" className="text-label font-bold text-accent underline">
-                    {t("publicAdmission.tile.openForm")}
-                  </Link>
-                </li>
-              );
-            }
-            if (admission.state === "CHANGES_REQUESTED") {
-              return (
-                <li key={admission.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold">{t("publicAdmission.tile.changesRequested", { batch: name })}</span>
-                  <Link href="/admission/form" className="text-label font-bold text-accent underline">
-                    {t("publicAdmission.tile.openForm")}
-                  </Link>
-                </li>
-              );
-            }
-            return (
-              <li key={admission.id}>
-                <span className="font-semibold">{t("publicAdmission.tile.underReview", { batch: name })}</span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      <div className="grid gap-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-label font-bold text-text">{t("publicAdmission.tile.onOffer")}</h3>
-          <Link href="/admission" className="text-label font-semibold text-accent">
-            {t("publicAdmission.tile.seeAll")}
-          </Link>
-        </div>
-        {batches.isPending ? (
-          <Skeleton variant="card" />
-        ) : offers.length === 0 ? (
-          <p className="text-body text-muted">{t("publicAdmission.tile.none")}</p>
-        ) : (
-          <ul className="grid gap-2">
-            {offers.map((batch) => (
-              <li key={batch.id}>
-                <Link
-                  href={`/admission/batches/${batch.id}`}
-                  className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded-control border border-border bg-bg px-3 py-2 text-body transition hover:border-accent"
-                >
-                  <span className="min-w-0 break-words font-semibold">{batchName(batch, locale)}</span>
-                  {/* The fee line is long (the total and its instalments), so on a phone it moves under the name instead of squeezing it. */}
-                  <span className="text-meta tabular-nums text-muted">{batchFeeLine(batch, locale, t)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="grid grid-cols-2 gap-3">
+        <DoorLink href="/offline-activities?tab=mine" icon="myBatches" title={t("publicAdmission.tile.mineTitle")} sub={mine} />
+        <DoorLink href="/offline-activities?tab=offers" icon="batchOffers" title={t("publicAdmission.tile.onOffer")} sub={offers} />
       </div>
     </section>
   );
@@ -396,6 +327,42 @@ function StaffStrip() {
   );
 }
 
+/** A signed-in student on the landing page (16 Nov): the way back to their dashboard. */
+function StudentStrip() {
+  const { t } = useLocale();
+  return (
+    <div className="mx-auto mb-6 flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-card p-4">
+      <p className="text-body text-muted">{t("home.studentNote")}</p>
+      <Button href="/dashboard">{t("home.studentDashboard")}</Button>
+    </div>
+  );
+}
+
+/** The student's dashboard (16 Nov): what "/" showed a signed-in student before. Login lands here. */
+export function DashboardPage() {
+  return (
+    <RequireStudent>
+      <StudentDashboard />
+    </RequireStudent>
+  );
+}
+
+function StudentDashboard() {
+  const { session } = useSession();
+  if (session.status !== "authenticated") {
+    return <Skeleton variant="card" count={3} />;
+  }
+  const user = session.user;
+  return (
+    <SignedInHome
+      phoneRequired={Boolean(user.phoneRequired)}
+      emailVerified={Boolean(user.emailVerifiedAt)}
+      name={user.fullName}
+    />
+  );
+}
+
+/** "/": the landing page for everyone (16 Nov). A signed-in student gets a strip back to the dashboard, staff one to the admin panel. */
 export function HomePage() {
   const { session } = useSession();
   if (session.status === "loading") {
@@ -404,22 +371,10 @@ export function HomePage() {
   if (session.status === "anonymous") {
     return <LandingPage />;
   }
-  const user = session.user;
-  if (user.role !== "STUDENT") {
-    return (
-      <>
-        <div className="px-4 pt-6">
-          <StaffStrip />
-        </div>
-        <LandingPage />
-      </>
-    );
-  }
   return (
-    <SignedInHome
-      phoneRequired={Boolean(user.phoneRequired)}
-      emailVerified={Boolean(user.emailVerifiedAt)}
-      name={user.fullName}
-    />
+    <>
+      <div className="px-4 pt-6">{session.user.role === "STUDENT" ? <StudentStrip /> : <StaffStrip />}</div>
+      <LandingPage />
+    </>
   );
 }

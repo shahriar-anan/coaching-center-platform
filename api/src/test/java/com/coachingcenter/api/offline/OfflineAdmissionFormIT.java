@@ -165,7 +165,9 @@ class OfflineAdmissionFormIT extends PostgresIntegrationTest {
 
 		assertThat(refusal.get("code").asText()).isEqualTo("VALIDATION_FAILED");
 		Set<String> fields = fieldNames(refusal);
-		assertThat(fields).contains("nid", "mobile", "dateOfBirth", "presentAddress", "permanentAddress", "hallMess");
+		assertThat(fields).contains("mobile", "dateOfBirth", "presentAddress", "permanentAddress", "hallMess");
+		// 16 Nov: the NID and the emergency number are optional.
+		assertThat(fields).doesNotContain("nid", "emergencyMobile");
 	}
 
 	@Test

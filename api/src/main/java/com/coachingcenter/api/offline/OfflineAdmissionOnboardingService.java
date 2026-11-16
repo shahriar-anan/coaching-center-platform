@@ -138,6 +138,12 @@ public class OfflineAdmissionOnboardingService {
 		if (!problems.isEmpty()) {
 			throw validation(problems);
 		}
+		// 16 Nov: onboarding is refused only when the mobile or email is another person's in this same batch.
+		String sameBatch = admin.sameBatchConflict(a);
+		if (sameBatch != null) {
+			throw validation(List.of(new FieldErrorDetail("mobile", "The mobile number or email is also on " + sameBatch
+					+ "'s admission in this batch. Send the form back so the applicant fixes it, or close the other admission.")));
+		}
 		// Rule R4: every onboarded student has a roll number, unique across all batches.
 		a.setRollNo(checkedRoll(rollNo, a.getId()));
 		flushRoll(a);
@@ -149,13 +155,10 @@ public class OfflineAdmissionOnboardingService {
 			if (match.isPresent()) {
 				return joinMatchedAccount(actorId, a, match.get(), now);
 			}
-			Optional<User> phoneOwner = matcher.phoneOwner(a.getMobile());
-			if (phoneOwner.isPresent()) {
-				throw validation(List.of(new FieldErrorDetail("mobile", "This mobile number belongs to the account of "
-						+ matcher.nameOf(phoneOwner.get().getId()) + ", whose email is different. Send the form back so the applicant fixes the "
-						+ "email or the mobile number.")));
-			}
-			return makeAccountAndOnboard(actorId, a, now);
+			// 16 Nov: a mobile that belongs to an account outside this batch no longer stops onboarding. Phones are unique per account,
+			// so the new account is made without one; the student signs in with the email, and the form keeps the number.
+			boolean phoneTaken = matcher.phoneOwner(a.getMobile()).isPresent();
+			return makeAccountAndOnboard(actorId, a, now, phoneTaken);
 		}
 		if (!OfflineAdmission.SOURCE_DESK.equals(a.getSource())) {
 			// A signed-in applicant (or a matched one): the join code is mailed, and the student joins the batch from the link (plan B, C).
@@ -358,8 +361,9 @@ public class OfflineAdmissionOnboardingService {
 	 * An applicant with no account and no match: the account is made (pending), the admission is onboarded at once, and the activation
 	 * code goes out by mail with the batch (Q3, plan 2A.5). The account is active after the activation (AuthService.activate).
 	 */
-	private AdmissionDetail makeAccountAndOnboard(UUID actorId, OfflineAdmission a, Instant now) {
-		AccountService.CreatedAccount created = accounts.createAdmittedStudent(a.getFullName(), a.getMobile(), a.getEmail(), actorId,
+	private AdmissionDetail makeAccountAndOnboard(UUID actorId, OfflineAdmission a, Instant now, boolean phoneTaken) {
+		AccountService.CreatedAccount created = accounts.createAdmittedStudent(a.getFullName(), phoneTaken ? null : a.getMobile(), a.getEmail(),
+				actorId,
 				now.plus(OfflineApplicationMail.CODE_DAYS, ChronoUnit.DAYS));
 		a.setStudentId(created.id());
 		admin.adoptApplicationPhoto(a);

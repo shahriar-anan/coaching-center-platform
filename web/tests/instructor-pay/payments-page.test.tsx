@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { InstructorPayments } from "@/components/staff/instructor-pay/instructor-payments-page";
+import { InstructorDetail } from "@/components/staff/instructor-pay/instructor-detail";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { BATCH, HELD_ROWS, MILON, TUHIN, WAITING_ROWS, unsettledPage } from "./fixtures";
 
@@ -28,17 +29,16 @@ describe("instructor payments page: grouping", () => {
       route: "/staff/offline-instructor-payments",
     });
 
-    const milon = await screen.findByRole("button", { name: /Milon/ });
+    const milon = await screen.findByRole("link", { name: /Milon/ });
     expect(within(milon).getByText(/3 classes/)).toBeInTheDocument();
     expect(within(milon).getByText(/৳1,500\.00 due/)).toBeInTheDocument();
 
-    const tuhin = screen.getByRole("button", { name: /Tuhin Hossain/ });
+    const tuhin = screen.getByRole("link", { name: /Tuhin Hossain/ });
     expect(within(tuhin).getByText(/1 class\b/)).toBeInTheDocument();
     expect(within(tuhin).getByText(/৳400\.00 due/)).toBeInTheDocument();
   });
 
-  it("opens a group to its classes, each with Record payment and Mark not taken", async () => {
-    const user = userEvent.setup();
+  it("opens an instructor's own page from their group (17 Nov)", async () => {
     payRoutes();
     renderWithProviders(<InstructorPayments />, {
       user: fixtures.masterAdmin,
@@ -46,10 +46,7 @@ describe("instructor payments page: grouping", () => {
       route: "/staff/offline-instructor-payments",
     });
 
-    await user.click(await screen.findByRole("button", { name: /Milon/ }));
-    expect(screen.getByText("Evidence Act")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Record payment" })).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: "Mark not taken" })).toHaveLength(3);
+    expect(await screen.findByRole("link", { name: /Milon/ })).toHaveAttribute("href", `/staff/offline-instructors/${MILON.id}`);
   });
 
   it("shows the empty state when nothing is held", async () => {
@@ -73,15 +70,16 @@ describe("instructor payments page: grouping", () => {
 
 describe("record payment dialog", () => {
   it("prefills the amount with the class's due amount", async () => {
+    // 17 Nov: classes are settled on the instructor's own page.
     const user = userEvent.setup();
-    payRoutes();
-    renderWithProviders(<InstructorPayments />, {
+    payRoutes({ [`GET /api/v1/offline-instructors/${MILON.id}/other-payments`]: [] });
+    renderWithProviders(<InstructorDetail id={MILON.id} />, {
       user: fixtures.masterAdmin,
       locale: "en",
-      route: "/staff/offline-instructor-payments",
+      route: `/staff/offline-instructors/${MILON.id}`,
     });
 
-    await user.click(await screen.findByRole("button", { name: /Milon/ }));
+    expect((await screen.findAllByRole("button", { name: "Mark not taken" })).length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "Record payment" })[0] as HTMLElement);
 
     const dialog = await screen.findByRole("dialog", { name: "Record payment" });
@@ -133,5 +131,99 @@ describe("approvals (Master Admin)", () => {
     expect(await screen.findByText("Your entries waiting")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+});
+
+describe("a class with no rate, on the instructor's page (17 Nov)", () => {
+  it("says the batch has no rate, and Set rate saves the instructor's rate in that batch", async () => {
+    const user = userEvent.setup();
+    const noRate = { ...HELD_ROWS[0], amount: null, rateOverride: null } as (typeof HELD_ROWS)[number];
+    const api = mockApi({
+      "GET /api/v1/offline-batches": [BATCH],
+      "GET /api/v1/offline-batches/batch-1/classes": [noRate],
+      "GET /api/v1/offline-instructors": [MILON, TUHIN],
+      [`GET /api/v1/offline-instructors/${MILON.id}/other-payments`]: [],
+      [`PUT /api/v1/offline-batches/batch-1/rates/${MILON.id}`]: { instructorId: MILON.id, name: MILON.name, rate: 450 },
+    });
+    renderWithProviders(<InstructorDetail id={MILON.id} />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: `/staff/offline-instructors/${MILON.id}`,
+    });
+
+    expect((await screen.findAllByText("No rate set for this batch")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
+    await user.click(screen.getAllByRole("button", { name: "Set rate" })[0] as HTMLElement);
+
+    const dialog = await screen.findByRole("dialog", { name: "Set the class rate" });
+    await user.type(within(dialog).getByLabelText(/Amount per class/), "450");
+    await user.click(within(dialog).getByRole("button", { name: "Save rate" }));
+
+    await waitFor(() =>
+      expect(api.calls.find((call) => call.method === "PUT" && call.path.endsWith(`/rates/${MILON.id}`))?.body).toEqual({ rate: "450" }),
+    );
+  });
+});
+
+describe("a class with its own rate, on the instructor's page (17 Nov)", () => {
+  it("is tagged Own rate, and a batch rate set from it removes its own rate so it follows the batch", async () => {
+    const user = userEvent.setup();
+    const own = { ...HELD_ROWS[0], amount: 350, rateOverride: 350 } as (typeof HELD_ROWS)[number];
+    const api = mockApi({
+      "GET /api/v1/offline-batches": [BATCH],
+      "GET /api/v1/offline-batches/batch-1/classes": [own, HELD_ROWS[1], HELD_ROWS[2]],
+      "GET /api/v1/offline-instructors": [MILON, TUHIN],
+      [`GET /api/v1/offline-instructors/${MILON.id}/other-payments`]: [],
+      [`PUT /api/v1/offline-batches/batch-1/rates/${MILON.id}`]: { instructorId: MILON.id, name: MILON.name, rate: 450 },
+      [`PATCH /api/v1/offline-classes/${own.id}`]: { ...own, amount: 450, rateOverride: null },
+    });
+    renderWithProviders(<InstructorDetail id={MILON.id} />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: `/staff/offline-instructors/${MILON.id}`,
+    });
+
+    expect((await screen.findAllByText("Own rate")).length).toBeGreaterThan(0);
+    const ownRow = screen.getAllByText("Own rate")[0]?.closest("tr") as HTMLElement;
+    await user.click(within(ownRow).getByRole("button", { name: "Change rate" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Set the class rate" });
+    // A class with its own rate opens on "This class only"; choosing the batch says what changes.
+    expect(within(dialog).getByLabelText("This class only")).toBeChecked();
+    await user.click(within(dialog).getByLabelText(/Every class of Milon/));
+    expect(within(dialog).getByText("Unpaid classes that get this rate: 3")).toBeInTheDocument();
+    expect(within(dialog).getByText(/own rate is removed/)).toBeInTheDocument();
+    await user.clear(within(dialog).getByLabelText(/Amount per class/));
+    await user.type(within(dialog).getByLabelText(/Amount per class/), "450");
+    await user.click(within(dialog).getByRole("button", { name: "Save rate" }));
+
+    await waitFor(() =>
+      expect(api.calls.find((call) => call.method === "PATCH" && call.path.endsWith(`/offline-classes/${own.id}`))?.body).toEqual({
+        version: own.version,
+        rateOverride: null,
+      }),
+    );
+    expect(api.calls.some((call) => call.method === "PUT" && call.path.endsWith(`/rates/${MILON.id}`))).toBe(true);
+  });
+});
+
+describe("the waiting tab shows the rate beside a recorded payment (17 Nov)", () => {
+  it("says the rate per class and how far the payment is from it", async () => {
+    const paid = { ...WAITING_ROWS[0], amount: 400 } as (typeof WAITING_ROWS)[number];
+    mockApi({
+      "GET /api/v1/offline-batches": [BATCH],
+      "GET /api/v1/offline-batches/batch-1/classes": [paid],
+      "GET /api/v1/offline-classes/unsettled": unsettledPage([paid]),
+      "GET /api/v1/offline-classes/unsettled/counts": { held: 0, waitingApproval: 1, heldAmount: 0 },
+      "GET /api/v1/offline-instructors": [MILON, TUHIN],
+    });
+    renderWithProviders(<InstructorPayments />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: "/staff/offline-instructor-payments?tab=waiting",
+    });
+
+    expect(await screen.findByText(/Rate per class: ৳400\.00/)).toBeInTheDocument();
+    expect(screen.getByText("৳100.00 more than the rate")).toBeInTheDocument();
   });
 });

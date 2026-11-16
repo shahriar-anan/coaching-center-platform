@@ -6,6 +6,8 @@ const common = {
     home: "SYMAM LAW, home",
   },
   nav: {
+    dashboard: "Dashboard",
+    myBatches: "My offline batches",
     home: "Home",
     myExams: "My orders",
     results: "Results",
@@ -93,7 +95,7 @@ const common = {
     payments: "Payments",
     installments: "Installments",
     audit: "Activity log",
-    staffPay: "Staff pay",
+    staffPay: "Staff and online instructor pay",
     myPay: "My pay",
     account: "My account",
     modulesAll: "All packages",

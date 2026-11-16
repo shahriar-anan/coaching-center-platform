@@ -53,6 +53,8 @@ export type RoleInfo = {
   canUploadOfflineResult: boolean;
   /** Publish a staged result sheet (OFFLINE_RESULT_PUBLISH). The Master Admin only. */
   canPublishOfflineResult: boolean;
+  /** Give a student a password reset code to hand over (STUDENT_PASSWORD_RESET, 16 Nov). The Master Admin only. */
+  canResetStudentPassword: boolean;
 };
 
 type Capability = Exclude<keyof RoleInfo, "role" | `is${string}`>;
@@ -83,6 +85,7 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "canApproveOfflineClass",
     "canUploadOfflineResult",
     "canPublishOfflineResult",
+    "canResetStudentPassword",
   ],
   SYSTEM_ADMIN: [
     // 15 Nov: the System Admin sets prices and discounts too; a change to a published item waits for the Master Admin to publish.
@@ -133,6 +136,7 @@ export function roleInfo(role: Role | null | undefined): RoleInfo {
     canApproveOfflineClass: has("canApproveOfflineClass"),
     canUploadOfflineResult: has("canUploadOfflineResult"),
     canPublishOfflineResult: has("canPublishOfflineResult"),
+    canResetStudentPassword: has("canResetStudentPassword"),
   };
 }
 

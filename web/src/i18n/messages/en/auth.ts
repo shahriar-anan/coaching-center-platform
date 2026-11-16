@@ -90,6 +90,7 @@ const auth = {
     sent: "If an account exists for that email, a code has been sent to it.",
     sentBody: "The code arrives by email. Enter it with your new password.",
     next: "Change password",
+    haveCode: "I already have a code from the office",
     back: "Back to log in",
     rateLimited: "Too many requests. Try again in a little while.",
     invalidEmail: "The email is not valid. For example: name@example.com",

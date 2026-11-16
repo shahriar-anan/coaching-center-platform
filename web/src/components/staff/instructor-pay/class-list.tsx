@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { methodLabelKey } from "@/components/staff/offline/labels";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -244,6 +245,9 @@ export function GroupedClasses({
               <li key={row.id}>
                 {row.instructorName ?? row.instructorText ?? ""} · {row.heldOn} · {row.subject} ·{" "}
                 {formatMoney(row.payment && row.status === "PAID_PENDING" ? row.payment.amount : dueOf(row)) ?? ""} ·{" "}
+                {row.payment && row.status === "PAID_PENDING" && hasAmount(row)
+                  ? `${t("instructorPay.row.ratePerClass", { amount: formatMoney(dueOf(row)) ?? "" })} · `
+                  : ""}
                 {row.status === "PAID_PENDING" ? t("instructorPay.row.paidBy") : t("instructorPay.row.notTakenBy")}
               </li>
             ))}
@@ -278,6 +282,26 @@ function GroupCard({
     mode === "settle"
       ? t("instructorPay.group.due", { amount: formatMoney(group.due) ?? "" })
       : t("instructorPay.group.toApprove", { amount: formatMoney(group.due) ?? "" });
+
+  // 17 Nov: on To settle, an instructor's card opens their own page, where every class of theirs is settled and others are added.
+  if (mode === "settle" && group.instructorId) {
+    return (
+      <section className="overflow-hidden rounded-card border border-border bg-card">
+        <Link
+          href={`/staff/offline-instructors/${group.instructorId}`}
+          className="flex min-h-11 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 text-start hover:bg-bg"
+        >
+          <span className="grid min-w-0 gap-0.5">
+            <span className="truncate font-semibold text-text">{name}</span>
+            <span className="text-meta text-muted">
+              {countText} · {amountText}
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted" />
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <section className="overflow-hidden rounded-card border border-border bg-card">
@@ -345,6 +369,9 @@ function ClassItem({
   const amount = row.payment && (row.status === "PAID_PENDING" || row.status === "PAID") ? row.payment.amount : row.amount;
   const noInstructor = !row.instructorId;
   const noAmount = !hasAmount(row);
+  // 17 Nov: a recorded payment shows the class's rate beside it, and how far it is from the rate, so the approver can check it.
+  const payment = row.payment && (row.status === "PAID_PENDING" || row.status === "PAID") ? row.payment : null;
+  const difference = payment && !noAmount ? Number(payment.amount) - due : 0;
 
   return (
     <li className="grid gap-3 border-t border-border px-4 py-3 first:border-t-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start">
@@ -377,6 +404,24 @@ function ClassItem({
           {row.status === "NOT_TAKEN_PENDING" ? <Pill tone="accent">{t("instructorPay.row.notTakenPending")}</Pill> : null}
           {noInstructor && row.status === "HELD" ? <Pill tone="warn">{t("instructorPay.row.noInstructor")}</Pill> : null}
         </div>
+        {payment ? (
+          <div className="grid gap-0.5 text-meta text-muted">
+            <span>
+              {noAmount ? t("instructorPay.row.noRateSet") : t("instructorPay.row.ratePerClass", { amount: formatMoney(due) ?? "" })}
+              {" · "}
+              {t(methodLabelKey(payment.method))} · {formatDate(payment.paidOn)}
+              {payment.reference ? ` · ${payment.reference}` : ""}
+            </span>
+            {Math.abs(difference) >= 0.005 ? (
+              <span className="font-medium text-warn">
+                {t(difference > 0 ? "instructorPay.row.paidMore" : "instructorPay.row.paidLess", {
+                  difference: formatMoney(Math.abs(difference)) ?? "",
+                })}
+              </span>
+            ) : null}
+            {payment.note ? <span className="break-words text-text">{t("instructorPay.row.paymentNote", { note: payment.note })}</span> : null}
+          </div>
+        ) : null}
         {noInstructor && row.status === "HELD" && canSettle ? (
           <Link href={`/staff/offline-batches/${row.batchId}`} className="text-meta text-accent-text underline-offset-4 hover:underline">
             {t("instructorPay.row.setInstructor")}

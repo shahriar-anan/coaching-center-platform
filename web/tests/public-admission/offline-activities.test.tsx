@@ -1,9 +1,12 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { MyBatchPage } from "@/components/student/my-admission/my-admission-page";
 import { OfflineActivitiesPage } from "@/components/public-admission/offline-activities-page";
 import type { PublicBatch } from "@/lib/api/exam/public-admission";
 import { admission, schedule } from "../my-admission/fixture";
 import { ErrorBody, fixtures, mockApi, renderWithProviders } from "../helpers";
+import { routerState } from "../helpers/router";
 
 const OPEN_B1: PublicBatch = {
   id: "b-1",
@@ -44,7 +47,7 @@ describe("the Offline activities page without an offline admission (P15)", () =>
 });
 
 describe("the Offline activities page with one offline admission (P15)", () => {
-  it("shows My admission first, then the published batches the student is not already in", async () => {
+  it("opens My batches, and Batches on offer lists only the published batches the student is not already in (16 Nov tabs)", async () => {
     const onboarded = admission("ONBOARDED", { id: "adm-a", batchId: "b-1", batchNameEn: "Batch 3 (Evening)" });
     mockApi({
       "GET /api/v1/me/admission": onboarded,
@@ -55,11 +58,15 @@ describe("the Offline activities page with one offline admission (P15)", () => {
     });
     renderWithProviders(<OfflineActivitiesPage />, { user: fixtures.student, locale: "en", route: "/offline-activities" });
 
-    expect(await screen.findByRole("heading", { name: "Batches you can apply for" })).toBeInTheDocument();
-    const text = document.body.textContent ?? "";
-    expect(text.indexOf("Batch 3 (Evening)")).toBeGreaterThanOrEqual(0);
-    // The admission sections come before the offers.
-    expect(text.indexOf("Batch 3 (Evening)")).toBeLessThan(text.indexOf("Batches you can apply for"));
+    expect(await screen.findByRole("tab", { name: /My batches/, selected: true })).toBeInTheDocument();
+    // My batches is a list of cards, each opening that batch's own page.
+    expect(await screen.findByRole("link", { name: /Batch 3 \(Evening\)/ })).toHaveAttribute("href", "/offline-activities/batch/adm-a");
+    expect(applyLinks()).toEqual([]);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Batches on offer" }));
+    expect(routerState.replace).toHaveBeenCalledWith("/offline-activities?tab=offers", { scroll: false });
+    cleanup();
+    renderWithProviders(<OfflineActivitiesPage />, { user: fixtures.student, locale: "en", route: "/offline-activities?tab=offers" });
     // The batch the student is in is not offered again; the other one is.
     await waitFor(() => expect(applyLinks()).toEqual(["/admission/apply/b-2"]));
   });
@@ -78,9 +85,14 @@ describe("the Offline activities page with several offline admissions (P11, P15)
     });
     renderWithProviders(<OfflineActivitiesPage />, { user: fixtures.student, locale: "en", route: "/offline-activities" });
 
-    expect(await screen.findByRole("region", { name: "Batch 3 (Evening)" })).toBeInTheDocument();
-    const underReview = screen.getByRole("region", { name: "Batch 5" });
-    expect(within(underReview).getByText(/Under review/)).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Batch 3 \(Evening\)/ })).toHaveAttribute("href", "/offline-activities/batch/adm-a");
+    const underReview = screen.getByRole("link", { name: /Batch 5/ });
+    expect(underReview).toHaveAttribute("href", "/offline-activities/batch/adm-c");
+    expect(within(underReview).getByText("Under review")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Batches on offer" }));
+    expect(routerState.replace).toHaveBeenCalledWith("/offline-activities?tab=offers", { scroll: false });
+    cleanup();
+    renderWithProviders(<OfflineActivitiesPage />, { user: fixtures.student, locale: "en", route: "/offline-activities?tab=offers" });
     await waitFor(() => expect(applyLinks()).toEqual(["/admission/apply/b-2"]));
   });
 });
@@ -94,5 +106,54 @@ describe("the Offline activities page for a visitor", () => {
     expect(await screen.findByRole("link", { name: /Batch 3 \(Evening\)/ })).toBeInTheDocument();
     expect(applyLinks()).toEqual(["/admission/apply/b-1", "/admission/apply/b-2"]);
     expect(screen.queryByRole("heading", { name: "My admission" })).toBeNull();
+  });
+});
+
+describe("one batch's own page (16 Nov)", () => {
+  it("shows only the chosen batch, with a way back to My batches", async () => {
+    const open = admission("ONBOARDED", { id: "adm-a", batchId: "b-1", batchNameEn: "Batch 3 (Evening)" });
+    const other = admission("ONBOARDED", { id: "adm-b", batchId: "b-2", batchNameEn: "Batch 4" });
+    mockApi({
+      "GET /api/v1/me/admissions": [open, other],
+      "GET /api/v1/me/admissions/adm-a/fees": schedule({ admissionId: "adm-a" }),
+      "GET /api/v1/me/admissions/adm-a/items": [],
+      "GET /api/v1/public/offline-batches": [OPEN_B1, OPEN_B2],
+    });
+    renderWithProviders(<MyBatchPage admissionId="adm-a" />, { user: fixtures.student, locale: "en", route: "/offline-activities/batch/adm-a" });
+
+    expect(await screen.findByRole("heading", { name: "Batch 3 (Evening)", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Offline activities" })).toHaveAttribute("href", "/offline-activities?tab=mine");
+    expect(screen.queryByText("Batch 4")).toBeNull();
+  });
+
+  it("shows one section at a time in tabs, Routine first, and Payments only once chosen", async () => {
+    const open = admission("ONBOARDED", { id: "adm-a", batchId: "b-1", batchNameEn: "Batch 3 (Evening)" });
+    mockApi({
+      "GET /api/v1/me/admissions": [open],
+      "GET /api/v1/me/admissions/adm-a/fees": schedule({ admissionId: "adm-a" }),
+      "GET /api/v1/me/admissions/adm-a/items": [],
+      "GET /api/v1/public/offline-batches": [OPEN_B1],
+    });
+    renderWithProviders(<MyBatchPage admissionId="adm-a" />, { user: fixtures.student, locale: "en", route: "/offline-activities/batch/adm-a" });
+
+    expect(await screen.findByRole("tab", { name: "Routine", selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Payments" })).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Payments" }));
+    expect(routerState.replace).toHaveBeenCalledWith("/offline-activities/batch/adm-a?section=payments", { scroll: false });
+    cleanup();
+    renderWithProviders(<MyBatchPage admissionId="adm-a" />, {
+      user: fixtures.student,
+      locale: "en",
+      route: "/offline-activities/batch/adm-a?section=payments",
+    });
+    expect(await screen.findByRole("tab", { name: "Payments", selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Payments" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Routine" })).toBeNull();
+  });
+
+  it("is not found for an admission that is not the student's", async () => {
+    mockApi({ "GET /api/v1/me/admissions": [] });
+    renderWithProviders(<MyBatchPage admissionId="nope" />, { user: fixtures.student, locale: "en", route: "/offline-activities/batch/nope" });
+    expect(await screen.findByRole("link", { name: "Offline activities" })).toHaveAttribute("href", "/offline-activities?tab=mine");
   });
 });

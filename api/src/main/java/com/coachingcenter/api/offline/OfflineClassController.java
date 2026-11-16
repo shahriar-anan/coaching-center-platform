@@ -63,6 +63,14 @@ public class OfflineClassController {
 		return classes.update(id, actorId(), body);
 	}
 
+	/** Deletes a class by hand (16 Nov). Both admin roles, as they add and edit classes. Answers 204. */
+	@org.springframework.web.bind.annotation.DeleteMapping("/api/v1/offline-classes/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void delete(@PathVariable UUID id) {
+		require(permissions, Permissions.OFFLINE_BATCH_ROUTINE);
+		classes.delete(id, actorId());
+	}
+
 	@PostMapping("/api/v1/offline-classes/{id}/payment")
 	public ClassView payment(@PathVariable UUID id, @RequestBody JsonNode body) {
 		require(permissions, Permissions.OFFLINE_CLASS_SETTLE);

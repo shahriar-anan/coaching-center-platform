@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
 import { routineFileProblem, useUploadRoutine } from "@/lib/api/exam/offline-batch-pay";
@@ -33,6 +34,10 @@ export function RoutineUploadDialog({
   const upload = useUploadRoutine(batchId);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // 17 Nov: an exam batch's routine (Exam, Date, Exam Topics, Time) has no times, so the exam time is asked here.
+  const [examRoutine, setExamRoutine] = useState(false);
+  const [examStartsAt, setExamStartsAt] = useState("16:00");
+  const [examMinutes, setExamMinutes] = useState("120");
 
   async function submit() {
     const problems: Record<string, string> = {};
@@ -46,12 +51,19 @@ export function RoutineUploadDialog({
         problems.file = t("batchPay.upload.errors.tooLarge");
       }
     }
+    const minutes = Number(examMinutes);
+    if (examRoutine && !/^\d{2}:\d{2}$/.test(examStartsAt)) {
+      problems.examStartsAt = t("batchPay.upload.errors.examTime");
+    }
+    if (examRoutine && !(Number.isInteger(minutes) && minutes >= 10 && minutes <= 600)) {
+      problems.examMinutes = t("batchPay.upload.errors.examMinutes");
+    }
     setErrors(problems);
     if (Object.keys(problems).length > 0 || !file) {
       return;
     }
     try {
-      const view = await upload.mutateAsync({ file });
+      const view = await upload.mutateAsync(examRoutine ? { file, examStartsAt, examMinutes: minutes } : { file });
       toast({ title: t("batchPay.upload.uploaded"), tone: "ok" });
       onOpenChange(false);
       router.push(`/staff/offline-batches/${batchId}/routines/${view.id}`);
@@ -90,6 +102,21 @@ export function RoutineUploadDialog({
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           />
         </Field>
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-body text-text">
+          <input type="checkbox" className="size-5 accent-accent" checked={examRoutine} onChange={(event) => setExamRoutine(event.target.checked)} />
+          {t("batchPay.upload.examRoutine")}
+        </label>
+        {examRoutine ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={t("batchPay.upload.examStartsAt")} error={errors.examStartsAt} required>
+              <TextInput type="time" value={examStartsAt} onChange={(event) => setExamStartsAt(event.target.value)} invalid={Boolean(errors.examStartsAt)} />
+            </Field>
+            <Field label={t("batchPay.upload.examMinutes")} error={errors.examMinutes} required>
+              <TextInput inputMode="numeric" value={examMinutes} onChange={(event) => setExamMinutes(event.target.value)} invalid={Boolean(errors.examMinutes)} />
+            </Field>
+            <p className="text-meta text-muted sm:col-span-2">{t("batchPay.upload.examNote")}</p>
+          </div>
+        ) : null}
         <p className="text-meta text-muted">{replacing ? t("batchPay.upload.replaceNote") : t("batchPay.upload.firstNote")}</p>
       </div>
     </Dialog>

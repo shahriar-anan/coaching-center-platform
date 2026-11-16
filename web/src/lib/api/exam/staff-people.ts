@@ -132,6 +132,14 @@ export function useReissueCode(kind: "students" | "instructors" | "admins") {
   });
 }
 
+/** A password reset code for an active student, for the Master Admin to hand over while email does not arrive (16 Nov). */
+export function useStudentResetCode() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<{ resetCode: string }>(`/api/v1/students/${id}/password-reset-code`, { method: "POST" }),
+  });
+}
+
 export function useDeletePerson(kind: "students" | "admins") {
   const invalidate = useInvalidatePeople();
   return useMutation({

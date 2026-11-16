@@ -110,8 +110,16 @@ final class OfflineRoutineReader {
 			List<Rect> names) {
 	}
 
-	/** The rows of a routine, in reading order, with the page count. */
-	record Parsed(int pageCount, List<RawRow> rows) {
+	/**
+	 * The rows of a routine, in reading order, with the page count. {@code exams} is true for an exam batch's routine (17 Nov): a table of
+	 * Exam, Date, Exam Topics and Time, one exam per row, with no instructor and usually no time.
+	 */
+	record Parsed(int pageCount, List<RawRow> rows, boolean exams) {
+
+		Parsed(int pageCount, List<RawRow> rows) {
+			this(pageCount, rows, false);
+		}
+
 	}
 
 	/** Reads the routine. A file that is not a PDF, or has no header row, or no rows, is refused and nothing is kept. */
@@ -144,7 +152,12 @@ final class OfflineRoutineReader {
 		List<Run> runs = runs(glyphs);
 		Header header = header(runs);
 		if (header == null) {
-			throw format();
+			// 17 Nov: an exam batch's routine has its own table. It is tried when the class routine's header is not there.
+			List<RawRow> exams = examRows(runs);
+			if (exams.isEmpty()) {
+				throw format();
+			}
+			return new Parsed(pages, exams, true);
 		}
 		List<Row> rows = rows(runs, header);
 		if (rows.isEmpty()) {
@@ -281,6 +294,116 @@ final class OfflineRoutineReader {
 		}
 		runs.add(new Run(first.page(), x0, x1, first.y(), text.toString().trim()));
 		return runs;
+	}
+
+	/** An exam's label in the Exam column: "Exam-01", "Exam 1" and the like. */
+	private static final java.util.regex.Pattern EXAM_LABEL = java.util.regex.Pattern.compile("(?i)^exam\\s*-?\\s*(\\d{1,3})$");
+
+	private static final java.util.regex.Pattern EXAM_DATE = java.util.regex.Pattern.compile("\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}");
+
+	private static final java.util.regex.Pattern WEEKDAY = java.util.regex.Pattern.compile(
+			"(?i)^(saturday|sunday|monday|tuesday|wednesday|thursday|friday)$");
+
+	/** A date or a weekday belongs to the exam whose label is this close above or below it on the page (a row is at most a page tall). */
+	private static final float EXAM_REACH = 400f;
+
+	/**
+	 * The rows of an exam batch's routine (17 Nov). Every page repeats the header (Exam, Date, Exam Topics, Time); the Exam column holds
+	 * one label per exam, and the Date column the exam's date with its weekday under it. Each label is a row; a date or weekday belongs
+	 * to the label nearest to it on its page, as the label sits in the middle of its row. The topics are not read: the PDF's Bangla does
+	 * not come out as the text it shows, and students read the topics on the routine PDF. Empty when the table is not there.
+	 */
+	private static List<RawRow> examRows(List<Run> runs) {
+		java.util.Map<Integer, float[]> columns = new java.util.HashMap<>();
+		for (Run exam : runs) {
+			if (!"exam".equals(exam.text().toLowerCase(Locale.ROOT).trim()) || columns.containsKey(exam.page())) {
+				continue;
+			}
+			Run date = null;
+			Run topics = null;
+			Run time = null;
+			for (Run run : runs) {
+				if (run.page() != exam.page() || Math.abs(run.y() - exam.y()) > LINE_TOLERANCE) {
+					continue;
+				}
+				String key = run.text().toLowerCase(Locale.ROOT).replaceAll("\\s", "");
+				if (key.equals("date")) {
+					date = run;
+				}
+				else if (key.equals("examtopics") || key.equals("topics")) {
+					topics = run;
+				}
+				else if (key.equals("time")) {
+					time = run;
+				}
+			}
+			if (date != null && topics != null && time != null && exam.centre() < date.centre() && date.centre() < topics.centre()) {
+				// The bounds of the Exam and Date columns, and the header's height.
+				columns.put(exam.page(), new float[] { (exam.centre() + date.centre()) / 2, (date.centre() + topics.centre()) / 2, exam.y() });
+			}
+		}
+		if (columns.isEmpty()) {
+			return List.of();
+		}
+		List<Run> labels = new ArrayList<>();
+		List<Run> dates = new ArrayList<>();
+		List<Run> days = new ArrayList<>();
+		for (Run run : runs) {
+			float[] column = columns.get(run.page());
+			if (column == null || run.y() <= column[2] + LINE_TOLERANCE) {
+				continue;
+			}
+			String text = run.text().trim();
+			if (run.x1() <= column[0] + EDGE && EXAM_LABEL.matcher(text).matches()) {
+				labels.add(run);
+			}
+			else if (run.x0() >= column[0] - EDGE && run.x1() <= column[1] + EDGE) {
+				java.util.regex.Matcher found = EXAM_DATE.matcher(text);
+				if (found.find()) {
+					dates.add(new Run(run.page(), run.x0(), run.x1(), run.y(), found.group()));
+				}
+				else if (WEEKDAY.matcher(text).matches()) {
+					days.add(run);
+				}
+			}
+		}
+		List<RawRow> rows = new ArrayList<>();
+		for (Run label : labels) {
+			Run date = nearest(label, dates, labels);
+			Run day = nearest(label, days, labels);
+			java.util.regex.Matcher number = EXAM_LABEL.matcher(label.text().trim());
+			String name = number.matches() ? String.format("Exam-%02d", Integer.parseInt(number.group(1))) : label.text().trim();
+			rows.add(new RawRow(label.page(), date == null ? null : date.text(), day == null ? null : day.text(), "", name, null, "", null,
+					List.of()));
+		}
+		return rows;
+	}
+
+	/** The run of {@code candidates} on the label's page whose nearest label is this one, the closest of those; null when none. */
+	private static Run nearest(Run label, List<Run> candidates, List<Run> labels) {
+		Run best = null;
+		float bestGap = Float.MAX_VALUE;
+		for (Run candidate : candidates) {
+			if (candidate.page() != label.page()) {
+				continue;
+			}
+			float gap = Math.abs(candidate.y() - label.y());
+			if (gap > EXAM_REACH || gap >= bestGap) {
+				continue;
+			}
+			boolean closerToAnother = false;
+			for (Run other : labels) {
+				if (other != label && other.page() == label.page() && Math.abs(candidate.y() - other.y()) < gap) {
+					closerToAnother = true;
+					break;
+				}
+			}
+			if (!closerToAnother) {
+				best = candidate;
+				bestGap = gap;
+			}
+		}
+		return best;
 	}
 
 	/** The header line: the six labels on one line, in order. Null when no such line exists. */

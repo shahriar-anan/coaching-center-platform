@@ -16,6 +16,7 @@ const admission = {
     address: "ঠিকানা",
     photo: "ছবি",
   },
+  sameAddress: "বর্তমান ঠিকানার মতোই",
   field: {
     fullName: "পূর্ণ নাম",
     fatherName: "পিতার নাম",
@@ -24,7 +25,7 @@ const admission = {
     email: "ইমেইল",
     gender: "লিঙ্গ",
     university: "বিশ্ববিদ্যালয়",
-    semesterBatch: "সেমিস্টার / ব্যাচ",
+    semesterBatch: "সেশন / ব্যাচ",
     nid: "জাতীয় পরিচয়পত্র নম্বর",
     mobile: "মোবাইল নম্বর",
     emergencyMobile: "জরুরি মোবাইল নম্বর",

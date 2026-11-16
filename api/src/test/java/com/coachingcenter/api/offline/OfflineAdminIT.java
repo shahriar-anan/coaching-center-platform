@@ -204,8 +204,9 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 
 		UUID noNid = admission(seed("STUDENT", "No Nid"), master, "SUBMITTED");
 		jdbc().update("update offline_admissions set nid = null where id = ?", noNid);
+		// 16 Nov: the NID is optional, so a missing one is not among the parts Ready asks for.
 		JsonNode missingNid = respond(post("/api/v1/offline-admissions/" + noNid + "/ready", token, null), 400);
-		assertThat(fieldNames(missingNid)).contains("nid");
+		assertThat(fieldNames(missingNid)).doesNotContain("nid");
 	}
 
 	// ---- setup ---------------------------------------------------------------------------------------------------------------

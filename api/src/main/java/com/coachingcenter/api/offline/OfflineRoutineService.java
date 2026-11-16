@@ -144,6 +144,15 @@ public class OfflineRoutineService {
 	 */
 	@Transactional
 	public RoutineView upload(UUID batchId, MultipartFile file, UUID actorId) {
+		return upload(batchId, file, actorId, null, null);
+	}
+
+	/**
+	 * An upload with the exam time of an exam batch's routine (17 Nov): {@code examStartsAt} (HH:mm) and {@code examMinutes} are given to
+	 * every exam row whose Time cell is empty. A class routine ignores them.
+	 */
+	@Transactional
+	public RoutineView upload(UUID batchId, MultipartFile file, UUID actorId, String examStartsAt, Integer examMinutes) {
 		OfflineBatch batch = findBatch(batchId);
 		if (OfflineBatch.STATUS_ARCHIVED.equals(batch.getStatus())) {
 			throw state("This batch is archived, so its routine cannot be uploaded.");
@@ -151,7 +160,8 @@ public class OfflineRoutineService {
 		LocalDate from = today();
 		byte[] bytes = pdfBytes(file);
 		Parsed parsed = OfflineRoutineReader.read(bytes);
-		List<OfflineRoutineRow> rows = OfflineRoutineRules.build(parsed.rows(), from, batch.getDefaultClassMinutes(), index());
+		List<OfflineRoutineReader.RawRow> raw = parsed.exams() ? withExamTime(parsed.rows(), examStartsAt, examMinutes) : parsed.rows();
+		List<OfflineRoutineRow> rows = OfflineRoutineRules.build(raw, from, batch.getDefaultClassMinutes(), index());
 		LocalFileStorage.StoredFile stored = uploads.store(file, OfflineBatchService.MAX_ROUTINE_BYTES);
 		try {
 			OfflineBatchRoutine routine = new OfflineBatchRoutine();
@@ -825,6 +835,42 @@ public class OfflineRoutineService {
 	 * were monthly also carry a month; it is ignored (the routine's {@code effectiveFrom} is the day it counts from).
 	 */
 	@JsonIgnoreProperties(ignoreUnknown = true)
+	/**
+	 * The exam rows with the exam time written into their empty Time cells, in the routine's own time format ("4.00PM-6.00PM"), so the
+	 * rules read it as they read any time. Without a valid start, the rows keep no time and are flagged for it.
+	 */
+	static List<OfflineRoutineReader.RawRow> withExamTime(List<OfflineRoutineReader.RawRow> rows, String examStartsAt, Integer examMinutes) {
+		java.time.LocalTime start;
+		try {
+			start = examStartsAt == null || examStartsAt.isBlank() ? null : java.time.LocalTime.parse(examStartsAt.trim());
+		}
+		catch (java.time.format.DateTimeParseException invalid) {
+			throw validation(List.of(new FieldErrorDetail("examStartsAt", "Enter the exam time as HH:mm, such as 16:00.")));
+		}
+		if (start == null) {
+			return rows;
+		}
+		int minutes = examMinutes == null ? 120 : examMinutes;
+		if (minutes < 10 || minutes > 600) {
+			throw validation(List.of(new FieldErrorDetail("examMinutes", "An exam lasts 10 to 600 minutes.")));
+		}
+		String time = clock12(start) + "-" + clock12(start.plusMinutes(minutes));
+		List<OfflineRoutineReader.RawRow> filled = new ArrayList<>();
+		for (OfflineRoutineReader.RawRow row : rows) {
+			filled.add(row.time() == null || row.time().isBlank()
+					? new OfflineRoutineReader.RawRow(row.page(), row.date(), row.day(), time, row.subject(), row.topic(), row.instructor(), row.cell(),
+							row.names())
+					: row);
+		}
+		return filled;
+	}
+
+	/** 16:05 as the routine writes it: "4.05PM". */
+	private static String clock12(java.time.LocalTime time) {
+		int hour = time.getHour() % 12 == 0 ? 12 : time.getHour() % 12;
+		return hour + "." + String.format("%02d", time.getMinute()) + (time.getHour() < 12 ? "AM" : "PM");
+	}
+
 	public record Report(int defaultClassMinutes, int pageCount, List<OfflineRoutineRow> rows) {
 	}
 

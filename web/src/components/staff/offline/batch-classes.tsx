@@ -11,7 +11,11 @@ import { TextInput } from "@/components/ui/text-input";
 import { useLocale } from "@/i18n/locale-context";
 import { useRole } from "@/lib/auth/guards";
 import { useListParams } from "@/lib/url/list-params";
-import { useBatchClasses, useEditClass, useInstructors, type BatchClass, type ClassStatus } from "@/lib/api/exam/offline-batch-pay";
+import { useBatchClasses, useDeleteClass, useEditClass, useInstructors, type BatchClass, type ClassStatus } from "@/lib/api/exam/offline-batch-pay";
+import { ApiError } from "@/lib/api/errors";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
+import { offlineErrorText } from "./offline-error";
 import { useFormat } from "@/lib/format/use-format";
 import { amountOf, classStatusKey, classStatusTone, dhakaInstant } from "./batch-pay-format";
 import { methodLabelKey } from "./labels";
@@ -22,7 +26,7 @@ import { InstructorCell } from "./routine-preview";
 
 const STATUSES: ClassStatus[] = ["SCHEDULED", "HELD", "PAID_PENDING", "PAID", "NOT_TAKEN_PENDING", "NOT_TAKEN"];
 
-type OpenDialog = { kind: "edit" | "pay" | "notTaken" | "instructor"; item: BatchClass };
+type OpenDialog = { kind: "edit" | "pay" | "notTaken" | "instructor" | "delete"; item: BatchClass };
 
 /** The instructors who teach this batch's classes, the quick picks of the instructor dialog. */
 function batchChoices(items: BatchClass[]): InstructorChoice[] {
@@ -53,6 +57,9 @@ export function BatchClasses({ batchId, archived = false, classMinutes = 60 }: {
   });
   const instructors = useInstructors();
   const edit = useEditClass();
+  const remove = useDeleteClass();
+  const { toast } = useToast();
+  const canDelete = role.canUploadRoutine && !archived;
   const [dialog, setDialog] = useState<OpenDialog | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -122,7 +129,7 @@ export function BatchClasses({ batchId, archived = false, classMinutes = 60 }: {
               <ul className="grid gap-2">
                 {group.items.map((item) => (
                   <li key={item.id}>
-                    <ClassRow item={item} onAction={(kind) => setDialog({ kind, item })} />
+                    <ClassRow item={item} canDelete={canDelete} onAction={(kind) => setDialog({ kind, item })} />
                   </li>
                 ))}
               </ul>
@@ -158,6 +165,31 @@ export function BatchClasses({ batchId, archived = false, classMinutes = 60 }: {
           }}
         />
       ) : null}
+      {dialog?.kind === "delete" ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDialog(null)}
+          title={t("batchPay.classes.delete.title", { subject: dialog.item.subject, date: formatDate(dialog.item.heldOn) })}
+          body={t("batchPay.classes.delete.body")}
+          confirmLabel={t("batchPay.classes.delete.confirm")}
+          tone="danger"
+          onConfirm={async () => {
+            try {
+              await remove.mutateAsync(dialog.item.id);
+            } catch (error) {
+              // The dialog shows the message it is given, so it gets this page's own words for the two refusals.
+              throw new Error(
+                error instanceof ApiError && error.code === "OFFLINE_CLASS_HAS_RESULT"
+                  ? t("batchPay.classes.delete.hasResult")
+                  : error instanceof ApiError && error.status === 409
+                    ? t("batchPay.classes.delete.settled")
+                    : offlineErrorText(error, t),
+              );
+            }
+            toast({ title: t("batchPay.classes.delete.done"), tone: "ok" });
+          }}
+        />
+      ) : null}
       {dialog?.kind === "pay" ? <ClassPayDialog item={dialog.item} open onOpenChange={(open) => !open && setDialog(null)} /> : null}
       {dialog?.kind === "notTaken" ? (
         <ClassNotTakenDialog item={dialog.item} open onOpenChange={(open) => !open && setDialog(null)} />
@@ -180,7 +212,7 @@ function groupByDate(items: BatchClass[]): { date: string; items: BatchClass[] }
 }
 
 /** One class: time, subject and topic, instructor, amount, status, and the actions its status allows. */
-function ClassRow({ item, onAction }: { item: BatchClass; onAction: (kind: OpenDialog["kind"]) => void }) {
+function ClassRow({ item, canDelete, onAction }: { item: BatchClass; canDelete: boolean; onAction: (kind: OpenDialog["kind"]) => void }) {
   const { t } = useLocale();
   const { formatDate, formatMoney, formatTimeRange } = useFormat();
   const amount = amountOf(item.amount);
@@ -198,6 +230,11 @@ function ClassRow({ item, onAction }: { item: BatchClass; onAction: (kind: OpenD
         <span className="grid min-w-0">
           <span className="break-words font-medium text-text">{item.subject}</span>
           {item.topic ? <span className="break-words text-meta text-muted">{item.topic}</span> : null}
+          {item.inRoutine === false ? (
+            <span className="pt-0.5">
+              <Pill tone="muted">{t("instructorPay.detail.payOnly")}</Pill>
+            </span>
+          ) : null}
         </span>
       </Cell>
       <Cell label={t("batchPay.preview.columns.instructor")}>
@@ -228,6 +265,12 @@ function ClassRow({ item, onAction }: { item: BatchClass; onAction: (kind: OpenD
       </Cell>
       <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
         <Actions item={item} onAction={onAction} />
+        {/* 16 Nov: a class with no payment or not-taken mark waiting or settled can be deleted. */}
+        {canDelete && open ? (
+          <Button size="sm" variant="ghost" onClick={() => onAction("delete")}>
+            {t("batchPay.classes.delete.button")}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

@@ -61,7 +61,7 @@ describe("register", () => {
     await userEvent.type(screen.getByLabelText(/^যাচাই কোড/), "123456");
     await userEvent.click(screen.getByRole("button", { name: "যাচাই করুন" }));
 
-    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/dashboard"));
     expect(verify).toHaveBeenCalled();
   });
 

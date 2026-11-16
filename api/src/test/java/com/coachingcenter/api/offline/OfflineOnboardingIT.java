@@ -161,21 +161,65 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void anApplicantWhosePhoneBelongsToAnotherAccountIsNotJoinedToIt() throws Exception {
-		// Decision D3 (13 Nov): applicants are matched by email only. A phone that belongs to another account is never joined, so the
-		// onboarding is refused until the form is fixed, and no account is made with that phone.
+	void anApplicantWhosePhoneBelongsToAnAccountOutsideTheBatchIsOnboardedWithAnEmailOnlyAccount() throws Exception {
+		// 16 Nov: a phone that belongs to another account no longer stops onboarding. Applicants are still matched by email only, so
+		// the phone's owner is never joined; the new account is made without a phone, and the student signs in with the email.
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		UUID batch = batch(master, "Phone " + unique());
 		String mobile = validMobile();
-		seedStudent("Phone Owner", uniqueEmail(), plusForm(mobile));
+		UUID owner = seedStudent("Phone Owner", uniqueEmail(), plusForm(mobile));
 		String applicantEmail = uniqueEmail();
 		UUID admission = submittedApplication(batch, applicantEmail, mobile);
 		readyAdmission(admission, batch, master);
+		assertThat(detail(admission, master).get("phoneOwnerName").asText()).isEqualTo("Phone Owner");
+		assertThat(detail(admission, master).hasNonNull("sameBatchConflictName")).isFalse();
 
-		JsonNode refused = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, rollBody()), 400);
-		assertThat(refused.toString()).contains("mobile");
-		assertThat(jdbc().queryForObject("select count(*) from users where email = ?", Long.class, applicantEmail)).isZero();
-		assertThat(jdbc().queryForObject("select student_id from offline_admissions where id = ?", UUID.class, admission)).isNull();
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, rollBody()), 200);
+		UUID made = jdbc().queryForObject("select student_id from offline_admissions where id = ?", UUID.class, admission);
+		assertThat(made).isNotNull().isNotEqualTo(owner);
+		assertThat(jdbc().queryForObject("select phone from users where id = ?", String.class, made)).isNull();
+		assertThat(jdbc().queryForObject("select email from users where id = ?", String.class, made)).isEqualTo(applicantEmail);
+		assertThat(jdbc().queryForObject("select mobile from offline_admissions where id = ?", String.class, admission))
+			.isEqualTo(plusForm(mobile));
+	}
+
+	@Test
+	void onboardingIsRefusedOnlyWhenTheMobileIsAnotherPersonsInTheSameBatch() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Same batch " + unique());
+		String mobile = validMobile();
+		UUID first = submittedApplication(batch, uniqueEmail(), mobile);
+		UUID second = submittedApplication(batch, uniqueEmail(), mobile);
+		readyAdmission(second, batch, master);
+		assertThat(detail(second, master).get("sameBatchConflictName").asText()).isNotBlank();
+
+		JsonNode refused = respond(post("/api/v1/offline-admissions/" + second + "/onboard", master, rollBody()), 400);
+		assertThat(refused.toString()).contains("mobile").contains("in this batch");
+
+		// A closed admission does not count.
+		respond(post("/api/v1/offline-admissions/" + first + "/close", master, "{\"reason\":\"Applied twice\"}"), 200);
+		assertThat(detail(second, master).hasNonNull("sameBatchConflictName")).isFalse();
+		respond(post("/api/v1/offline-admissions/" + second + "/onboard", master, rollBody()), 200);
+	}
+
+	@Test
+	void aFormWithoutTheNidAndTheEmergencyNumberIsSentAndOnboarded() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Optional " + unique());
+		String email = uniqueEmail();
+		String mobile = validMobile();
+		JsonNode started = respond(post("/api/v1/public/offline-applications", null,
+				"{\"batchId\":\"" + batch + "\",\"email\":\"" + email + "\",\"mobile\":\"" + mobile + "\"}"), 201);
+		String token = started.get("token").asText();
+		String form = fullForm(email, mobile).replace("\"nid\":\"1234567890123\"", "\"nid\":\"\"")
+			.replace("\"emergencyMobile\":\"01812345678\"", "\"emergencyMobile\":\"\"");
+		respond(put("/api/v1/public/offline-applications/" + token + "/form", form), 200);
+		respond(multipart(HttpMethod.PUT, "/api/v1/public/offline-applications/" + token + "/photo")
+			.file(new MockMultipartFile("file", "me.png", "image/png", png())), 200);
+		respond(post("/api/v1/public/offline-applications/" + token + "/submit", null, null), 200);
+		UUID admission = UUID.fromString(started.get("admission").get("id").asText());
+		readyAdmission(admission, batch, master);
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, rollBody()), 200);
 	}
 
 	@Test

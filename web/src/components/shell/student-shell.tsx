@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, BookOpen, CalendarDays, CircleUserRound, GraduationCap, Home, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, CircleUserRound, GraduationCap, Home, LayoutDashboard, ListChecks, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Receipt, Star, Trophy } from "lucide-react";
 import { useLocale } from "@/i18n/locale-context";
 import { useSession } from "@/lib/auth/session-context";
 import { offlineAdmissionEnabled, staffHome } from "@/lib/config";
@@ -12,6 +12,7 @@ import { Logo } from "@/components/shell/logo";
 import {
   currentStudentNavCollapsed,
   setStudentNavCollapsed,
+  StudentNavList,
   StudentSidebar,
   subscribeStudentNavCollapsed,
 } from "@/components/shell/student-sidebar";
@@ -23,18 +24,18 @@ import { ProfileAvatar } from "@/components/student/profile-avatar";
 import { formatNumber } from "@/lib/format";
 import { useUnreadCount } from "@/lib/api/exam/notices";
 import { IconButton } from "@/components/ui/icon-button";
+import { Dialog } from "@/components/ui/dialog";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { UnsavedChangesDialog } from "@/components/shell/unsaved-changes-dialog";
 import { cn } from "@/components/ui/cn";
 import { admissionRedirect, isLockedOut } from "@/lib/admission/gate";
 import { useMyAdmissions } from "@/lib/api/exam/my-admission";
-import { showsMyAdmissionLinks } from "@/lib/admission/my-admission";
-import { MY_ADMISSION_HREF } from "@/components/student/my-admission/admission-links";
 
-type TabItem = { href: string; key: "home" | "myExams" | "results" | "notices" | "account"; icon: typeof Home };
+type TabItem = { href: string; key: "dashboard" | "myExams" | "results" | "notices" | "account"; icon: typeof Home };
 
+// 16 Nov: the first tab is the student's dashboard; the logo and the landing page's own links lead to "/".
 const TABS: TabItem[] = [
-  { href: "/", key: "home", icon: Home },
+  { href: "/dashboard", key: "dashboard", icon: Home },
   { href: "/my-modules", key: "myExams", icon: BookOpen },
   { href: "/results", key: "results", icon: Trophy },
   { href: "/notices", key: "notices", icon: Bell },
@@ -45,8 +46,8 @@ const TABS: TabItem[] = [
  * The student's top bar (S1.1, plan Q2). The bottom bar takes over below the large breakpoint. MCQ and Written are reached
  * from Home, so they are not in the bar (Phase 4, A2). Their routes stay.
  */
-const TOP_LINKS: { href: string; key: "home" | "myExams" | "results" | "routine" }[] = [
-  { href: "/", key: "home" },
+const TOP_LINKS: { href: string; key: "dashboard" | "myExams" | "results" | "routine" }[] = [
+  { href: "/dashboard", key: "dashboard" },
   { href: "/my-modules", key: "myExams" },
   { href: "/results", key: "results" },
   { href: "/routine", key: "routine" },
@@ -141,10 +142,6 @@ function isActive(pathname: string, href: string): boolean {
 function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { t } = useLocale();
   const { session, logout } = useSession();
-  // The same admissions query the shell already holds, so this costs no request (students only).
-  const admissions = useMyAdmissions({
-    enabled: offlineAdmissionEnabled && session.status === "authenticated" && session.user.role === "STUDENT",
-  });
   if (session.status !== "authenticated") {
     // The old site's single pill: log in, a divider, sign up.
     const half = "inline-flex h-full items-center px-3 hover:bg-white/15 max-[379px]:px-2.5 sm:px-4";
@@ -183,15 +180,17 @@ function UserMenu({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
           sideOffset={6}
           className="z-50 grid min-w-48 gap-0.5 rounded-card border border-border bg-card p-1.5 text-body text-text shadow-lg"
         >
+          {/* 17 Nov: the menu carries the side menu's first items too: Dashboard and the student's offline batches. */}
+          {user.role === "STUDENT" ? <MenuLink href="/dashboard" icon={LayoutDashboard} label={t("common.nav.dashboard")} /> : null}
+          {offlineAdmissionEnabled && user.role === "STUDENT" ? (
+            <MenuLink href="/offline-activities?tab=mine" icon={GraduationCap} label={t("common.nav.myBatches")} />
+          ) : null}
           <MenuLink href="/" icon={Home} label={t("common.nav.home")} />
           <MenuLink href="/account" icon={CircleUserRound} label={t("common.nav.myAccount")} />
           <MenuLink href="/account/payments" icon={Receipt} label={t("account.payments.link")} />
           <MenuLink href="/wishlist" icon={Star} label={t("common.nav.favourites")} />
           <MenuLink href="/notices" icon={Bell} label={t("common.nav.notices")} />
           <MenuLink href="/routine" icon={CalendarDays} label={t("common.nav.routine")} />
-          {offlineAdmissionEnabled && user.role === "STUDENT" && (Array.isArray(admissions.data) && admissions.data.some((item) => showsMyAdmissionLinks(item.state))) ? (
-            <MenuLink href={MY_ADMISSION_HREF} icon={GraduationCap} label={t("myAdmission.menu")} />
-          ) : null}
           {user.role !== "STUDENT" ? (
             <MenuLink href={staffHome} icon={ListChecks} label={t("common.nav.adminPanel")} external />
           ) : null}
@@ -380,14 +379,15 @@ export function StudentShell({ children }: { children: ReactNode }) {
   }, [gateTarget, router]);
   const content = gateTarget ? null : children;
   const showTabs = student && !hidesTabBar(pathname) && !pending;
-  const wide = pathname === "/" && !student;
+  // "/" is the landing page for everyone (16 Nov): full width, with no side menu, for a signed-in student too.
+  const wide = pathname === "/";
   const roomy = !wide && !DETAIL_PATH.test(pathname);
   const column = wide ? "max-w-6xl" : roomy ? "max-w-5xl" : "max-w-[760px]";
   // The top bar needs the wider header from large width up; the content column stays 760 px on detail pages.
   // The landing page's eight links need a wider bar than the content column, so its header takes the full 1280 px.
   // With the side menu showing, the header fills the column beside it, so its toggle sits at the menu's edge.
-  const sidebarApplies = student && !EXAM_PATH.test(pathname) && !pending;
-  const headerColumn = student
+  const sidebarApplies = student && !EXAM_PATH.test(pathname) && !pending && !wide;
+  const headerColumn = student && !wide
     ? sidebarApplies
       ? "max-w-none"
       : "max-w-[760px] lg:max-w-5xl"
@@ -399,6 +399,10 @@ export function StudentShell({ children }: { children: ReactNode }) {
   // first render the menu is expanded; the browser then reads the stored choice, as the staff menu does.
   const collapsed = useSyncExternalStore(subscribeStudentNavCollapsed, currentStudentNavCollapsed, () => false);
   const header = useHeaderHidden();
+  // Below desktop width the side menu opens as a drawer from the header's menu button (17 Nov). Not on the landing page,
+  // whose own site menu is there, nor on the paper.
+  const drawerApplies = student && !pending && !wide && !SITTING_PATH.test(pathname);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <div
@@ -414,6 +418,13 @@ export function StudentShell({ children }: { children: ReactNode }) {
         {t("common.nav.skipToContent")}
       </a>
       {sidebarApplies ? <StudentSidebar collapsed={collapsed} /> : null}
+      {drawerApplies ? (
+        <Dialog open={drawerOpen} onOpenChange={setDrawerOpen} title={t("common.nav.menu")}>
+          <nav aria-label={t("common.nav.main")} className="-mx-2">
+            <StudentNavList onNavigate={() => setDrawerOpen(false)} />
+          </nav>
+        </Dialog>
+      ) : null}
       <div className="flex min-w-0 flex-1 flex-col">
       <OfflineBanner />
       <header
@@ -434,10 +445,19 @@ export function StudentShell({ children }: { children: ReactNode }) {
               className="shrink-0 max-lg:hidden"
             />
           ) : null}
+          {drawerApplies ? (
+            <IconButton
+              label={t("common.nav.openMenu")}
+              icon={<Menu aria-hidden="true" className="size-5" />}
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(true)}
+              className="shrink-0 lg:hidden"
+            />
+          ) : null}
           {/* The side menu carries the logo from desktop width up, so the header shows it only where there is no menu. */}
-          <Logo phoneMark className={cn(wide && "xl:shrink-0", sidebarApplies && "lg:hidden")} />
+          <Logo phoneMark className={cn(wide && "xl:shrink-0", sidebarApplies && "lg:hidden", drawerApplies && "max-lg:me-auto")} />
           {wide ? <WideNav onOpenChange={header.pin} /> : null}
-          {student && !pending ? <StudentLinks className={sidebarApplies ? "lg:hidden" : undefined} /> : null}
+          {student && !pending && !wide ? <StudentLinks className={sidebarApplies ? "lg:hidden" : undefined} /> : null}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {signedIn && session.user.role === "STUDENT" ? <NoticeBell /> : null}
             {/* From 640 px up. Below that the switches are in the account menu, or in the site menu for visitors. */}

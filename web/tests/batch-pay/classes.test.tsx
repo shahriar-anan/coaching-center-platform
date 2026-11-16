@@ -122,3 +122,37 @@ describe("classes tab (plan 8.1)", () => {
     expect((api.calls as Call[]).some((call) => call.path.endsWith("/not-taken"))).toBe(false);
   });
 });
+
+describe("deleting a class (16 Nov)", () => {
+  it("offers Delete on an open class but not a paid one, and deletes after the confirmation", async () => {
+    const user = userEvent.setup();
+    const routes = mockApi({
+      "GET /api/v1/offline-batches/b1/classes": [
+        classRow({ id: "c3", subject: "Biology", status: "SCHEDULED", instructorId: "i1", instructorName: "Milon Hossain", amount: 1500 }),
+        classRow({ id: "c2", subject: "Chemistry", status: "PAID", instructorId: "i2", instructorName: "Rahim Sir", amount: 800 }),
+      ],
+      "GET /api/v1/offline-instructors": [milon, rahim],
+      "DELETE /api/v1/offline-classes/c3": undefined,
+    });
+    renderWithProviders(<BatchClasses batchId="b1" />, { user: fixtures.masterAdmin, locale: "en" });
+
+    const paid = await rowOf("Chemistry");
+    expect(within(paid).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    const open = await rowOf("Biology");
+    await user.click(within(open).getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/uploaded routine PDF does not change/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Delete class" }));
+
+    await vi.waitFor(() =>
+      expect(routes.calls.some((call) => call.method === "DELETE" && call.path === "/api/v1/offline-classes/c3")).toBe(true),
+    );
+  });
+
+  it("does not offer Delete to a role without routine rights", async () => {
+    setup();
+    renderWithProviders(<BatchClasses batchId="b1" />, { user: fixtures.instructor, locale: "en" });
+    const open = await rowOf("Biology");
+    expect(within(open).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+});

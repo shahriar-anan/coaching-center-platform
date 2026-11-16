@@ -125,6 +125,8 @@ export function onSiteHost(origin: string | null = currentOrigin()): boolean {
 }
 
 export const studentHome = siteHref("/");
+/** Where a student lands after signing in (16 Nov): their dashboard. "/" is the landing page for everyone. */
+export const studentDashboard = siteHref("/dashboard");
 export const staffHome = staffHref("/staff");
 export const studentLogin = siteHref("/login");
 export const staffLogin = staffHref("/login");

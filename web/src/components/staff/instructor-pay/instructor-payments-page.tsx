@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { InstructorFormDialog } from "./instructor-form-dialog";
+import { PendingOtherPayments } from "./other-payments";
+import { usePendingOtherPayments } from "@/lib/api/exam/instructor-pay";
+
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -59,6 +64,9 @@ export function InstructorPayments() {
     to: params.to || undefined,
   };
 
+  const router = useRouter();
+  const [addingInstructor, setAddingInstructor] = useState(false);
+  const pendingOther = usePendingOtherPayments(canSettle);
   const unsettled = useUnsettledClasses(filters);
   const counts = useUnsettledCounts(canSettle, 30_000);
   const batchesAndClasses = useAllBatchClasses();
@@ -79,7 +87,8 @@ export function InstructorPayments() {
   const paid = paidIn(batchesAndClasses.rows, month);
   const notTaken = notTakenIn(batchesAndClasses.rows, month);
   const held = counts.data?.held ?? 0;
-  const waiting = counts.data?.waitingApproval ?? 0;
+  // Other payments waiting for the Master Admin count with the classes waiting (17 Nov).
+  const waiting = (counts.data?.waitingApproval ?? 0) + (pendingOther.data?.length ?? 0);
 
   const cards: SummaryItem[] = [
     {
@@ -121,6 +130,18 @@ export function InstructorPayments() {
       <PageHeader
         title={t("instructorPay.payments.title")}
         breadcrumbs={[{ label: t("common.staffNav.dashboard"), href: "/staff" }, { label: t("instructorPay.payments.title") }]}
+        actions={
+          canSettle ? (
+            <Button onClick={() => setAddingInstructor(true)}>{t("instructorPay.payments.addInstructor")}</Button>
+          ) : null
+        }
+      />
+      <InstructorFormDialog
+        key={addingInstructor ? "open" : "closed"}
+        instructor={null}
+        open={addingInstructor}
+        onOpenChange={setAddingInstructor}
+        onSaved={(saved) => router.push(`/staff/offline-instructors/${saved.id}`)}
       />
 
       <SummaryStrip items={cards} loading={counts.isPending} />
@@ -191,13 +212,16 @@ export function InstructorPayments() {
       ) : unsettled.isPending ? (
         <Skeleton variant="rows" count={4} />
       ) : (
-        <GroupedClasses
-          rows={tab === "settle" ? settleRows : waitingRows}
-          mode={tab === "settle" ? "settle" : "waiting"}
-          batchNames={batchNames}
-          canSettle={canSettle}
-          canApprove={canApprove}
-        />
+        <>
+          <GroupedClasses
+            rows={tab === "settle" ? settleRows : waitingRows}
+            mode={tab === "settle" ? "settle" : "waiting"}
+            batchNames={batchNames}
+            canSettle={canSettle}
+            canApprove={canApprove}
+          />
+          {tab === "waiting" ? <PendingOtherPayments /> : null}
+        </>
       )}
     </div>
   );

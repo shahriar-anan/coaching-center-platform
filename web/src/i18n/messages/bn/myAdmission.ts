@@ -1,4 +1,5 @@
 const myAdmission = {
+  sectionsLabel: "ব্যাচের অংশগুলো",
   title: "আমার ভর্তি",
   batchUnnamed: "ব্যাচ",
   menu: "আমার ভর্তি",
@@ -137,7 +138,7 @@ const myAdmission = {
     name: "পূর্ণ নাম",
     mobile: "মোবাইল নম্বর",
     university: "বিশ্ববিদ্যালয়",
-    semester: "সেমিস্টার / ব্যাচ",
+    semester: "সেশন / ব্যাচ",
     submitted: "{date} তারিখে জমা দেওয়া হয়েছে",
     notSubmitted: "এখনো জমা দেওয়া হয়নি",
     view: "ফরম দেখুন ও ছাপুন",

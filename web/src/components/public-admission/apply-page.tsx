@@ -256,10 +256,18 @@ function AccountApply({ batchId, onSent }: { batchId: string; onSent: (view: Adm
       </p>
     );
   }
+  // 17 Nov: the form opens at its top, wherever the page Apply was pressed on had been scrolled to.
+  return <ReadyApplication view={state.view} onSent={onSent} />;
+}
+
+function ReadyApplication({ view, onSent }: { view: AdmissionView; onSent: (view: AdmissionView) => void }) {
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, [view.id]);
   // The API answers the open application for this batch when there is one. Once its form is sent there is nothing to fill in here, so
   // the student sees where it stands instead.
-  if (state.view.state !== "AWAITING_FORM" && state.view.state !== "CHANGES_REQUESTED") {
-    return <OwnApplication admission={state.view} />;
+  if (view.state !== "AWAITING_FORM" && view.state !== "CHANGES_REQUESTED") {
+    return <OwnApplication admission={view} />;
   }
-  return <AdmissionFormView admission={state.view} onSubmitted={onSent} />;
+  return <AdmissionFormView admission={view} onSubmitted={onSent} />;
 }

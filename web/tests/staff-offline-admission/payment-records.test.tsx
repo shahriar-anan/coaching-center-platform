@@ -20,6 +20,9 @@ function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
     batchNameBn: "বিজেএস সান্ধ্য",
     recordedByName: "Staff One",
     recordedAt: "2026-11-10T05:00:00Z",
+    direction: "INCOME",
+    itemType: "BATCH",
+    editable: true,
     ...overrides,
   };
 }
@@ -160,5 +163,49 @@ describe("payment records page (payment-records-edit-plan.md)", () => {
 
     expect((await screen.findAllByText(/Receipt says 3000/)).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Finalize" })).not.toBeInTheDocument();
+  });
+});
+
+describe("every money stream on one page (16 Nov)", () => {
+  it("lists online purchases and staff pay read-only, and sums money in and out", async () => {
+    mockApi({
+      "GET /api/v1/payment-records": [
+        row({ id: "fee-1", amount: "3000.00" }),
+        row({
+          kind: "ONLINE",
+          id: "ord-1",
+          amount: "450.00",
+          method: "ONLINE",
+          reference: "TRAN-1",
+          itemType: "PACKAGE",
+          itemNameEn: "BJS Full Package",
+          editable: false,
+          personName: "Karim Ali",
+        }),
+        row({ kind: "STAFF", id: "pay-9", amount: "1000.00", direction: "EXPENSE", itemType: "STAFF", editable: false, personName: "Sadia" }),
+      ],
+      "GET /api/v1/payment-records/edits": [],
+      "GET /api/v1/offline-batches": [],
+      "GET /api/v1/offline-instructors": [],
+    });
+    renderWithProviders(<PaymentRecordsPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/payment-records" });
+
+    const online = (await screen.findAllByText("Karim Ali"))[0]?.closest("tr") as HTMLElement;
+    expect(within(online).getByText(/Package: BJS Full Package/)).toBeInTheDocument();
+    expect(within(online).getByText("Online (gateway)")).toBeInTheDocument();
+    expect(within(online).queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(within(online).getByRole("link", { name: "Payments" })).toHaveAttribute("href", "/staff/payments");
+    const staff = (await screen.findAllByText("Sadia"))[0]?.closest("tr") as HTMLElement;
+    expect(within(staff).getByRole("link", { name: "Staff and online instructor pay" })).toHaveAttribute("href", "/staff/pay");
+    expect(screen.getByText(/money in .*3,450\.00.* money out .*1,000\.00.* net .*2,450\.00/)).toBeInTheDocument();
+  });
+
+  it("shows only the sources of money out when Money out is chosen, and asks the API for them", async () => {
+    const api = routes();
+    renderWithProviders(<PaymentRecordsPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/payment-records?direction=EXPENSE" });
+
+    const options = (await screen.findByLabelText("Source")).querySelectorAll("option");
+    expect([...options].map((option) => option.textContent)).toEqual(["All sources", "Offline instructor pay", "Other instructor payment", "Staff and online instructor pay"]);
+    await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/payment-records" && call.search.includes("direction=EXPENSE"))).toBe(true));
   });
 });

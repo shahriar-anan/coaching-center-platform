@@ -15,6 +15,8 @@ import {
   type AccountKind,
 } from "@/lib/api/exam/staff-admin";
 import type { AccountStatus } from "@/lib/api/exam/types";
+import { useStudentResetCode } from "@/lib/api/exam/staff-people";
+import { CopyField } from "@/components/ui/copy-field";
 import { adminErrorText } from "@/components/staff/access/admin-error";
 
 /**
@@ -65,6 +67,49 @@ export function AccountStatusToggle({
  * Deletes a student or an instructor after the name is typed. Master Admin only.
  * The button opens `DeleteAccountDialog`; `onDeleted` runs after a successful delete.
  */
+/**
+ * A password reset code for an active student (16 Nov), shown once to the Master Admin to read out or send on WhatsApp while email
+ * does not arrive. The student types it on the Reset password page within 10 minutes. Nothing is mailed.
+ */
+export function PasswordResetCodeButton({ id, name, status }: { id: string; name: string; status: AccountStatus }) {
+  const { t } = useLocale();
+  const { toast } = useToast();
+  const role = useRole();
+  const issue = useStudentResetCode();
+  const [code, setCode] = useState<string | null>(null);
+  if (!role.canResetStudentPassword || status !== "ACTIVE") {
+    return null;
+  }
+  return (
+    <>
+      <Button
+        variant="secondary"
+        loading={issue.isPending}
+        onClick={() =>
+          issue.mutate(id, {
+            onSuccess: (result) => setCode(result.resetCode),
+            onError: (e) => toast({ title: adminErrorText(e, t), tone: "danger" }),
+          })
+        }
+      >
+        {t("staffAdmin.account.resetCode")}
+      </Button>
+      <Dialog
+        open={code !== null}
+        onOpenChange={(next) => {
+          if (!next) setCode(null);
+        }}
+        title={t("staffAdmin.account.resetCodeTitle")}
+        description={t("staffAdmin.account.resetCodeBody", { name })}
+        footer={<Button onClick={() => setCode(null)}>{t("common.oneTimeCode.done")}</Button>}
+      >
+        {code ? <CopyField value={code} label={t("common.oneTimeCode.label")} /> : null}
+        <p className="rounded-control bg-warn/10 px-3.5 py-2.5 text-meta text-warn">{t("staffAdmin.account.resetCodeOnce")}</p>
+      </Dialog>
+    </>
+  );
+}
+
 export function DeleteAccountButton({
   kind,
   id,

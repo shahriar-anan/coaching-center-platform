@@ -21,11 +21,14 @@ export function InstructorFormDialog({
   instructor,
   open,
   onOpenChange,
+  onSaved,
 }: {
   /** The instructor being edited, or null to add one. */
   instructor: OfflineInstructor | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called with the saved instructor, so a page can open a new one (17 Nov). */
+  onSaved?: (saved: OfflineInstructor) => void;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
@@ -58,9 +61,10 @@ export function InstructorFormDialog({
         }
       : { name: name.trim(), phone: phone.trim() || null, note: note.trim() || null };
     try {
-      await save.mutateAsync({ id: instructor?.id, body });
+      const saved = await save.mutateAsync({ id: instructor?.id, body });
       toast({ title: t("instructorPay.instructors.saved"), tone: "ok" });
       onOpenChange(false);
+      onSaved?.(saved);
     } catch (error) {
       const fields =
         error instanceof ApiError && error.fieldErrors

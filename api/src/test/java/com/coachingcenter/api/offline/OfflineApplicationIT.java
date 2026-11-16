@@ -256,6 +256,76 @@ class OfflineApplicationIT extends PostgresIntegrationTest {
 			.andExpect(status().isNotFound());
 	}
 
+	// ---- 16 Nov: an application started without an account carries on under the account ------------------------------------------
+
+	@Test
+	void applyingWithAnAccountOfTheSameEmailAndPhoneCarriesOnTheApplicationStartedWithoutOne() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Carry on " + unique(), true);
+		String email = uniqueEmail();
+		String mobile = validMobile();
+		JsonNode started = respond(post("/api/v1/public/offline-applications", null, formBody(batch, email, mobile)), 201);
+		UUID admission = UUID.fromString(started.get("admission").get("id").asText());
+		UUID student = seedStudent("Carry On", email, mobile);
+
+		JsonNode applied = respond(post("/api/v1/me/admission/apply", token(student), "{\"batchId\":\"" + batch + "\"}"), 201);
+
+		assertThat(applied.get("id").asText()).isEqualTo(admission.toString());
+		assertThat(jdbc().queryForObject("select student_id from offline_admissions where id = ?", UUID.class, admission)).isEqualTo(student);
+		assertThat(jdbc().queryForObject("select access_token_hash is null from offline_admissions where id = ?", Boolean.class, admission))
+			.isTrue();
+		assertThat(jdbc().queryForObject("select count(*) from offline_admissions where batch_id = ?", Integer.class, batch)).isEqualTo(1);
+	}
+
+	@Test
+	void anUnverifiedEmailWithAnotherPhoneDoesNotTakeOverTheApplication() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Not yours " + unique(), true);
+		String email = uniqueEmail();
+		JsonNode started = respond(post("/api/v1/public/offline-applications", null, formBody(batch, email, validMobile())), 201);
+		UUID admission = UUID.fromString(started.get("admission").get("id").asText());
+		UUID stranger = seedStudent("Stranger", email, validMobile());
+
+		JsonNode applied = respond(post("/api/v1/me/admission/apply", token(stranger), "{\"batchId\":\"" + batch + "\"}"), 201);
+
+		assertThat(applied.get("id").asText()).isNotEqualTo(admission.toString());
+		assertThat(jdbc().queryForObject("select student_id from offline_admissions where id = ?", UUID.class, admission)).isNull();
+
+		// A verified email is proof enough, whatever the phone.
+		UUID other = UUID.fromString(respond(post("/api/v1/public/offline-applications", null,
+				formBody(batch(master, "Verified " + unique(), true), uniqueEmail(), validMobile())), 201).get("admission").get("id").asText());
+		String otherEmail = jdbc().queryForObject("select email from offline_admissions where id = ?", String.class, other);
+		UUID otherBatch = jdbc().queryForObject("select batch_id from offline_admissions where id = ?", UUID.class, other);
+		UUID verified = seedStudent("Verified", otherEmail, validMobile());
+		jdbc().update("update users set email_verified_at = now() where id = ?", verified);
+		JsonNode linked = respond(post("/api/v1/me/admission/apply", token(verified), "{\"batchId\":\"" + otherBatch + "\"}"), 201);
+		assertThat(linked.get("id").asText()).isEqualTo(other.toString());
+	}
+
+	@Test
+	void aNewApplicationStartsFromTheStudentsLastForm() throws Exception {
+		// 17 Nov: the fields a student typed once come back on their next application, ready to change.
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID first = batch(master, "First form " + unique(), true);
+		UUID second = batch(master, "Second form " + unique(), true);
+		String email = uniqueEmail();
+		UUID student = seedStudent("Carry Student", email, validMobile());
+		String studentToken = token(student);
+		respond(post("/api/v1/me/admission/apply", studentToken, "{\"batchId\":\"" + first + "\"}"), 201);
+		respond(mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/me/admission/form").header("Authorization", "Bearer " + studentToken)
+			.contentType(MediaType.APPLICATION_JSON).content(fullForm(email))), 200);
+
+		JsonNode next = respond(post("/api/v1/me/admission/apply", studentToken, "{\"batchId\":\"" + second + "\"}"), 201);
+
+		JsonNode form = next.get("form");
+		assertThat(form.get("fatherName").asText()).isEqualTo("Karim Uddin");
+		assertThat(form.get("university").asText()).isEqualTo("Dhaka University");
+		assertThat(form.get("presentAddress").asText()).isEqualTo("House 1, Dhaka");
+		assertThat(form.get("dateOfBirth").asText()).isEqualTo("2004-05-10");
+		// The name and email stay the account's.
+		assertThat(form.get("email").asText()).isEqualTo(email);
+	}
+
 	// ---- helpers ----------------------------------------------------------------------------------------------------------
 
 	private JdbcTemplate jdbc() {

@@ -151,6 +151,8 @@ export type BatchClass = {
   instructorText: string | null;
   amount: number | string | null;
   rateOverride: number | string | null;
+  /** False for a class kept out of the routine (17 Nov): a row of the instructor's pay only. */
+  inRoutine?: boolean;
   status: ClassStatus;
   version: number;
   payment: ClassPayment | null;
@@ -249,10 +251,15 @@ function useBatchPayCall<TVars, TResult>(call: (vars: TVars) => { path: string; 
 export function useUploadRoutine(batchId: string) {
   const queryClient = useQueryClient();
   // There is no month: the routine counts from the day it is uploaded.
-  return useMutation<RoutineView, Error, { file: File }>({
-    mutationFn: ({ file }) => {
+  // 17 Nov: an exam batch's routine has no times; the exam time is sent with it and given to every exam.
+  return useMutation<RoutineView, Error, { file: File; examStartsAt?: string; examMinutes?: number }>({
+    mutationFn: ({ file, examStartsAt, examMinutes }) => {
       const body = new FormData();
       body.append("file", file);
+      if (examStartsAt) {
+        body.append("examStartsAt", examStartsAt);
+        body.append("examMinutes", String(examMinutes ?? 120));
+      }
       return apiRequest<RoutineView>(`/api/v1/offline-batches/${batchId}/routines`, { method: "POST", body });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: batchPayKeys.all }),
@@ -329,6 +336,14 @@ export function useEditClass() {
   }));
 }
 
+/**
+ * Deletes a class by hand (16 Nov). The API refuses an exam with a result and a class whose payment or not-taken mark is waiting or
+ * settled. A class that still has old payment records is marked cancelled instead of erased; either way it leaves the list.
+ */
+export function useDeleteClass() {
+  return useBatchPayCall<string, void>((id) => ({ path: `/api/v1/offline-classes/${id}`, method: "DELETE" }));
+}
+
 /** A class added by hand. The end is optional: the API adds the batch's class length to the start. */
 export type ClassCreateBody = {
   heldOn: string;
@@ -338,6 +353,10 @@ export type ClassCreateBody = {
   topic?: string;
   kind: RoutineKind;
   instructorId?: string;
+  /** False keeps the class out of the routine: a row of the instructor's pay only (17 Nov). */
+  inRoutine?: boolean;
+  /** A class of the batch on that day that this one replaces (an exchange): it is cancelled. */
+  replaceClassId?: string;
 };
 
 /** Adds a class to a batch that is not archived. The new class shows in the classes list after the refresh. */

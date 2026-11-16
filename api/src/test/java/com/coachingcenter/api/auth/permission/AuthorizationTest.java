@@ -30,6 +30,9 @@ class AuthorizationTest {
 		assertThat(catalog.allows(Role.MASTER_ADMIN, Permissions.AUDIT_READ, false)).isTrue();
 		assertThat(catalog.allows(Role.SYSTEM_ADMIN, Permissions.STUDENT_CREATE, false)).isTrue();
 		assertThat(catalog.allows(Role.SYSTEM_ADMIN, Permissions.STUDENT_DELETE, false)).isFalse();
+		// 16 Nov: a password reset code to hand over is the Master Admin's only.
+		assertThat(catalog.allows(Role.MASTER_ADMIN, Permissions.STUDENT_PASSWORD_RESET, false)).isTrue();
+		assertThat(catalog.allows(Role.SYSTEM_ADMIN, Permissions.STUDENT_PASSWORD_RESET, false)).isFalse();
 		assertThat(catalog.allows(Role.SYSTEM_ADMIN, Permissions.ADMIN_MANAGE, false)).isFalse();
 		assertThat(catalog.allows(Role.SYSTEM_ADMIN, Permissions.AUDIT_READ, false)).isFalse();
 		assertThat(catalog.allows(Role.STUDENT, Permissions.STUDENT_READ, true)).isTrue();

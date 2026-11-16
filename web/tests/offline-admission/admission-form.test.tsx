@@ -26,7 +26,7 @@ const FIELD_LABELS = [
   "Date of birth",
   "Email",
   "University",
-  "Semester / batch",
+  "Session / Batch",
   "National ID number",
   "Mobile number",
   "Emergency mobile number",
@@ -258,5 +258,34 @@ describe("the photo", () => {
     expect(upload?.method).toBe("PUT");
     expect((upload?.body as FormData).get("file")).toBeInstanceOf(File);
     expect(await screen.findByText("Photo saved.")).toBeInTheDocument();
+  });
+});
+
+describe("16 Nov form changes", () => {
+  it("marks the national ID and the emergency number as optional, and the rest as required", () => {
+    mockApi({});
+    renderForm();
+
+    expect(screen.getByLabelText(/^National ID number/)).not.toHaveAttribute("aria-required");
+    expect(screen.getByLabelText(/^Emergency mobile number/)).not.toHaveAttribute("aria-required");
+    expect(screen.getByLabelText(/^Mobile number/)).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText(/^Session \/ Batch/)).toHaveAttribute("aria-required", "true");
+  });
+
+  it("copies the present address into the permanent one while Same as present address is ticked", async () => {
+    const user = userEvent.setup();
+    mockApi({});
+    renderForm({ presentAddress: "House 1, Dhaka" });
+
+    const box = screen.getByRole("checkbox", { name: "Same as present address" });
+    expect(box).not.toBeChecked();
+    await user.click(box);
+    expect(screen.getByLabelText(/^Permanent address/)).toHaveValue("House 1, Dhaka");
+
+    await user.type(screen.getByLabelText(/^Present address/), ", Road 2");
+    expect(screen.getByLabelText(/^Permanent address/)).toHaveValue("House 1, Dhaka, Road 2");
+
+    await user.type(screen.getByLabelText(/^Permanent address/), " (village)");
+    expect(box).not.toBeChecked();
   });
 });

@@ -54,7 +54,8 @@ The offline pages are in the staff menu under **Offline admission**: **Admission
 2. The site shows a **10-minute activation code**. Read it to the student, with the four steps on the screen.
 3. On their own phone, the student opens the site, taps **Activate account**, enters the mobile number, the code and a new
    password. They are signed in and taken straight to the **admission form**.
-4. The student fills in the form (name, parents' names, date of birth, university, NID, mobile, addresses) and adds a photo,
+4. The student fills in the form (name, parents' names, date of birth, university, session / batch, mobile, addresses; the NID
+   and the emergency number are optional; "Same as present address" copies the address) and adds a photo,
    then presses **Submit**. Their answers are saved as they type.
 
 If the code runs out, open the admission and press **Send a new code**. A phone number that already has an open admission
@@ -67,7 +68,9 @@ is refused, and the message names the batch.
 2. **An account comes first.** A student who is not signed in sees **Create an account** and **Log in**. After either, they come
    straight back to that batch's form, signed in. (The email code can be checked later from their account page.)
 3. They fill in the form and submit it, as in 3.3.
-4. Applications started before 16 November without an account still finish as they began, with their email link.
+4. Someone who started an application before 16 November without an account carries on by creating an account (or logging in)
+   with the **same email and mobile number** and pressing **Apply** on the same batch: their application, with what they typed,
+   continues under the account.
 
 ### 3.3 A student who already has an account
 
@@ -85,8 +88,10 @@ All new forms appear in **Admissions**, under **Forms to review**.
 3. Press **Edit setup** and choose the **batch**. The admission date and the course end date are filled in. The batch's course
    fee is split evenly into its instalments, shown as a table of due dates and amounts (whole taka, the rest on the last:
    ৳7,000 in 6 is ৳1,166 five times, then ৳1,170).
-   - **Change any row:** type its own due date and amount, add an instalment or remove one. The course fee is then the total
-     of the rows. For example, ৳10,000 can be ৳4,000, ৳2,000, ৳2,000, ৳1,000 and ৳1,000.
+   - **Change an amount:** the course fee stays the same and the instalments after it share what is left. For example,
+     ৳12,000 in 2 with the first set to ৳4,000 makes the second ৳8,000. Changing the last one moves the ones before it. If the
+     amount is more than the fee allows, the fee grows to the total of the rows instead.
+   - **Add or remove an instalment:** the course fee becomes the total of the rows. Due dates can be changed freely.
    - **Start again evenly:** type a new course fee, number of instalments or first due date above the table.
    - The dates must go forward, the first can't be before the admission date, and the last must be on or before the course end.
 4. Press **Ready for approval**. The Master Admin is told.
@@ -102,7 +107,10 @@ What happens next depends on how the student came in:
 | Student with an account (by email) | A **join code** goes to their email (valid 7 days). They enter it on the **Join your batch** page and are admitted. |
 
 **Warnings to watch for:**
-- **The phone number belongs to another account:** onboarding is off until the form is sent back and fixed.
+- **The mobile number or email is on another person's admission in the same batch:** onboarding is off until the form is sent
+  back and fixed, or the other admission is closed. This is the only phone or email clash that stops onboarding.
+- **The mobile number belongs to an account outside the batch:** onboarding goes ahead. The new account is made without a phone,
+  and the student signs in with their email and the activation code.
 - **The account already has this batch:** send the application back, or close it.
 - **The code has expired:** use **Send a new code**. The old code stops working.
 
@@ -181,6 +189,17 @@ of the course fee is spread over the other instalments.
    row with that name follows, and the site remembers the spelling.
 6. Press **Confirm N classes**.
 
+**An exam batch's routine** (a table of Exam, Date, Exam Topics and Time, such as the 20th MCQ Exam Batch routine):
+
+- Tick **This is an exam batch routine** in the upload dialog and set the exam time (for example 4:00 PM, 120 minutes). Every exam
+  gets that time unless its row has its own.
+- Each exam (Exam-01, Exam-02 …) becomes an exam class on its date. Results are uploaded against these exams as usual.
+- No instructor is set from the upload. After confirming, set who is paid on each exam from the batch's **Classes**; it is then
+  paid like any class.
+- Students see the exam number, date and time in their routine, and the full topics in the routine PDF. The topics are not
+  copied, because the Bangla in this PDF does not come out as the text it shows.
+- A new upload matches each exam by its number, so an exam whose date moves keeps its class and its result.
+
 ### What the routine does
 
 - The routine counts **from the day you upload it**. Dates before that day are added as earlier classes, and you can still
@@ -208,6 +227,21 @@ The admins get one notice a day at 9 pm when held classes are still unsettled, a
 waiting more than a week.
 
 **Offline instructors** lists every instructor, their batches, their classes this month and what is owed now.
+
+**Each instructor's page.** On **Instructor payments**, an instructor's card on **To settle** opens their own page, and **Add
+instructor** creates one and opens their page. The page lists every class and exam of theirs, held or coming, with **Record
+payment** and **Mark not taken** on the ones held.
+
+- **Add class:** for a class they took that is not in the routine, or before the routine is updated. Choose the batch, date,
+  time, subject and kind, then answer **"Add this class to the batch's routine too?"**
+  - **Yes:** it becomes a normal class of the batch, which its students see. If the batch already has a class at that time
+    that day, the dialog names it: **keep both**, or **replace** it (that class is cancelled).
+  - **No:** it is only a row of this instructor's pay, marked "Not in the routine". Students never see it, and a routine
+    upload never changes it.
+- **Record other payment:** for money paid that is not for a class (travel, a bonus, an advance). Type what it is for; a
+  batch is optional. A System Admin's payment waits for the Master Admin under **Waiting for approval**, like class payments.
+  It counts in Finance as instructor pay, and can be corrected on **Payment records**. The Master Admin can void one, with a
+  reason.
 
 ---
 
@@ -275,7 +309,15 @@ enrolment payments.
 
 ---
 
-## 11. Two changes for all students
+## 11. A student who forgot their password
+
+While email does not arrive: open the student under **People → Students**, press **Password reset code** (Master Admin), and
+give the code to the student. On the sign-in page they choose **Forgot password**, then **"I already have a code from the
+office"**, and type the code with a new password within 10 minutes. They should not press **Send code**, which replaces it.
+
+---
+
+## 12. Two changes for all students
 
 - **Exam times are no longer emailed.** When an exam is published or its time changes, students are told in the app (Notices)
   only. Payment receipts and purchase emails still go out. Please tell your students through an announcement.

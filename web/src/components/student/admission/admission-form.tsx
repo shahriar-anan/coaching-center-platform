@@ -19,7 +19,7 @@ import {
 } from "@/lib/api/exam/offline-admission";
 import { ApiError } from "@/lib/api/errors";
 import { PhotoField } from "./photo-field";
-import { ADDRESS_FIELDS, NUMERIC_FIELDS, PERSONAL_FIELDS } from "./fields";
+import { ADDRESS_FIELDS, NUMERIC_FIELDS, OPTIONAL_FIELDS, PERSONAL_FIELDS } from "./fields";
 import { fieldErrorsOf } from "./field-errors";
 import { useDraftSaver } from "./use-draft-saver";
 
@@ -78,6 +78,12 @@ export function AdmissionFormView({
   const account = useAccountFormApi();
   const formApi = api ?? account;
   const [form, setForm] = useState<AdmissionForm>(() => localNumbers(admission.form));
+  // "Same as present address" (16 Nov): ticked when the form already has both addresses the same.
+  const [sameAddress, setSameAddress] = useState(() => {
+    const present = typeof admission.form.presentAddress === "string" ? admission.form.presentAddress.trim() : "";
+    const permanent = typeof admission.form.permanentAddress === "string" ? admission.form.permanentAddress.trim() : "";
+    return present !== "" && present === permanent;
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -105,7 +111,13 @@ export function AdmissionFormView({
   }, [errors]);
 
   function update(key: AdmissionFormField, value: string | null) {
-    setForm((previous) => ({ ...previous, [key]: value }));
+    // While "Same as present address" is ticked, the permanent address follows the present one; typing another one unticks it.
+    if (key === "permanentAddress" && sameAddress && value !== textValue("presentAddress")) {
+      setSameAddress(false);
+    }
+    setForm((previous) =>
+      key === "presentAddress" && sameAddress ? { ...previous, presentAddress: value, permanentAddress: value } : { ...previous, [key]: value },
+    );
     setErrors((previous) => {
       if (!(key in previous)) {
         return previous;
@@ -149,7 +161,7 @@ export function AdmissionFormView({
     const hint =
       key === "nid" ? t("admission.hint.nid") : key === "mobile" || key === "emergencyMobile" ? t("admission.hint.mobile") : undefined;
     return (
-      <Field key={key} label={t(`admission.field.${key}`)} required error={error} hint={hint}>
+      <Field key={key} label={t(`admission.field.${key}`)} required={!OPTIONAL_FIELDS.includes(key)} error={error} hint={hint}>
         {control}
       </Field>
     );
@@ -268,7 +280,21 @@ export function AdmissionFormView({
           <h2 id="admission-address-heading" className="text-label font-semibold text-text">
             {t("admission.section.address")}
           </h2>
-          {ADDRESS_FIELDS.map((key) => textField(key))}
+          {textField("presentAddress")}
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-body text-text">
+            <input
+              type="checkbox"
+              className="size-5 accent-accent"
+              checked={sameAddress}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setSameAddress(checked);
+                if (checked) update("permanentAddress", textValue("presentAddress"));
+              }}
+            />
+            {t("admission.sameAddress")}
+          </label>
+          {textField("permanentAddress")}
         </section>
 
         <div className="grid gap-3" aria-live="polite">

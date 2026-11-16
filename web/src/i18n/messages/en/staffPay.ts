@@ -22,7 +22,7 @@ const staffPay = {
     PAYMENT: "Payment",
   },
   people: {
-    title: "Staff pay",
+    title: "Staff and online instructor pay",
     settingsLink: "Pay settings",
     payLink: "Pay",
     name: "Name",

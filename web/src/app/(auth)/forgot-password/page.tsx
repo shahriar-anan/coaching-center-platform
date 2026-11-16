@@ -96,6 +96,10 @@ function ForgotPasswordPageForm() {
             {t("auth.forgot.submit")}
           </Button>
         </form>
+        {/* A code from the office (16 Nov) goes straight to the reset page; sending another code here would cancel it. */}
+        <Link href={`/reset-password${nextQuery}`} className="text-center font-semibold text-text-accent underline underline-offset-4">
+          {t("auth.forgot.haveCode")}
+        </Link>
         <Link href={`/login${nextQuery}`} className="text-center font-semibold text-text-accent underline underline-offset-4">
           {t("auth.forgot.back")}
         </Link>

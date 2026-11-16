@@ -20,6 +20,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
 import { useBatches } from "@/lib/api/exam/offline-admin";
 import { useOfflineInstructors } from "@/lib/api/exam/instructor-pay";
+import { useCategoryTree, type CategoryTreeNode } from "@/lib/api/exam/staff-catalog";
 import {
   useFinalizePaymentEdit,
   usePaymentEdits,
@@ -30,6 +31,10 @@ import {
   type PaymentEditStatus,
   type PaymentKind,
   type PaymentMethod,
+  type RecordKind,
+  type PaymentRecordStatus,
+  INCOME_KINDS,
+  EXPENSE_KINDS,
   type PaymentRow,
   type PaymentValues,
 } from "@/lib/api/exam/payment-records";
@@ -79,7 +84,21 @@ export function PaymentRecordsPage() {
   const { t } = useLocale();
   const role = useRole();
   const isMaster = role.canApproveOfflineFee;
-  const [params, setParams] = useListParams({ tab: "", period: "month", from: "", to: "", kind: "", batchId: "", instructorId: "", q: "" });
+  const [params, setParams] = useListParams({
+    tab: "",
+    period: "month",
+    from: "",
+    to: "",
+    kind: "",
+    batchId: "",
+    instructorId: "",
+    q: "",
+    direction: "",
+    item: "",
+    method: "",
+    status: "",
+    categoryId: "",
+  });
   const tab: RecordsTab = (TABS as readonly string[]).includes(params.tab) ? (params.tab as RecordsTab) : "records";
   const pending = usePaymentEdits("PENDING");
   const waitingCount = pending.data?.length ?? 0;
@@ -111,8 +130,51 @@ export function PaymentRecordsPage() {
   );
 }
 
-type Params = { period: string; from: string; to: string; kind: string; batchId: string; instructorId: string; q: string };
+type Params = {
+  period: string;
+  from: string;
+  to: string;
+  kind: string;
+  batchId: string;
+  instructorId: string;
+  q: string;
+  direction: string;
+  item: string;
+  method: string;
+  status: string;
+  categoryId: string;
+};
 
+/** The catalogue's categories in tree order, with their depth for the indent. */
+function flattenCategories(nodes: CategoryTreeNode[], depth = 0): { node: CategoryTreeNode; depth: number }[] {
+  return nodes.flatMap((node) => [{ node, depth }, ...flattenCategories(node.children ?? [], depth + 1)]);
+}
+
+const RECORD_KINDS: readonly RecordKind[] = ["ONLINE", "DIRECT", "FEE", "CLASS", "OTHER", "STAFF"];
+const FILTER_METHODS = ["CASH", "BKASH", "NAGAD", "ROCKET", "BANK", "ONLINE"] as const;
+const FILTER_STATUSES: readonly PaymentRecordStatus[] = ["APPROVED", "PENDING", "REJECTED", "VOIDED", "REFUNDED"];
+
+const STATUS_TONE: Record<PaymentRecordStatus, PillTone> = { ...PAYMENT_TONE, REFUNDED: "warn" };
+
+/** The kinds the caller sees, as the API decides it: the Master Admin every stream; a System Admin fees, instructor pay and online purchases. */
+function kindsFor(isMaster: boolean): RecordKind[] {
+  return isMaster ? [...RECORD_KINDS] : ["ONLINE", "FEE", "CLASS", "OTHER"];
+}
+
+function statusLabel(status: PaymentRecordStatus, t: (key: string) => string): string {
+  return status === "REFUNDED" ? t("paymentRecords.status.REFUNDED") : t(paymentStatusKey(status));
+}
+
+function methodLabel(method: string, t: (key: string) => string): string {
+  return method === "ONLINE" ? t("paymentRecords.method.ONLINE") : t(methodLabelKey(method as PaymentMethod));
+}
+
+/**
+ * The payments list (16 Nov): every money stream of the site, filtered as Finance counts them. Money in: online purchases through the
+ * gateway, direct enrolment (an exam or package paid at the office), offline course fees. Money out: offline instructor pay and staff
+ * pay. The filters that do not apply to the chosen source are not shown. Only the payments the office records by hand can be corrected
+ * here; an online purchase is refunded from Orders, and staff pay is changed on Staff pay.
+ */
 function RecordsView({
   params,
   setParams,
@@ -127,54 +189,96 @@ function RecordsView({
   const period: Period = (PERIODS as readonly string[]).includes(params.period) ? (params.period as Period) : "month";
   const range = periodRange(period) ?? { from: params.from, to: params.to };
   const backwards = Boolean(range.from && range.to && range.from > range.to);
-  const kind = (["FEE", "CLASS", "DIRECT"] as const).find((value) => value === params.kind) ?? "";
+  const visible = kindsFor(isMaster);
+  const direction = params.direction === "INCOME" || params.direction === "EXPENSE" ? params.direction : "";
+  const offered = visible.filter((value) =>
+    direction === "INCOME" ? INCOME_KINDS.includes(value) : direction === "EXPENSE" ? EXPENSE_KINDS.includes(value) : true,
+  );
+  const kind = offered.find((value) => value === params.kind) ?? "";
+  const item = params.item === "PACKAGE" || params.item === "EXAM" ? params.item : "";
+  const method = (FILTER_METHODS as readonly string[]).includes(params.method) ? params.method : "";
+  const status = (FILTER_STATUSES as readonly string[]).includes(params.status) ? (params.status as PaymentRecordStatus) : "";
+  // Which narrower filters apply: a package or exam for online and direct payments; a batch for fees and instructor pay; an
+  // instructor for instructor pay. With no source chosen, each shows when one of its sources is in the list.
+  const sources = kind ? [kind] : offered;
+  const showsItem = sources.some((value) => value === "ONLINE" || value === "DIRECT");
+  const showsBatch = sources.some((value) => value === "FEE" || value === "CLASS" || value === "OTHER");
+  const showsInstructor = sources.some((value) => value === "CLASS" || value === "OTHER");
   const records = usePaymentRecords({
     from: backwards ? "" : range.from,
     to: backwards ? "" : range.to,
     kind,
-    batchId: params.batchId,
-    instructorId: params.instructorId,
+    batchId: showsBatch ? params.batchId : "",
+    instructorId: showsInstructor ? params.instructorId : "",
     q: params.q,
+    direction,
+    item: showsItem ? item : "",
+    method,
+    status,
+    categoryId: showsItem ? params.categoryId : "",
   });
+  const categories = useCategoryTree();
   const batches = useBatches();
   const instructors = useOfflineInstructors(true);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
   const rows = useMemo(() => records.data ?? [], [records.data]);
-  const counted = rows.filter((row) => row.status === "APPROVED");
-  const total = counted.reduce((sum, row) => sum + toNumber(row.amount), 0);
-  const kinds: PaymentKind[] = isMaster ? ["FEE", "CLASS", "DIRECT"] : ["FEE", "CLASS"];
+  // The totals count what is paid and stands: approved payments, less what was refunded of an online purchase.
+  const net = (row: PaymentRow) =>
+    row.status === "APPROVED" ? toNumber(row.amount) : row.status === "REFUNDED" ? toNumber(row.amount) - toNumber(row.refundedAmount ?? 0) : 0;
+  const moneyIn = rows.filter((row) => row.direction === "INCOME").reduce((sum, row) => sum + net(row), 0);
+  const moneyOut = rows.filter((row) => row.direction === "EXPENSE").reduce((sum, row) => sum + net(row), 0);
+
+  const itemName = (row: PaymentRow) =>
+    row.itemType === "BATCH"
+      ? (locale === "bn" ? row.batchNameBn || row.batchNameEn : row.batchNameEn) || null
+      : (locale === "bn" ? row.itemNameBn || row.itemNameEn : row.itemNameEn) || null;
 
   const columns: Column<PaymentRow>[] = [
     { key: "date", header: t("paymentRecords.columns.date"), nowrap: true, cell: (row) => formatDate(row.paidOn) },
     {
-      key: "who",
-      header: t("paymentRecords.columns.who"),
+      key: "source",
+      header: t("paymentRecords.columns.source"),
       cell: (row) => (
         <div className="grid gap-0.5">
-          <span className="font-medium text-text">{row.personName || "—"}</span>
-          <span className="text-meta text-muted">{t(`paymentRecords.kind.${row.kind}`)}</span>
+          <span className="font-medium text-text">{t(`paymentRecords.kind.${row.kind}`)}</span>
+          <span className="text-meta text-muted">
+            {t(`paymentRecords.item.${row.itemType}`)}
+            {itemName(row) ? `: ${itemName(row)}` : ""}
+          </span>
+          {row.kind === "CLASS" && row.batchNameEn ? (
+            <span className="text-meta text-muted">{locale === "bn" ? row.batchNameBn || row.batchNameEn : row.batchNameEn}</span>
+          ) : null}
         </div>
       ),
     },
     {
-      key: "batch",
-      header: t("paymentRecords.columns.batch"),
-      mobileHidden: true,
-      cell: (row) => (locale === "bn" ? row.batchNameBn || row.batchNameEn : row.batchNameEn) || "—",
+      key: "who",
+      header: t("paymentRecords.columns.who"),
+      cell: (row) => <span className="font-medium text-text">{row.personName || "—"}</span>,
     },
     {
       key: "amount",
       header: t("paymentRecords.columns.amount"),
       align: "end",
       nowrap: true,
-      cell: (row) => <span className="font-latin">{formatMoney(toNumber(row.amount))}</span>,
+      cell: (row) => (
+        <div className="grid justify-items-end gap-0.5">
+          <span className={row.direction === "EXPENSE" ? "font-latin text-danger" : "font-latin text-ok-text"}>
+            {row.direction === "EXPENSE" ? "−" : "+"}
+            {formatMoney(toNumber(row.amount))}
+          </span>
+          {row.status === "REFUNDED" && row.refundedAmount != null ? (
+            <span className="text-meta text-muted">{t("paymentRecords.refunded", { amount: formatMoney(toNumber(row.refundedAmount)) ?? "" })}</span>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "method",
       header: t("paymentRecords.columns.method"),
       cell: (row) => (
         <div className="grid gap-0.5">
-          <span>{t(methodLabelKey(row.method))}</span>
+          <span>{methodLabel(row.method, t)}</span>
           {row.reference ? <span className="break-all text-meta text-muted">{row.reference}</span> : null}
         </div>
       ),
@@ -190,7 +294,7 @@ function RecordsView({
       header: t("paymentRecords.columns.status"),
       cell: (row) => (
         <div className="flex flex-wrap gap-1">
-          <Pill tone={PAYMENT_TONE[row.status]}>{t(paymentStatusKey(row.status))}</Pill>
+          <Pill tone={STATUS_TONE[row.status]}>{statusLabel(row.status, t)}</Pill>
           {row.correctedAt ? (
             <span title={t("paymentRecords.correctedOn", { date: formatDate(row.correctedAt) })}>
               <Pill tone="muted">{t("paymentRecords.corrected")}</Pill>
@@ -206,7 +310,11 @@ function RecordsView({
       mobileLabel: t("paymentRecords.columns.actions"),
       align: "end",
       cell: (row) =>
-        row.status === "VOIDED" || row.status === "REJECTED" || row.pendingEdit ? null : (
+        !row.editable ? (
+          <Button size="sm" variant="ghost" href={row.kind === "ONLINE" ? "/staff/payments" : "/staff/pay"}>
+            {t(row.kind === "ONLINE" ? "paymentRecords.openOrders" : "paymentRecords.openStaffPay")}
+          </Button>
+        ) : row.status === "VOIDED" || row.status === "REJECTED" || row.pendingEdit ? null : (
           <Button size="sm" variant="secondary" onClick={() => setEditing(row)}>
             {t("paymentRecords.edit")}
           </Button>
@@ -239,33 +347,104 @@ function RecordsView({
             </div>
           ) : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2">
+          <span className="text-meta font-medium text-muted">{t("paymentRecords.filters.direction")}</span>
+          <SegmentedControl
+            options={[
+              { value: "", label: t("paymentRecords.filters.all") },
+              { value: "INCOME", label: t("paymentRecords.filters.income") },
+              { value: "EXPENSE", label: t("paymentRecords.filters.expense") },
+            ]}
+            value={direction}
+            onChange={(value) => setParams({ direction: value, kind: "" })}
+            ariaLabel={t("paymentRecords.filters.direction")}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label={t("paymentRecords.filters.kind")}>
             <Select value={kind} onChange={(event) => setParams({ kind: event.target.value })}>
-              <option value="">{t("paymentRecords.filters.all")}</option>
-              {kinds.map((value) => (
+              <option value="">{t("paymentRecords.filters.allSources")}</option>
+              {offered.some((value) => INCOME_KINDS.includes(value)) ? (
+                <optgroup label={t("paymentRecords.filters.income")}>
+                  {offered.filter((value) => INCOME_KINDS.includes(value)).map((value) => (
+                    <option key={value} value={value}>
+                      {t(`paymentRecords.kind.${value}`)}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {offered.some((value) => EXPENSE_KINDS.includes(value)) ? (
+                <optgroup label={t("paymentRecords.filters.expense")}>
+                  {offered.filter((value) => EXPENSE_KINDS.includes(value)).map((value) => (
+                    <option key={value} value={value}>
+                      {t(`paymentRecords.kind.${value}`)}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+            </Select>
+          </Field>
+          {showsItem ? (
+            <Field label={t("paymentRecords.filters.item")}>
+              <Select value={item} onChange={(event) => setParams({ item: event.target.value })}>
+                <option value="">{t("paymentRecords.filters.allItems")}</option>
+                <option value="PACKAGE">{t("paymentRecords.filters.packages")}</option>
+                <option value="EXAM">{t("paymentRecords.filters.exams")}</option>
+              </Select>
+            </Field>
+          ) : null}
+          {showsItem ? (
+            <Field label={t("paymentRecords.filters.category")}>
+              <Select value={params.categoryId} onChange={(event) => setParams({ categoryId: event.target.value })}>
+                <option value="">{t("paymentRecords.filters.allCategories")}</option>
+                {flattenCategories(categories.data ?? []).map(({ node, depth }) => (
+                  <option key={node.id} value={node.id}>
+                    {`${"— ".repeat(depth)}${locale === "bn" ? node.titleBn || node.titleEn : node.titleEn}`}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          {showsBatch ? (
+            <Field label={t("paymentRecords.filters.batch")}>
+              <Select value={params.batchId} onChange={(event) => setParams({ batchId: event.target.value })}>
+                <option value="">{t("paymentRecords.filters.allBatches")}</option>
+                {(batches.data ?? []).map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {locale === "bn" ? batch.nameBn || batch.nameEn : batch.nameEn}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          {showsInstructor ? (
+            <Field label={t("paymentRecords.filters.instructor")}>
+              <Select value={params.instructorId} onChange={(event) => setParams({ instructorId: event.target.value })}>
+                <option value="">{t("paymentRecords.filters.allInstructors")}</option>
+                {(instructors.data ?? []).map((instructor) => (
+                  <option key={instructor.id} value={instructor.id}>
+                    {instructor.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          <Field label={t("paymentRecords.filters.method")}>
+            <Select value={method} onChange={(event) => setParams({ method: event.target.value })}>
+              <option value="">{t("paymentRecords.filters.allMethods")}</option>
+              {FILTER_METHODS.map((value) => (
                 <option key={value} value={value}>
-                  {t(`paymentRecords.kind.${value}`)}
+                  {methodLabel(value, t)}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label={t("paymentRecords.filters.batch")}>
-            <Select value={params.batchId} onChange={(event) => setParams({ batchId: event.target.value })}>
-              <option value="">{t("paymentRecords.filters.allBatches")}</option>
-              {(batches.data ?? []).map((batch) => (
-                <option key={batch.id} value={batch.id}>
-                  {locale === "bn" ? batch.nameBn || batch.nameEn : batch.nameEn}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("paymentRecords.filters.instructor")}>
-            <Select value={params.instructorId} onChange={(event) => setParams({ instructorId: event.target.value })}>
-              <option value="">{t("paymentRecords.filters.allInstructors")}</option>
-              {(instructors.data ?? []).map((instructor) => (
-                <option key={instructor.id} value={instructor.id}>
-                  {instructor.name}
+          <Field label={t("paymentRecords.filters.status")}>
+            <Select value={status} onChange={(event) => setParams({ status: event.target.value })}>
+              <option value="">{t("paymentRecords.filters.allStatuses")}</option>
+              {FILTER_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {statusLabel(value, t)}
                 </option>
               ))}
             </Select>
@@ -282,7 +461,12 @@ function RecordsView({
         <>
           {records.data ? (
             <p className="text-meta text-muted" role="status">
-              {t("paymentRecords.total", { count: counted.length, amount: formatMoney(total) ?? "" })}
+              {t("paymentRecords.summary", {
+                count: rows.length,
+                moneyIn: formatMoney(moneyIn) ?? "",
+                moneyOut: formatMoney(moneyOut) ?? "",
+                net: formatMoney(moneyIn - moneyOut) ?? "",
+              })}
               {rows.length >= 500 ? ` ${t("paymentRecords.limit")}` : ""}
             </p>
           ) : null}
@@ -312,7 +496,7 @@ function EditDialog({ row, isMaster, onClose }: { row: PaymentRow; isMaster: boo
   const propose = useProposePaymentEdit();
   const [amount, setAmount] = useState(amountText(row.amount));
   const [paidOn, setPaidOn] = useState(row.paidOn);
-  const [method, setMethod] = useState<PaymentMethod>(row.method);
+  const [method, setMethod] = useState<PaymentMethod>(row.method === "ONLINE" ? "CASH" : row.method);
   const [reference, setReference] = useState(row.reference ?? "");
   const [note, setNote] = useState(row.note ?? "");
   const [reason, setReason] = useState("");
@@ -341,7 +525,8 @@ function EditDialog({ row, isMaster, onClose }: { row: PaymentRow; isMaster: boo
     if (Object.keys(problems).length > 0) return;
     try {
       const edit = await propose.mutateAsync({
-        kind: row.kind,
+        // Only the payments the office records reach this dialog (row.editable).
+        kind: row.kind as PaymentKind,
         id: row.id,
         body: { amount: amount.trim(), paidOn, method, reference: reference.trim(), note: note.trim(), reason: reason.trim() },
       });

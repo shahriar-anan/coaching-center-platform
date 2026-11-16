@@ -438,6 +438,40 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 	}
 
 	/** An upload answered with the expected status; returns the routine. */
+	@Test
+	void anExamBatchRoutineYieldsOneExamPerRowAtTheGivenTimeAndMatchesByExamNumber() throws Exception {
+		// 17 Nov: an exam batch's routine (Exam, Date, Exam Topics, Time) has no instructor and no times. Each exam is a row at the exam
+		// time given with the upload; a new upload matches each exam by its number, so a moved exam keeps its class.
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "2027-06-30");
+		MockMultipartFile exams = new MockMultipartFile("file", "20th MCQ Exam Batch Routine.pdf", "application/pdf",
+				new ClassPathResource("fixtures/routine/20th MCQ Exam Batch Routine.pdf").getInputStream().readAllBytes());
+
+		JsonNode routine = respond(mockMvc.perform(multipart("/api/v1/offline-batches/" + batch + "/routines").file(exams)
+			.param("examStartsAt", "16:00").param("examMinutes", "120").header("Authorization", "Bearer " + master)), 201);
+
+		JsonNode rows = routine.get("rows");
+		assertThat(rows.size()).isEqualTo(50);
+		JsonNode first = rows.get(0);
+		assertThat(first.get("subject").asText()).isEqualTo("Exam-01");
+		assertThat(first.get("date").asText()).isEqualTo("2026-11-10");
+		assertThat(first.get("startsAt").asText()).isEqualTo("16:00");
+		assertThat(first.get("endsAt").asText()).isEqualTo("18:00");
+		assertThat(first.get("kind").asText()).isEqualTo("EXAM");
+		assertThat(first.hasNonNull("instructorId")).isFalse();
+		// The PDF's own slips are warnings: Exam-01's day is not 10 November's, and Exam-44 sits out of order.
+		assertThat(codes(first)).contains("WEEKDAY_MISMATCH");
+		assertThat(codes(rows.get(43))).contains("DATE_OUT_OF_ORDER");
+		assertThat(rows.get(49).get("subject").asText()).isEqualTo("Exam-50");
+		assertThat(rows.get(49).get("date").asText()).isEqualTo("2027-05-02");
+
+		respond(post("/api/v1/offline-routines/" + routine.get("id").asText() + "/confirm", master, null), 200);
+		JsonNode again = respond(mockMvc.perform(multipart("/api/v1/offline-batches/" + batch + "/routines").file(exams)
+			.param("examStartsAt", "16:00").param("examMinutes", "120").header("Authorization", "Bearer " + master)), 201);
+		assertThat(again.get("difference").get("added").size()).isZero();
+		assertThat(again.get("difference").get("unchanged").asInt()).isEqualTo(50);
+	}
+
 	private JsonNode upload(String token, UUID batch, String month, MockMultipartFile file, int expected) throws Exception {
 		return respond(upload(token, batch, month, file), expected);
 	}

@@ -111,7 +111,8 @@ public class OfflineResultService {
 		Map<UUID, String> names = instructorNames();
 		List<OfflineClass> exams = new ArrayList<>();
 		for (OfflineClass classItem : classes.findByBatchIdOrderByHeldOnAscStartsAtAsc(batchId)) {
-			if (OfflineClass.KIND_EXAM.equals(classItem.getKind())) {
+			// A pay-only exam (kept out of the routine, 17 Nov) takes no result.
+			if (OfflineClass.KIND_EXAM.equals(classItem.getKind()) && classItem.isInRoutine()) {
 				exams.add(classItem);
 			}
 		}
@@ -180,6 +181,11 @@ public class OfflineResultService {
 
 	/** Whether an exam class has a sheet, staged or published (rule A1). */
 	@Transactional(readOnly = true)
+	/** True when any result sheet, even a discarded one, belongs to the class (16 Nov: such a class is cancelled, not erased). */
+	public boolean anySheet(UUID classId) {
+		return sheets.existsByClassId(classId);
+	}
+
 	public boolean hasResult(UUID classId) {
 		return sheets.existsByClassIdAndStatusIn(classId, List.of(OfflineResultSheet.STATUS_STAGED, OfflineResultSheet.STATUS_PUBLISHED));
 	}

@@ -49,7 +49,22 @@ public class PaymentRecordService {
 
 	public static final String DIRECT = "DIRECT";
 
-	static final Set<String> KINDS = Set.of(FEE, CLASS, DIRECT);
+	/** Online purchases through the payment gateway (live_exam_orders): listed, never corrected here (16 Nov). */
+	public static final String ONLINE = "ONLINE";
+
+	/** Staff pay (staff_ledger PAYMENT rows): listed, corrected on the Staff pay page (16 Nov). */
+	public static final String STAFF = "STAFF";
+
+	/** Payments to an offline instructor for something that is not a class (17 Nov): listed and corrected here. */
+	public static final String OTHER = "OTHER";
+
+	/** The kinds a correction can be made to: the payments the office records by hand. */
+	static final Set<String> KINDS = Set.of(FEE, CLASS, DIRECT, OTHER);
+
+	/** Money in and money out, as Finance counts them (16 Nov). */
+	static final Set<String> INCOME = Set.of(ONLINE, DIRECT, FEE);
+
+	static final Set<String> EXPENSE = Set.of(CLASS, OTHER, STAFF);
 
 	private static final Set<String> METHODS = Set.of("CASH", "BKASH", "NAGAD", "ROCKET", "BANK");
 
@@ -63,10 +78,16 @@ public class PaymentRecordService {
 			select u.id from users u where u.role = 'MASTER_ADMIN' and u.status = 'ACTIVE' and u.deleted_at is null
 			""";
 
-	/** One row of the page, whatever its kind. Fields that do not apply to the kind are null. */
+	/**
+	 * One row of the page, whatever its kind. Fields that do not apply to the kind are null. {@code direction} is INCOME or EXPENSE;
+	 * {@code itemType} is what the money was for (PACKAGE, EXAM, BATCH, CLASS or STAFF), with the package or exam's id and titles;
+	 * {@code editable} is true for the payments the office records by hand (16 Nov).
+	 */
 	public record PaymentRow(String kind, UUID id, LocalDate paidOn, BigDecimal amount, String method, String reference, String note,
 			String status, String receiptNo, String personName, UUID batchId, String batchNameEn, String batchNameBn, UUID instructorId,
-			String instructorName, String recordedByName, Instant recordedAt, Instant correctedAt, PendingEdit pendingEdit) {
+			String instructorName, String recordedByName, Instant recordedAt, Instant correctedAt, PendingEdit pendingEdit,
+			String direction, String itemType, UUID itemId, String itemNameEn, String itemNameBn, BigDecimal refundedAmount,
+			boolean editable) {
 	}
 
 	/** The values a correction changes. */
@@ -84,7 +105,13 @@ public class PaymentRecordService {
 	}
 
 	/** The filters of the page. Null means no filter. */
-	public record Filters(LocalDate from, LocalDate to, String kind, UUID batchId, UUID instructorId, String q) {
+	public record Filters(LocalDate from, LocalDate to, String kind, UUID batchId, UUID instructorId, String q, String direction,
+			String itemType, String method, String status, UUID categoryId) {
+
+		/** The filters of the first version of the page: no direction, item, method or status. */
+		public Filters(LocalDate from, LocalDate to, String kind, UUID batchId, UUID instructorId, String q) {
+			this(from, to, kind, batchId, instructorId, q, null, null, null, null, null);
+		}
 	}
 
 	private final JdbcTemplate jdbc;
@@ -118,7 +145,9 @@ public class PaymentRecordService {
 			select 'FEE' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note, p.status, p.receipt_no,
 			  coalesce(a.full_name, sp.full_name, '') as person_name, a.batch_id, b.name_en as batch_name_en, b.name_bn as batch_name_bn,
 			  null::uuid as instructor_id, null::varchar as instructor_name, coalesce(ap.full_name, '') as recorded_by_name,
-			  p.recorded_at, p.corrected_at
+			  p.recorded_at, p.corrected_at,
+			  'BATCH' as item_type, null::uuid as item_id, null::varchar as item_en, null::varchar as item_bn, null::numeric as refunded_amount,
+			  null::uuid as item_category
 			from offline_fee_payments p
 			join offline_admissions a on a.id = p.admission_id
 			left join offline_batches b on b.id = a.batch_id
@@ -129,7 +158,9 @@ public class PaymentRecordService {
 	private static final String CLASS_ROWS = """
 			select 'CLASS' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note, p.status, null::varchar as receipt_no,
 			  i.name as person_name, c.batch_id, b.name_en as batch_name_en, b.name_bn as batch_name_bn,
-			  p.instructor_id, i.name as instructor_name, coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.corrected_at
+			  p.instructor_id, i.name as instructor_name, coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.corrected_at,
+			  'CLASS' as item_type, null::uuid as item_id, c.subject as item_en, c.subject as item_bn, null::numeric as refunded_amount,
+			  null::uuid as item_category
 			from offline_class_payments p
 			join offline_classes c on c.id = p.class_id
 			join offline_instructors i on i.id = p.instructor_id
@@ -142,11 +173,63 @@ public class PaymentRecordService {
 			  case when p.voided_at is null then 'APPROVED' else 'VOIDED' end as status, p.receipt_no,
 			  coalesce(sp.full_name, '') as person_name, null::uuid as batch_id, null::varchar as batch_name_en,
 			  null::varchar as batch_name_bn, null::uuid as instructor_id, null::varchar as instructor_name,
-			  coalesce(ap.full_name, '') as recorded_by_name, p.created_at as recorded_at, p.corrected_at
+			  coalesce(ap.full_name, '') as recorded_by_name, p.created_at as recorded_at, p.corrected_at,
+			  case when g.scope = 'EXAM' then 'EXAM' else 'PACKAGE' end as item_type, coalesce(g.exam_id, g.module_id) as item_id,
+			  coalesce(e.title_en, m.title_en) as item_en, coalesce(e.title_bn, m.title_bn) as item_bn, null::numeric as refunded_amount,
+			  coalesce(e.category_id, m.category_id) as item_category
 			from live_exam_direct_payments p
 			join live_exam_payment_plans pl on pl.id = p.plan_id
+			left join live_exam_grants g on g.id = pl.grant_id
+			left join live_exam_modules m on m.id = g.module_id
+			left join live_exams e on e.id = g.exam_id
 			left join student_profiles sp on sp.user_id = pl.student_id
 			left join admin_profiles ap on ap.user_id = p.created_by
+			""";
+
+	/** Other payments to an offline instructor (17 Nov): the reason the admin typed is what the payment was for. */
+	private static final String OTHER_ROWS = """
+			select 'OTHER' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note, p.status, null::varchar as receipt_no,
+			  i.name as person_name, p.batch_id, b.name_en as batch_name_en, b.name_bn as batch_name_bn,
+			  p.instructor_id, i.name as instructor_name, coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.corrected_at,
+			  'OTHER' as item_type, null::uuid as item_id, p.reason as item_en, p.reason as item_bn, null::numeric as refunded_amount,
+			  null::uuid as item_category
+			from offline_instructor_other_payments p
+			join offline_instructors i on i.id = p.instructor_id
+			left join offline_batches b on b.id = p.batch_id
+			left join admin_profiles ap on ap.user_id = p.recorded_by
+			""";
+
+	/** Online purchases: the gateway's paid orders, a refunded one shown as REFUNDED with what was given back (16 Nov). */
+	private static final String ONLINE_ROWS = """
+			select 'ONLINE' as kind, o.id, cast((coalesce(o.paid_at, o.created_at) at time zone 'Asia/Dhaka') as date) as paid_on, o.amount,
+			  'ONLINE' as method, o.tran_id as reference, null::varchar as note,
+			  case when o.refunded_at is not null then 'REFUNDED' else 'APPROVED' end as status, o.receipt_no,
+			  coalesce(sp.full_name, '') as person_name, null::uuid as batch_id, null::varchar as batch_name_en, null::varchar as batch_name_bn,
+			  null::uuid as instructor_id, null::varchar as instructor_name, '' as recorded_by_name,
+			  coalesce(o.paid_at, o.created_at) as recorded_at, null::timestamptz as corrected_at,
+			  case when o.exam_id is not null then 'EXAM' else 'PACKAGE' end as item_type, coalesce(o.exam_id, o.module_id) as item_id,
+			  coalesce(e.title_en, m.title_en) as item_en, coalesce(e.title_bn, m.title_bn) as item_bn, o.refund_amount as refunded_amount,
+			  coalesce(e.category_id, m.category_id) as item_category
+			from live_exam_orders o
+			left join live_exam_modules m on m.id = o.module_id
+			left join live_exams e on e.id = o.exam_id
+			left join student_profiles sp on sp.user_id = o.student_id
+			where o.status = 'SUCCEEDED'
+			""";
+
+	/** Staff pay: the payments on the staff ledger, a voided one shown as VOIDED (16 Nov). */
+	private static final String STAFF_ROWS = """
+			select 'STAFF' as kind, l.id, l.paid_on, l.amount, coalesce(l.method, 'CASH') as method, l.reference, l.note,
+			  case when l.voided_at is not null then 'VOIDED' else 'APPROVED' end as status, null::varchar as receipt_no,
+			  coalesce(sp.full_name, '') as person_name, null::uuid as batch_id, null::varchar as batch_name_en, null::varchar as batch_name_bn,
+			  null::uuid as instructor_id, null::varchar as instructor_name, coalesce(cp.full_name, '') as recorded_by_name,
+			  l.created_at as recorded_at, null::timestamptz as corrected_at,
+			  'STAFF' as item_type, null::uuid as item_id, null::varchar as item_en, null::varchar as item_bn, null::numeric as refunded_amount,
+			  null::uuid as item_category
+			from staff_ledger l
+			left join admin_profiles sp on sp.user_id = l.user_id
+			left join admin_profiles cp on cp.user_id = l.created_by
+			where l.kind = 'PAYMENT' and l.paid_on is not null
 			""";
 
 	/**
@@ -156,9 +239,17 @@ public class PaymentRecordService {
 	@Transactional(readOnly = true)
 	public List<PaymentRow> list(Set<String> kinds, Filters filters) {
 		List<String> parts = new ArrayList<>();
-		for (String kind : List.of(FEE, CLASS, DIRECT)) {
-			if (kinds.contains(kind) && (filters.kind() == null || filters.kind().equals(kind))) {
-				parts.add(kind.equals(FEE) ? FEE_ROWS : kind.equals(CLASS) ? CLASS_ROWS : DIRECT_ROWS);
+		for (String kind : List.of(ONLINE, DIRECT, FEE, CLASS, OTHER, STAFF)) {
+			boolean direction = filters.direction() == null || ("INCOME".equals(filters.direction()) ? INCOME : EXPENSE).contains(kind);
+			if (kinds.contains(kind) && (filters.kind() == null || filters.kind().equals(kind)) && direction) {
+				parts.add(switch (kind) {
+					case ONLINE -> ONLINE_ROWS;
+					case DIRECT -> DIRECT_ROWS;
+					case FEE -> FEE_ROWS;
+					case CLASS -> CLASS_ROWS;
+					case OTHER -> OTHER_ROWS;
+					default -> STAFF_ROWS;
+				});
 			}
 		}
 		if (parts.isEmpty()) {
@@ -186,12 +277,31 @@ public class PaymentRecordService {
 			sql.append(" and x.instructor_id = ?");
 			args.add(filters.instructorId());
 		}
+		if (filters.itemType() != null) {
+			sql.append(" and x.item_type = ?");
+			args.add(filters.itemType());
+		}
+		if (filters.categoryId() != null) {
+			// 17 Nov: a category takes in its sub-categories, as the catalogue nests them.
+			sql.append(" and x.item_category in (with recursive tree(id) as (select ?::uuid union all")
+				.append(" select c.id from live_exam_categories c join tree t on c.parent_id = t.id) select id from tree)");
+			args.add(filters.categoryId());
+		}
+		if (filters.method() != null) {
+			sql.append(" and x.method = ?");
+			args.add(filters.method());
+		}
+		if (filters.status() != null) {
+			sql.append(" and x.status = ?");
+			args.add(filters.status());
+		}
 		if (filters.q() != null && !filters.q().isBlank()) {
 			String like = "%" + filters.q().trim().toLowerCase(Locale.ROOT) + "%";
-			sql.append(" and (lower(x.person_name) like ? or lower(coalesce(x.reference, '')) like ? or lower(coalesce(x.receipt_no, '')) like ?)");
-			args.add(like);
-			args.add(like);
-			args.add(like);
+			sql.append(" and (lower(x.person_name) like ? or lower(coalesce(x.reference, '')) like ? or lower(coalesce(x.receipt_no, '')) like ?")
+				.append(" or lower(coalesce(x.item_en, '')) like ? or lower(coalesce(x.item_bn, '')) like ?)");
+			for (int i = 0; i < 5; i += 1) {
+				args.add(like);
+			}
 		}
 		sql.append(" order by x.paid_on desc, x.recorded_at desc limit 500");
 		return jdbc.query(sql.toString(), (rs, row) -> row(rs), args.toArray());
@@ -208,7 +318,9 @@ public class PaymentRecordService {
 				rs.getString("receipt_no"), rs.getString("person_name"), rs.getObject("batch_id", UUID.class), rs.getString("batch_name_en"),
 				rs.getString("batch_name_bn"), rs.getObject("instructor_id", UUID.class), rs.getString("instructor_name"),
 				rs.getString("recorded_by_name"), rs.getTimestamp("recorded_at").toInstant(),
-				corrected == null ? null : corrected.toInstant(), pending);
+				corrected == null ? null : corrected.toInstant(), pending, INCOME.contains(rs.getString("kind")) ? "INCOME" : "EXPENSE",
+				rs.getString("item_type"), rs.getObject("item_id", UUID.class), rs.getString("item_en"), rs.getString("item_bn"),
+				rs.getBigDecimal("refunded_amount"), KINDS.contains(rs.getString("kind")));
 	}
 
 	/** The corrections in one status (PENDING for the waiting tab), newest first, for the kinds the caller may see. */
@@ -347,6 +459,7 @@ public class PaymentRecordService {
 		switch (kind) {
 			case FEE -> applyFee(paymentId, after);
 			case CLASS -> applyClass(paymentId, after);
+			case OTHER -> update("offline_instructor_other_payments", paymentId, after);
 			default -> installments.correctPayment(paymentId, after.amount(), after.paidOn(), after.method(), after.reference(), after.note());
 		}
 	}
@@ -420,6 +533,7 @@ public class PaymentRecordService {
 		return switch (kind) {
 			case FEE -> "offline_fee_payments";
 			case CLASS -> "offline_class_payments";
+			case OTHER -> "offline_instructor_other_payments";
 			default -> "live_exam_direct_payments";
 		};
 	}
@@ -448,6 +562,7 @@ public class PaymentRecordService {
 					select coalesce(a.full_name, sp.full_name, '') from offline_fee_payments p join offline_admissions a on a.id = p.admission_id
 					left join student_profiles sp on sp.user_id = a.student_id where p.id = ?""";
 			case CLASS -> "select i.name from offline_class_payments p join offline_instructors i on i.id = p.instructor_id where p.id = ?";
+			case OTHER -> "select i.name from offline_instructor_other_payments p join offline_instructors i on i.id = p.instructor_id where p.id = ?";
 			default -> """
 					select coalesce(sp.full_name, '') from live_exam_direct_payments p join live_exam_payment_plans pl on pl.id = p.plan_id
 					left join student_profiles sp on sp.user_id = pl.student_id where p.id = ?""";

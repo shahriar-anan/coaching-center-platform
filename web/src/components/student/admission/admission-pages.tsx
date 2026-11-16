@@ -35,7 +35,7 @@ export function AdmissionPage() {
 
   useEffect(() => {
     if (leave) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [leave, router]);
 
@@ -66,7 +66,7 @@ export function AdmissionPrintPage() {
 
   useEffect(() => {
     if (missing) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [missing, router]);
 

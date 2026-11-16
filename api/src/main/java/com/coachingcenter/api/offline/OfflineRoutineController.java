@@ -49,9 +49,11 @@ public class OfflineRoutineController {
 
 	@PostMapping(value = "/api/v1/offline-batches/{id}/routines", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	@ResponseStatus(HttpStatus.CREATED)
-	public RoutineView upload(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+	public RoutineView upload(@PathVariable UUID id, @RequestParam("file") MultipartFile file,
+			@RequestParam(value = "examStartsAt", required = false) String examStartsAt,
+			@RequestParam(value = "examMinutes", required = false) Integer examMinutes) {
 		require(permissions, Permissions.OFFLINE_BATCH_ROUTINE);
-		return routines.upload(id, file, actorId());
+		return routines.upload(id, file, actorId(), examStartsAt, examMinutes);
 	}
 
 	@GetMapping("/api/v1/offline-batches/{id}/routines")

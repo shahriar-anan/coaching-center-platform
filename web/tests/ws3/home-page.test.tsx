@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { HomePage } from "@/components/student/home/home-page";
+import { DashboardPage as HomePage } from "@/components/student/home/home-page";
 import { renderWithQuery } from "./helpers";
 
 const apiRequest = vi.hoisted(() => vi.fn());

@@ -57,40 +57,38 @@ function renderTile(admissions: unknown[]) {
   return renderWithProviders(<OfflineActivitiesTile />, { user: fixtures.student, locale: "en", route: "/" });
 }
 
-describe("the Offline activities tile on the dashboard (plan P9)", () => {
+describe("the Offline activities doors on the dashboard (16 Nov)", () => {
   beforeEach(() => {
     flags.offline = true;
   });
 
-  it("with no admission, offers the open batches and a link to all of them", async () => {
+  it("with no admission, says no batch yet and how many batches are open, each door opening its tab", async () => {
     renderTile([]);
 
-    expect(await screen.findByRole("heading", { name: "Batches on offer" })).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: /Batch 3 \(Evening\)/ }, { timeout: 4000 })).toHaveAttribute("href", "/admission/batches/b-1");
-    expect(screen.queryByRole("link", { name: /Batch 4/ })).toBeNull();
-    expect(screen.getByRole("link", { name: "See all" })).toHaveAttribute("href", "/admission");
-    expect(screen.queryByText(/Your batch/)).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Offline activities" })).toBeInTheDocument();
+    const mine = screen.getByRole("link", { name: /My offline batches/ });
+    expect(mine).toHaveAttribute("href", "/offline-activities?tab=mine");
+    expect(within(mine).getByText("No batch yet")).toBeInTheDocument();
+    const offers = screen.getByRole("link", { name: /Batches on offer/ });
+    expect(offers).toHaveAttribute("href", "/offline-activities?tab=offers");
+    expect(await within(offers).findByText("1 open for admission")).toBeInTheDocument();
+    // Minimal: no batch names or fees on the dashboard.
+    expect(screen.queryByText(/Batch 3 \(Evening\)/)).toBeNull();
   });
 
-  it("with an application under review, says so by batch name", async () => {
+  it("counts the onboarded batches", async () => {
+    renderTile([
+      admissionView("ONBOARDED", { ...NAMED }, completeForm),
+      admissionView("ONBOARDED", { id: "a-2", batchId: "b-2", batchNameEn: "Batch 4", batchNameBn: "ব্যাচ ৪" }, completeForm),
+    ]);
+
+    expect(await screen.findByText("2 onboarded batches")).toBeInTheDocument();
+  });
+
+  it("says an application is in progress while it is under review", async () => {
     renderTile([admissionView("SUBMITTED", { ...NAMED, submittedAt: "2026-11-10T04:00:00Z" }, completeForm)]);
 
-    expect(await screen.findByText("Batch 3 (Evening): under review")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Open My admission" })).toBeNull();
-  });
-
-  it("with an onboarded admission, shows Your batch and opens My admission", async () => {
-    renderTile([admissionView("ONBOARDED", { ...NAMED }, completeForm)]);
-
-    const line = (await screen.findByText("Your batch: Batch 3 (Evening)")).closest("li") as HTMLElement;
-    expect(within(line).getByRole("link", { name: "Open My admission" })).toHaveAttribute("href", "/offline-activities");
-  });
-
-  it("with changes requested, names the batch and opens the form", async () => {
-    renderTile([admissionView("CHANGES_REQUESTED", { ...NAMED, changesReason: "Fix the photo." }, completeForm)]);
-
-    const line = (await screen.findByText("Batch 3 (Evening): changes requested")).closest("li") as HTMLElement;
-    expect(within(line).getByRole("link", { name: "Open the form" })).toHaveAttribute("href", "/admission/form");
+    expect(await screen.findByText("Application in progress")).toBeInTheDocument();
   });
 
   it("is not shown at all while the offline switch is off", () => {

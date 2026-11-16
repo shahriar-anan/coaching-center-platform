@@ -22,6 +22,7 @@ const staffAdmin = {
       "This instructor has marked work, so they cannot be deleted. Suspend the account instead.",
     accountHasOpenAdmission:
       "This student has an offline admission that is still open. Close it, or delete it from the batch, before deleting the account.",
+    accountNotActive: "Only an active account can reset its password. A pending account gets an activation code instead.",
     masterAdminProtected: "A Master Admin account cannot be changed this way.",
     unauthenticated: "Your sign-in has ended. Sign in again to continue.",
     malformed: "The request could not be read. Reload the page and try again.",
@@ -595,6 +596,10 @@ const staffAdmin = {
     loadError: "Could not load the system status.",
   },
   account: {
+    resetCode: "Password reset code",
+    resetCodeTitle: "Password reset code",
+    resetCodeBody: "Give this code to {name}. On the sign-in page they choose Forgot password, then \"I already have a code from the office\", and type the code with a new password. They should not press Send code: that cancels this one.",
+    resetCodeOnce: "The code works for 10 minutes and is shown only once. Copy it now. Any earlier reset code stops working.",
     statusLabel: "Status",
     active: "Active",
     inactive: "Inactive",

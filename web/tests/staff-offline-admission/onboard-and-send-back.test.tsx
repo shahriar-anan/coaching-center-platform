@@ -120,3 +120,45 @@ describe("the history is the timeline the API builds (plan 6.3)", () => {
     expect(items[3]).toHaveTextContent("Changed");
   });
 });
+
+describe("the phone rule at onboarding (16 Nov)", () => {
+  it("blocks Onboard only for a mobile or email shared with another person in the same batch", async () => {
+    mockApi({
+      [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: detail({ state: "READY", readyProblems: [], sameBatchConflictName: "Karim Ali" }),
+      "GET /api/v1/offline-batches": [],
+      "GET /api/v1/live-exams": page([]),
+      "GET /api/v1/live-exam-modules": page([]),
+    });
+    renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: `/staff/admissions/${ADMISSION_ID}`,
+    });
+
+    expect(await screen.findByText(/also on Karim Ali's admission in this batch/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Onboard" })).toBeDisabled();
+  });
+
+  it("lets a phone owned by an account outside the batch onboard, with a note that the new account has no phone", async () => {
+    mockApi({
+      [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: detail({
+        state: "READY",
+        readyProblems: [],
+        source: "PUBLIC",
+        phoneOwnerName: "Rahim Uddin",
+        matchedName: null,
+      }),
+      "GET /api/v1/offline-batches": [],
+      "GET /api/v1/live-exams": page([]),
+      "GET /api/v1/live-exam-modules": page([]),
+    });
+    renderWithProviders(<AdmissionDetailView id={ADMISSION_ID} />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: `/staff/admissions/${ADMISSION_ID}`,
+    });
+
+    expect(await screen.findByText(/without a phone number, because Rahim Uddin's account/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Onboard" })).toBeEnabled();
+  });
+});

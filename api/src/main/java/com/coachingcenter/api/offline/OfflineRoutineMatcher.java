@@ -54,13 +54,26 @@ final class OfflineRoutineMatcher {
 	static Plan plan(List<OfflineRoutineRow> rows, List<OfflineClass> batchClasses, LocalDate from, Set<UUID> withResult) {
 		List<OfflineClass> candidates = new ArrayList<>();
 		for (OfflineClass classItem : batchClasses) {
-			if (!OfflineClass.STATUS_CANCELLED.equals(classItem.getStatus())) {
+			// A class kept out of the routine (pay only, 17 Nov) is never matched, changed or cancelled by an upload.
+			if (!OfflineClass.STATUS_CANCELLED.equals(classItem.getStatus()) && classItem.isInRoutine()) {
 				candidates.add(classItem);
 			}
 		}
 		Set<UUID> used = new HashSet<>();
 		OfflineClass[] matched = new OfflineClass[rows.size()];
+		// 17 Nov: an exam of an exam batch's routine ("Exam-05") is the same exam whatever its date, so a moved exam keeps its class and
+		// its result. It is matched by its name first.
 		for (int index = 0; index < rows.size(); index++) {
+			OfflineRoutineRow row = rows.get(index);
+			if (row.subject() == null || !EXAM_NAME.matcher(row.subject().trim()).matches()) {
+				continue;
+			}
+			matched[index] = take(candidates, used, classItem -> sameSubject(row.subject(), classItem.getSubject()));
+		}
+		for (int index = 0; index < rows.size(); index++) {
+			if (matched[index] != null) {
+				continue;
+			}
 			OfflineRoutineRow row = rows.get(index);
 			if (row.date() == null || row.startsAt() == null) {
 				continue;
@@ -133,6 +146,9 @@ final class OfflineRoutineMatcher {
 				|| !Objects.equals(classItem.getKind(), row.kind())
 				|| !Objects.equals(classItem.getInstructorId(), row.instructorId());
 	}
+
+	/** The name the exam routine gives each exam (17 Nov). */
+	private static final java.util.regex.Pattern EXAM_NAME = java.util.regex.Pattern.compile("(?i)exam-\\d{2,3}");
 
 	private static boolean sameSubject(String a, String b) {
 		return OfflineRoutineRules.key(a).equals(OfflineRoutineRules.key(b));

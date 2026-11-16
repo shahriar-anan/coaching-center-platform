@@ -1,4 +1,5 @@
 const myAdmission = {
+  sectionsLabel: "Batch sections",
   title: "My admission",
   batchUnnamed: "Batch",
   menu: "My admission",
@@ -137,7 +138,7 @@ const myAdmission = {
     name: "Full name",
     mobile: "Mobile number",
     university: "University",
-    semester: "Semester / batch",
+    semester: "Session / Batch",
     submitted: "Submitted on {date}",
     notSubmitted: "Not submitted yet",
     view: "View / print my form",

@@ -72,9 +72,15 @@ const batchPay = {
     firstNote: "The routine counts from today. Earlier dates in it are added as earlier classes.",
     replaceNote:
       "The new routine counts from today: it replaces the classes from today onward. Earlier classes stay as they are, and earlier dates in it are added only when they are missing.",
+    examRoutine: "This is an exam batch routine (Exam, Date, Exam Topics, Time)",
+    examStartsAt: "Exam starts at",
+    examMinutes: "Exam length (minutes)",
+    examNote: "Every exam gets this time unless its row has its own. No instructor is set: set who is paid on each exam after confirming.",
     submit: "Upload and check",
     uploaded: "Routine uploaded. Check its rows before confirming.",
     errors: {
+      examTime: "Enter the exam time.",
+      examMinutes: "Enter 10 to 600 minutes.",
       file: "Choose the routine PDF.",
       notPdf: "This is not a PDF. Save the routine as a PDF and choose it again.",
       tooLarge: "This file is larger than 20 MB. Save it smaller and upload it again.",
@@ -223,6 +229,15 @@ const batchPay = {
     paidInfo: "{method}, paid {date}",
     cancelledNote: "Removed by a later routine.",
     awaitingNote: "Waiting for the Master Admin's approval.",
+    delete: {
+      button: "Delete",
+      title: "Delete {subject} on {date}?",
+      body: "The class leaves the batch's classes, the students' routine list and the instructor's pay. The uploaded routine PDF does not change, and uploading a routine that still has this class adds it back.",
+      confirm: "Delete class",
+      done: "The class is deleted.",
+      hasResult: "This exam has a result, so it cannot be deleted. Discard the staged result first; a published result stays with the exam.",
+      settled: "This class has a payment or a not-taken mark that is waiting or settled. Reject or void it first.",
+    },
     actions: {
       edit: "Edit",
       recordPayment: "Record payment",

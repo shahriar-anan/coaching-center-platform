@@ -25,4 +25,8 @@ public interface OfflineResultSheetRepository extends JpaRepository<OfflineResul
 	@Query("select s.classId from OfflineResultSheet s where s.batchId = :batchId and s.status in :statuses")
 	Set<UUID> classIdsOfBatchWith(@Param("batchId") UUID batchId, @Param("statuses") Collection<String> statuses);
 
+
+	/** True when any result sheet, in any state, belongs to the class. */
+	boolean existsByClassId(UUID classId);
+
 }

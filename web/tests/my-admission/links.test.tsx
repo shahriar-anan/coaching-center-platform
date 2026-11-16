@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import AccountPage from "@/app/(site)/account/page";
-import { HomePage } from "@/components/student/home/home-page";
+import { DashboardPage as HomePage } from "@/components/student/home/home-page";
 import { StudentShell } from "@/components/shell/student-shell";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { admission, due, schedule } from "./fixture";
@@ -23,7 +23,7 @@ function renderHome(admissionAnswer: unknown, feesAnswer: unknown = onboardedFee
     [FEES]: feesAnswer,
     [UNREAD]: { count: 0 },
   });
-  renderWithProviders(<HomePage />, { user: fixtures.student, locale: "en", route: "/" });
+  renderWithProviders(<HomePage />, { user: fixtures.student, locale: "en", route: "/dashboard" });
   return api;
 }
 
@@ -86,37 +86,32 @@ describe("home card (plan 6.4): only for an onboarded admission", () => {
   });
 });
 
-describe("account menu entry: only for an admission that is not closed", () => {
+describe("account menu entries", () => {
   async function openMenu() {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: /Menu for/ }));
   }
 
-  it("is listed for an onboarded admission", async () => {
+  // 17 Nov: the menu lists Dashboard and My offline batches for every student, as the side menu does; the batches page has the
+  // batches on offer for a student with none.
+  it("lists Dashboard and My offline batches for a student with an admission", async () => {
     renderShell([admission("ONBOARDED")]);
 
     await openMenu();
-    expect(await screen.findByRole("menuitem", { name: "My admission" })).toHaveAttribute("href", "/offline-activities");
+    expect(await screen.findByRole("menuitem", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("menuitem", { name: "My offline batches" })).toHaveAttribute("href", "/offline-activities?tab=mine");
   });
 
-  it("is not listed for an online student", async () => {
+  it("lists them for an online student too", async () => {
     renderShell(noAdmission);
 
     await openMenu();
-    expect(await screen.findByRole("menuitem", { name: "Routine" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "My admission" })).not.toBeInTheDocument();
-  });
-
-  it("is not listed once the admission is closed", async () => {
-    renderShell([admission("CLOSED")]);
-
-    await openMenu();
-    expect(await screen.findByRole("menuitem", { name: "Routine" })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "My offline batches" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "My admission" })).not.toBeInTheDocument();
   });
 });
 
-describe("account page row: same rule as the menu", () => {
+describe("account page row: only for an onboarded admission", () => {
   it("is shown for an onboarded admission", async () => {
     renderAccount([admission("ONBOARDED")]);
 

@@ -10,7 +10,7 @@ import { useRole } from "@/lib/auth/guards";
 import { useBatches, type AdmissionSetup, type BatchView } from "@/lib/api/exam/offline-admin";
 import { defaultFirstDue, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
 import { SetupCard } from "./setup-card";
-import { setupTotals, text, type PlanRow, type RowIssue, type SetupDraft } from "./setup-draft";
+import { rebalanceRows, rowsTotal, setupTotals, text, type PlanRow, type RowIssue, type SetupDraft } from "./setup-draft";
 import { addMonths } from "./offline-model";
 
 /**
@@ -85,23 +85,39 @@ export function SetupForm({
     ? draft.rows
     : totals.rows.map((row) => ({ dueOn: row.dueOn, amount: String(row.amount) }));
 
-  /** Editing a row makes the instalments the admin's own: the course fee becomes their sum (E2). */
-  function editRows(next: PlanRow[]) {
-    onEdit({ custom: true, rows: next });
+  /**
+   * Editing a row makes the instalments the admin's own (E1). The course fee the admin agreed is kept in `courseFee`: the saved fee is
+   * always the sum of the rows (E2), and the other rows are rebalanced so that sum stays the agreed fee (16 Nov).
+   */
+  function editRows(next: PlanRow[], courseFee?: string) {
+    onEdit(courseFee === undefined ? { custom: true, rows: next } : { custom: true, rows: next, courseFee });
   }
 
+  /** The fee the rows should add up to: the one the admin set, or what the rows add up to when there is none. */
+  const agreedFee = Number(draft.courseFee) > 0 ? Number(draft.courseFee) : totals.fee;
+
   function changeRow(index: number, change: Partial<PlanRow>) {
-    editRows(tableRows.map((row, at) => (at === index ? { ...row, ...change } : row)));
+    if (change.amount === undefined) {
+      editRows(tableRows.map((row, at) => (at === index ? { ...row, ...change } : row)));
+      return;
+    }
+    // 16 Nov: an amount typed into one row moves the others, so the course fee stays what the admin set.
+    const result = rebalanceRows(tableRows, index, change.amount, agreedFee);
+    const finished = /^\d+(\.\d{1,2})?$/.test(change.amount.trim());
+    // When the fee cannot be kept (too big an amount, a single row), the fee follows the rows, as before.
+    editRows(result.rows, result.balanced || !finished ? undefined : rowsTotal(result.rows));
   }
 
   function addRow() {
     const last = tableRows[tableRows.length - 1];
     const dueOn = last?.dueOn ? addMonths(last.dueOn, 1) : draft.firstDueOn || "";
-    editRows([...tableRows, { dueOn, amount: "" }]);
+    editRows([...tableRows, { dueOn, amount: "" }], rowsTotal(tableRows));
   }
 
   function removeRow(index: number) {
-    editRows(tableRows.filter((_, at) => at !== index));
+    // Adding or removing a row changes the plan itself, so the fee follows the rows that are left.
+    const left = tableRows.filter((_, at) => at !== index);
+    editRows(left, rowsTotal(left));
   }
 
   // Typing a total or a number of instalments spreads it evenly again, from the first row's date.

@@ -85,7 +85,8 @@ const staffOffline = {
     notSubmitted: "The student has not submitted the form yet.",
   },
   match: {
-    phoneOwner: "This phone number belongs to {name}, a different account. Send the form back so the applicant can fix the email or the mobile number.",
+    phoneOwner: "A new account will be made without a phone number, because {name}'s account already has this mobile number. The student signs in with their email.",
+    sameBatch: "The mobile number or email is also on {name}'s admission in this batch, so it cannot be onboarded. Send the form back so the applicant fixes it, or close the other admission.",
     matches: "Matches the account of {name} ({email})",
     matchesNoEmail: "Matches the account of {name}",
     newAccount: "A new account will be made",

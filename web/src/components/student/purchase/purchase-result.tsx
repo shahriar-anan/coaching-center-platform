@@ -210,7 +210,7 @@ export function PurchaseResult() {
         tone="neutral"
         title={t("purchase.result.notFoundTitle")}
         body={t("purchase.result.notFoundBody")}
-        actions={<Button variant="secondary" href="/">{t("purchase.result.home")}</Button>}
+        actions={<Button variant="secondary" href="/dashboard">{t("purchase.result.home")}</Button>}
       />
     );
   } else if (status.isError && !status.data) {

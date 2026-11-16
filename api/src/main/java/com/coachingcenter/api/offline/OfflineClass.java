@@ -90,6 +90,18 @@ public class OfflineClass {
 	@Column(name = "cancelled_at")
 	private Instant cancelledAt;
 
+	/** False for a class kept out of the batch's routine (V106): a row of the instructor's pay only, never shown to students. */
+	@Column(name = "in_routine", nullable = false)
+	private boolean inRoutine = true;
+
+	public boolean isInRoutine() {
+		return inRoutine;
+	}
+
+	public void setInRoutine(boolean inRoutine) {
+		this.inRoutine = inRoutine;
+	}
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 

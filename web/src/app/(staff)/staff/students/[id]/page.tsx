@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { StudentAccessSection } from "@/components/staff/access/student-access-section";
 import { accountStatusKey, accountStatusTone } from "@/components/staff/people/people-copy";
 import { StudentExamHistory } from "@/components/staff/results/student-exam-history";
-import { AccountStatusToggle, DeleteAccountButton } from "@/components/staff/status/account-controls";
+import { AccountStatusToggle, DeleteAccountButton, PasswordResetCodeButton } from "@/components/staff/status/account-controls";
 import { RequireStaff } from "@/lib/auth/guards";
 import { useStudent, useUpdateStudentName } from "@/lib/api/exam/staff-people";
 import { useLocale } from "@/i18n/locale-context";
@@ -86,6 +86,7 @@ function StudentDetail({ id }: { id: string }) {
           </dl>
           <div className="mt-4 flex flex-wrap gap-2 empty:hidden">
             <AccountStatusToggle kind="students" id={id} status={row.status} />
+            <PasswordResetCodeButton id={id} name={row.fullName} status={row.status} />
             <DeleteAccountButton
               kind="students"
               id={id}

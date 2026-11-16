@@ -166,6 +166,38 @@ class PasswordIT extends PostgresIntegrationTest {
 		assertThat(mappings).isNotNull();
 	}
 
+	@Test
+	void theMasterAdminHandsAStudentAResetCodeThatWorksOnTheResetPage() throws Exception {
+		// 16 Nov: email may not arrive, so the Master Admin gives the code in person. Nothing is mailed for it.
+		String phone = uniquePhone();
+		String email = uniqueEmail();
+		register(phone, email);
+		String studentAccess = json(login(phone), "accessToken");
+		String id = new JdbcTemplate(dataSource).queryForObject("select id::text from users where email = ?", String.class, email);
+		String mailedBefore = emails.latestReset(email);
+
+		mockMvc.perform(post("/api/v1/students/" + id + "/password-reset-code").header("Authorization", "Bearer " + studentAccess))
+			.andExpect(status().isForbidden());
+		MvcResult issued = mockMvc.perform(post("/api/v1/students/" + id + "/password-reset-code")
+			.header("Authorization", "Bearer " + masterAccess()))
+			.andExpect(status().isOk())
+			.andReturn();
+		String code = json(issued, "resetCode");
+		assertThat(emails.latestReset(email)).isEqualTo(mailedBefore);
+
+		mockMvc.perform(post("/api/v1/auth/reset-password").contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"code":"%s","password":"handedover1"}
+					""".formatted(code)))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/v1/auth/login").header("X-Client-Type", "mobile")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"identifier":"%s","password":"handedover1"}
+					""".formatted(phone)))
+			.andExpect(status().isOk());
+	}
+
 	private String masterAccess() throws Exception {
 		String phone = uniquePhone();
 		String email = uniqueEmail();

@@ -22,7 +22,7 @@ const staffPay = {
     PAYMENT: "পেমেন্ট",
   },
   people: {
-    title: "স্টাফ বেতন",
+    title: "স্টাফ ও অনলাইন শিক্ষকের বেতন",
     settingsLink: "বেতনের সেটিংস",
     payLink: "বেতন",
     name: "নাম",

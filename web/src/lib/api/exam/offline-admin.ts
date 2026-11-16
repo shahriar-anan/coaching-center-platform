@@ -188,6 +188,11 @@ export type AdmissionDetail = {
   matchedLinked: boolean;
   /** Set when the form's phone belongs to another account: staff are warned and onboarding is refused (13 Nov D3). */
   phoneOwnerName: string | null;
+  /**
+   * Another person whose open admission in this batch has the same mobile or email (16 Nov). Only then is onboarding refused. Absent
+   * when there is none, or once onboarded.
+   */
+  sameBatchConflictName?: string | null;
   /** True while a join code waits for the student to join. Onboarding is not offered again then. */
   joinPending: boolean;
   /** The student's account was deleted after they applied (16 Nov). Staff close or delete the admission. */

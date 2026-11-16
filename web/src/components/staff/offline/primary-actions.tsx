@@ -16,19 +16,26 @@ import { CloseDialog, OnboardDialog } from "./admission-dialogs";
  */
 function MatchLine({ admission }: { admission: AdmissionDetail }) {
   const { t } = useLocale();
-  if (admission.source !== "PUBLIC") {
-    return null;
-  }
-  // 13 Nov D3: a phone that belongs to another account is a warning, never a match. Onboarding is refused until the form is fixed.
-  if (admission.phoneOwnerName) {
+  // 16 Nov: only a mobile or email shared with another person in this same batch stops onboarding, whatever the source.
+  if (admission.sameBatchConflictName) {
     return (
       <p role="alert" className="rounded-control border border-warn/50 bg-warn/5 px-3 py-2 text-body text-text">
-        {t("staffOffline.match.phoneOwner", { name: admission.phoneOwnerName })}
+        {t("staffOffline.match.sameBatch", { name: admission.sameBatchConflictName })}
       </p>
     );
   }
+  if (admission.source !== "PUBLIC") {
+    return null;
+  }
   if (!admission.matchedName) {
-    return <p className="text-meta text-muted">{t("staffOffline.match.newAccount")}</p>;
+    // A mobile that is another account's no longer stops onboarding (16 Nov): the new account is made without a phone.
+    return (
+      <p className="text-meta text-muted">
+        {admission.phoneOwnerName
+          ? t("staffOffline.match.phoneOwner", { name: admission.phoneOwnerName })
+          : t("staffOffline.match.newAccount")}
+      </p>
+    );
   }
   return (
     <>
@@ -112,7 +119,7 @@ export function PrimaryActions({
           ) : canOnboard ? (
             <Button
               fullWidth
-              disabled={admission.matchedHasBatch || Boolean(admission.phoneOwnerName)}
+              disabled={admission.matchedHasBatch || Boolean(admission.sameBatchConflictName)}
               onClick={() => setOnboarding(true)}
             >
               {t("staffOffline.actions.onboard")}

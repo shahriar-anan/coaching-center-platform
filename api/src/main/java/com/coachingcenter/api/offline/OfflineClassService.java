@@ -52,6 +52,9 @@ public class OfflineClassService {
 
 	public static final String CLASS_UPDATED = "OFFLINE_CLASS_UPDATED";
 
+	/** A class deleted by hand from the batch's classes (16 Nov). */
+	public static final String CLASS_DELETED = "OFFLINE_CLASS_DELETED";
+
 	public static final String PAYMENT_RECORDED = "OFFLINE_CLASS_PAYMENT_RECORDED";
 
 	public static final String PAYMENT_APPROVED = "OFFLINE_CLASS_PAYMENT_APPROVED";
@@ -216,7 +219,8 @@ public class OfflineClassService {
 	public List<StudentClassView> studentClasses(UUID batchId, YearMonth month) {
 		List<StudentClassView> found = new ArrayList<>();
 		for (OfflineClass classItem : classes.findByBatchIdOrderByHeldOnAscStartsAtAsc(batchId)) {
-			if (OfflineClass.STATUS_CANCELLED.equals(classItem.getStatus()) || !month.equals(YearMonth.from(classItem.getHeldOn()))) {
+			if (OfflineClass.STATUS_CANCELLED.equals(classItem.getStatus()) || !classItem.isInRoutine()
+					|| !month.equals(YearMonth.from(classItem.getHeldOn()))) {
 				continue;
 			}
 			found.add(new StudentClassView(classItem.getHeldOn(), OfflineRoutineRules.weekday(classItem.getHeldOn()),
@@ -263,11 +267,47 @@ public class OfflineClassService {
 		UUID instructorId = instructor(body.get("instructorId"), problems);
 		BigDecimal override = override(body, problems);
 		checkOrder(startsAt, endsAt, problems);
+		// 17 Nov: a class added from an instructor's page may be kept out of the routine (pay only), and one added to the routine may
+		// replace a class of the batch at that time (an exchange).
+		boolean inRoutine = !body.has("inRoutine") || body.get("inRoutine").asBoolean(true);
+		UUID replaces = null;
+		if (body.hasNonNull("replaceClassId")) {
+			try {
+				replaces = UUID.fromString(body.get("replaceClassId").asText());
+			}
+			catch (IllegalArgumentException invalid) {
+				problems.add(new FieldErrorDetail("replaceClassId", "Choose a class of this batch to replace."));
+			}
+			if (!inRoutine) {
+				problems.add(new FieldErrorDetail("replaceClassId", "Only a class added to the routine can replace another."));
+			}
+		}
 		if (!problems.isEmpty()) {
 			throw validation(problems);
 		}
 		Instant now = clock.instant();
+		if (replaces != null) {
+			OfflineClass replaced = classes.findForUpdate(replaces).orElseThrow(OfflineSupport::notFound);
+			if (!batchId.equals(replaced.getBatchId()) || !heldOn.equals(replaced.getHeldOn())) {
+				throw validation(List.of(new FieldErrorDetail("replaceClassId", "The class to replace must be this batch's, on the same day.")));
+			}
+			if (results.hasResult(replaces)) {
+				throw new ApiException(ErrorCode.OFFLINE_CLASS_HAS_RESULT, HttpStatus.CONFLICT,
+						"The class to replace is an exam with a result, so it cannot be replaced.");
+			}
+			if (!OfflineClass.STATUS_SCHEDULED.equals(replaced.getStatus())) {
+				throw state("The class to replace has a payment or a not-taken mark, so it cannot be replaced.");
+			}
+			replaced.setStatus(OfflineClass.STATUS_CANCELLED);
+			replaced.setCancelledAt(now);
+			replaced.setStatusBy(actorId);
+			replaced.setStatusAt(now);
+			replaced.setUpdatedAt(now);
+			classes.saveAndFlush(replaced);
+			audit.record(CLASS_DELETED, CLASS_ENTITY, replaces);
+		}
 		OfflineClass classItem = new OfflineClass();
+		classItem.setInRoutine(inRoutine);
 		classItem.setId(UUID.randomUUID());
 		classItem.setBatchId(batchId);
 		classItem.setHeldOn(heldOn);
@@ -285,6 +325,44 @@ public class OfflineClassService {
 		classes.saveAndFlush(classItem);
 		audit.record(CLASS_CREATED, CLASS_ENTITY, classItem.getId());
 		return view(classItem, instructorNames());
+	}
+
+	/**
+	 * Deletes a class by hand (16 Nov), from the routine's classes or one added by hand. Refused for an exam with a result, and for a class
+	 * whose payment or not-taken mark is waiting or settled (reject or void that first). A class with no payment, decision or result
+	 * sheet at all is removed; one that still has a rejected or voided payment, a decided request or a discarded sheet is marked
+	 * cancelled instead, so those records keep their class. Either way it leaves the batch's classes, the student's routine list and the
+	 * instructor's pay. The uploaded routine PDF is the file as uploaded and does not change; a new routine upload may add the class back
+	 * if it is still in that routine.
+	 */
+	@Transactional
+	public void delete(UUID id, UUID actorId) {
+		OfflineClass classItem = classes.findForUpdate(id).orElseThrow(OfflineSupport::notFound);
+		if (OfflineClass.STATUS_CANCELLED.equals(classItem.getStatus())) {
+			throw OfflineSupport.notFound();
+		}
+		if (results.hasResult(id)) {
+			throw new ApiException(ErrorCode.OFFLINE_CLASS_HAS_RESULT, HttpStatus.CONFLICT,
+					"This exam has a result, so it cannot be deleted. Discard the staged result first; a published result stays with the exam.");
+		}
+		if (!OfflineClass.STATUS_SCHEDULED.equals(classItem.getStatus())) {
+			throw state("This class has a payment or a not-taken mark that is waiting or settled. Reject or void it first.");
+		}
+		boolean keep = payments.existsByClassId(id) || decisions.existsByClassId(id) || results.anySheet(id);
+		if (keep) {
+			Instant now = clock.instant();
+			classItem.setStatus(OfflineClass.STATUS_CANCELLED);
+			classItem.setCancelledAt(now);
+			classItem.setUpdatedAt(now);
+			classItem.setStatusBy(actorId);
+			classItem.setStatusAt(now);
+			classes.saveAndFlush(classItem);
+		}
+		else {
+			classes.delete(classItem);
+			classes.flush();
+		}
+		audit.record(CLASS_DELETED, CLASS_ENTITY, id);
 	}
 
 	/**
@@ -771,7 +849,8 @@ public class OfflineClassService {
 				classItem.getStartsAt(), classItem.getEndsAt(), classItem.getSubject(), classItem.getTopic(), classItem.getKind(),
 				classItem.getInstructorId(), classItem.getInstructorId() == null ? null : names.get(classItem.getInstructorId()),
 				classItem.getInstructorText(), classItem.getAmount(), classItem.getRateOverride(), statusOf(classItem),
-				classItem.getVersion() == null ? 0L : classItem.getVersion(), payment, notTaken, results.hasResult(classItem.getId()));
+				classItem.getVersion() == null ? 0L : classItem.getVersion(), payment, notTaken, results.hasResult(classItem.getId()),
+				classItem.isInRoutine());
 	}
 
 	private Map<UUID, String> instructorNames() {
@@ -881,7 +960,8 @@ public class OfflineClassService {
 	/** One class as the staff see it: the computed status, the amount due and the live payment or not-taken request. */
 	public record ClassView(UUID id, UUID batchId, UUID routineId, LocalDate heldOn, LocalTime startsAt, LocalTime endsAt, String subject,
 			String topic, String kind, UUID instructorId, String instructorName, String instructorText, BigDecimal amount,
-			BigDecimal rateOverride, String status, long version, PaymentView payment, DecisionView notTakenRequest, boolean hasResult) {
+			BigDecimal rateOverride, String status, long version, PaymentView payment, DecisionView notTakenRequest, boolean hasResult,
+			boolean inRoutine) {
 	}
 
 	/** The live payment of a class (pending or approved). */

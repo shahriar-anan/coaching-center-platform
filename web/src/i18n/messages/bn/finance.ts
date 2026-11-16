@@ -39,7 +39,7 @@ const finance = {
     DIRECT_ENROLMENT: "সরাসরি ভর্তি",
     OFFLINE_FEES: "অফলাইন ফি",
     OTHER_ONLINE: "অন্যান্য অনলাইন",
-    STAFF_PAY: "স্টাফ বেতন",
+    STAFF_PAY: "স্টাফ ও অনলাইন শিক্ষকের বেতন",
     OFFLINE_INSTRUCTORS: "অফলাইন শিক্ষক",
   },
   direction: {

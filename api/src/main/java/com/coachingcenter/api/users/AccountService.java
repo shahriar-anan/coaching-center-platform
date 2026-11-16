@@ -234,6 +234,13 @@ public class AccountService {
 		audit.record(AuditRecorder.USER_DELETED, user.getId());
 	}
 
+	/** A password reset code for an active student, for staff to hand over (16 Nov). Nothing is mailed. */
+	@Transactional
+	public String issuePasswordResetCode(UUID id, UUID createdBy) {
+		User user = requireRole(id, Role.STUDENT);
+		return auth.issuePasswordResetCodeUnmailed(user, createdBy);
+	}
+
 	@Transactional
 	public String reissueActivationCode(UUID id, Role expectedRole, UUID createdBy) {
 		User user = requireRole(id, expectedRole);
@@ -241,11 +248,16 @@ public class AccountService {
 		return auth.issueActivationCode(user, createdBy);
 	}
 
-	/** A pending account. A null email makes an account with no address yet (the desk); a given email must be unused. */
+	/**
+	 * A pending account. A null email makes an account with no address yet (the desk); a null phone one with no phone (onboarding, when
+	 * the form's mobile is another account's). A given email or phone must be unused.
+	 */
 	private User newPendingUser(String fullName, String phone, String email, Role role, UUID createdBy) {
-		String normalizedPhone = PhoneNumbers.normalize(phone);
+		// A null phone makes an account with no phone (an admission whose mobile is already another account's, 16 Nov); it signs in
+		// with its email.
+		String normalizedPhone = phone == null ? null : PhoneNumbers.normalize(phone);
 		String normalizedEmail = email == null ? null : email.trim().toLowerCase();
-		if (users.findByPhoneAndDeletedAtIsNull(normalizedPhone).isPresent()) {
+		if (normalizedPhone != null && users.findByPhoneAndDeletedAtIsNull(normalizedPhone).isPresent()) {
 			throw new ApiException(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT, "Phone number is already in use.");
 		}
 		if (normalizedEmail != null && users.findByEmailAndDeletedAtIsNull(normalizedEmail).isPresent()) {

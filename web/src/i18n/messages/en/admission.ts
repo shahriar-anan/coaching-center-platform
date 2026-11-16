@@ -16,6 +16,7 @@ const admission = {
     address: "Address",
     photo: "Photo",
   },
+  sameAddress: "Same as present address",
   field: {
     fullName: "Full name",
     fatherName: "Father's name",
@@ -24,7 +25,7 @@ const admission = {
     email: "Email",
     gender: "Gender",
     university: "University",
-    semesterBatch: "Semester / batch",
+    semesterBatch: "Session / Batch",
     nid: "National ID number",
     mobile: "Mobile number",
     emergencyMobile: "Emergency mobile number",

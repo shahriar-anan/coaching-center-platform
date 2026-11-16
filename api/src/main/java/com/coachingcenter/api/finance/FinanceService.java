@@ -123,15 +123,23 @@ public class FinanceService {
 					where l.kind = 'PAYMENT' and l.voided_at is null and l.paid_on between ? and ?
 					""",
 			OFFLINE_INSTRUCTORS, """
-					select 'OFFLINE_INSTRUCTORS' as source, p.paid_on as paid_on, 'Instructor pay: ' || c.subject as description,
-					  p.amount as amount, 'EXPENSE' as direction, p.reference as reference, p.id as id, c.batch_id as batch_id
-					from offline_class_payments p
-					join offline_classes c on c.id = p.class_id
-					where p.status = 'APPROVED' and p.paid_on between ? and ?
+					select 'OFFLINE_INSTRUCTORS' as source, x.paid_on as paid_on, x.description as description, x.amount as amount,
+					  'EXPENSE' as direction, x.reference as reference, x.id as id, x.batch_id as batch_id
+					from (
+					  select p.paid_on, 'Instructor pay: ' || c.subject as description, p.amount, p.reference, p.id, c.batch_id
+					  from offline_class_payments p
+					  join offline_classes c on c.id = p.class_id
+					  where p.status = 'APPROVED'
+					  union all
+					  select o.paid_on, 'Instructor pay: ' || o.reason as description, o.amount, o.reference, o.id, o.batch_id
+					  from offline_instructor_other_payments o
+					  where o.status = 'APPROVED'
+					) x
+					where x.paid_on between ? and ?
 					""");
 
 	/** The column each offline source filters by when a batch is chosen. */
-	private static final Map<String, String> BATCH_COLUMN = Map.of(OFFLINE_FEES, "a.batch_id", OFFLINE_INSTRUCTORS, "c.batch_id");
+	private static final Map<String, String> BATCH_COLUMN = Map.of(OFFLINE_FEES, "a.batch_id", OFFLINE_INSTRUCTORS, "x.batch_id");
 
 	private final JdbcTemplate jdbc;
 
@@ -394,7 +402,11 @@ public class FinanceService {
 	private void addPayments(Map<UUID, InstructorRow.Builder> rows, String status, LocalDate start, LocalDate end, boolean paid) {
 		jdbc.query("""
 				select p.instructor_id, sum(p.amount) as total
-				from offline_class_payments p
+				from (
+				  select instructor_id, amount, status, paid_on from offline_class_payments
+				  union all
+				  select instructor_id, amount, status, paid_on from offline_instructor_other_payments
+				) p
 				where p.status = ? and p.paid_on between ? and ?
 				group by p.instructor_id
 				""", (rs) -> {

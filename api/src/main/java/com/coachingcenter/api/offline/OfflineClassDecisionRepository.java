@@ -12,4 +12,8 @@ public interface OfflineClassDecisionRepository extends JpaRepository<OfflineCla
 	/** How many not-taken requests have this status (the digest counts the ones waiting for approval). */
 	long countByStatus(String status);
 
+
+	/** True when any not-taken request or decision belongs to the class. */
+	boolean existsByClassId(java.util.UUID classId);
+
 }

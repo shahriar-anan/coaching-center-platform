@@ -44,20 +44,26 @@ public class PaymentRecordController {
 	public List<PaymentRecordService.PaymentRow> list(@RequestParam(required = false) LocalDate from,
 			@RequestParam(required = false) LocalDate to, @RequestParam(required = false) String kind,
 			@RequestParam(required = false) UUID batchId, @RequestParam(required = false) UUID instructorId,
-			@RequestParam(required = false) String q) {
-		Set<String> kinds = visibleKinds();
-		String wanted = kind == null || kind.isBlank() ? null : kind.trim().toUpperCase(java.util.Locale.ROOT);
-		return records.list(kinds, new PaymentRecordService.Filters(from, to, wanted, batchId, instructorId, q));
+			@RequestParam(required = false) String q, @RequestParam(required = false) String direction,
+			@RequestParam(required = false) String item, @RequestParam(required = false) String method,
+			@RequestParam(required = false) String status, @RequestParam(required = false) UUID categoryId) {
+		Set<String> kinds = visibleKinds(true);
+		return records.list(kinds, new PaymentRecordService.Filters(from, to, upper(kind), batchId, instructorId, q, upper(direction),
+				upper(item), upper(method), upper(status), categoryId));
+	}
+
+	private static String upper(String value) {
+		return value == null || value.isBlank() ? null : value.trim().toUpperCase(java.util.Locale.ROOT);
 	}
 
 	@GetMapping("/api/v1/payment-records/edits")
 	public List<PaymentRecordService.EditView> edits(@RequestParam(required = false) String status) {
-		return records.edits(visibleKinds(), status);
+		return records.edits(visibleKinds(false), status);
 	}
 
 	@PostMapping("/api/v1/payment-records/{kind}/{id}/edits")
 	public PaymentRecordService.EditView propose(@PathVariable String kind, @PathVariable UUID id, @RequestBody JsonNode body) {
-		Set<String> kinds = visibleKinds();
+		Set<String> kinds = visibleKinds(false);
 		return records.propose(actorId(), permissions.has(Permissions.OFFLINE_FEE_APPROVE), kinds, kind, id, body);
 	}
 
@@ -74,17 +80,27 @@ public class PaymentRecordController {
 		return records.rejectEdit(actorId(), id, reason);
 	}
 
-	/** The kinds of payment the caller records, and so may see and correct. None at all is refused. */
-	private Set<String> visibleKinds() {
+	/**
+	 * The kinds of payment the caller records, and so may see and correct. With {@code listing}, also the ones the caller may only see
+	 * (16 Nov): online purchases for whoever reads the orders, staff pay for whoever manages it. None at all is refused.
+	 */
+	private Set<String> visibleKinds(boolean listing) {
 		Set<String> kinds = new HashSet<>();
 		if (permissions.has(Permissions.OFFLINE_FEE_RECORD)) {
 			kinds.add(PaymentRecordService.FEE);
 		}
 		if (permissions.has(Permissions.OFFLINE_CLASS_SETTLE)) {
 			kinds.add(PaymentRecordService.CLASS);
+			kinds.add(PaymentRecordService.OTHER);
 		}
 		if (permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)) {
 			kinds.add(PaymentRecordService.DIRECT);
+		}
+		if (listing && permissions.has(Permissions.LIVE_EXAM_ORDER_READ)) {
+			kinds.add(PaymentRecordService.ONLINE);
+		}
+		if (listing && permissions.has(Permissions.STAFF_PAY_MANAGE)) {
+			kinds.add(PaymentRecordService.STAFF);
 		}
 		if (kinds.isEmpty()) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Access is denied.");

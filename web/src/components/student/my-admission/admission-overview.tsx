@@ -160,6 +160,7 @@ function TileLoading() {
 /** One tile of the glance strip, the mockup's `.sc`: a coloured top edge, an icon, the label, the figure and a line under it. */
 function GlanceTile({
   href,
+  onOpen,
   icon,
   tint,
   tone,
@@ -170,6 +171,8 @@ function GlanceTile({
   loading,
 }: {
   href: string;
+  /** Opens the tile's tab instead of jumping to an anchor, when the sections are tabs (16 Nov). */
+  onOpen?: () => void;
   icon: LucideIcon;
   tint: SectionTint;
   tone: TileTone;
@@ -183,6 +186,14 @@ function GlanceTile({
     <li className="min-w-0">
       <a
         href={href}
+        onClick={
+          onOpen
+            ? (event) => {
+                event.preventDefault();
+                onOpen();
+              }
+            : undefined
+        }
         className={cn(
           "group flex h-full min-w-0 items-center gap-3 rounded-card border border-border border-t-4 bg-card p-3 text-text shadow-[var(--card-shadow)] transition-colors hover:bg-text/[0.03] focus-visible:outline-2 focus-visible:outline-accent",
           TILE_TOP[tone],
@@ -221,7 +232,10 @@ export function GlanceStrip({
   items,
   results,
   now,
+  onOpen,
 }: {
+  /** With tabs (16 Nov), a tile opens its section's tab: routine, payments, items or results. */
+  onOpen?: (section: "routine" | "payments" | "items" | "results") => void;
   admission: AdmissionView;
   nextClass: StudentClass | null;
   classesLoading: boolean;
@@ -310,6 +324,7 @@ export function GlanceStrip({
         {open ? (
           <GlanceTile
             href="#my-admission-routine"
+            onOpen={onOpen ? () => onOpen("routine") : undefined}
             icon={CalendarDays}
             tint="routine"
             tone="accent"
@@ -321,6 +336,7 @@ export function GlanceStrip({
         ) : null}
         <GlanceTile
           href="#my-admission-payments"
+          onOpen={onOpen ? () => onOpen("payments") : undefined}
           icon={Wallet}
           tint="payments"
           tone={payTone}
@@ -332,6 +348,7 @@ export function GlanceStrip({
         />
         <GlanceTile
           href="#my-admission-items"
+          onOpen={onOpen ? () => onOpen("items") : undefined}
           icon={BookOpen}
           tint="items"
           tone="accent"
@@ -342,6 +359,7 @@ export function GlanceStrip({
         {lastResult ? (
           <GlanceTile
             href={`#results-${admission.id}`}
+            onOpen={onOpen ? () => onOpen("results") : undefined}
             icon={Trophy}
             tint="results"
             tone="accent"

@@ -39,7 +39,7 @@ const finance = {
     DIRECT_ENROLMENT: "Direct enrolment",
     OFFLINE_FEES: "Offline fees",
     OTHER_ONLINE: "Other online",
-    STAFF_PAY: "Staff pay",
+    STAFF_PAY: "Staff and online instructor pay",
     OFFLINE_INSTRUCTORS: "Offline instructors",
   },
   direction: {

@@ -33,6 +33,12 @@ import { cn } from "@/components/ui/cn";
 import { ErrorState } from "@/components/ui/error-state";
 import { NotFoundState } from "@/components/ui/not-found-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tabs } from "@/components/ui/tabs";
+import { BatchCover } from "@/components/public-admission/batch-parts";
+import { usePublicBatches } from "@/lib/api/exam/public-admission";
+import { offlineAdmissionEnabled } from "@/lib/config";
+import { useListParams } from "@/lib/url/list-params";
 import { Pill, type PillTone } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -380,7 +386,7 @@ function FormSection({ admission }: { admission: AdmissionView }) {
  * payments, exams and packages, and the form. `admissionId` is set only when the student has several admissions (plan P11); with one,
  * the routes answer the newest admission, as before.
  */
-function AdmissionBlock({ admission, admissionId }: { admission: AdmissionView; admissionId?: string }) {
+function AdmissionBlock({ admission, admissionId, tabbed = false }: { admission: AdmissionView; admissionId?: string; tabbed?: boolean }) {
   const open = !isPendingAdmission(admission.state);
   const active = open && admission.state !== "CLOSED";
   const fees = useMyAdmissionFees({ enabled: open, admissionId });
@@ -401,20 +407,61 @@ function AdmissionBlock({ admission, admissionId }: { admission: AdmissionView; 
   // The published results: read for an onboarded or closed admission, for the results section and the glance strip.
   const results = useMyAdmissionResults(admission.id, open);
 
+  // 16 Nov: the sections are tabs, one shown at a time. The tab is in the address (?section=), so a reload or a shared link keeps it.
+  const { t } = useLocale();
+  const [params, setParams] = useListParams({ section: "" });
+  const sections: { value: BlockSection; label: string }[] = [
+    { value: "routine", label: t("myAdmission.routine.title") },
+    ...(open ? [{ value: "results" as const, label: t("myAdmission.results.title") }] : []),
+    { value: "payments", label: t("myAdmission.payments.title") },
+    { value: "items", label: t("myAdmission.items.title") },
+    { value: "form", label: t("myAdmission.form.title") },
+  ];
+  const section: BlockSection = sections.some((item) => item.value === params.section) ? (params.section as BlockSection) : "routine";
+  // Without tabs (the older one-page view), every section shows.
+  const shows = (value: BlockSection) => !tabbed || section === value;
+  function openSection(next: BlockSection) {
+    setParams({ section: next });
+    // The strip's tiles sit above the tabs: bring the tabs into view after choosing one.
+    window.requestAnimationFrame(() => document.getElementById(`admission-tabs-${admission.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }
+
   return (
     <>
       <AdmissionCard admission={admission} now={now} />
       <OverdueAlert schedule={fees.data} />
-      <GlanceStrip admission={admission} nextClass={nextClass} classesLoading={classesLoading} fees={fees} items={items} results={results} now={now} />
+      <GlanceStrip
+        admission={admission}
+        nextClass={nextClass}
+        classesLoading={classesLoading}
+        fees={fees}
+        items={items}
+        results={results}
+        now={now}
+        onOpen={tabbed ? openSection : undefined}
+      />
 
-      <RoutineSection admission={admission} admissionId={admissionId} />
-      {open ? <ResultsSection admissionId={admission.id} results={results} /> : null}
-      <PaymentsSection fees={fees} courseFee={admission.courseFee ?? null} />
-      <ItemsSection items={items} />
-      <FormSection admission={admission} />
+      {tabbed ? (
+        <div id={`admission-tabs-${admission.id}`} className="mt-6 scroll-mt-20">
+          <Tabs
+            tabs={sections}
+            value={section}
+            onChange={(value) => setParams({ section: value })}
+            ariaLabel={t("myAdmission.sectionsLabel")}
+          />
+        </div>
+      ) : null}
+      {shows("routine") ? <RoutineSection admission={admission} admissionId={admissionId} /> : null}
+      {shows("results") && open ? <ResultsSection admissionId={admission.id} results={results} /> : null}
+      {shows("payments") ? <PaymentsSection fees={fees} courseFee={admission.courseFee ?? null} /> : null}
+      {shows("items") ? <ItemsSection items={items} /> : null}
+      {shows("form") ? <FormSection admission={admission} /> : null}
     </>
   );
 }
+
+/** The tabs of one batch's page (16 Nov). */
+type BlockSection = "routine" | "results" | "payments" | "items" | "form";
 
 /**
  * A batch the student has applied to that is not onboarded yet: its name, where it stands, and the action that moves it on (the form,
@@ -476,6 +523,168 @@ export function AdmissionSections({ admissions }: { admissions: AdmissionView[] 
  * An application still in progress is a card with its step and action; it never sends the student away (admission-access-plan.md).
  */
 export function MyAdmissionPage({ title, offers = false }: { title?: string; offers?: boolean } = {}) {
+  if (offers) {
+    return <OfflineActivitiesTabs title={title} />;
+  }
+  return <MyAdmissionOnly title={title} />;
+}
+
+/**
+ * `/offline-activities` for a student (16 Nov): two tabs, My batches (their admissions, one section each) and Batches on offer (the
+ * published batches they are not in). `?tab=mine|offers` picks one, as the dashboard doors do; without it, My batches opens when the
+ * student has a batch, else Batches on offer.
+ */
+function OfflineActivitiesTabs({ title }: { title?: string }) {
+  const { t } = useLocale();
+  const [params, setParams] = useListParams({ tab: "" });
+  const admission = useMyAdmission();
+  const data = admission.data;
+  const list = useMyAdmissions({ enabled: data != null });
+  const admissions = list.data && list.data.length > 0 ? list.data : data ? [data] : [];
+  const pageTitle = title ?? t("publicAdmission.activities.title");
+  const crumbs = [{ label: t("catalog.home"), href: "/" }, { label: pageTitle }];
+
+  if (admission.isPending || (data != null && list.isPending)) {
+    return <Loading />;
+  }
+  if (admission.isError) {
+    return <ErrorState onRetry={() => void admission.refetch()} error={admission.error} />;
+  }
+  const tab = params.tab === "mine" || params.tab === "offers" ? params.tab : admissions.length > 0 ? "mine" : "offers";
+  return (
+    <>
+      <PageHeader title={pageTitle} breadcrumbs={crumbs} />
+      <div className="mb-5">
+        <Tabs
+          tabs={[
+            { value: "mine", label: t("publicAdmission.activities.tabMine"), badge: admissions.length || undefined },
+            { value: "offers", label: t("publicAdmission.activities.tabOffers") },
+          ]}
+          value={tab}
+          onChange={(value) => setParams({ tab: value })}
+          ariaLabel={t("publicAdmission.activities.tabsLabel")}
+          wrap
+        />
+      </div>
+      {tab === "mine" ? (
+        admissions.length > 0 ? (
+          <MyBatchCards admissions={admissions} />
+        ) : (
+          <EmptyState
+            title={t("publicAdmission.activities.mineEmpty")}
+            body={t("publicAdmission.activities.mineEmptyBody")}
+            action={<Button onClick={() => setParams({ tab: "offers" })}>{t("publicAdmission.activities.tabOffers")}</Button>}
+          />
+        )
+      ) : (
+        <BatchOffers bare excludeBatchIds={admissions.map((item) => item.batchId).filter((id): id is string => Boolean(id))} />
+      )}
+    </>
+  );
+}
+
+/** The tone of each step's pill on a batch card. */
+const STEP_TONE: Record<string, PillTone> = { ADMITTED: "ok", JOIN: "accent", FORM: "warn", CHANGES: "warn", REVIEW: "muted", CLOSED: "muted" };
+
+/**
+ * My batches (16 Nov): one card per batch the student is in or has applied to, with the batch's photo, where it stands and the roll.
+ * A card opens that batch's own page.
+ */
+function MyBatchCards({ admissions }: { admissions: AdmissionView[] }) {
+  const { t, locale } = useLocale();
+  const publicBatches = usePublicBatches(offlineAdmissionEnabled);
+  const photoOf = (batchId: string | null | undefined) =>
+    (Array.isArray(publicBatches.data) ? publicBatches.data : []).find((batch) => batch.id === batchId)?.photoUrl ?? null;
+  return (
+    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {admissions.map((admission) => {
+        const name = pickTitle({ titleEn: admission.batchNameEn, titleBn: admission.batchNameBn }, locale) || t("myAdmission.batchUnnamed");
+        const step = admissionStep(admission);
+        return (
+          <li key={admission.id} className="min-w-0">
+            <Link
+              href={`/offline-activities/batch/${admission.id}`}
+              className="group flex h-full min-w-0 flex-col overflow-hidden rounded-card border border-border bg-card transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent"
+            >
+              <BatchCover
+                photoUrl={photoOf(admission.batchId)}
+                title={name}
+                className="rounded-none"
+                alt={t("publicAdmission.card.coverAlt", { title: name })}
+                plainLabel={t("publicAdmission.card.plainLabel")}
+              />
+              <span className="flex min-w-0 flex-1 flex-col gap-2 p-4">
+                <span className="line-clamp-2 text-card-title font-bold leading-snug text-text group-hover:text-text-accent">{name}</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <Pill tone={STEP_TONE[step] ?? "muted"}>{t(`publicAdmission.activities.card.${step}`)}</Pill>
+                  {admission.rollNo ? (
+                    <span className="text-meta tabular-nums text-muted">{t("publicAdmission.activities.card.roll", { roll: admission.rollNo })}</span>
+                  ) : null}
+                </span>
+                {step === "ADMITTED" && admission.courseEndsOn ? (
+                  <span className="text-meta text-muted">
+                    {t("publicAdmission.activities.card.ends", { date: formatDate(admission.courseEndsOn, locale) })}
+                  </span>
+                ) : null}
+                <span className="mt-auto pt-1 text-label font-semibold text-text-accent">{t("publicAdmission.activities.card.open")} ›</span>
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * One batch of the student (16 Nov): `/offline-activities/batch/{admissionId}`. An open batch shows its card, glance strip and
+ * sections (routine, payments, exams and packages, the form); one still on its way shows its step and action. Another student's
+ * admission, or an unknown id, is not found.
+ */
+export function MyBatchPage({ admissionId }: { admissionId: string }) {
+  const { t, locale } = useLocale();
+  const list = useMyAdmissions();
+  if (list.isPending) {
+    return <Loading />;
+  }
+  if (list.isError) {
+    return <ErrorState onRetry={() => void list.refetch()} error={list.error} />;
+  }
+  const admission = (Array.isArray(list.data) ? list.data : []).find((item) => item.id === admissionId);
+  const activities = t("publicAdmission.activities.title");
+  if (!admission) {
+    return (
+      <NotFoundState
+        title={t("common.notFound.title")}
+        body={t("common.notFound.body")}
+        backHref="/offline-activities?tab=mine"
+        backLabel={activities}
+      />
+    );
+  }
+  const name = pickTitle({ titleEn: admission.batchNameEn, titleBn: admission.batchNameBn }, locale) || t("myAdmission.batchUnnamed");
+  return (
+    <>
+      <PageHeader
+        title={name}
+        breadcrumbs={[
+          { label: t("catalog.home"), href: "/" },
+          { label: activities, href: "/offline-activities?tab=mine" },
+          { label: name },
+        ]}
+      />
+      {isPendingAdmission(admission.state) ? (
+        <PendingBatchCard admission={admission} />
+      ) : (
+        <AdmissionBlock admission={admission} admissionId={admission.id} tabbed />
+      )}
+    </>
+  );
+}
+
+/** My admission on its own (no tabs): the not-found page for a student with no admission. */
+function MyAdmissionOnly({ title }: { title?: string }) {
+  const offers = false;
   const { t } = useLocale();
   const admission = useMyAdmission();
   const data = admission.data;

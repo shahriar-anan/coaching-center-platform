@@ -182,6 +182,13 @@ public class AccountController {
 		return new ActivationCodeResponse(accounts.reissueActivationCode(id, Role.STUDENT, actor().userId()));
 	}
 
+	/** A password reset code for the student, shown to the Master Admin to hand over (16 Nov). Nothing is mailed. */
+	@PostMapping("/api/v1/students/{id}/password-reset-code")
+	public PasswordResetCodeResponse issueStudentResetCode(@PathVariable UUID id) {
+		require(Permissions.STUDENT_PASSWORD_RESET);
+		return new PasswordResetCodeResponse(accounts.issuePasswordResetCode(id, actor().userId()));
+	}
+
 	@DeleteMapping("/api/v1/students/{id}")
 	public ResponseEntity<Void> deleteStudent(@PathVariable UUID id) {
 		require(Permissions.STUDENT_DELETE);
@@ -249,6 +256,9 @@ public class AccountController {
 	}
 
 	public record UpdateStudentRequest(@NotBlank String fullName) {
+	}
+
+	public record PasswordResetCodeResponse(String resetCode) {
 	}
 
 	public record ActivationCodeResponse(String activationCode) {

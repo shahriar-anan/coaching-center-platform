@@ -265,7 +265,7 @@ function WaitingLine({
   if (wait === "onboard" && admission.joinPending) {
     return <p className="rounded-control bg-bg px-3 py-2 text-body text-text">{t("staffOffline.onboard.waitingStudent")}</p>;
   }
-  if (wait === "onboard" && (admission.phoneOwnerName || admission.matchedHasBatch)) {
+  if (wait === "onboard" && (admission.sameBatchConflictName || admission.matchedHasBatch)) {
     return <p className="rounded-control bg-bg px-3 py-2 text-body text-text">{t("staffOffline.waiting.blocked")}</p>;
   }
   const key =

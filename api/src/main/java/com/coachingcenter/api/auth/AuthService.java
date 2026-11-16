@@ -369,6 +369,24 @@ public class AuthService {
 		}, () -> hasher.sha256(normalized));
 	}
 
+	/**
+	 * A password reset code for staff to hand to the student (16 Nov): nothing is mailed, and the code works on the reset page exactly as
+	 * an emailed one does, for the same minutes. An earlier unused reset code stops working. Only an active student account.
+	 */
+	@Transactional
+	public String issuePasswordResetCodeUnmailed(User user, UUID createdBy) {
+		if (user.getDeletedAt() != null) {
+			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, HttpStatus.NOT_FOUND, "Resource not found.");
+		}
+		if (!ACTIVE.equals(user.getStatus())) {
+			throw new ApiException(ErrorCode.ACCOUNT_NOT_ACTIVE, HttpStatus.CONFLICT,
+					"Only an active account can reset its password. A pending one gets an activation code instead.");
+		}
+		String code = issueCode(user, PASSWORD_RESET, createdBy, clock.instant().plusSeconds(properties.auth().resetCodeMinutes() * 60L));
+		audit.record(AuditRecorder.PASSWORD_RESET_CODE_ISSUED, user.getId());
+		return code;
+	}
+
 	public void padResetResponse(long startedNanos) {
 		int floorMillis = properties.auth().resetResponseFloorMillis();
 		if (floorMillis <= 0) {

@@ -59,7 +59,77 @@ export type ClassRow = {
   version: number;
   payment: PaymentRecord | null;
   notTakenRequest: NotTakenRequest | null;
+  /** False for a class kept out of the batch's routine (17 Nov): a row of the instructor's pay only, which students never see. */
+  inRoutine?: boolean;
 };
+
+/** A payment to an instructor for something that is not a class (17 Nov), with the reason the admin typed. */
+export type OtherPayment = {
+  id: string;
+  instructorId: string;
+  instructorName: string;
+  batchId?: string | null;
+  batchNameEn?: string | null;
+  batchNameBn?: string | null;
+  reason: string;
+  amount: number | string;
+  method: "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
+  reference?: string | null;
+  paidOn: string;
+  note?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "VOIDED";
+  recordedByName?: string | null;
+  recordedAt: string;
+  decisionReason?: string | null;
+  correctedAt?: string | null;
+};
+
+export type OtherPaymentBody = {
+  reason: string;
+  amount: string;
+  paidOn: string;
+  method: string;
+  reference?: string;
+  note?: string;
+  batchId?: string;
+};
+
+export function useOtherPayments(instructorId: string) {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "otherPayments", instructorId],
+    queryFn: ({ signal }) => apiRequest<OtherPayment[]>(`/api/v1/offline-instructors/${instructorId}/other-payments`, { signal }),
+    staleTime: 0,
+  });
+}
+
+/** The other payments waiting for the Master Admin, for the Waiting for approval tab. */
+export function usePendingOtherPayments(enabled = true) {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "otherPayments", "pending"],
+    queryFn: ({ signal }) => apiRequest<OtherPayment[]>("/api/v1/offline-other-payments?status=PENDING", { signal }),
+    enabled,
+    staleTime: 0,
+  });
+}
+
+/** Writes that move money: every query is refreshed, so Finance and the payment records follow. */
+function useMoneyWrite<TVars, TResult>(call: (vars: TVars) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation<TResult, Error, TVars>({ mutationFn: call, onSuccess: () => queryClient.invalidateQueries() });
+}
+
+export function useRecordOtherPayment(instructorId: string) {
+  return useMoneyWrite<OtherPaymentBody, OtherPayment>((body) =>
+    apiRequest<OtherPayment>(`/api/v1/offline-instructors/${instructorId}/other-payments`, { method: "POST", body }),
+  );
+}
+
+/** The Master Admin approves, rejects (with a reason) or voids (with a reason) an other payment. */
+export function useDecideOtherPayment() {
+  return useMoneyWrite<{ id: string; action: "approve" | "reject" | "void"; reason?: string }, OtherPayment>(({ id, action, reason }) =>
+    apiRequest<OtherPayment>(`/api/v1/offline-other-payments/${id}/${action}`, { method: "POST", body: reason ? { reason } : {} }),
+  );
+}
 
 export type UnsettledPage = {
   items: ClassRow[];

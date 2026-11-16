@@ -777,6 +777,41 @@ public class OfflineAdmissionAdminService {
 	}
 
 	/**
+	 * The name of another person whose open admission in the same batch has this admission's mobile number or email, on its form or
+	 * on its account (16 Nov). Onboarding is refused only then; a phone owned by an account outside the batch no longer stops it. Null
+	 * when there is none. A closed or deleted admission does not count, nor does another admission of the same account.
+	 */
+	String sameBatchConflict(OfflineAdmission a) {
+		if (a.getBatchId() == null) {
+			return null;
+		}
+		String mobile = null;
+		if (a.getMobile() != null && !a.getMobile().isBlank()) {
+			try {
+				mobile = com.coachingcenter.api.auth.PhoneNumbers.normalize(a.getMobile());
+			}
+			catch (com.coachingcenter.api.common.error.ApiException invalid) {
+				mobile = a.getMobile().trim();
+			}
+		}
+		String email = a.getEmail() == null || a.getEmail().isBlank() ? null : a.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
+		if (mobile == null && email == null) {
+			return null;
+		}
+		return jdbc.queryForList("""
+				select coalesce(sp.full_name, o.full_name, o.email, o.mobile) from offline_admissions o
+				left join users u on u.id = o.student_id
+				left join student_profiles sp on sp.user_id = o.student_id
+				where o.batch_id = ? and o.id <> ? and o.status <> 'CLOSED' and o.deleted_at is null
+				  and (cast(? as uuid) is null or o.student_id is distinct from cast(? as uuid))
+				  and ((cast(? as varchar) is not null and (o.mobile = ? or u.phone = ?))
+				    or (cast(? as varchar) is not null and (lower(o.email) = ? or lower(u.email) = ?)))
+				order by o.created_at limit 1
+				""", String.class, a.getBatchId(), a.getId(), a.getStudentId(), a.getStudentId(), mobile, mobile, mobile, email, email,
+				email).stream().findFirst().orElse(null);
+	}
+
+	/**
 	 * True when the admission's student account was deleted after it applied (16 Nov). The admission stays for staff to close or delete;
 	 * the page says so in place of the account.
 	 */
@@ -1000,7 +1035,8 @@ public class OfflineAdmissionAdminService {
 				a.getClosedReason(), signed, overlaps, a.getSource(), matchedName, matchedEmail, a.getJoinCodeSentAt(), alreadyAccessTo(a),
 				match.isPresent() && matchedHasBatch(match.get().getId(), a), linked != null, phoneOwnerName, joinPending(a),
 				resend, a.getRollNo(), resend ? a.getSentCode() : null, accountDeleted(a),
-				a.getDeletedAt(), a.getDeletedReason(), a.getReleasedRoll());
+				a.getDeletedAt(), a.getDeletedReason(), a.getReleasedRoll(),
+				OfflineAdmission.ONBOARDED.equals(a.getStatus()) || OfflineAdmission.CLOSED.equals(a.getStatus()) ? null : sameBatchConflict(a));
 	}
 
 	/**
@@ -1140,7 +1176,7 @@ public class OfflineAdmissionAdminService {
 			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps, String source,
 			String matchedName, String matchedEmail, Instant joinCodeSentAt, List<BatchName> alreadyAccessTo, boolean matchedHasBatch,
 			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo, String sentCode,
-			boolean accountDeleted, Instant deletedAt, String deletedReason, String releasedRoll) {
+			boolean accountDeleted, Instant deletedAt, String deletedReason, String releasedRoll, String sameBatchConflictName) {
 	}
 
 	/** A batch's two names, for the batches a student already has (P14). */

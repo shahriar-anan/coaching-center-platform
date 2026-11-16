@@ -25,6 +25,11 @@ export function dueOf(row: ClassRow): number {
   return toNumber(row.amount);
 }
 
+/** A class priced on its own (a rate override), which a change of the batch rate leaves alone. */
+export function hasOwnRate(row: ClassRow): boolean {
+  return row.rateOverride !== null && row.rateOverride !== undefined && row.rateOverride !== "";
+}
+
 /** A class has an amount when the API set a rate or an override. Payment is refused without one. */
 export function hasAmount(row: ClassRow): boolean {
   return row.amount !== null && row.amount !== undefined && row.amount !== "";

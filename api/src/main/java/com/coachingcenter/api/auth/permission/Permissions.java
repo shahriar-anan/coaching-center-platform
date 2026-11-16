@@ -14,6 +14,9 @@ public final class Permissions {
 
 	public static final String STUDENT_DELETE = "STUDENT_DELETE";
 
+	/** Give a student a password reset code to hand over in person, while email does not arrive (16 Nov). The Master Admin only. */
+	public static final String STUDENT_PASSWORD_RESET = "STUDENT_PASSWORD_RESET";
+
 	public static final String ADMIN_MANAGE = "ADMIN_MANAGE";
 
 	public static final String ADMIN_DELETE = "ADMIN_DELETE";

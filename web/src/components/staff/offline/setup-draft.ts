@@ -77,6 +77,70 @@ export function bodyOf(draft: SetupDraft): SetupBody {
   };
 }
 
+/** A typed instalment amount as a number: whole taka or paisa, at least ৳1. Null while it is not one yet (empty, "40.", "abc"). */
+function amountOf(typed: string): number | null {
+  const value = typed.trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) {
+    return null;
+  }
+  const amount = Number(value);
+  return amount >= 1 ? amount : null;
+}
+
+/** `total` split over `count` rows as the even split does: whole taka each, the rest on the last. Null when a row would be under ৳1. */
+function evenAmounts(total: number, count: number): string[] | null {
+  const totalPaisa = Math.round(total * 100);
+  const eachPaisa = Math.floor(totalPaisa / count / 100) * 100;
+  if (count < 1 || eachPaisa < 100) {
+    return null;
+  }
+  return Array.from({ length: count }, (_, index) =>
+    String((index === count - 1 ? totalPaisa - eachPaisa * (count - 1) : eachPaisa) / 100),
+  );
+}
+
+/**
+ * The rows after the admin types an amount into one of them (16 Nov): the course fee stays, and the rows after the edited one share
+ * what is left evenly, so ৳12,000 in 2 with the first set to ৳4,000 gives ৳8,000 for the second. The rows before it keep their amounts.
+ * Editing the last row shares the rest over the rows before it. `balanced` is false when the fee cannot be kept (a single row, an
+ * amount that leaves less than ৳1 a row, or an amount not finished typing); the typed amount is then kept as typed and the other rows
+ * stay as they were.
+ */
+export function rebalanceRows(rows: PlanRow[], index: number, typed: string, courseFee: number): { rows: PlanRow[]; balanced: boolean } {
+  const next = rows.map((row, at) => (at === index ? { ...row, amount: typed } : row));
+  const amount = amountOf(typed);
+  if (amount === null || !Number.isFinite(courseFee) || courseFee <= 0 || rows.length < 2) {
+    return { rows: next, balanced: false };
+  }
+  const after = rows.length - index - 1;
+  if (after > 0) {
+    let before = 0;
+    for (let at = 0; at < index; at += 1) {
+      const kept = amountOf(rows[at].amount);
+      if (kept === null) {
+        return { rows: next, balanced: false };
+      }
+      before += kept;
+    }
+    const shares = evenAmounts(courseFee - before - amount, after);
+    if (!shares) {
+      return { rows: next, balanced: false };
+    }
+    return { rows: next.map((row, at) => (at > index ? { ...row, amount: shares[at - index - 1] } : row)), balanced: true };
+  }
+  const shares = evenAmounts(courseFee - amount, index);
+  if (!shares) {
+    return { rows: next, balanced: false };
+  }
+  return { rows: next.map((row, at) => (at < index ? { ...row, amount: shares[at] } : row)), balanced: true };
+}
+
+/** The sum of the rows that hold a number, as a plain string for the course fee. */
+export function rowsTotal(rows: PlanRow[]): string {
+  const paisa = rows.reduce((sum, row) => sum + Math.round((amountOf(row.amount) ?? 0) * 100), 0);
+  return String(paisa / 100);
+}
+
 /** Field errors the API named, keyed by field. */
 function fieldErrorsOf(error: unknown): Record<string, string> {
   if (error instanceof ApiError && error.fieldErrors) {

@@ -13,9 +13,20 @@ export const paymentRecordKeys = {
   all: ["paymentRecords"] as const,
 };
 
-export type PaymentKind = "FEE" | "CLASS" | "DIRECT";
+/** The payments the office records by hand, which can be corrected here. */
+export type PaymentKind = "FEE" | "CLASS" | "DIRECT" | "OTHER";
+/**
+ * Every money stream the page lists (16 Nov): online purchases through the gateway, direct enrolment, offline course fees (money in);
+ * offline instructor pay and staff pay (money out).
+ */
+export type RecordKind = PaymentKind | "ONLINE" | "STAFF";
+export type Direction = "INCOME" | "EXPENSE";
+/** What the money was for. */
+export type ItemType = "PACKAGE" | "EXAM" | "BATCH" | "CLASS" | "OTHER" | "STAFF";
+export const INCOME_KINDS: readonly RecordKind[] = ["ONLINE", "DIRECT", "FEE"];
+export const EXPENSE_KINDS: readonly RecordKind[] = ["CLASS", "OTHER", "STAFF"];
 export type PaymentMethod = "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
-export type PaymentRecordStatus = "PENDING" | "APPROVED" | "REJECTED" | "VOIDED";
+export type PaymentRecordStatus = "PENDING" | "APPROVED" | "REJECTED" | "VOIDED" | "REFUNDED";
 export type PaymentEditStatus = "PENDING" | "FINALIZED" | "REJECTED";
 
 /** The values a correction changes. The API omits a null note. */
@@ -36,11 +47,12 @@ export type PendingEdit = {
 };
 
 export type PaymentRow = {
-  kind: PaymentKind;
+  kind: RecordKind;
   id: string;
   paidOn: string;
   amount: number | string;
-  method: PaymentMethod;
+  /** ONLINE for a gateway purchase. */
+  method: PaymentMethod | "ONLINE";
   reference?: string | null;
   note?: string | null;
   status: PaymentRecordStatus;
@@ -55,6 +67,17 @@ export type PaymentRow = {
   recordedAt?: string | null;
   correctedAt?: string | null;
   pendingEdit?: PendingEdit | null;
+  /** Money in or money out (16 Nov). */
+  direction: Direction;
+  itemType: ItemType;
+  /** The package or exam paid for, when there is one. */
+  itemId?: string | null;
+  itemNameEn?: string | null;
+  itemNameBn?: string | null;
+  /** What was given back of a refunded online purchase. */
+  refundedAmount?: number | string | null;
+  /** True for the payments the office records by hand: those can be corrected here. */
+  editable: boolean;
 };
 
 export type PaymentEdit = {
@@ -76,10 +99,17 @@ export type PaymentEdit = {
 export type PaymentRecordFilters = {
   from: string;
   to: string;
-  kind: PaymentKind | "";
+  kind: RecordKind | "";
   batchId: string;
   instructorId: string;
   q: string;
+  direction?: Direction | "";
+  /** PACKAGE or EXAM: what an online or direct payment was for. */
+  item?: "PACKAGE" | "EXAM" | "";
+  method?: string;
+  status?: PaymentRecordStatus | "";
+  /** A catalogue category, with its sub-categories: what an online or direct payment's package or exam is in (17 Nov). */
+  categoryId?: string;
 };
 
 /** The fields a correction sends: only the ones it changes need to differ, and the reason is required. */
@@ -113,6 +143,11 @@ export function usePaymentRecords(filters: PaymentRecordFilters) {
           batchId: filters.batchId,
           instructorId: filters.instructorId,
           q: filters.q.trim(),
+          direction: filters.direction,
+          item: filters.item,
+          method: filters.method,
+          status: filters.status,
+          categoryId: filters.categoryId,
         })}`,
         { signal },
       ),

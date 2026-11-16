@@ -12,14 +12,15 @@ import { BatchCard } from "./batch-card";
  * The published batches as cards, the same cards as the Admission page (P15). A batch in `excludeBatchIds` is left out: the batches the
  * student is already in are shown above, as their My admission sections.
  */
-export function BatchOffers({ excludeBatchIds }: { excludeBatchIds: string[] }) {
+export function BatchOffers({ excludeBatchIds, bare = false }: { excludeBatchIds: string[]; bare?: boolean }) {
   const { t } = useLocale();
   const batches = usePublicBatches(offlineAdmissionEnabled);
   const shown = (batches.data ?? []).filter((batch) => !excludeBatchIds.includes(batch.id));
 
   return (
-    <section aria-labelledby="batch-offers" className="mt-8 grid gap-4">
-      <h2 id="batch-offers" className="text-card-title font-bold text-text">
+    // `bare` (16 Nov): inside its own tab, the tab names the list, so there is no heading and no top margin.
+    <section aria-labelledby="batch-offers" className={bare ? "grid gap-4" : "mt-8 grid gap-4"}>
+      <h2 id="batch-offers" className={bare ? "sr-only" : "text-card-title font-bold text-text"}>
         {t("publicAdmission.activities.offers")}
       </h2>
       {batches.isPending ? (

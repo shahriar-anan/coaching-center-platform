@@ -15,7 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, onSessionLost } from "@/lib/api/client";
 import { setAccessToken } from "@/lib/auth/token-store";
 import type { Me } from "@/lib/api/exam/types";
-import { onSiteHost, onStaffHost, staffHome, staffLogin, studentHome } from "@/lib/config";
+import { onSiteHost, onStaffHost, staffHome, staffLogin, studentDashboard, studentHome } from "@/lib/config";
 
 export type SessionState =
   | { status: "loading"; user?: undefined }
@@ -85,7 +85,7 @@ export function safeStudentNext(next: string | null | undefined): string | null 
 
 export function destinationFor(user: Me, next?: string | null): string {
   if (user.role === "STUDENT") {
-    return safeStudentNext(next) ?? studentHome;
+    return safeStudentNext(next) ?? studentDashboard;
   }
   return staffHome;
 }

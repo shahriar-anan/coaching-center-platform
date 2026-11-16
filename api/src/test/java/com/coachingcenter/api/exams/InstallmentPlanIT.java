@@ -198,9 +198,58 @@ class InstallmentPlanIT extends PostgresIntegrationTest {
 				assertThat(row.get("kind").asText()).isEqualTo("DIRECT");
 				assertThat(row.get("amount").decimalValue()).isEqualByComparingTo("80");
 				assertThat(row.hasNonNull("correctedAt")).isTrue();
+				// 16 Nov: every stream says whether it is money in or out, what it paid for, and whether it can be corrected here.
+				assertThat(row.get("direction").asText()).isEqualTo("INCOME");
+				assertThat(row.get("itemType").asText()).isIn("PACKAGE", "EXAM");
+				assertThat(row.hasNonNull("itemNameEn")).isTrue();
+				assertThat(row.get("editable").asBoolean()).isTrue();
 			}
 		}
 		assertThat(shown).isTrue();
+
+		// The money-out filter leaves direct enrolment out; the money-in one keeps it.
+		String out = mockMvc.perform(get("/api/v1/payment-records?direction=EXPENSE").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		assertThat(out).doesNotContain(latest);
+		String in = mockMvc.perform(get("/api/v1/payment-records?direction=INCOME&kind=DIRECT").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		assertThat(in).contains(latest);
+		// 17 Nov: the category filter finds the payment by its package's category, and another category does not.
+		UUID category = new org.springframework.jdbc.core.JdbcTemplate(dataSource).queryForObject(
+				"select category_id from live_exam_modules where id = ?", UUID.class, module);
+		String inCategory = mockMvc.perform(get("/api/v1/payment-records?kind=DIRECT&categoryId=" + category).header("Authorization",
+				"Bearer " + master)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		assertThat(inCategory).contains(latest);
+		String elsewhere = mockMvc.perform(get("/api/v1/payment-records?kind=DIRECT&categoryId=" + UUID.randomUUID()).header("Authorization",
+				"Bearer " + master)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		assertThat(elsewhere).doesNotContain(latest);
+
+		// A paid online purchase is money in, says the package it bought, and is listed only (16 Nov).
+		UUID order = UUID.randomUUID();
+		new org.springframework.jdbc.core.JdbcTemplate(dataSource).update("""
+				insert into live_exam_orders (id, student_id, scope, module_id, amount, currency, method, tran_id, status, created_at, updated_at,
+				  paid_at, receipt_no)
+				values (?, ?, 'MODULE', ?, 450, 'BDT', 'SSLCOMMERZ', ?, 'SUCCEEDED', now(), now(), now(), 'RCPT-ONLINE-1')
+				""", order, student, module, "TRAN-" + order.toString().substring(0, 8));
+		JsonNode online = json.readTree(mockMvc.perform(get("/api/v1/payment-records?kind=ONLINE&item=PACKAGE").header("Authorization",
+				"Bearer " + master)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		JsonNode bought = null;
+		for (JsonNode row : online) {
+			if (order.toString().equals(row.get("id").asText())) {
+				bought = row;
+			}
+		}
+		assertThat(bought).isNotNull();
+		assertThat(bought.get("direction").asText()).isEqualTo("INCOME");
+		assertThat(bought.get("method").asText()).isEqualTo("ONLINE");
+		assertThat(bought.get("itemType").asText()).isEqualTo("PACKAGE");
+		assertThat(bought.get("editable").asBoolean()).isFalse();
+
+		// Online purchases and staff pay are listed only; a correction of either is refused.
+		mockMvc.perform(post("/api/v1/payment-records/ONLINE/" + latest + "/edits").header("Authorization", "Bearer " + master)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"amount\":\"70\",\"reason\":\"x\"}"))
+			.andExpect(status().isNotFound());
 	}
 
 	@Test

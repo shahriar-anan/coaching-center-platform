@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -366,6 +367,89 @@ class OfflineClassSettleIT extends PostgresIntegrationTest {
 		respond(post("/api/v1/payment-edits/" + waiting.get("id").asText() + "/finalize", s.master, "{}"), 200);
 		assertThat(jdbc().queryForObject("select reference from offline_class_payments where id = ?::uuid", String.class, paymentId))
 			.isEqualTo("R-2");
+	}
+
+	@Test
+	void aClassIsDeletedByHandUnlessItsPaymentIsWaitingOrSettled() throws Exception {
+		// 16 Nov: either admin deletes a class with nothing settled; one with old payment records is marked cancelled instead.
+		Setup s = setup();
+		UUID instructor = instructor(s.master, "Delete");
+		UUID batch = batch(s.master);
+		UUID plain = id(classAt(s.master, batch, "2026-10-19", "10:00", "11:20", instructor));
+		UUID paid = id(classAt(s.master, batch, "2026-10-19", "12:00", "13:20", instructor));
+		UUID rejected = id(classAt(s.master, batch, "2026-10-19", "14:00", "15:20", instructor));
+
+		mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/offline-classes/" + plain).header("Authorization", "Bearer " + s.staff))
+			.andExpect(status().isNoContent());
+		assertThat(jdbc().queryForObject("select count(*) from offline_classes where id = ?", Integer.class, plain)).isZero();
+
+		respond(post("/api/v1/offline-classes/" + paid + "/payment", s.master, payment("400", "2026-10-19")), 200);
+		mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/offline-classes/" + paid).header("Authorization", "Bearer " + s.master))
+			.andExpect(status().isConflict());
+
+		String paymentId = respond(post("/api/v1/offline-classes/" + rejected + "/payment", s.staff, payment("400", "2026-10-19")), 200)
+			.get("payment").get("id").asText();
+		respond(post("/api/v1/offline-class-payments/" + paymentId + "/reject", s.master, "{\"reason\":\"Wrong class\"}"), 200);
+		mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/offline-classes/" + rejected).header("Authorization", "Bearer " + s.master))
+			.andExpect(status().isNoContent());
+		assertThat(jdbc().queryForObject("select status from offline_classes where id = ?", String.class, rejected)).isEqualTo("CANCELLED");
+		JsonNode listed = respondTo(get("/api/v1/offline-batches/" + batch + "/classes").header("Authorization", "Bearer " + s.master), 200);
+		assertThat(listed.toString()).doesNotContain(rejected.toString()).doesNotContain(plain.toString()).contains(paid.toString());
+		mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/offline-classes/" + rejected).header("Authorization", "Bearer " + s.master))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void aClassAddedFromTheInstructorsPageCanStayOutOfTheRoutineOrReplaceAClassAtThatTime() throws Exception {
+		// 17 Nov: kept out of the routine, a class is a row of the instructor's pay only; put in, it may replace the batch's class at that
+		// time (an exchange), which is cancelled.
+		Setup s = setup();
+		UUID instructor = instructor(s.master, "Page");
+		UUID batch = batch(s.master);
+		UUID planned = id(classAt(s.master, batch, "2026-10-19", "10:00", "11:20", instructor));
+
+		JsonNode payOnly = respond(post("/api/v1/offline-batches/" + batch + "/classes", s.master, "{\"heldOn\":\"2026-10-18\",\"startsAt\":\"09:00\","
+				+ "\"subject\":\"Invigilation\",\"instructorId\":\"" + instructor + "\",\"rateOverride\":300,\"inRoutine\":false}"), 201);
+		assertThat(payOnly.get("inRoutine").asBoolean()).isFalse();
+
+		JsonNode exchange = respond(post("/api/v1/offline-batches/" + batch + "/classes", s.master, "{\"heldOn\":\"2026-10-19\",\"startsAt\":\"10:00\","
+				+ "\"subject\":\"Swapped in\",\"instructorId\":\"" + instructor + "\",\"rateOverride\":400,\"replaceClassId\":\"" + planned + "\"}"), 201);
+		assertThat(exchange.get("inRoutine").asBoolean()).isTrue();
+		assertThat(jdbc().queryForObject("select status from offline_classes where id = ?", String.class, planned)).isEqualTo("CANCELLED");
+
+		// A pay-only class cannot replace another.
+		respond(post("/api/v1/offline-batches/" + batch + "/classes", s.master, "{\"heldOn\":\"2026-10-19\",\"startsAt\":\"10:00\","
+				+ "\"subject\":\"No\",\"instructorId\":\"" + instructor + "\",\"inRoutine\":false,\"replaceClassId\":\"" + id(exchange) + "\"}"), 400);
+	}
+
+	@Test
+	void anOtherPaymentWaitsForTheMasterAdminAndThenCountsInFinance() throws Exception {
+		// 17 Nov: a payment to an instructor for something that is not a class, with the reason typed in. A staff one waits.
+		Setup s = setup();
+		UUID instructor = instructor(s.master, "Other");
+		String url = "/api/v1/offline-instructors/" + instructor + "/other-payments";
+		BigDecimal before = expense(s.master);
+
+		respond(post(url, s.staff, "{\"amount\":\"250\",\"paidOn\":\"2026-10-19\",\"method\":\"CASH\"}"), 400);
+		JsonNode waiting = respond(post(url, s.staff, "{\"reason\":\"Travel\",\"amount\":\"250\",\"paidOn\":\"2026-10-19\",\"method\":\"CASH\"}"), 201);
+		assertThat(waiting.get("status").asText()).isEqualTo("PENDING");
+		assertThat(expense(s.master)).isEqualByComparingTo(before);
+		respond(post("/api/v1/offline-other-payments/" + id(waiting) + "/approve", s.staff, "{}"), 403);
+		respond(post("/api/v1/offline-other-payments/" + id(waiting) + "/approve", s.master, "{}"), 200);
+		assertThat(expense(s.master)).isEqualByComparingTo(before.add(new BigDecimal("250")));
+
+		JsonNode mine = respond(post(url, s.master, "{\"reason\":\"Bonus\",\"amount\":\"100\",\"paidOn\":\"2026-10-19\",\"method\":\"BKASH\"}"), 201);
+		assertThat(mine.get("status").asText()).isEqualTo("APPROVED");
+		respond(post("/api/v1/offline-other-payments/" + id(mine) + "/void", s.master, "{}"), 400);
+		respond(post("/api/v1/offline-other-payments/" + id(mine) + "/void", s.master, "{\"reason\":\"Entered twice\"}"), 200);
+		assertThat(expense(s.master)).isEqualByComparingTo(before.add(new BigDecimal("250")));
+		JsonNode listed = respondTo(get(url).header("Authorization", "Bearer " + s.master), 200);
+		assertThat(listed.size()).isEqualTo(2);
+	}
+
+	private BigDecimal expense(String token) throws Exception {
+		return respondTo(get("/api/v1/finance/summary?from=2026-10-19&to=2026-10-19").header("Authorization", "Bearer " + token), 200)
+			.get("expense").decimalValue();
 	}
 
 	private record Setup(String master, String staff) {

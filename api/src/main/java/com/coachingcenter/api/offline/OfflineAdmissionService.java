@@ -253,7 +253,9 @@ public class OfflineAdmissionService {
 		}
 		// Every number has passed the check, so it is stored in the normal +880 form.
 		admission.setMobile(PhoneNumbers.normalize(admission.getMobile()));
-		admission.setEmergencyMobile(PhoneNumbers.normalize(admission.getEmergencyMobile()));
+		// The emergency number is optional (16 Nov): a blank one is kept empty.
+		admission.setEmergencyMobile(admission.getEmergencyMobile() == null || admission.getEmergencyMobile().isBlank() ? null
+				: PhoneNumbers.normalize(admission.getEmergencyMobile()));
 		copyNameAndEmail(admission, account, studentId, accountEmail);
 		boolean resubmit = OfflineAdmission.CHANGES_REQUESTED.equals(admission.getStatus()) || admission.getSubmitCount() > 0;
 		Instant now = clock.instant();
@@ -341,9 +343,8 @@ public class OfflineAdmissionService {
 		required(problems, "gender", a.getGender());
 		required(problems, "university", a.getUniversity());
 		required(problems, "semesterBatch", a.getSemesterBatch());
-		required(problems, "nid", a.getNid());
+		// The NID and the emergency number are optional (16 Nov); when given they are checked below.
 		required(problems, "mobile", a.getMobile());
-		required(problems, "emergencyMobile", a.getEmergencyMobile());
 		required(problems, "hallMess", a.getHallMess());
 		required(problems, "presentAddress", a.getPresentAddress());
 		required(problems, "permanentAddress", a.getPermanentAddress());
@@ -359,7 +360,7 @@ public class OfflineAdmissionService {
 		if (a.getGender() != null && !GENDERS.contains(a.getGender())) {
 			problems.add(new FieldErrorDetail("gender", "Choose male or female."));
 		}
-		if (a.getNid() != null && !NID.matcher(a.getNid()).matches()) {
+		if (a.getNid() != null && !a.getNid().isBlank() && !NID.matcher(a.getNid()).matches()) {
 			problems.add(new FieldErrorDetail("nid", "The national ID number must have 10, 13 or 17 digits."));
 		}
 		phone(problems, "mobile", a.getMobile());

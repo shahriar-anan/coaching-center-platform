@@ -17,12 +17,12 @@ function renderShell(route: string, user: typeof fixtures.student | null) {
 }
 
 describe("student top bar (S1.1)", () => {
-  it("shows Home, My exams, Results and Routine to a signed-in student (Phase 4, A2: no MCQ or Written)", async () => {
-    renderShell("/", fixtures.student);
+  it("shows Dashboard, My exams, Results and Routine to a signed-in student (Phase 4, A2: no MCQ or Written)", async () => {
+    renderShell("/results", fixtures.student);
     const bar = await screen.findByRole("navigation", { name: TOP_BAR });
     const links = within(bar).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["Home", "My orders", "Results", "Routine"]);
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/", "/my-modules", "/results", "/routine"]);
+    expect(links.map((link) => link.textContent)).toEqual(["Dashboard", "My orders", "Results", "Routine"]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/dashboard", "/my-modules", "/results", "/routine"]);
     expect(within(bar).queryByRole("link", { name: "MCQ" })).not.toBeInTheDocument();
     expect(within(bar).queryByRole("link", { name: "Written" })).not.toBeInTheDocument();
   });
@@ -31,7 +31,7 @@ describe("student top bar (S1.1)", () => {
     renderShell("/results", fixtures.student);
     const bar = await screen.findByRole("navigation", { name: TOP_BAR });
     expect(within(bar).getByRole("link", { name: "Results" })).toHaveAttribute("aria-current", "page");
-    expect(within(bar).getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
+    expect(within(bar).getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
   });
 
   it("is not shown to a visitor", async () => {

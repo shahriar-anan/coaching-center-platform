@@ -79,3 +79,34 @@ Status: **built 15 Nov (Flyway V104); browser check and suites passed; not deplo
   - the filters.
 - **Web tests:** the page, the filters, the edit dialog and the waiting tab.
 - **Browser check,** then the release.
+
+## 7. Every money stream (17 Nov)
+
+The page first covered only the payments the office records by hand. It now lists every stream Finance counts.
+
+| Stream | Table | Direction | Paid for | On this page |
+|---|---|---|---|---|
+| Online purchase (payment gateway) | `live_exam_orders`, SUCCEEDED | Money in | A package or a single exam | Listed only; a refund is made on Payments |
+| Direct enrolment (paid at the office) | `live_exam_direct_payments` | Money in | A package or a single exam | Listed and corrected |
+| Offline course fee | `offline_fee_payments` | Money in | A batch | Listed and corrected |
+| Offline instructor pay | `offline_class_payments` | Money out | A class of a batch | Listed and corrected |
+| Staff and online instructor pay (online exam markers, salaries) | `staff_ledger` PAYMENT | Money out | Pay | Listed only; changed on Staff pay |
+
+The older `payments` table (course and book purchases) has no rows on live and is not listed.
+
+**Filters:**
+- **Period:** today, this month, last month, custom.
+- **Money:** all, money in, money out.
+- **Source:** the streams above, grouped by direction.
+- **Paid for:** package or single exam. Shown for online and direct payments.
+- **Batch:** shown for fees and instructor pay.
+- **Instructor:** shown for instructor pay.
+- **Method:** cash, bKash, Nagad, Rocket, bank, online.
+- **Status:** approved, waiting, rejected, voided, refunded.
+- **Search:** a name, reference, receipt, or package or exam title.
+
+**Summary line:** money in, money out and net. Approved payments count; a refunded purchase counts less what was refunded.
+
+**Who sees what:**
+- **Master Admin:** every stream.
+- **System Admin:** online purchases, course fees and instructor pay.

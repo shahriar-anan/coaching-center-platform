@@ -39,6 +39,8 @@ const home: typeof bn = {
   noUpcoming: "No exams coming up.",
   emptyTitle: "You haven't bought any exams yet",
   emptyBody: "Pick a package from MCQ or Written.",
+  studentNote: "You're on the main site.",
+  studentDashboard: "Go to my dashboard",
   staffPanel: "Admin panel",
   staffNote: "You're logged in with a staff account. You can browse only.",
 };
