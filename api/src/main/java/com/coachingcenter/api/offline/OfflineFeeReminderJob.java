@@ -50,7 +50,7 @@ public class OfflineFeeReminderJob {
 
 	/** The admissions that can owe a reminder. Each is read again inside its own transaction. */
 	private static final String ADMISSIONS = """
-			select id from offline_admissions where status in ('ONBOARDED', 'CLOSED') order by created_at, id
+			select id from offline_admissions where status in ('ONBOARDED', 'CLOSED') and deleted_at is null order by created_at, id
 			""";
 
 	static final int BEFORE_DAYS = 3;

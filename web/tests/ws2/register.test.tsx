@@ -117,4 +117,16 @@ describe("register", () => {
     await userEvent.click(await screen.findByRole("button", { name: "পরে করব" }));
     expect(routerState.replace).toHaveBeenCalledWith("/exam/e1");
   });
+
+  it("from a batch's Apply, signs the student in and goes straight to the form with no code step (16 Nov)", async () => {
+    mockApi({ "POST /api/v1/auth/register": { id: "u1" } });
+    const login = vi.fn(async () => fixtures.student);
+    renderWithProviders(<RegisterPage />, { session: { login }, route: "/register?next=%2Fadmission%2Fapply%2Fb-2" });
+    await fillForm();
+    await userEvent.click(screen.getByRole("button", { name: "অ্যাকাউন্ট খুলুন" }));
+
+    await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/admission/apply/b-2"));
+    expect(login).toHaveBeenCalledWith("01711000001", "password1", { redirect: false });
+    expect(screen.queryByText("ইমেইল যাচাই করুন")).toBeNull();
+  });
 });

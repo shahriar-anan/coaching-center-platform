@@ -69,6 +69,8 @@ export type AdmissionQueueRow = {
   activated: boolean;
   /** Waiting for the form only: when the activation code stops working, or null when there is none. */
   codeExpiresAt: string | null;
+  /** The student's account was deleted after they applied (16 Nov). Staff close or delete the admission. */
+  accountDeleted?: boolean;
 };
 
 export type AdmissionFlag = "NO_PAYMENT" | "OVERDUE" | "PENDING_APPROVAL";
@@ -188,6 +190,13 @@ export type AdmissionDetail = {
   phoneOwnerName: string | null;
   /** True while a join code waits for the student to join. Onboarding is not offered again then. */
   joinPending: boolean;
+  /** The student's account was deleted after they applied (16 Nov). Staff close or delete the admission. */
+  accountDeleted?: boolean;
+  /** Set when the admission was deleted from its batch but its payments or results keep it (V105). */
+  deletedAt?: string | null;
+  deletedReason?: string | null;
+  /** The roll it gave up when it was deleted. */
+  releasedRoll?: string | null;
   /** True when a new code can be sent (a join code, or a new activation code for an account not yet activated). */
   canResendCode: boolean;
   /** The code that was sent (join or activation), while it can still be used, so staff can read it out (V101). */
@@ -676,6 +685,18 @@ export function useSaveTerms(id: string) {
 export function useCloseAdmission(id: string) {
   return useOfflineCall<string | null>((reason) => ({
     path: `/api/v1/offline-admissions/${id}/close`,
+    method: "POST",
+    body: { reason },
+  }));
+}
+
+/**
+ * Deletes the admission from its batch so its roll is free (16 Nov, issue 2; the Master Admin). An admission with no payments and no
+ * results is removed; one with them stays as a stub that no list shows. The page goes back to the list afterwards.
+ */
+export function useDeleteFromBatch(id: string) {
+  return useOfflineCall<string, void>((reason) => ({
+    path: `/api/v1/offline-admissions/${id}/delete-from-batch`,
     method: "POST",
     body: { reason },
   }));

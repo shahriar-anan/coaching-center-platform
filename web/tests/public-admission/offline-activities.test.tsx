@@ -12,7 +12,6 @@ const OPEN_B1: PublicBatch = {
   startsOn: null,
   endsOn: "2027-05-31",
   courseFee: 3000,
-  installments: 6,
   descriptionEn: null,
   descriptionBn: null,
   photoUrl: null,
@@ -20,7 +19,7 @@ const OPEN_B1: PublicBatch = {
   routineAvailable: false,
 };
 
-const OPEN_B2: PublicBatch = { ...OPEN_B1, id: "b-2", nameEn: "Batch 4", nameBn: "ব্যাচ ৪", courseFee: 2500, installments: 6 };
+const OPEN_B2: PublicBatch = { ...OPEN_B1, id: "b-2", nameEn: "Batch 4", nameBn: "ব্যাচ ৪", courseFee: 2500 };
 const OPEN_B3: PublicBatch = { ...OPEN_B1, id: "b-3", nameEn: "Batch 5", nameBn: "ব্যাচ ৫" };
 
 /** The batches an applicant can still apply for, once the student has the admissions the test gives. */

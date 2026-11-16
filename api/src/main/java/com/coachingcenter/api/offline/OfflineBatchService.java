@@ -271,7 +271,7 @@ public class OfflineBatchService {
 		find(id);
 		return jdbc.query("""
 				select a.id, a.student_id, a.full_name, a.mobile, a.status, a.created_at, a.roll_no
-				from offline_admissions a where a.batch_id = ?
+				from offline_admissions a where a.batch_id = ? and a.deleted_at is null
 				order by a.created_at desc, a.id
 				""", (rs, row) -> new BatchStudent(rs.getObject("id", UUID.class), rs.getObject("student_id", UUID.class),
 				rs.getString("full_name"), rs.getString("mobile"), rs.getString("status"), rs.getString("roll_no")), id);
@@ -474,7 +474,7 @@ public class OfflineBatchService {
 		String photo = batch.getPhotoStoredName() == null || batch.getPhotoUploadedAt() == null ? null
 				: "/api/v1/public/offline-batches/" + batch.getId() + "/photo?v=" + batch.getPhotoUploadedAt().toEpochMilli();
 		return new PublicBatchView(batch.getId(), batch.getNameEn(), batch.getNameBn(), batch.getDescriptionEn(),
-				batch.getDescriptionBn(), batch.getStartsOn(), batch.getEndsOn(), batch.getCourseFee(), batch.getDefaultInstallments(),
+				batch.getDescriptionBn(), batch.getStartsOn(), batch.getEndsOn(), batch.getCourseFee(),
 				batch.isAdmissionsOpen(), photo, routine);
 	}
 
@@ -749,10 +749,11 @@ public class OfflineBatchService {
 
 	/**
 	 * One batch on the public cards and the batch page. The photo and the routine are links the page follows, so the view carries
-	 * only whether a routine is there. No counts, no staff fields.
+	 * only whether a routine is there. No counts, no staff fields, and not the number of instalments: students see the course fee
+	 * only (16 Nov).
 	 */
 	public record PublicBatchView(UUID id, String nameEn, String nameBn, String descriptionEn, String descriptionBn,
-			LocalDate startsOn, LocalDate endsOn, BigDecimal courseFee, int installments, boolean admissionsOpen, String photoUrl,
+			LocalDate startsOn, LocalDate endsOn, BigDecimal courseFee, boolean admissionsOpen, String photoUrl,
 			boolean routineAvailable) {
 	}
 

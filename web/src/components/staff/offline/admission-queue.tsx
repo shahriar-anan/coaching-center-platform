@@ -128,6 +128,7 @@ export function AdmissionQueue() {
               <Link href={`/staff/admissions/${row.id}`} className="font-medium text-text underline-offset-4 hover:underline">
                 {name}
               </Link>
+              {row.accountDeleted ? <p className="text-meta text-danger">{t("staffOffline.queue.accountDeleted")}</p> : null}
             </div>
           </div>
         );

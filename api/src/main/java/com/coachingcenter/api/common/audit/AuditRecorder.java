@@ -86,6 +86,9 @@ public class AuditRecorder {
 
 	public static final String OFFLINE_ADMISSION_CLOSED = "OFFLINE_ADMISSION_CLOSED";
 
+	/** The Master Admin deleted an admission from its batch, freeing its roll (four-fixes-16-nov-plan.md, issue 2). */
+	public static final String OFFLINE_ADMISSION_DELETED = "OFFLINE_ADMISSION_DELETED";
+
 	public static final String OFFLINE_ADMISSION_SIGNED_UPLOADED = "OFFLINE_ADMISSION_SIGNED_UPLOADED";
 
 	/** A public applicant (no account) started an application, or a signed-in student applied for a batch (V94). */

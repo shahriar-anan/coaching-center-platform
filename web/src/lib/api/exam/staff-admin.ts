@@ -409,6 +409,7 @@ const ERROR_KEYS: Record<string, string> = {
   ORDER_NOT_REFUNDABLE: "errors.orderNotRefundable",
   ACCOUNT_HAS_PAID_ORDERS: "errors.accountHasPaidOrders",
   ACCOUNT_HAS_MARKED_WORK: "errors.accountHasMarkedWork",
+  ACCOUNT_HAS_OPEN_ADMISSION: "errors.accountHasOpenAdmission",
   MASTER_ADMIN_PROTECTED: "errors.masterAdminProtected",
   RESOURCE_NOT_FOUND: "errors.notFound",
   ACCESS_DENIED: "errors.accessDenied",

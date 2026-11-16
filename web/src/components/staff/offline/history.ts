@@ -16,6 +16,7 @@ const LABEL_KEY: Record<string, string> = {
   OFFLINE_ADMISSION_ONBOARDED: "staffOffline.history.kinds.onboarded",
   OFFLINE_ADMISSION_TERMS_CHANGED: "staffOffline.history.kinds.termsChanged",
   OFFLINE_ADMISSION_CLOSED: "staffOffline.history.kinds.closed",
+  OFFLINE_ADMISSION_DELETED: "staffOffline.history.kinds.deleted",
   OFFLINE_ADMISSION_SIGNED_UPLOADED: "staffOffline.history.kinds.signed",
   OFFLINE_FEE_PAYMENT_RECORDED: "staffOffline.history.kinds.payment",
   OFFLINE_FEE_PAYMENT_APPROVED: "staffOffline.history.kinds.paymentApproved",

@@ -58,7 +58,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import({ CapturingEmailConfig.class, OfflineApplicationIT.ClockConfig.class })
-@TestPropertySource(properties = "app.offline-admission.enabled=true")
+@TestPropertySource(properties = { "app.offline-admission.enabled=true", "app.offline-admission.visitor-applications=true" })
 class OfflineApplicationIT extends PostgresIntegrationTest {
 
 	private static final Instant NOW = Instant.parse("2026-11-13T04:00:00Z");

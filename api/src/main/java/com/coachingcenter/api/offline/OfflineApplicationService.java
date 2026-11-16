@@ -81,6 +81,13 @@ public class OfflineApplicationService {
 		this.clock = clock;
 	}
 
+	/**
+	 * Whether a visitor with no account may start a new application (16 Nov, issue 3). Off by default: a visitor signs up or logs in
+	 * first. Applications already started keep working (D5), and a repeat start still emails the link to finish one.
+	 */
+	@org.springframework.beans.factory.annotation.Value("${app.offline-admission.visitor-applications:false}")
+	private boolean visitorApplications;
+
 	// ---- the applicant with no account ----------------------------------------------------------------------------------------
 
 	/**
@@ -119,6 +126,10 @@ public class OfflineApplicationService {
 				sendResumeLink(existing, now);
 			}
 			return Started.exists();
+		}
+		if (!visitorApplications) {
+			throw new ApiException(ErrorCode.ACCOUNT_REQUIRED, HttpStatus.FORBIDDEN,
+					"Create an account or log in to apply for a batch.");
 		}
 		OfflineAdmission admission = new OfflineAdmission();
 		admission.setId(UUID.randomUUID());
@@ -311,7 +322,7 @@ public class OfflineApplicationService {
 	@Transactional(readOnly = true)
 	public List<AdmissionView> mine(UUID studentId) {
 		List<AdmissionView> views = new ArrayList<>();
-		for (OfflineAdmission admission : admissions.findByStudentIdOrderByCreatedAtDesc(studentId)) {
+		for (OfflineAdmission admission : admissions.findByStudentIdAndDeletedAtIsNullOrderByCreatedAtDesc(studentId)) {
 			// The full admission view, so each section of the student's page has its form, its batch and its dates.
 			views.add(form.view(admission));
 		}
@@ -321,7 +332,8 @@ public class OfflineApplicationService {
 	/** One of the student's own admissions as the list shows it. Another student's, or an unknown id, is 404. */
 	@Transactional(readOnly = true)
 	public AdmissionSummary summaryFor(UUID studentId, UUID admissionId) {
-		return summary(admissions.findById(admissionId).filter(found -> studentId.equals(found.getStudentId()))
+		return summary(admissions.findById(admissionId)
+			.filter(found -> studentId.equals(found.getStudentId()) && found.getDeletedAt() == null)
 			.orElseThrow(OfflineApplicationService::notFound));
 	}
 

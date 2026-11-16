@@ -6,7 +6,7 @@ import { getAccessToken, setAccessToken } from "@/lib/auth/token-store";
  * A fake API with the real refresh rules: the cookie rotates on every refresh,
  * and presenting a used one ends the session (AuthService.refresh).
  */
-function fakeApi({ refreshWorks = true, slowPaths = {} as Record<string, number> } = {}) {
+function fakeApi({ refreshWorks = true, slowPaths = {} as Record<string, number>, refusedPaths = [] as string[] } = {}) {
   let cookie = "rt0";
   let liveRefresh: string | null = "rt0";
   let validAccess: string | null = null;
@@ -37,7 +37,7 @@ function fakeApi({ refreshWorks = true, slowPaths = {} as Record<string, number>
     // The token is checked when the request arrives; the answer may come back later.
     const ok = new Headers(init.headers).get("Authorization") === `Bearer ${validAccess}`;
     await new Promise((r) => setTimeout(r, slowPaths[path] ?? 5));
-    if (!ok) {
+    if (!ok || refusedPaths.includes(path)) {
       return unauthenticated();
     }
     return path.startsWith("/api/v1/files/") ? new Response("file", { status: 200 }) : json(200, { path });
@@ -99,6 +99,27 @@ describe("access token refresh", () => {
     expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(calls.refresh).toBe(1);
     expect(lost).toBe(0);
+  });
+
+  it("a photo the route keeps refusing after a good refresh does not end the session (16 Nov)", async () => {
+    const calls = fakeApi({ refusedPaths: ["/api/v1/offline-admissions/a1/photo"] });
+
+    const results = await Promise.allSettled([apiBlob("/api/v1/offline-admissions/a1/photo"), apiRequest("/api/v1/me")]);
+
+    expect(results.map((r) => r.status)).toEqual(["rejected", "fulfilled"]);
+    expect(calls.refresh).toBe(1);
+    expect(lost).toBe(0);
+    expect(getAccessToken()).toBe("at1");
+  });
+
+  it("a file whose refresh is refused still ends the session", async () => {
+    fakeApi({ refreshWorks: false });
+
+    const results = await Promise.allSettled([apiBlob("/api/v1/files/f1")]);
+
+    expect(results.map((r) => r.status)).toEqual(["rejected"]);
+    expect(lost).toBeGreaterThan(0);
+    expect(getAccessToken()).toBeNull();
   });
 
   it("a refused refresh ends the session once for every waiting request", async () => {

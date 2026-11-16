@@ -145,6 +145,14 @@ public class StudentPhotoService {
 	@Transactional(readOnly = true)
 	public PhotoFile open(UUID userId) {
 		requireStudent(userId);
+		return openStored(userId);
+	}
+
+	/**
+	 * The stored picture for staff (an admission's photo). The account is not checked: an admission can outlive a deleted account,
+	 * and staff still need its photo. A missing picture or file is 404, never 401, since the caller is signed in (16 Nov fix).
+	 */
+	public PhotoFile openStored(UUID userId) {
 		StudentPhoto photo = photos.findById(userId).orElseThrow(StudentPhotoService::notFound);
 		Path path = fileStorage.resolve(photo.getStoredName());
 		if (!Files.exists(path)) {

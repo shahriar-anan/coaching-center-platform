@@ -14,7 +14,6 @@ const BATCH: PublicBatch = {
   startsOn: null,
   endsOn: "2027-05-31",
   courseFee: 2500,
-  installments: 6,
   descriptionEn: null,
   descriptionBn: null,
   photoUrl: null,
@@ -51,9 +50,24 @@ describe("the apply form takes its batch from the card (plan P1)", () => {
   });
 });
 
-describe("the form has no email step (plan P10)", () => {
-  it("shows the email as a form field and goes straight to the submit confirmation", async () => {
+describe("a visitor needs an account first (16 Nov)", () => {
+  it("shows Create an account and Log in, both coming back to this batch's form, and no form", async () => {
+    mockApi(batchRoutes());
+    renderWithProviders(<ApplyPage batchId="b-2" />, { locale: "en", route: "/admission/apply/b-2" });
+
+    expect(await screen.findByRole("heading", { name: "Create an account to apply" })).toBeInTheDocument();
+    const next = encodeURIComponent("/admission/apply/b-2");
+    expect(screen.getByRole("link", { name: "Create an account" })).toHaveAttribute("href", `/register?next=${next}`);
+    expect(screen.getByRole("link", { name: "Log in" })).toHaveAttribute("href", `/login?next=${next}`);
+    expect(screen.queryByRole("textbox", { name: /Email/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
+  });
+});
+
+describe("an application this browser started without an account finishes as it began (D5)", () => {
+  it("still shows the form with the email field and goes straight to the submit confirmation", async () => {
     const user = userEvent.setup();
+    window.sessionStorage.setItem("exam-portal.public-admission.b-2", "tok-1");
     const api = mockApi(batchRoutes());
     renderWithProviders(<ApplyPage batchId="b-2" />, { locale: "en", route: "/admission/apply/b-2" });
 
@@ -62,12 +76,14 @@ describe("the form has no email step (plan P10)", () => {
     await user.click(screen.getByRole("button", { name: "Submit" }));
     expect(await screen.findByRole("dialog", { name: "Submit this form?" })).toBeInTheDocument();
     expect(api.calls.some((call) => call.method === "POST")).toBe(false);
+    window.sessionStorage.clear();
   });
 });
 
 describe("the confirmation after the form is sent", () => {
-  it("tells a visitor which email will hear back, after the application is started from the email", async () => {
+  it("tells a visitor finishing an application started without an account which email will hear back", async () => {
     const user = userEvent.setup();
+    window.sessionStorage.setItem("exam-portal.public-admission.b-2", "tok-1");
     const api = mockApi({
       ...batchRoutes(),
       "POST /api/v1/public/offline-applications": { token: "tok-1", admission: admissionView("AWAITING_FORM") },
@@ -82,11 +98,8 @@ describe("the confirmation after the form is sent", () => {
     await user.click(within(dialog).getByRole("button", { name: "Submit" }));
 
     expect(await screen.findByText("Your application for Batch 4 was sent. We will email rahim@example.com when it is reviewed.")).toBeInTheDocument();
-    expect(api.calls.find((call) => call.path === "/api/v1/public/offline-applications")?.body).toEqual({
-      batchId: "b-2",
-      email: "rahim@example.com",
-    });
     expect(api.calls.some((call) => call.path === "/api/v1/public/offline-applications/tok-1/submit")).toBe(true);
+    window.sessionStorage.clear();
   });
 
   it("gives a signed-in student the same confirmation, with the email on the account", async () => {

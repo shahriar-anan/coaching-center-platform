@@ -175,6 +175,15 @@ public class OfflineAdmissionAdminController {
 				? null : body.get("reason").asText());
 	}
 
+	/** Deletes the admission from its batch so its roll is free (four-fixes-16-nov-plan.md, issue 2). The Master Admin only. */
+	@PostMapping("/api/v1/offline-admissions/{id}/delete-from-batch")
+	public ResponseEntity<Void> deleteFromBatch(@PathVariable UUID id, @RequestBody(required = false) JsonNode body) {
+		require(permissions, Permissions.OFFLINE_ADMISSION_ONBOARD);
+		onboarding.deleteFromBatch(actorId(), id, body == null || body.get("reason") == null || body.get("reason").isNull()
+				? null : body.get("reason").asText());
+		return ResponseEntity.noContent().build();
+	}
+
 	@PutMapping(value = "/api/v1/offline-admissions/{id}/signed-form", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public AdmissionDetail uploadSigned(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
 		require(permissions, Permissions.OFFLINE_ADMISSION_REVIEW);

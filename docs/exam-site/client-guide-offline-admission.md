@@ -62,10 +62,12 @@ is refused, and the message names the batch.
 
 ### 3.2 A student who applies online
 
-1. On the public **Admission** page the student sees the open batches as cards and presses **Apply** on one.
-2. They fill in the same form, with their email, and submit it. They do not need an account yet.
-3. If they apply again with the same email for the same batch, they are told they already applied. If their form was not sent
-   yet, they get an email link to finish it.
+1. On the public **Admission** page the student sees the open batches as cards and presses **Apply** on one. The cards and the
+   batch page show the **course fee only**, never the number of instalments.
+2. **An account comes first.** A student who is not signed in sees **Create an account** and **Log in**. After either, they come
+   straight back to that batch's form, signed in. (The email code can be checked later from their account page.)
+3. They fill in the form and submit it, as in 3.3.
+4. Applications started before 16 November without an account still finish as they began, with their email link.
 
 ### 3.3 A student who already has an account
 
@@ -105,7 +107,19 @@ What happens next depends on how the student came in:
 - **The code has expired:** use **Send a new code**. The old code stops working.
 
 **Closing an admission** (Master Admin): **Close admission**, with a reason (required). Before onboarding, the application simply
-ends. After onboarding, access stops and future unpaid fees are cancelled; fees already past stay owed.
+ends. After onboarding, access stops and future unpaid fees are cancelled; fees already past stay owed. A closed admission keeps
+its roll.
+
+**Deleting a student from a batch** (Master Admin): at the bottom of the admission page, **Delete from batch**, with a reason.
+
+- The **roll becomes free** at once, and it is the first roll suggested for the next student.
+- Access to the batch's exams and packages stops, and every unpaid fee is cancelled.
+- The admission leaves every list (Admissions, the batch's students, results, reminders).
+- **Payments and published results stay**, so Finance does not change.
+- The student's account is not touched. They are told in the app that the admission is closed.
+
+**A student account with an open admission cannot be deleted.** Close the admission or delete it from the batch first. If an
+account was deleted before this rule, its admission shows **Account deleted**; close it or delete it from the batch.
 
 ---
 

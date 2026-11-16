@@ -123,8 +123,11 @@ export function ApplyPage({ batchId }: { batchId: string }) {
     body = <p className="rounded-control bg-bg px-3 py-2 text-body text-text">{t("publicAdmission.apply.staffNote")}</p>;
   } else if (session.status === "authenticated") {
     body = <AccountApply batchId={batchId} onSent={setSent} />;
-  } else {
+  } else if (readApplicationToken(batchId)) {
+    // An application this browser started without an account before 16 Nov finishes as it began (D5).
     body = <VisitorApply batchId={batchId} onSent={setSent} />;
+  } else {
+    body = <AccountFirst batchId={batchId} />;
   }
 
   return (
@@ -133,6 +136,29 @@ export function ApplyPage({ batchId }: { batchId: string }) {
       <BatchStrip batch={b} />
       {body}
     </div>
+  );
+}
+
+/**
+ * A visitor who is not signed in (16 Nov, issue 3): an account comes first. Both buttons come back to this batch's form, signed in;
+ * a new account goes straight to the form.
+ */
+function AccountFirst({ batchId }: { batchId: string }) {
+  const { t } = useLocale();
+  const next = encodeURIComponent(`/admission/apply/${batchId}`);
+  return (
+    <section aria-labelledby="account-first" className="grid gap-3 rounded-card border border-border bg-card p-5">
+      <h2 id="account-first" className="text-card-title font-bold text-text">
+        {t("publicAdmission.apply.accountFirstTitle")}
+      </h2>
+      <p className="text-body leading-relaxed text-text">{t("publicAdmission.apply.accountFirstBody")}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button href={`/register?next=${next}`}>{t("publicAdmission.apply.createAccount")}</Button>
+        <Button variant="secondary" href={`/login?next=${next}`}>
+          {t("publicAdmission.apply.logIn")}
+        </Button>
+      </div>
+    </section>
   );
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
@@ -14,6 +15,7 @@ import { ApiError } from "@/lib/api/errors";
 import { useFormat } from "@/lib/format/use-format";
 import {
   useCloseAdmission,
+  useDeleteFromBatch,
   useNextRoll,
   useOnboard,
   useSaveTerms,
@@ -322,6 +324,54 @@ export function TermsDialog({ admission, open, onOpenChange }: { admission: Admi
         </div>
       )}
     </Dialog>
+  );
+}
+
+/**
+ * Delete the admission from its batch (16 Nov, issue 2): the Master Admin only. The roll is freed, access ends and unpaid dues are
+ * cancelled. Payments and results stay where Finance and the results need them. The page goes back to the list afterwards.
+ */
+export function DeleteFromBatchDialog({
+  admission,
+  open,
+  onOpenChange,
+}: {
+  admission: AdmissionDetail;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useLocale();
+  const { toast } = useToast();
+  const router = useRouter();
+  const remove = useDeleteFromBatch(admission.id);
+  const [reason, setReason] = useState("");
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("staffOffline.deleteFromBatch.title", { name: studentName(admission) })}
+      body={
+        admission.rollNo
+          ? t("staffOffline.deleteFromBatch.bodyRoll", { roll: admission.rollNo })
+          : t("staffOffline.deleteFromBatch.body")
+      }
+      confirmLabel={t("staffOffline.deleteFromBatch.confirm")}
+      tone="danger"
+      confirmDisabled={reason.trim().length === 0}
+      onConfirm={async () => {
+        try {
+          await remove.mutateAsync(reason.trim());
+        } catch (error) {
+          throw new Error(offlineErrorText(error, t));
+        }
+        toast({ title: t("staffOffline.deleteFromBatch.done"), tone: "ok" });
+        router.push("/staff/admissions");
+      }}
+    >
+      <Field label={t("staffOffline.close.reasonLabel")} hint={t("staffOffline.deleteFromBatch.reasonHint")} required>
+        <Textarea rows={2} value={reason} onChange={(event) => setReason(event.target.value)} />
+      </Field>
+    </ConfirmDialog>
   );
 }
 

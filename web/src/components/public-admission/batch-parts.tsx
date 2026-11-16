@@ -21,9 +21,8 @@ export function batchDatesLine(batch: PublicBatch, locale: Locale, t: (key: stri
 }
 
 /**
- * The course fee as students see it: the total and the monthly instalments it is paid in (course-fee-plan.md). "Course fee: ৳9,000, in 7
- * monthly instalments", or "৳9,000, in 7 monthly instalments" under a label that already says "Course fee" ({@code labelled} false). A
- * fee paid at once has no instalment part.
+ * The course fee as students see it: the total only, never how many instalments (16 Nov). "Course fee: ৳9,000", or "৳9,000" under a
+ * label that already says "Course fee" ({@code labelled} false).
  */
 export function batchFeeLine(
   batch: PublicBatch,
@@ -34,9 +33,7 @@ export function batchFeeLine(
   // Whole taka with a separator, as the card shows it; a fee with paisa is written out in full.
   const value = Number(batch.courseFee);
   const amount = `৳${formatNumber(value, locale, { decimals: Number.isInteger(value) ? 0 : 2 })}`;
-  const once = !(batch.installments > 1);
-  const key = labelled ? (once ? "publicAdmission.card.feeOnce" : "publicAdmission.card.fee") : once ? "publicAdmission.card.feeShortOnce" : "publicAdmission.card.feeShort";
-  return t(key, { amount, count: formatNumber(batch.installments, locale) });
+  return t(labelled ? "publicAdmission.card.fee" : "publicAdmission.card.feeShort", { amount });
 }
 
 /**

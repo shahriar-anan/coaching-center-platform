@@ -98,7 +98,7 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 		JsonNode closed = card(cards, first);
 		assertThat(closed.get("admissionsOpen").asBoolean()).isFalse();
 		assertThat(closed.get("courseFee").decimalValue().compareTo(new java.math.BigDecimal("3000"))).isZero();
-		assertThat(closed.get("installments").asInt()).isBetween(1, 24);
+		assertThat(closed.has("installments")).as("students never see the number of instalments").isFalse();
 		assertThat(closed.get("descriptionEn").asText()).isEqualTo("Evening classes, in person.");
 		assertThat(closed.hasNonNull("photoUrl")).isFalse();
 		assertThat(closed.get("routineAvailable").asBoolean()).isFalse();
@@ -236,6 +236,19 @@ class OfflineBatchCatalogueIT extends PostgresIntegrationTest {
 	}
 
 	// ---- helpers ------------------------------------------------------------------------------------------------------------
+
+	@Test
+	void aVisitorWithNoAccountCannotStartANewApplication() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID open = batch(master, "Visitor " + unique(), 1, true);
+
+		// 16 Nov, issue 3: a visitor signs up or logs in first. The API refuses a new start without an account.
+		var refused = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/public/offline-applications").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"batchId\":\"" + open + "\",\"email\":\"visitor" + unique() + "@example.com\"}"));
+		refused.andExpect(status().isForbidden());
+		assertThat(json.readTree(refused.andReturn().getResponse().getContentAsString()).get("code").asText()).isEqualTo("ACCOUNT_REQUIRED");
+		assertThat(jdbc().queryForObject("select count(*) from offline_admissions where batch_id = ?", Integer.class, open)).isZero();
+	}
 
 	private JdbcTemplate jdbc() {
 		return new JdbcTemplate(dataSource);

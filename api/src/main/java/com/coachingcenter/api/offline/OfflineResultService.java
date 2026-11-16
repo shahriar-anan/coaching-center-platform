@@ -410,7 +410,7 @@ public class OfflineResultService {
 		return jdbc.query("""
 				select a.id, a.roll_no, coalesce(sp.full_name, a.full_name) as name from offline_admissions a
 				left join student_profiles sp on sp.user_id = a.student_id
-				where a.batch_id = ? and a.onboarded_at is not null
+				where a.batch_id = ? and a.onboarded_at is not null and a.deleted_at is null
 				  and (a.onboarded_at at time zone 'Asia/Dhaka')::date <= ?
 				  and (a.closed_at is null or (a.closed_at at time zone 'Asia/Dhaka')::date >= ?)
 				order by a.roll_no

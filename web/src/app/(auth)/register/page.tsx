@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocale } from "@/i18n/locale-context";
 import { api } from "@/lib/api/client";
@@ -145,6 +145,10 @@ function RegisterForm() {
     );
   }
   if (created) {
+    // From a batch's Apply (16 Nov): straight to the form, signed in. The email can be verified later from the account page.
+    if (isApplyPath(next)) {
+      return <GoStraightOn user={created} next={next} />;
+    }
     return <VerifyEmailStep user={created} email={values.email.trim()} next={next} />;
   }
 
@@ -245,6 +249,21 @@ function RegisterForm() {
       </Card>
     </>
   );
+}
+
+/** True for a batch's admission form (`/admission/apply/{batchId}`), where sign-up came from Apply. */
+function isApplyPath(next: string | null): next is string {
+  return Boolean(next && /^\/admission\/apply\/[^/?#]+/.test(next));
+}
+
+/** Sends the new, signed-in student on to `next` at once. */
+function GoStraightOn({ user, next }: { user: Me; next: string }) {
+  const router = useRouter();
+  const destination = destinationFor(user, next);
+  useEffect(() => {
+    router.replace(destination);
+  }, [router, destination]);
+  return <Skeleton variant="card" count={2} />;
 }
 
 /**

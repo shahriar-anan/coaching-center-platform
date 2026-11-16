@@ -195,10 +195,17 @@ export async function apiFile(
 ): Promise<{ blob: Blob; fileName: string | null }> {
   const sentToken = getAccessToken();
   let response = await rawFetch(path, { signal: options.signal });
-  if (response.status === 401 && (await recoverFrom401(sentToken))) {
-    response = await rawFetch(path, { signal: options.signal });
-  }
+  // A file (a photo, a PDF) signs the user out only when the sign-in itself is gone. When the refresh works and the file is still
+  // refused, the session is fine and the route is wrong, so the caller just shows its fallback (16 Nov: a photo signed admins out).
+  let sessionLost = false;
   if (response.status === 401) {
+    if (await recoverFrom401(sentToken)) {
+      response = await rawFetch(path, { signal: options.signal });
+    } else {
+      sessionLost = true;
+    }
+  }
+  if (sessionLost) {
     setAccessToken(null);
     sessionLostHandler?.();
   }

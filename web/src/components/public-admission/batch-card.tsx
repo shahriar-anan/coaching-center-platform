@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLocale } from "@/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import type { PublicBatch } from "@/lib/api/exam/public-admission";
+import { useSession } from "@/lib/auth/session-context";
 import { BatchCover, batchDatesLine, batchFeeLine, batchName } from "./batch-parts";
 
 /**
@@ -13,6 +14,7 @@ import { BatchCover, batchDatesLine, batchFeeLine, batchName } from "./batch-par
 export function BatchCard({ batch }: { batch: PublicBatch }) {
   const { t, locale } = useLocale();
   const name = batchName(batch, locale);
+  const { session } = useSession();
   return (
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-card border border-border bg-card transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent">
       <Link href={`/admission/batches/${batch.id}`} className="flex min-w-0 flex-1 flex-col">
@@ -29,11 +31,14 @@ export function BatchCard({ batch }: { batch: PublicBatch }) {
           <p className="mt-auto pt-1 text-body font-semibold tabular-nums text-text">{batchFeeLine(batch, locale, t)}</p>
         </div>
       </Link>
-      <div className="flex min-h-14 items-center justify-end border-t border-border px-4 py-3">
+      <div className="flex min-h-14 items-center justify-end gap-3 border-t border-border px-4 py-3">
         {batch.admissionsOpen ? (
-          <Button href={`/admission/apply/${batch.id}`} size="sm">
-            {t("publicAdmission.card.apply")}
-          </Button>
+          <>
+            {session.status === "anonymous" ? <span className="text-meta text-muted">{t("publicAdmission.apply.needAccount")}</span> : null}
+            <Button href={`/admission/apply/${batch.id}`} size="sm">
+              {t("publicAdmission.card.apply")}
+            </Button>
+          </>
         ) : (
           <span className="text-meta font-semibold text-muted">{t("publicAdmission.card.closed")}</span>
         )}

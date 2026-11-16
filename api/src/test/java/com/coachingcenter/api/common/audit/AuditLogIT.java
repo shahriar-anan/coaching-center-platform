@@ -35,7 +35,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(CapturingEmailConfig.class)
-@TestPropertySource(properties = "app.offline-admission.enabled=true")
+@TestPropertySource(properties = { "app.offline-admission.enabled=true", "app.offline-admission.visitor-applications=true" })
 class AuditLogIT extends PostgresIntegrationTest {
 
 	private static final Set<String> API_OPERATIONS = Set.of(
@@ -366,6 +366,7 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/offline-batches",
 			"GET /api/v1/offline-admissions",
 			"POST /api/v1/offline-admissions/{id}/close",
+			"POST /api/v1/offline-admissions/{id}/delete-from-batch",
 			"GET /api/v1/offline-batches",
 			"PATCH /api/v1/offline-batches/{id}",
 			"POST /api/v1/offline-admissions/{id}/back-to-review",

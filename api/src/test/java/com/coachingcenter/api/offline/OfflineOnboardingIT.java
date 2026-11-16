@@ -3,6 +3,7 @@ package com.coachingcenter.api.offline;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.awt.image.BufferedImage;
@@ -56,7 +57,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import({ CapturingEmailConfig.class, OfflineOnboardingIT.ClockConfig.class })
-@TestPropertySource(properties = "app.offline-admission.enabled=true")
+@TestPropertySource(properties = { "app.offline-admission.enabled=true", "app.offline-admission.visitor-applications=true" })
 class OfflineOnboardingIT extends PostgresIntegrationTest {
 
 	private static final Instant NOW = Instant.parse("2026-11-13T04:00:00Z");
@@ -459,6 +460,105 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, "{\"rollNo\":\"700002\"}"), 200);
 		respond(patch("/api/v1/offline-admissions/" + admission + "/roll", master, "{\"rollNo\":\"700003\"}"), 200);
 		assertThat(detail(admission, master).get("rollNo").asText()).isEqualTo("700003");
+	}
+
+	// ---- 16 Nov fixes (four-fixes-16-nov-plan.md) ----------------------------------------------------------------------------------
+
+	@Test
+	void anAdmissionWhoseAccountWasDeletedNeverAnswers401AndTheAccountWithAnOpenAdmissionCannotBeDeleted() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Deleted account " + unique());
+		String email = uniqueEmail();
+		UUID student = seedStudent("Gone Student", email, validMobile());
+		UUID admission = studentApplies(token(student), batch, email);
+
+		// D1: an account with an admission that is not closed cannot be deleted.
+		mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/students/" + student).header("Authorization", "Bearer " + master))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("ACCOUNT_HAS_OPEN_ADMISSION"));
+
+		// An account deleted before the rule (as on live): the photo still loads for staff, and the pages say the account is gone.
+		jdbc().update("update users set deleted_at = now() where id = ?", student);
+		mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/offline-admissions/" + admission + "/photo").header("Authorization", "Bearer " + master))
+			.andExpect(status().isOk());
+		assertThat(detail(admission, master).get("accountDeleted").asBoolean()).isTrue();
+		JsonNode queue = respond(MockMvcRequestBuilders.get("/api/v1/offline-admissions?size=100").header("Authorization", "Bearer " + master), 200);
+		JsonNode row = null;
+		for (JsonNode candidate : queue.get("content")) {
+			if (candidate.get("id").asText().equals(admission.toString())) {
+				row = candidate;
+			}
+		}
+		assertThat(row).isNotNull();
+		assertThat(row.get("accountDeleted").asBoolean()).isTrue();
+
+		// With the photo file gone too, it is 404, never 401 (a 401 signed the Master Admin out).
+		jdbc().update("update student_photos set stored_name = 'missing-file.png' where user_id = ?", student);
+		mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/offline-admissions/" + admission + "/photo").header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void deletingFromTheBatchFreesTheRollAndRemovesAnAdmissionWithNoPayments() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		String staff = token(seed("SYSTEM_ADMIN", "Staff"));
+		String start = String.valueOf(ThreadLocalRandom.current().nextLong(10_000_000L, 99_000_000L));
+		UUID batch = batch(master, "Delete " + unique());
+		respond(post("/api/v1/offline-batches/" + batch + "/unpublish", master, null), 200);
+		respond(patch("/api/v1/offline-batches/" + batch, master, "{\"rollStart\":\"" + start + "\"}"), 200);
+		respond(post("/api/v1/offline-batches/" + batch + "/publish", master, null), 200);
+
+		UUID first = submittedApplication(batch, uniqueEmail(), validMobile());
+		readyAdmission(first, batch, master);
+		respond(post("/api/v1/offline-admissions/" + first + "/onboard", master, "{\"rollNo\":\"" + start + "\"}"), 200);
+		UUID grant = jdbc().queryForObject("select grant_id from offline_admission_items where admission_id = ? and grant_id is not null limit 1",
+				UUID.class, first);
+		UUID second = submittedApplication(batch, uniqueEmail(), validMobile());
+		readyAdmission(second, batch, master);
+		assertThat(suggestion(second, master)).isNotEqualTo(start);
+
+		respond(post("/api/v1/offline-admissions/" + first + "/delete-from-batch", staff, "{\"reason\":\"Left\"}"), 403);
+		respond(post("/api/v1/offline-admissions/" + first + "/delete-from-batch", master, "{}"), 400);
+		respond(post("/api/v1/offline-admissions/" + first + "/delete-from-batch", master, "{\"reason\":\"Left the course\"}"), 204);
+
+		assertThat(jdbc().queryForObject("select count(*) from offline_admissions where id = ?", Integer.class, first)).isZero();
+		assertThat(jdbc().queryForObject("select revoked_at is not null from live_exam_grants where id = ?", Boolean.class, grant)).isTrue();
+		mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/offline-admissions/" + first).header("Authorization", "Bearer " + master))
+			.andExpect(status().isNotFound());
+		// D3: the freed roll is offered first, and it can be given again.
+		assertThat(suggestion(second, master)).isEqualTo(start);
+		respond(post("/api/v1/offline-admissions/" + second + "/onboard", master, "{\"rollNo\":\"" + start + "\"}"), 200);
+	}
+
+	@Test
+	void deletingAnAdmissionWithAPaymentKeepsAStubForFinanceThatNoListShows() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Delete paid " + unique());
+		UUID admission = submittedApplication(batch, uniqueEmail(), validMobile());
+		readyAdmission(admission, batch, master);
+		String roll = String.valueOf(ThreadLocalRandom.current().nextLong(100_000_000L, 999_999_999L));
+		respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, "{\"rollNo\":\"" + roll + "\"}"), 200);
+		respond(post("/api/v1/offline-admissions/" + admission + "/payments", master,
+				"{\"amount\":\"1000\",\"method\":\"CASH\",\"reference\":\"CASH-DEL\",\"paidOn\":\"2026-11-10\"}"), 201);
+
+		respond(post("/api/v1/offline-admissions/" + admission + "/delete-from-batch", master, "{\"reason\":\"Moved away\"}"), 204);
+
+		JsonNode stub = detail(admission, master);
+		assertThat(stub.get("state").asText()).isEqualTo("CLOSED");
+		assertThat(stub.hasNonNull("rollNo")).isFalse();
+		assertThat(stub.get("releasedRoll").asText()).isEqualTo(roll);
+		assertThat(stub.hasNonNull("deletedAt")).isTrue();
+		assertThat(jdbc().queryForObject("select count(*) from offline_fee_payments where admission_id = ? and status = 'APPROVED'",
+				Integer.class, admission)).isEqualTo(1);
+		assertThat(jdbc().queryForObject("select count(*) from offline_fee_dues d where d.admission_id = ? and d.cancelled_at is null and not exists"
+				+ " (select 1 from offline_fee_allocations al where al.due_id = d.id)", Integer.class, admission)).isZero();
+		JsonNode queue = respond(MockMvcRequestBuilders.get("/api/v1/offline-admissions?size=100&status=CLOSED").header("Authorization",
+				"Bearer " + master), 200);
+		assertThat(queue.get("content").toString()).doesNotContain(admission.toString());
+		JsonNode students = respond(MockMvcRequestBuilders.get("/api/v1/offline-batches/" + batch + "/students").header("Authorization",
+				"Bearer " + master), 200);
+		assertThat(students.toString()).doesNotContain(admission.toString());
+		respond(post("/api/v1/offline-admissions/" + admission + "/delete-from-batch", master, "{\"reason\":\"Again\"}"), 409);
 	}
 
 	/** The staff detail of one admission. */

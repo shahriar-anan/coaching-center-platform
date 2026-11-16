@@ -10,6 +10,7 @@ const staffOffline = {
     overdueFees: "Overdue fees",
   },
   queue: {
+    accountDeleted: "Account deleted",
     sourceLabel: "Source",
     sourceAll: "All sources",
     sources: { PUBLIC: "Website", ACCOUNT: "Account", DESK: "Desk" },
@@ -115,6 +116,7 @@ const staffOffline = {
     onboarded: "Onboarded",
   },
   detail: {
+    accountDeleted: "This student's account was deleted after they applied. Close the admission, or delete it from the batch to free the roll.",
     roll: "Roll {roll}",
     currentReturn: "Sent back: {reason}",
     noSubmissions: "No form has been submitted yet.",
@@ -350,6 +352,18 @@ const staffOffline = {
     endLabel: "Course end date",
     emailed: "The student is emailed the old and new terms.",
   },
+  deleteFromBatch: {
+    sectionTitle: "Delete from the batch",
+    sectionBody: "Removes the student from this batch and frees their roll for another student. Payments and published results stay in Finance and the results. The student's account is not touched.",
+    button: "Delete from batch",
+    title: "Delete {name} from the batch?",
+    body: "Access to the batch's exams and packages stops now and unpaid dues are cancelled. The admission leaves every list. This cannot be undone.",
+    bodyRoll: "Roll {roll} becomes free for another student. Access to the batch's exams and packages stops now and unpaid dues are cancelled. The admission leaves every list. This cannot be undone.",
+    confirm: "Delete from batch",
+    reasonHint: "Required. It is kept in the audit log. The student is told in the app that the admission is closed.",
+    done: "Deleted from the batch. The roll is free.",
+    deletedNote: "Deleted from the batch on {date}. Roll {roll} was freed. Reason: {reason}. It is kept only for its payments and results.",
+  },
   close: {
     title: "Close {name}'s admission?",
     body: "Access to the admission's exams and packages stops now. Future unpaid dues are cancelled. This cannot be undone.",
@@ -478,6 +492,7 @@ const staffOffline = {
       returned: "Sent back",
       ready: "Marked ready",
       onboarded: "Onboarded",
+      deleted: "Deleted from the batch",
       closed: "Closed",
       signed: "Signed copy uploaded",
       payment: "Payment recorded",

@@ -76,7 +76,7 @@ public class OfflineAdmissionReports {
 				  (select count(*) from offline_admissions where status = 'CHANGES_REQUESTED') as changes_requested,
 				  (select count(*) from offline_admissions where status = 'READY') as ready,
 				  (select count(*) from offline_admissions where status = 'ONBOARDED') as onboarded,
-				  (select count(*) from offline_admissions where status = 'CLOSED') as closed,
+				  (select count(*) from offline_admissions where status = 'CLOSED' and deleted_at is null) as closed,
 				  (select count(*) from offline_fee_payments where status = 'PENDING') as payments_pending,
 				  (select count(*) from offline_admissions a where """ + " " + OfflineAdmissionMoney.unpaidDue(true) + """
 				  ) as overdue,
@@ -116,7 +116,7 @@ public class OfflineAdmissionReports {
 				select o.admission_id, a.student_id, a.full_name, b.name_en, o.due_on, o.seq, o.owed,
 				  (cast(? as date) - o.due_on) as days_late, t.owed_total
 				from overdue o
-				join offline_admissions a on a.id = o.admission_id
+				join offline_admissions a on a.id = o.admission_id and a.deleted_at is null
 				left join offline_batches b on b.id = a.batch_id
 				join owed_total t on t.admission_id = o.admission_id
 				order by days_late desc, o.admission_id

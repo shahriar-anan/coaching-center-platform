@@ -48,10 +48,13 @@ public class AccountService {
 
 	private final LiveExamParticipantRepository participants;
 
+	private final com.coachingcenter.api.offline.OfflineAdmissionRepository admissions;
+
 	public AccountService(UserRepository users, StudentProfileRepository studentProfiles,
 			AdminProfileRepository adminProfiles, AuthService auth, MasterAdminGuard masterAdminGuard,
 			AuditRecorder audit, LiveExamInstructorModules assignments, LiveExamOrderRepository orders,
-			LiveExamGrantRepository grants, LiveExamParticipantRepository participants) {
+			LiveExamGrantRepository grants, LiveExamParticipantRepository participants,
+			com.coachingcenter.api.offline.OfflineAdmissionRepository admissions) {
 		this.users = users;
 		this.studentProfiles = studentProfiles;
 		this.adminProfiles = adminProfiles;
@@ -62,6 +65,7 @@ public class AccountService {
 		this.orders = orders;
 		this.grants = grants;
 		this.participants = participants;
+		this.admissions = admissions;
 	}
 
 	@Transactional
@@ -212,6 +216,14 @@ public class AccountService {
 						|| grants.existsByStudentId(user.getId()))) {
 			throw new ApiException(ErrorCode.ACCOUNT_HAS_PAID_ORDERS, HttpStatus.CONFLICT,
 					"This student has paid or has access, so the account cannot be deleted. Suspend it instead.");
+		}
+		// A student with an offline admission that is not closed keeps the account: the admission needs it (16 Nov, D1). Close or delete
+		// the admission first.
+		if (expectedRole == Role.STUDENT && !admissions
+			.findByStudentIdAndStatusNotOrderByCreatedAtDesc(user.getId(), com.coachingcenter.api.offline.OfflineAdmission.CLOSED)
+			.isEmpty()) {
+			throw new ApiException(ErrorCode.ACCOUNT_HAS_OPEN_ADMISSION, HttpStatus.CONFLICT,
+					"This student has an open offline admission. Close or delete the admission first.");
 		}
 		// An instructor who has marked a paper keeps the record of that mark (S-023).
 		if (expectedRole == Role.INSTRUCTOR && participants.existsByEvaluatedBy(user.getId())) {

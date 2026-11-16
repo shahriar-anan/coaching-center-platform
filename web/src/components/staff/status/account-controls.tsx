@@ -156,7 +156,7 @@ export function DeleteAccountDialog({
       onDeleted?.();
     } catch (e) {
       setError(adminErrorText(e, t));
-      setBlocked(e instanceof ApiError && (e.code === "ACCOUNT_HAS_PAID_ORDERS" || e.code === "ACCOUNT_HAS_MARKED_WORK"));
+      setBlocked(e instanceof ApiError && (e.code === "ACCOUNT_HAS_PAID_ORDERS" || e.code === "ACCOUNT_HAS_MARKED_WORK" || e.code === "ACCOUNT_HAS_OPEN_ADMISSION"));
     }
   }
 

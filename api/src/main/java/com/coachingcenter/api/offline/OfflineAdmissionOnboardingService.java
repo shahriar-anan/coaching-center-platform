@@ -212,21 +212,28 @@ public class OfflineAdmissionOnboardingService {
 		if (a.getBatchId() == null) {
 			return new SuggestedRoll(null);
 		}
+		String start = jdbc.queryForObject("select roll_start from offline_batches where id = ?", String.class, a.getBatchId());
+		if (start != null) {
+			// The lowest free roll from the batch's start, so a roll freed by a deleted admission is offered first (16 Nov, D3).
+			// Rolls are unique across the site (V96), so every taken roll of this length counts. Read once, searched in memory.
+			Set<String> taken = new HashSet<>(jdbc.queryForList(
+					"select roll_no from offline_admissions where roll_no is not null and length(roll_no) = ?", String.class, start.length()));
+			BigInteger next = new BigInteger(start);
+			while (taken.contains(String.format("%0" + start.length() + "d", next))) {
+				next = next.add(BigInteger.ONE);
+			}
+			return new SuggestedRoll(String.format("%0" + start.length() + "d", next));
+		}
 		String highest = jdbc.queryForObject("select max(roll_no::numeric)::text from offline_admissions where batch_id = ? and roll_no is not null",
 				String.class, a.getBatchId());
-		String start = jdbc.queryForObject("select roll_start from offline_batches where id = ?", String.class, a.getBatchId());
-		String base = highest != null ? highest : start;
-		if (base == null) {
+		if (highest == null) {
 			return new SuggestedRoll(null);
 		}
-		BigInteger next = new BigInteger(base);
-		if (highest != null) {
+		BigInteger next = new BigInteger(highest).add(BigInteger.ONE);
+		while (rollTaken(String.format("%0" + highest.length() + "d", next), null)) {
 			next = next.add(BigInteger.ONE);
 		}
-		while (rollTaken(String.format("%0" + base.length() + "d", next), null)) {
-			next = next.add(BigInteger.ONE);
-		}
-		return new SuggestedRoll(String.format("%0" + base.length() + "d", next));
+		return new SuggestedRoll(String.format("%0" + highest.length() + "d", next));
 	}
 
 	/** A suggested roll, or null when there is none to suggest. Sent as {@code suggestion}. */
@@ -757,6 +764,75 @@ public class OfflineAdmissionOnboardingService {
 	}
 
 	/** The dues of the admission that have at least one approved payment allocated to them. */
+	/**
+	 * Deletes an admission from its batch so its roll can be given again (four-fixes-16-nov-plan.md, issue 2; the Master Admin). Access
+	 * from the admission ends and every due with nothing paid is cancelled. With no payments and no result rows, the admission and its
+	 * rows are removed. Otherwise it stays as a closed stub, marked deleted, without its roll, so Finance and published results are
+	 * unchanged. The student's account is not touched; they are told in the app.
+	 */
+	@Transactional
+	public void deleteFromBatch(UUID actorId, UUID id, String reasonText) {
+		OfflineAdmission a = admin.lock(id);
+		if (a.getDeletedAt() != null) {
+			throw state("This admission is already deleted.");
+		}
+		List<FieldErrorDetail> problems = new ArrayList<>();
+		String text = reason(reasonText, "reason", problems);
+		if (!problems.isEmpty()) {
+			throw validation(problems);
+		}
+		Instant now = clock.instant();
+		for (OfflineAdmissionItem item : items.findByAdmissionIdAndRemovedAtIsNull(a.getId())) {
+			if (item.getGrantId() != null) {
+				grants.revoke(item.getGrantId(), actorId, "Admission deleted from the batch", now);
+				audit.record(AuditRecorder.OFFLINE_ACCESS_REVOKED, AuditRecorder.LIVE_EXAM_GRANT_ENTITY, item.getGrantId());
+			}
+		}
+		Set<UUID> paid = paidDueIds(a.getId());
+		for (OfflineFeeDue due : dues.findByAdmissionIdAndCancelledAtIsNullOrderBySeqAsc(a.getId())) {
+			if (!paid.contains(due.getId())) {
+				due.setCancelledAt(now);
+				dues.saveAndFlush(due);
+			}
+		}
+		// The roll is read first: clearing a join code also clears a roll given with it.
+		String roll = a.getRollNo();
+		OfflineAdmissionAdminService.clearJoinCode(a);
+		studentNotices.clearJoinCodes(a.getId());
+		a.setReopenTokenHash(null);
+		a.setReopenTokenExpiresAt(null);
+		a.setAccessTokenHash(null);
+		UUID student = a.getStudentId();
+		boolean keep = Boolean.TRUE.equals(jdbc.queryForObject("""
+				select exists (select 1 from offline_fee_payments where admission_id = ?)
+				  or exists (select 1 from offline_result_rows where admission_id = ?)
+				""", Boolean.class, a.getId(), a.getId()));
+		audit.record(AuditRecorder.OFFLINE_ADMISSION_DELETED, AuditRecorder.OFFLINE_ADMISSION_ENTITY, id);
+		if (keep) {
+			a.setReleasedRoll(roll);
+			a.setRollNo(null);
+			if (!OfflineAdmission.CLOSED.equals(a.getStatus())) {
+				a.setStatus(OfflineAdmission.CLOSED);
+				a.setClosedAt(now);
+				a.setClosedReason(text);
+			}
+			a.setDeletedAt(now);
+			a.setDeletedBy(actorId);
+			a.setDeletedReason(text);
+			admissions.saveAndFlush(a);
+		}
+		else {
+			jdbc.update("delete from offline_fee_dues where admission_id = ?", a.getId());
+			jdbc.update("delete from offline_admission_items where admission_id = ?", a.getId());
+			jdbc.update("delete from offline_admission_submissions where admission_id = ?", a.getId());
+			admissions.delete(a);
+			admissions.flush();
+		}
+		if (student != null) {
+			studentNotices.notice(student, OfflineAdmissionNotices.ADMISSION_CLOSED, id.toString());
+		}
+	}
+
 	private Set<UUID> paidDueIds(UUID admissionId) {
 		return new HashSet<>(jdbc.queryForList("""
 				select distinct al.due_id from offline_fee_allocations al

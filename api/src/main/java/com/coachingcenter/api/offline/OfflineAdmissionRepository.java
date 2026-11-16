@@ -28,6 +28,9 @@ public interface OfflineAdmissionRepository extends JpaRepository<OfflineAdmissi
 	/** Every admission of the student in any state, newest first (the signed-in list, P11). */
 	List<OfflineAdmission> findByStudentIdOrderByCreatedAtDesc(UUID studentId);
 
+	/** The student's admissions without the ones deleted from their batch (V105), newest first. The student's own list. */
+	List<OfflineAdmission> findByStudentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID studentId);
+
 	/** The student's latest admission in one state. The student's own read routes use it for a closed admission (plan 6.4). */
 	Optional<OfflineAdmission> findFirstByStudentIdAndStatusOrderByCreatedAtDesc(UUID studentId, String status);
 

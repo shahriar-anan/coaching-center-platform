@@ -56,7 +56,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import({ CapturingEmailConfig.class, OfflineResultsIT.ClockConfig.class })
-@TestPropertySource(properties = "app.offline-admission.enabled=true")
+@TestPropertySource(properties = { "app.offline-admission.enabled=true", "app.offline-admission.visitor-applications=true" })
 class OfflineResultsIT extends PostgresIntegrationTest {
 
 	/** Thirteen November, Dhaka morning. Exams used here are on the tenth, so they are in the past. */

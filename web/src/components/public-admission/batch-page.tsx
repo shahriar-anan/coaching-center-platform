@@ -46,6 +46,7 @@ export function BatchPage({ id }: { id: string }) {
   const { t, locale } = useLocale();
   const batch = usePublicBatch(id);
   const own = useOwnApplication(id);
+  const { session } = useSession();
   const [routineOpen, setRoutineOpen] = useState(false);
 
   if (!offlineAdmissionEnabled) {
@@ -163,9 +164,12 @@ export function BatchPage({ id }: { id: string }) {
           {t("publicAdmission.batch.changeBatch")}
         </Button>
         {own ? null : b.admissionsOpen ? (
-          <Button size="lg" href={`/admission/apply/${b.id}`}>
-            {t("publicAdmission.card.apply")}
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {session.status === "anonymous" ? <span className="text-meta text-muted">{t("publicAdmission.apply.needAccount")}</span> : null}
+            <Button size="lg" href={`/admission/apply/${b.id}`}>
+              {t("publicAdmission.card.apply")}
+            </Button>
+          </div>
         ) : (
           <span className="text-body font-semibold text-muted">{t("publicAdmission.batch.closedNote")}</span>
         )}

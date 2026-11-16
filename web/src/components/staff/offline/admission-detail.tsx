@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DeleteFromBatchDialog } from "./admission-dialogs";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill, type PillTone } from "@/components/ui/pill";
@@ -49,6 +51,8 @@ export function AdmissionDetailView({ id }: { id: string }) {
   const role = useRole();
   const admission = useAdmission(id);
   const [params, setParams] = useListParams({ tab: "", pay: "" });
+  const { formatDate } = useFormat();
+  const [deleting, setDeleting] = useState(false);
 
   if (admission.isPending) {
     return <Skeleton variant="card" count={2} />;
@@ -73,6 +77,20 @@ export function AdmissionDetailView({ id }: { id: string }) {
         ]}
       />
 
+      {a.deletedAt ? (
+        <p role="status" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-body text-danger">
+          {t("staffOffline.deleteFromBatch.deletedNote", {
+            date: formatDate(a.deletedAt),
+            roll: a.releasedRoll ?? "—",
+            reason: a.deletedReason ?? "—",
+          })}
+        </p>
+      ) : null}
+      {a.accountDeleted ? (
+        <p role="status" className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-body text-danger">
+          {t("staffOffline.detail.accountDeleted")}
+        </p>
+      ) : null}
       <Header admission={a} />
       {canOnboard && (a.state === "ONBOARDED" || a.joinPending) ? <CodeStatus admission={a} /> : null}
       <Progress state={a.state} />
@@ -114,6 +132,21 @@ export function AdmissionDetailView({ id }: { id: string }) {
           </aside>
         </div>
       )}
+
+      {canOnboard && !a.deletedAt ? (
+        <section aria-labelledby="delete-from-batch" className="grid gap-2 rounded-card border border-danger/40 p-4">
+          <h2 id="delete-from-batch" className="text-card-title font-bold text-text">
+            {t("staffOffline.deleteFromBatch.sectionTitle")}
+          </h2>
+          <p className="text-meta text-muted">{t("staffOffline.deleteFromBatch.sectionBody")}</p>
+          <div>
+            <Button variant="danger" onClick={() => setDeleting(true)}>
+              {t("staffOffline.deleteFromBatch.button")}
+            </Button>
+          </div>
+          <DeleteFromBatchDialog admission={a} open={deleting} onOpenChange={setDeleting} />
+        </section>
+      ) : null}
     </div>
   );
 }

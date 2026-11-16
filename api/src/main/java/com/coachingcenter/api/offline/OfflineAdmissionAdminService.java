@@ -180,6 +180,8 @@ public class OfflineAdmissionAdminService {
 		List<FieldErrorDetail> problems = new ArrayList<>();
 		List<String> where = new ArrayList<>();
 		List<Object> args = new ArrayList<>();
+		// An admission deleted from its batch (V105) is kept only for its money and results; it is in no list.
+		where.add("a.deleted_at is null");
 		if (status != null && !status.isBlank()) {
 			String value = status.trim().toUpperCase(Locale.ROOT);
 			if (!STATES.contains(value)) {
@@ -237,7 +239,7 @@ public class OfflineAdmissionAdminService {
 				  (case when a.student_id is null then (select mu.email from users mu where mu.deleted_at is null
 				    and lower(mu.email) = lower(a.email) limit 1) end) as matched_email,
 				  a.submitted_at, a.created_at, (p.user_id is not null or a.photo_stored_name is not null) as has_photo,
-				  coalesce(u.status <> 'PENDING_ACTIVATION', false) as activated,
+				  coalesce(u.status <> 'PENDING_ACTIVATION', false) as activated, (u.deleted_at is not null) as account_deleted,
 				  case when a.activation_code is not null and a.activation_code_expires_at > ? then a.activation_code_expires_at end
 				    as code_expires_at
 				from offline_admissions a
@@ -252,7 +254,8 @@ public class OfflineAdmissionAdminService {
 				rs.getString("name_bn"), rs.getString("status"), rs.getInt("submit_count"), instant(rs.getTimestamp("submitted_at")),
 				instant(rs.getTimestamp("created_at")), rs.getBoolean("has_photo"), List.of(), null, null,
 				rs.getBoolean("activated"), instant(rs.getTimestamp("code_expires_at")), rs.getString("source"),
-				rs.getString("matched_name"), rs.getString("matched_email"), rs.getString("roll_no")), pageArgs.toArray());
+				rs.getString("matched_name"), rs.getString("matched_email"), rs.getString("roll_no"), rs.getBoolean("account_deleted")),
+				pageArgs.toArray());
 		// The money of the whole page in two queries, then each row's flags from it (plan 4.3).
 		Map<UUID, OfflineAdmissionMoney.Money> moneyByAdmission = money.page(found.stream().map(QueueRow::id).toList(), money.today());
 		List<QueueRow> rows = new ArrayList<>();
@@ -261,7 +264,7 @@ public class OfflineAdmissionAdminService {
 			rows.add(new QueueRow(row.id(), row.studentId(), row.fullName(), row.mobile(), row.batchId(), row.batchNameEn(),
 					row.batchNameBn(), row.status(), row.submitCount(), row.submittedAt(), row.createdAt(), row.hasPhoto(),
 					due.flags(row.status()), due.owedTotal(), due.nextDueOn(), row.activated(), row.codeExpiresAt(), row.source(),
-					row.matchedName(), row.matchedEmail(), row.rollNo()));
+					row.matchedName(), row.matchedEmail(), row.rollNo(), row.accountDeleted()));
 		}
 		int totalPages = (int) ((count + pageSize - 1) / pageSize);
 		return new PageResponse<>(rows, pageNumber, pageSize, count, totalPages);
@@ -703,7 +706,7 @@ public class OfflineAdmissionAdminService {
 				throw notFound();
 			}
 		}
-		return photos.open(a.getStudentId());
+		return photos.openStored(a.getStudentId());
 	}
 
 	/** The signed copy's bytes and how to name them. */
@@ -771,6 +774,15 @@ public class OfflineAdmissionAdminService {
 		String status = jdbc.queryForList("select status from users where id = ? and deleted_at is null", String.class, a.getStudentId())
 			.stream().findFirst().orElse(null);
 		return "PENDING_ACTIVATION".equals(status);
+	}
+
+	/**
+	 * True when the admission's student account was deleted after it applied (16 Nov). The admission stays for staff to close or delete;
+	 * the page says so in place of the account.
+	 */
+	boolean accountDeleted(OfflineAdmission a) {
+		return a.getStudentId() != null && Boolean.TRUE.equals(jdbc.queryForObject(
+				"select exists (select 1 from users where id = ? and deleted_at is not null)", Boolean.class, a.getStudentId()));
 	}
 
 	/**
@@ -987,7 +999,8 @@ public class OfflineAdmissionAdminService {
 				readyProblems, a.getReadyBy(), a.getReadyAt(), a.getOnboardedBy(), a.getOnboardedAt(), a.getClosedAt(),
 				a.getClosedReason(), signed, overlaps, a.getSource(), matchedName, matchedEmail, a.getJoinCodeSentAt(), alreadyAccessTo(a),
 				match.isPresent() && matchedHasBatch(match.get().getId(), a), linked != null, phoneOwnerName, joinPending(a),
-				resend, a.getRollNo(), resend ? a.getSentCode() : null);
+				resend, a.getRollNo(), resend ? a.getSentCode() : null, accountDeleted(a),
+				a.getDeletedAt(), a.getDeletedReason(), a.getReleasedRoll());
 	}
 
 	/**
@@ -1117,7 +1130,7 @@ public class OfflineAdmissionAdminService {
 			String batchNameBn, String status, int submitCount, Instant submittedAt, Instant createdAt, boolean hasPhoto,
 			List<String> flags, BigDecimal owedTotal, @JsonInclude(JsonInclude.Include.ALWAYS) LocalDate nextDueOn,
 			boolean activated, @JsonInclude(JsonInclude.Include.ALWAYS) Instant codeExpiresAt, String source, String matchedName,
-			String matchedEmail, String rollNo) {
+			String matchedEmail, String rollNo, boolean accountDeleted) {
 	}
 
 	public record AdmissionDetail(UUID id, UUID studentId, String state, long version, int submitCount, Instant submittedAt,
@@ -1126,7 +1139,8 @@ public class OfflineAdmissionAdminService {
 			List<FieldErrorDetail> readyProblems, UUID readyBy, Instant readyAt, UUID onboardedBy, Instant onboardedAt,
 			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps, String source,
 			String matchedName, String matchedEmail, Instant joinCodeSentAt, List<BatchName> alreadyAccessTo, boolean matchedHasBatch,
-			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo, String sentCode) {
+			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo, String sentCode,
+			boolean accountDeleted, Instant deletedAt, String deletedReason, String releasedRoll) {
 	}
 
 	/** A batch's two names, for the batches a student already has (P14). */

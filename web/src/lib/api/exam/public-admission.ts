@@ -18,9 +18,8 @@ export type PublicBatch = {
   startsOn: string | null;
   /** yyyy-MM-dd. */
   endsOn: string;
-  /** The total course fee, paid in `installments` monthly instalments. */
+  /** The total course fee. Students never see how many instalments (16 Nov). */
   courseFee: number | string;
-  installments: number;
   descriptionEn: string | null;
   descriptionBn: string | null;
   /** The API path of the batch photo (served without sign-in), or null when there is none. */

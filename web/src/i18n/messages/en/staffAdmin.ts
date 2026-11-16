@@ -20,6 +20,8 @@ const staffAdmin = {
       "This student has a payment or access, so they cannot be deleted. Suspend the account instead.",
     accountHasMarkedWork:
       "This instructor has marked work, so they cannot be deleted. Suspend the account instead.",
+    accountHasOpenAdmission:
+      "This student has an offline admission that is still open. Close it, or delete it from the batch, before deleting the account.",
     masterAdminProtected: "A Master Admin account cannot be changed this way.",
     unauthenticated: "Your sign-in has ended. Sign in again to continue.",
     malformed: "The request could not be read. Reload the page and try again.",

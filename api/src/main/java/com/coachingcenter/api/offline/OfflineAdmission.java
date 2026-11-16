@@ -199,6 +199,20 @@ public class OfflineAdmission {
 	@Column(name = "closed_reason", length = 500)
 	private String closedReason;
 
+	/** Set when the Master Admin deleted the admission from its batch but its payments or results keep it as a stub (V105). */
+	@Column(name = "deleted_at")
+	private java.time.Instant deletedAt;
+
+	@Column(name = "deleted_by")
+	private UUID deletedBy;
+
+	@Column(name = "deleted_reason", length = 500)
+	private String deletedReason;
+
+	/** The roll the admission gave up when it was deleted (V105). */
+	@Column(name = "released_roll", length = 12)
+	private String releasedRoll;
+
 	/** The plain activation code, kept only while the desk may read it out (V87). Cleared on activation and on expiry. */
 	@Column(name = "activation_code", length = 16)
 	private String activationCode;
@@ -671,6 +685,38 @@ public class OfflineAdmission {
 
 	public void setClosedAt(Instant closedAt) {
 		this.closedAt = closedAt;
+	}
+
+	public java.time.Instant getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(java.time.Instant deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
+	public UUID getDeletedBy() {
+		return deletedBy;
+	}
+
+	public void setDeletedBy(UUID deletedBy) {
+		this.deletedBy = deletedBy;
+	}
+
+	public String getDeletedReason() {
+		return deletedReason;
+	}
+
+	public void setDeletedReason(String deletedReason) {
+		this.deletedReason = deletedReason;
+	}
+
+	public String getReleasedRoll() {
+		return releasedRoll;
+	}
+
+	public void setReleasedRoll(String releasedRoll) {
+		this.releasedRoll = releasedRoll;
 	}
 
 	public String getClosedReason() {
