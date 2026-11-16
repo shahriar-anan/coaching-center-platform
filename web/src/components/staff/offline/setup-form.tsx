@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
@@ -8,7 +9,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { useBatches, type AdmissionSetup, type BatchView } from "@/lib/api/exam/offline-admin";
-import { defaultFirstDue, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
+import { defaultFirstDue, dhakaToday, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
 import { SetupCard } from "./setup-card";
 import { rebalanceRows, rowsTotal, setupTotals, text, type PlanRow, type RowIssue, type SetupDraft } from "./setup-draft";
 import { addMonths } from "./offline-model";
@@ -71,11 +72,39 @@ export function SetupForm({
     });
   }
 
+  // 17 Nov: an application arrives with its batch already chosen, so the batch's fee, end date and instalments were never filled in and
+  // the fields sat empty. When the setup opens with a batch but no course fee, it is filled from that batch once, as choosing it does,
+  // with today as the admitted date. The admin can change any of it.
+  const filledFrom = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editable || !chosen || draft.courseFee !== "" || filledFrom.current === chosen.id) {
+      return;
+    }
+    filledFrom.current = chosen.id;
+    const admittedOn = draft.admittedOn || dhakaToday();
+    const firstDueOn = draft.firstDueOn || defaultFirstDue(admittedOn);
+    const courseEndsOn = draft.courseEndsOn || text(chosen.endsOn);
+    onEdit({
+      courseFee: text(chosen.courseFee),
+      custom: false,
+      admittedOn,
+      firstDueOn,
+      courseEndsOn,
+      installments: String(Math.min(chosen.defaultInstallments, fittingInstallments(firstDueOn, courseEndsOn))),
+    });
+  }, [editable, chosen, draft.courseFee, draft.admittedOn, draft.firstDueOn, draft.courseEndsOn, onEdit]);
+
   // The first due date is a month after the admitted date, and moves with it only while it still holds that default (plan D12).
   function changeAdmittedOn(value: string) {
     const wasDefault =
       draft.firstDueOn === "" || (draft.admittedOn !== "" && draft.firstDueOn === defaultFirstDue(draft.admittedOn));
-    onEdit({ admittedOn: value, firstDueOn: value && wasDefault ? defaultFirstDue(value) : draft.firstDueOn });
+    const firstDueOn = value && wasDefault ? defaultFirstDue(value) : draft.firstDueOn;
+    // With a batch chosen and no count yet, the count is the batch's, cut to what fits before the course ends.
+    const installments =
+      draft.installments === "" && chosen && firstDueOn && draft.courseEndsOn
+        ? String(Math.min(chosen.defaultInstallments, fittingInstallments(firstDueOn, draft.courseEndsOn)))
+        : draft.installments;
+    onEdit({ admittedOn: value, firstDueOn, installments });
   }
 
   const totals = setupTotals(draft);
@@ -267,7 +296,8 @@ export function SetupForm({
               const issues = totals.rowIssues[index] ?? [];
               return (
                 <li key={index} className="grid gap-1">
-                  <div className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+                  {/* On a phone the date and Remove share a line and the amount sits under the date, so the full date shows (17 Nov). */}
+                  <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <span className="text-meta font-semibold text-muted">{index + 1}</span>
                     <TextInput
                       type="date"
@@ -280,6 +310,7 @@ export function SetupForm({
                     <TextInput
                       inputMode="decimal"
                       aria-label={t("staffOffline.setup.rowAmount", { no: index + 1 })}
+                      className="max-sm:col-start-2 max-sm:row-start-2"
                       value={row.amount}
                       disabled={disabled}
                       onChange={(event) => changeRow(index, { amount: event.target.value })}
@@ -291,6 +322,7 @@ export function SetupForm({
                       disabled={disabled || tableRows.length <= 1}
                       onClick={() => removeRow(index)}
                       aria-label={t("staffOffline.setup.rowRemove", { no: index + 1 })}
+                      className="max-sm:col-start-3 max-sm:row-start-1"
                     >
                       {t("staffOffline.setup.remove")}
                     </Button>
