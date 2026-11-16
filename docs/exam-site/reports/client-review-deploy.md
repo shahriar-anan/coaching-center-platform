@@ -384,3 +384,47 @@ Rollback:
   3. Start it. The previous jar runs on Flyway 99 (proved in the rehearsal); new tables and drafts stay, unused.
 - **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261115-081055` back, start
   it.
+
+## Payment records, admission fixes, instructor pages, student dashboard, 17 November 2026 (Dhaka)
+
+API and website, Flyway 103 to 106. Release code `f17be2a` (`demo/client-review`; the jar is built from `d90b4fe`, the same API
+code). Released by the agent on Shahriar's go, 04:25 to 04:27 Dhaka, with no sitting open and no exam within 3 hours.
+
+- **Ships** (3 migrations, V104 to V106):
+  - the payment records page (every money stream, category and source filters, corrections the Master Admin finalizes);
+  - the Admissions page no longer signs the Master Admin out; delete from batch frees the roll; Apply needs an account; cards show
+    the course fee only;
+  - the admission form (Session / Batch, NID and emergency number optional, same as present address); onboarding refuses only a
+    phone or email of another person in the same batch; an account's Apply continues its earlier no-account application; the
+    next form carries the last answers; a Master Admin password reset code;
+  - instructor pages (add a class in or out of the routine, other payments, set the rate from a row, the rate beside each
+    payment waiting for approval); exam batch routines;
+  - the student dashboard, My offline batches, the phone menu, batch pages with tabs;
+  - setup filled from the batch the student applied for; class delete; instalment rebalance.
+- **Tests:** full API suite 1,287/1,287 on a fresh database; full web suite 2,214/2,214. Browser flows on the dev servers
+  (online applicant, onboarding rules, walk-in, reset code, student pages in English and Bangla at desktop and phone width, staff
+  fee approval and class delete, setup fix): all pass after the fixes.
+- **Production build** caught a missing Suspense boundary on `/dashboard` (fixed in `f17be2a`).
+- **Rehearsal** on the release backup, dev profile, no mail or payment credentials, jobs off, offline on: 3 migrations in about
+  0.1 s, 0 errors; 11 table counts unchanged; read-only smoke 21/21 on real data; all 175 classes kept in the routine; the
+  previous jar `e5ffa8c` starts on the upgraded copy (only the new routes answer 404).
+- **Jar:** `F:\cc-releases\api-d90b4fe.jar`, SHA-256 `c11a1da92920eef64d04499b6527e252c08b7e582e04db30fbe6c349ef965698`.
+  Restarted at 22:25:24 UTC, started in 26.0 s, 3 migrations applied, 0 failed.
+- **Website:** `F:\cc-releases\web-f17be2a-20261116-221504.tgz` (SHA-256 `9e769f85…bb16`), build `M5eWnloNdR1LIxtsafkXk`,
+  swapped at 22:26 UTC, up after 1 s. Previous release `/opt/coaching-web.before-20261116-222608`.
+- **Backups** (stamp `20261116-221700`), also in `F:\cc-releases\backup-pre-records-20261116-221700\`, checked by SHA-256:
+  - `/var/backups/coaching/coaching-pre-records-20261116-221700.dump` (581 entries, `eb0c473c…56e1`);
+  - `files-pre-records-20261116-221700.tgz` (`3308de3e…9b41`);
+  - `/etc/coaching-api.env.before-records-20261116-221700`;
+  - `/opt/coaching-api/api.jar.before-records-20261116-221700` (the `e5ffa8c` jar, `d627f79c…`).
+- **Checks after:** Flyway 106, none failed; offline status `{"enabled":true}`; every public and staff page checked answers 200;
+  payment records, other payments, offline and finance routes 401 without a sign-in; API log 0 errors, 0 5xx, 4 warnings (PDF
+  font fallbacks, as before); counts unchanged (219 users, 200 sittings, 19 answer scripts, 7 orders, 32 grants, 1,303 notices,
+  39 admissions, 175/175 classes in the routine).
+- **Not checked by the agent** (needs the Master Admin's sign-in): the new staff pages on live with real data; a real onboarding.
+  Mail is still not delivered (Brevo), so join and reset codes are handed over by the office.
+
+Rollback:
+- **API:** stop `coaching-api`, copy `api.jar.before-records-20261116-221700` over `api.jar`, start it. The previous jar runs on
+  Flyway 106 (proved in the rehearsal); the new tables stay, unused.
+- **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261116-222608` back, start it.
