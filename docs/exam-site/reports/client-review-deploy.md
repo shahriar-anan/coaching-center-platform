@@ -428,3 +428,50 @@ Rollback:
 - **API:** stop `coaching-api`, copy `api.jar.before-records-20261116-221700` over `api.jar`, start it. The previous jar runs on
   Flyway 106 (proved in the rehearsal); the new tables stay, unused.
 - **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261116-222608` back, start it.
+
+## PDF viewer fix, 22 November 2026 (Dhaka)
+
+API and website, no migration (Flyway stays at 106). Release code `95705ad` (`demo/client-review`). Released by the agent on
+Shahriar's go, 02:27 to 02:28 Dhaka. The release was held from 01:53 until a live written sitting reached its 02:26 deadline
+(settled as failed to submit; no draft had been uploaded). The only other sitting in the window, a retake, was already submitted.
+No exam was due to go live within 6 hours. Plan and causes: [pdf-viewer-fix-plan.md](../plans/pdf-viewer-fix-plan.md).
+
+- **Ships:**
+  - the legacy pdf.js build (PDFs open on browsers older than about Chrome 140 and in Facebook/Messenger's in-app browser),
+    plus pdf.js's decoders, CMaps, fonts and colour profiles served from `/pdfjs/`;
+  - separate download and browser error messages, and anonymous failure reports to `POST /api/v1/public/client-events`
+    (one `client_event` log line, nothing stored);
+  - viewer download progress, cancel on close, a per-session file cache, and freeing far pages;
+  - smaller viewing copies of scans over 3 MB (`<stored>.view.pdf`, made by one background thread that pauses ±10/5 minutes
+    around deadlines, plus a 10-minute sweep); PDF routes stream from disk, and `?original=true` returns the upload.
+- **Stage 0, earlier the same night (01:01):** nginx access log with `rt=` / `urt=`
+  ([nginx-conf-timed-log.md](../deploy/nginx/nginx-conf-timed-log.md)).
+- **Tests:** full API suite on a fresh database 1,299/1,299 (once `AuditLogIT` listed the new route); full web suite
+  2,222/2,222. Release-settings check build passed.
+- **Kept out:** the uncommitted offline-routine work and `V107` stayed in the working tree; both builds were made from the
+  clean commit with that work stashed. The first jar build carried a stale `V107` from `target/`. It was rebuilt with
+  `clean`, and the shipped jar's migrations end at V106.
+- **Jar:** `F:\cc-releases\api-95705ad.jar`, SHA-256 `920ec382e3a525d3d53df9f93f46cd90f3f80f563af10dcb53081ac57e05c1eb`.
+  Restarted at 20:27:49 UTC, started in 24.8 s, Flyway 106 with none failed, 0 errors.
+- **Website:** `F:\cc-releases\web-95705ad-20261121-194840.tgz` (SHA-256 `ebb1d3e7…ad27`), build `qSqLubzkk2FAC5Sg9GG4g`.
+  The dry run passed; swapped at 20:27 UTC and up after 1 s. Previous release: `/opt/coaching-web.before-20261121-202730`.
+- **Backups** (stamp `20261121-195338`), also in `F:\cc-releases\backup-pre-pdf-20261121-195338\`, checked by SHA-256:
+  - `/var/backups/coaching/coaching-pre-pdf-20261121-195338.dump` (599 entries, `77e2d70d…7f35`);
+  - `files-pre-pdf-20261121-195338.tgz` (371 MB, `bfa499ca…fcc2`);
+  - `/etc/coaching-api.env.before-pdf-20261121-195338`;
+  - `/opt/coaching-api/api.jar.before-pdf-20261121-195338` (the `d90b4fe` jar, `c11a1da9…`, the same as the 17 Nov release).
+- **Checks after:**
+  - both sites answer 200;
+  - the served worker is the legacy build, byte-identical (1,321,391 bytes), and `/pdfjs/` wasm, cmaps, fonts and
+    `VERSION 6.4.299` answer 200;
+  - `client-events` answers 204 and its line reached the log;
+  - PDF routes answer 401 without a sign-in (also with `?original=true`);
+  - 0 API errors and 0 5xx.
+- **Not checked by the agent** (needs a staff or student sign-in): opening a large script on the admin site
+  (`X-Pdf-Copy: view` once its copy exists; Download should give the original), and a question paper on an older phone.
+
+Rollback (no schema change, so any order works):
+- **API:** stop `coaching-api`, copy `api.jar.before-pdf-20261121-195338` over `api.jar`, start it. Copies can stay (the old
+  jar ignores them) or be removed with `find /var/lib/coaching-api/files -name '*.view.*' -delete`.
+- **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261121-202730` back,
+  start it.
