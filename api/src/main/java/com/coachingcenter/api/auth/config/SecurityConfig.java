@@ -51,6 +51,8 @@ public class SecurityConfig {
 						"/api/v1/public/offline-applications/**")
 				.permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/v1/public/offline-applications/**").permitAll()
+				// Anonymous browser failure reports (the PDF viewer): logged, never stored, limited per address.
+				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/public/client-events").permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/live-exam-orders/*/return").permitAll()
 				.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/live-exam-orders/*/return",
 						"/api/v1/live-exam-orders/*/ipn")

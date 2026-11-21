@@ -111,7 +111,8 @@ export function WrittenPaper({ exam, locked }: { exam: StaffExam; locked: boolea
       <Dialog open={viewing} onOpenChange={setViewing} title={t("staffCatalog.written.viewTitle")}>
         {viewing ? (
           <PdfViewer
-            load={() => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`)}
+            load={(options) => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`, options)}
+            fileKind="question"
             allowDownload={false}
             fileName={exam.titleBn}
           />

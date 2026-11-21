@@ -128,7 +128,17 @@ const sitting = {
   pdf: {
     region: "Question paper",
     loading: "Opening the PDF…",
+    downloading: "Downloading… {received} of {total} MB",
+    downloadingUnknown: "Downloading… {received} MB",
     error: "The PDF could not be opened.",
+    errorDownload: "The file could not be downloaded. Check your internet connection and try again.",
+    errorOpen: "This browser cannot open the PDF.",
+    openHint:
+      "Open this page in Google Chrome, or update Chrome from the Play Store. If you opened it inside Facebook or Messenger, use the ⋮ menu at the top to open it in your browser.",
+    retryNoHelp: "Trying again in this browser will not help.",
+    copyLink: "Copy page link",
+    linkCopied: "Link copied",
+    preparingDownload: "Downloading…",
     retry: "Try again",
     page: "Page {page} of {total}",
     previous: "Previous page",

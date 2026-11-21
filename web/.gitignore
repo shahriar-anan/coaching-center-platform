@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# pdf.js decoders, cmaps and fonts, copied from node_modules by scripts/copy-pdfjs-assets.mjs
+/public/pdfjs/

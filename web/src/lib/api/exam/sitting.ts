@@ -314,6 +314,14 @@ export function evaluatedPdfPath(examId: string) {
   return `/api/v1/live-exams/${examId}/evaluated-pdf`;
 }
 
+/**
+ * The same file exactly as uploaded. Without this the API may serve a smaller copy of a large scan for viewing; the
+ * Download button asks for the original.
+ */
+export function originalPdfPath(path: string) {
+  return `${path}${path.includes("?") ? "&" : "?"}original=true`;
+}
+
 /** The student's own submitted answer script. `attempt` picks one attempt; without it, the latest. */
 export function answerPdfPath(examId: string, attempt?: number) {
   const base = `/api/v1/live-exams/${examId}/answer-pdf`;

@@ -105,7 +105,11 @@ export function ExamPreview({ examId }: { examId: string }) {
             data.hasPaper ? (
               // The paper is shown inline, as the sitting page shows it, with no download control.
               <div className="min-w-0 rounded-card border border-border bg-card p-3">
-                <PdfViewer load={() => apiBlob(previewPdfPath(examId))} label={t("catalog.preview.questionPaper")} />
+                <PdfViewer
+                  load={(options) => apiBlob(previewPdfPath(examId), options)}
+                  fileKind="question"
+                  label={t("catalog.preview.questionPaper")}
+                />
               </div>
             ) : (
               <div className="grid grid-cols-1 justify-items-start gap-3 rounded-card border border-border bg-card p-5">

@@ -1,8 +1,10 @@
 package com.coachingcenter.api.exams;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +28,7 @@ import com.coachingcenter.api.common.config.AppProperties;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.web.PageResponse;
+import com.coachingcenter.api.files.PdfViewCopies;
 
 import tools.jackson.databind.JsonNode;
 
@@ -42,8 +45,12 @@ public class LiveExamSittingController {
 
 	private final AppProperties appProperties;
 
+	private final PdfViewCopies viewCopies;
+
 	public LiveExamSittingController(LiveExamSittingService sittings, LiveExamService exams,
-			LiveExamEvaluationService evaluations, PermissionChecker permissions, AppProperties appProperties) {
+			LiveExamEvaluationService evaluations, PermissionChecker permissions, AppProperties appProperties,
+			PdfViewCopies viewCopies) {
+		this.viewCopies = viewCopies;
 		this.sittings = sittings;
 		this.exams = exams;
 		this.evaluations = evaluations;
@@ -118,23 +125,27 @@ public class LiveExamSittingController {
 	 * sat when {@code participantId} names them (E29).
 	 */
 	@GetMapping("/api/v1/live-exams/{id}/question-pdf")
-	public ResponseEntity<byte[]> questionPdf(@PathVariable UUID id,
-			@RequestParam(value = "participantId", required = false) UUID participantId) {
-		byte[] pdf;
+	public ResponseEntity<Resource> questionPdf(@PathVariable UUID id,
+			@RequestParam(value = "participantId", required = false) UUID participantId,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
+		Path stored;
 		if (permissions.has(Permissions.EXAM_READ) || permissions.has(Permissions.LIVE_EXAM_EVALUATE)) {
-			pdf = evaluations.questionPdf(id, actor(), participantId);
+			stored = evaluations.questionPdf(id, actor(), participantId);
 		}
 		else {
 			requireStudent();
-			pdf = sittings.questionPdf(id, actorId());
+			stored = sittings.questionPdf(id, actorId());
 		}
-		return ResponseEntity.ok()
-			.contentType(MediaType.APPLICATION_PDF)
+		return privatePdf(PdfResponses.choose(viewCopies, stored, original));
+	}
+
+	/** A PDF only the signed-in reader may see: shown inline, never cached, only framed by our own sites. */
+	private ResponseEntity<Resource> privatePdf(Path pdf) {
+		return PdfResponses.body(PdfResponses.ok(pdf)
 			.header(HttpHeaders.CONTENT_DISPOSITION, "inline")
 			.header(HttpHeaders.CACHE_CONTROL, "no-store")
 			.header("X-Content-Type-Options", "nosniff")
-			.header("Content-Security-Policy", frameAncestors())
-			.body(pdf);
+			.header("Content-Security-Policy", frameAncestors()), pdf);
 	}
 
 	/** Saves or replaces the draft answer script of the open written sitting. It is submitted at Submit, or at the deadline. */
@@ -147,16 +158,10 @@ public class LiveExamSittingController {
 
 	/** The student's draft answer script, so they can check it before they submit. */
 	@GetMapping("/api/v1/live-exams/{id}/answer-draft")
-	public ResponseEntity<byte[]> draft(@PathVariable UUID id) {
+	public ResponseEntity<Resource> draft(@PathVariable UUID id,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
 		requireStudent();
-		byte[] pdf = sittings.draftPdf(id, actorId());
-		return ResponseEntity.ok()
-			.contentType(MediaType.APPLICATION_PDF)
-			.header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-			.header(HttpHeaders.CACHE_CONTROL, "no-store")
-			.header("X-Content-Type-Options", "nosniff")
-			.header("Content-Security-Policy", frameAncestors())
-			.body(pdf);
+		return privatePdf(PdfResponses.choose(viewCopies, sittings.draftPdf(id, actorId()), original));
 	}
 
 	@PostMapping(value = "/api/v1/live-exams/{id}/answer-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -151,6 +151,7 @@ export function BatchPage({ id }: { id: string }) {
           {routineOpen ? (
             <PdfViewer
               load={() => loadPublicBatchRoutinePdf(b.id)}
+              fileKind="routine"
               allowDownload
               fileName={`${name}.pdf`}
               label={t("publicAdmission.batch.pdfLabel", { batch: name })}

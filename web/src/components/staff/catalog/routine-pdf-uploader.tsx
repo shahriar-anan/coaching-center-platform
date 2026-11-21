@@ -129,7 +129,8 @@ export function RoutinePdfUploader({ module, canManage }: { module: StaffModule;
         <Dialog open={viewing} onOpenChange={setViewing} title={pdf.fileName}>
           {viewing ? (
             <PdfViewer
-              load={() => apiBlob(`/api/v1/live-exam-modules/${module.id}/routine-pdf`)}
+              load={(options) => apiBlob(`/api/v1/live-exam-modules/${module.id}/routine-pdf`, options)}
+              fileKind="routine"
               allowDownload
               fileName={pdf.fileName}
               label={pdf.fileName}

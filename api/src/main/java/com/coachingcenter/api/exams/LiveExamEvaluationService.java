@@ -3,7 +3,7 @@ package com.coachingcenter.api.exams;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +23,7 @@ import com.coachingcenter.api.common.audit.AuditRecorder;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.files.LocalFileStorage;
+import com.coachingcenter.api.files.PdfViewCopies;
 import com.coachingcenter.api.users.AdminProfileRepository;
 import com.coachingcenter.api.users.StudentProfileRepository;
 
@@ -57,12 +58,15 @@ public class LiveExamEvaluationService {
 
 	private final StudentNoticeWriter notices;
 
+	private final PdfViewCopies viewCopies;
+
 	public LiveExamEvaluationService(LiveExamRepository exams, LiveExamModuleRepository modules,
 			LiveExamParticipantRepository participants,
 			LiveExamQuestionRepository questions, LiveExamRetakeGrantRepository retakeGrants,
 			LiveExamSittingService sittings, StudentProfileRepository students,
 			AdminProfileRepository admins, LocalFileStorage files, PdfCompressor pdfs, Clock clock, AuditRecorder audit,
-			StudentNoticeWriter notices, LiveExamMemberships memberships) {
+			StudentNoticeWriter notices, LiveExamMemberships memberships, PdfViewCopies viewCopies) {
+		this.viewCopies = viewCopies;
 		this.memberships = memberships;
 		this.exams = exams;
 		this.modules = modules;
@@ -279,7 +283,7 @@ public class LiveExamEvaluationService {
 	}
 
 	@Transactional(readOnly = true)
-	public byte[] answerPdf(UUID participantId, CurrentActor actor) {
+	public Path answerPdf(UUID participantId, CurrentActor actor) {
 		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
 		if (participant.getDeletedAt() != null) {
 			throw notFound();
@@ -289,12 +293,7 @@ public class LiveExamEvaluationService {
 		if (participant.getAnswerStoredFileName() == null) {
 			throw notFound();
 		}
-		try {
-			return Files.readAllBytes(files.resolve(participant.getAnswerStoredFileName()));
-		}
-		catch (IOException exception) {
-			throw notFound();
-		}
+		return sittings.storedFile(participant.getAnswerStoredFileName());
 	}
 
 	/**
@@ -302,7 +301,7 @@ public class LiveExamEvaluationService {
 	 * released, so a retake still waiting for its mark does not hide the first result's PDF.
 	 */
 	@Transactional(readOnly = true)
-	public byte[] evaluatedPdf(UUID examId, UUID studentId, Integer attempt) {
+	public Path evaluatedPdf(UUID examId, UUID studentId, Integer attempt) {
 		List<LiveExamParticipant> own = participants
 			.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(examId, studentId);
 		LiveExamParticipant participant = own.stream()
@@ -312,12 +311,7 @@ public class LiveExamEvaluationService {
 		if (participant.getPublishedAt() == null || participant.getEvaluatedStoredFileName() == null) {
 			throw notFound();
 		}
-		try {
-			return Files.readAllBytes(files.resolve(participant.getEvaluatedStoredFileName()));
-		}
-		catch (IOException exception) {
-			throw notFound();
-		}
+		return sittings.storedFile(participant.getEvaluatedStoredFileName());
 	}
 
 	/**
@@ -325,7 +319,7 @@ public class LiveExamEvaluationService {
 	 * {@code result} does. It is readable as soon as it is uploaded, before marking and publish.
 	 */
 	@Transactional(readOnly = true)
-	public byte[] studentAnswerPdf(UUID examId, UUID studentId, Integer attempt) {
+	public Path studentAnswerPdf(UUID examId, UUID studentId, Integer attempt) {
 		List<LiveExamParticipant> own = participants
 			.findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(examId, studentId);
 		LiveExamParticipant participant = own.stream()
@@ -335,17 +329,12 @@ public class LiveExamEvaluationService {
 		if (participant.getAnswerStoredFileName() == null) {
 			throw notFound();
 		}
-		try {
-			return Files.readAllBytes(files.resolve(participant.getAnswerStoredFileName()));
-		}
-		catch (IOException exception) {
-			throw notFound();
-		}
+		return sittings.storedFile(participant.getAnswerStoredFileName());
 	}
 
 	/** The marked PDF for staff readers, published or not. An unassigned instructor gets 404, not 403. */
 	@Transactional(readOnly = true)
-	public byte[] staffEvaluatedPdf(UUID participantId, CurrentActor actor) {
+	public Path staffEvaluatedPdf(UUID participantId, CurrentActor actor) {
 		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
 		if (participant.getDeletedAt() != null) {
 			throw notFound();
@@ -355,12 +344,7 @@ public class LiveExamEvaluationService {
 		if (!reads(exam, actor) || stored == null) {
 			throw notFound();
 		}
-		try {
-			return Files.readAllBytes(files.resolve(stored));
-		}
-		catch (IOException exception) {
-			throw notFound();
-		}
+		return sittings.storedFile(stored);
 	}
 
 	/**
@@ -370,7 +354,7 @@ public class LiveExamEvaluationService {
 	 * participant's deadline.
 	 */
 	@Transactional(readOnly = true)
-	public byte[] questionPdf(UUID examId, CurrentActor actor, UUID participantId) {
+	public Path questionPdf(UUID examId, CurrentActor actor, UUID participantId) {
 		LiveExam exam = requireExam(examId);
 		LiveExamParticipant participant = null;
 		if (participantId != null) {
@@ -389,17 +373,12 @@ public class LiveExamEvaluationService {
 		if (stored == null) {
 			throw notFound();
 		}
-		try {
-			return Files.readAllBytes(files.resolve(stored));
-		}
-		catch (IOException exception) {
-			throw notFound();
-		}
+		return sittings.storedFile(stored);
 	}
 
 	/** The paper this participant sat, for a staff reader. */
 	@Transactional(readOnly = true)
-	public byte[] participantQuestionPdf(UUID participantId, CurrentActor actor) {
+	public Path participantQuestionPdf(UUID participantId, CurrentActor actor) {
 		LiveExamParticipant participant = participants.findById(participantId).orElseThrow(this::notFound);
 		return questionPdf(participant.getExamId(), actor, participantId);
 	}
@@ -584,8 +563,11 @@ public class LiveExamEvaluationService {
 			throw validationFailed();
 		}
 		byte[] compressed = pdfs.compress(original);
-		return files.save(file.getOriginalFilename(), "application/pdf", new ByteArrayInputStream(compressed),
-				compressed.length, LiveExamSittingService.MAX_PDF_BYTES);
+		LocalFileStorage.StoredFile stored = files.save(file.getOriginalFilename(), "application/pdf",
+				new ByteArrayInputStream(compressed), compressed.length, LiveExamSittingService.MAX_PDF_BYTES);
+		// A large scan gets a smaller copy for viewing, made in the background once the mark is committed.
+		viewCopies.requestAfterCommit(stored.storedFileName());
+		return stored;
 	}
 
 	private void requireMarker(LiveExam exam, CurrentActor actor) {

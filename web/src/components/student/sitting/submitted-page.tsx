@@ -12,7 +12,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewCard } from "@/components/student/reviews/review-card";
 import { useLocale } from "@/i18n/locale-context";
-import { answerPdfPath, useStudentExam } from "@/lib/api/exam/sitting";
+import { answerPdfPath, originalPdfPath, useStudentExam } from "@/lib/api/exam/sitting";
 import { useFormat } from "@/lib/format/use-format";
 import { studentHome } from "@/lib/config";
 
@@ -67,7 +67,9 @@ export function SubmittedPage({ examId }: { examId: string }) {
       <Dialog open={viewing} onOpenChange={setViewing} title={t("sitting.submitted.pdfTitle")} className="sm:max-w-3xl">
         {viewing ? (
           <PdfViewer
-            load={() => apiBlob(answerPdfPath(examId))}
+            load={(options) => apiBlob(answerPdfPath(examId), options)}
+            download={(options) => apiBlob(originalPdfPath(answerPdfPath(examId)), options)}
+            fileKind="answer"
             allowDownload
             fileName={`${title}-submitted.pdf`}
             label={t("sitting.submitted.pdfTitle")}

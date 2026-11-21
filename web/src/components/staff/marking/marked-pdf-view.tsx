@@ -32,7 +32,9 @@ export function MarkedPdfView({ participantId, fileName }: { participantId: stri
         className="sm:max-w-3xl"
       >
         <PdfViewer
-          load={() => evaluatedPaperBlob(participantId)}
+          load={(options) => evaluatedPaperBlob(participantId, options)}
+          download={(options) => evaluatedPaperBlob(participantId, options, true)}
+          fileKind="marked"
           allowDownload
           fileName={fileName}
         />

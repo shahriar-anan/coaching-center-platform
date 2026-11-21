@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiBlob, apiRequest, apiUpload } from "@/lib/api/client";
+import { apiBlob, apiRequest, apiUpload, type FileOptions } from "@/lib/api/client";
 import { isMissing } from "@/lib/api/missing";
 import type { PageResponse } from "@/lib/api/exam/types";
 
@@ -161,22 +161,34 @@ export function useMarkingPaper(participantId: string) {
   });
 }
 
-export function answerPaperBlob(participantId: string): Promise<Blob> {
-  return apiBlob(`/api/v1/live-exam-participants/${participantId}/answer-pdf`);
+/**
+ * The answer script. The API serves a smaller copy of a large scan for viewing; `original` asks for the file exactly as
+ * uploaded, for the Download button.
+ */
+export function answerPaperPath(participantId: string, original = false): string {
+  return `/api/v1/live-exam-participants/${participantId}/answer-pdf${original ? "?original=true" : ""}`;
+}
+
+export function answerPaperBlob(participantId: string, options: FileOptions = {}, original = false): Promise<Blob> {
+  return apiBlob(answerPaperPath(participantId, original), options);
 }
 
 /** The marked PDF already uploaded for a paper. Master Admin, System Admin and the assigned instructor; the API refuses others. */
-export function evaluatedPaperBlob(participantId: string): Promise<Blob> {
-  return apiBlob(`/api/v1/live-exam-participants/${participantId}/evaluated-pdf`);
+export function evaluatedPaperPath(participantId: string, original = false): string {
+  return `/api/v1/live-exam-participants/${participantId}/evaluated-pdf${original ? "?original=true" : ""}`;
+}
+
+export function evaluatedPaperBlob(participantId: string, options: FileOptions = {}, original = false): Promise<Blob> {
+  return apiBlob(evaluatedPaperPath(participantId, original), options);
 }
 
 /**
  * The question paper. With a participant, it is the version that student was given (E29), so the marker reads what the student
  * saw. The server answers 404 to an instructor who is not assigned to the module.
  */
-export function questionPaperBlob(examId: string, participantId?: string): Promise<Blob> {
+export function questionPaperBlob(examId: string, participantId?: string, options: FileOptions = {}): Promise<Blob> {
   const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
-  return apiBlob(`/api/v1/live-exams/${examId}/question-pdf${query}`);
+  return apiBlob(`/api/v1/live-exams/${examId}/question-pdf${query}`, options);
 }
 
 /**

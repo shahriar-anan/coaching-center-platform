@@ -343,6 +343,7 @@ export function RoutineSection({ admission, admissionId }: { admission: Admissio
           <PdfViewer
             key={month}
             load={() => loadAdmissionRoutinePdf(month, admissionId)}
+            fileKind="routine"
             allowDownload
             fileName={`${batch || t("myAdmission.routine.title")} ${month}.pdf`}
             label={t("myAdmission.routine.pdfLabel", { month: label })}

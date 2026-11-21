@@ -8,6 +8,7 @@ import jakarta.persistence.PersistenceContext;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -39,6 +40,7 @@ import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
 import com.coachingcenter.api.common.web.PageResponse;
 import com.coachingcenter.api.files.LocalFileStorage;
+import com.coachingcenter.api.files.PdfViewCopies;
 
 import tools.jackson.databind.JsonNode;
 
@@ -96,13 +98,17 @@ public class LiveExamSittingService {
 
 	private final OfflineAdmissionGate admission;
 
+	private final PdfViewCopies viewCopies;
+
 	public LiveExamSittingService(LiveExamService exams, LiveExamRepository examRepository,
 			LiveExamParticipantRepository participants, LiveExamAnswerRepository answers,
 			LiveExamAnswerConfirmationRepository confirmations, LiveExamQuestionPaperRepository papers,
 			LiveExamRetakeGrantRepository retakeGrants, LiveExamAccess access, LiveExamLeaderboardService leaderboards,
 			LiveExamStudentStanding standings, LocalFileStorage files, PdfCompressor pdfs, Clock clock,
 			StudentPhoneGuard phones, StudentNoticeWriter notices, LiveExamMemberships memberships,
-			LiveExamModuleRepository modules, McqAttemptSnapshot snapshots, OfflineAdmissionGate admission) {
+			LiveExamModuleRepository modules, McqAttemptSnapshot snapshots, OfflineAdmissionGate admission,
+			PdfViewCopies viewCopies) {
+		this.viewCopies = viewCopies;
 		this.admission = admission;
 		this.exams = exams;
 		this.examRepository = examRepository;
@@ -472,7 +478,7 @@ public class LiveExamSittingService {
 
 	/** The question paper of the student's open sitting: the version they were given, not the exam's current one (E29). */
 	@Transactional(readOnly = true)
-	public byte[] questionPdf(UUID examId, UUID studentId) {
+	public Path questionPdf(UUID examId, UUID studentId) {
 		exams.get(examId, false, studentId);
 		LiveExam exam = requireExam(examId);
 		LiveExamParticipant participant = latest(examId, studentId)
@@ -488,12 +494,19 @@ public class LiveExamSittingService {
 		if (stored == null) {
 			throw notFound();
 		}
-		try {
-			return java.nio.file.Files.readAllBytes(files.resolve(stored));
-		}
-		catch (IOException exception) {
+		return storedFile(stored);
+	}
+
+	/**
+	 * The path of a stored file the caller may read, or 404 when it is gone. The controller streams it from disk (no copy
+	 * of a 25 MB script on the heap) and may serve its smaller viewing copy instead ({@code PdfViewCopies}).
+	 */
+	Path storedFile(String storedFileName) {
+		Path path = files.resolve(storedFileName);
+		if (!java.nio.file.Files.isRegularFile(path)) {
 			throw notFound();
 		}
+		return path;
 	}
 
 	/**
@@ -535,18 +548,13 @@ public class LiveExamSittingService {
 
 	/** The bytes of the student's draft script, while the sitting is open. 404 when there is none. */
 	@Transactional(readOnly = true)
-	public byte[] draftPdf(UUID examId, UUID studentId) {
+	public Path draftPdf(UUID examId, UUID studentId) {
 		exams.get(examId, false, studentId);
 		LiveExamParticipant participant = latest(examId, studentId).orElseThrow(this::notFound);
 		if (participant.getDraftStoredFileName() == null || participant.getSubmittedAt() != null) {
 			throw notFound();
 		}
-		try {
-			return java.nio.file.Files.readAllBytes(files.resolve(participant.getDraftStoredFileName()));
-		}
-		catch (IOException exception) {
-			throw notFound();
-		}
+		return storedFile(participant.getDraftStoredFileName());
 	}
 
 	private LiveExam requireWrittenExam(UUID examId, UUID studentId) {
@@ -589,6 +597,9 @@ public class LiveExamSittingService {
 		participant.setDraftUploadedAt(clock.instant());
 		participants.saveAndFlush(participant);
 		files.commitReplacement(stored.storedFileName(), previous);
+		// A large scan gets a smaller copy for viewing, made in the background after the commit. The draft keeps its stored
+		// name when it is submitted, so the copy follows it to the answer.
+		viewCopies.requestAfterCommit(stored.storedFileName());
 	}
 
 	/** The draft of a sitting that is not submitted, or null. */

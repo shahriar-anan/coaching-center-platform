@@ -128,7 +128,17 @@ const sitting = {
   pdf: {
     region: "প্রশ্নপত্র",
     loading: "পিডিএফ খোলা হচ্ছে…",
+    downloading: "ফাইল আসছে… {received} / {total} এমবি",
+    downloadingUnknown: "ফাইল আসছে… {received} এমবি",
     error: "পিডিএফ খোলা যায়নি।",
+    errorDownload: "ফাইলটি আনা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।",
+    errorOpen: "এই ব্রাউজারে পিডিএফটি খোলা যাচ্ছে না।",
+    openHint:
+      "পেজটি Google Chrome-এ খুলুন, অথবা Play Store থেকে Chrome আপডেট করে নিন। Facebook বা Messenger-এর ভেতর থেকে খুললে ওপরের ⋮ মেনু থেকে বাইরের ব্রাউজারে খুলুন।",
+    retryNoHelp: "এই ব্রাউজারে বারবার চেষ্টা করলেও খুলবে না।",
+    copyLink: "পেজের লিংক কপি করুন",
+    linkCopied: "লিংক কপি হয়েছে",
+    preparingDownload: "ডাউনলোড হচ্ছে…",
     retry: "আবার চেষ্টা করুন",
     page: "পৃষ্ঠা {page} / {total}",
     previous: "আগের পৃষ্ঠা",

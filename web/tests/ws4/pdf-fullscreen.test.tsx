@@ -6,15 +6,17 @@ import { renderWithProviders } from "../helpers";
 
 const load = vi.fn(async () => new Blob(["%PDF-1.7"], { type: "application/pdf" }));
 
-vi.mock("pdfjs-dist", () => ({
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
   getDocument: () => ({
     promise: Promise.resolve({
       numPages: 2,
+      destroy: async () => undefined,
       loadingTask: { destroy: async () => undefined },
       getPage: async () => ({
         getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }),
         render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }),
+        cleanup: () => true,
       }),
     }),
   }),

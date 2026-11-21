@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -78,6 +79,25 @@ public class LocalFileStorage {
 		catch (IOException exception) {
 			throw new IllegalStateException("Could not delete file.", exception);
 		}
+		// A smaller viewing copy (or its "no gain" marker) exists only while its original does.
+		for (String sibling : List.of(viewCopyName(storedFileName), noGainName(storedFileName))) {
+			try {
+				Files.deleteIfExists(resolve(sibling));
+			}
+			catch (IOException ignored) {
+				// A leftover copy is never served without its original, and the next upload gets a new name.
+			}
+		}
+	}
+
+	/** The smaller copy of a large PDF made for viewing ({@code PdfViewCopies}), stored next to the original. */
+	public static String viewCopyName(String storedFileName) {
+		return storedFileName + ".view.pdf";
+	}
+
+	/** Marks a PDF whose viewing copy would not have been smaller, so it is not tried again. */
+	public static String noGainName(String storedFileName) {
+		return storedFileName + ".view.none";
 	}
 
 	private void deleteQuietly(String storedFileName, String keep) {

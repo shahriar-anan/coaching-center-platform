@@ -168,9 +168,39 @@ export async function apiRequest<T>(
   return JSON.parse(text) as T;
 }
 
+/** Options for a file download. `onProgress` gets the bytes received so far and the total (null when the server gave no length). */
+export type FileOptions = {
+  signal?: AbortSignal;
+  onProgress?: (received: number, total: number | null) => void;
+};
+
 /** Fetches an authorized file, such as a question or answer PDF, as a `Blob`. */
-export async function apiBlob(path: string, options: { signal?: AbortSignal } = {}): Promise<Blob> {
+export async function apiBlob(path: string, options: FileOptions = {}): Promise<Blob> {
   return (await apiFile(path, options)).blob;
+}
+
+/** The body as a Blob, reporting progress while it arrives. Without a readable stream it falls back to `blob()`. */
+async function readBody(response: Response, onProgress?: FileOptions["onProgress"]): Promise<Blob> {
+  const type = response.headers.get("Content-Type") ?? "";
+  if (!onProgress || !response.body) {
+    return response.blob();
+  }
+  const length = Number(response.headers.get("Content-Length"));
+  const total = Number.isFinite(length) && length > 0 ? length : null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  onProgress(0, total);
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+    received += value.byteLength;
+    onProgress(received, total);
+  }
+  return new Blob(chunks as BlobPart[], { type });
 }
 
 /** The file name a download arrives with in Content-Disposition (the UTF-8 form first), or null when there is none. */
@@ -191,7 +221,7 @@ function fileNameOf(response: Response): string | null {
 /** A file from the API, with the name the server gave it, or null when the server gave none. */
 export async function apiFile(
   path: string,
-  options: { signal?: AbortSignal } = {},
+  options: FileOptions = {},
 ): Promise<{ blob: Blob; fileName: string | null }> {
   const sentToken = getAccessToken();
   let response = await rawFetch(path, { signal: options.signal });
@@ -212,7 +242,7 @@ export async function apiFile(
   if (!response.ok) {
     throw await parseError(response);
   }
-  return { blob: await response.blob(), fileName: fileNameOf(response) };
+  return { blob: await readBody(response, options.onProgress), fileName: fileNameOf(response) };
 }
 
 type UploadOptions = {

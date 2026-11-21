@@ -170,10 +170,13 @@ export function BatchRoutines({ batchId, archived }: { batchId: string; archived
       >
         {viewer ? (
           <PdfViewer
-            load={() => apiBlob(viewer.path).catch((error: unknown) => {
-              toast({ title: t("batchPay.routines.viewFailed"), tone: "danger" });
+            load={(options) => apiBlob(viewer.path, options).catch((error: unknown) => {
+              if ((error as { name?: string } | null)?.name !== "AbortError") {
+                toast({ title: t("batchPay.routines.viewFailed"), tone: "danger" });
+              }
               throw error;
             })}
+            fileKind="routine"
             label={viewer.title}
           />
         ) : null}

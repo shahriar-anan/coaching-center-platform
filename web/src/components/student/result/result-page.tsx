@@ -23,7 +23,7 @@ import { useNotice } from "@/lib/notices/use-notice";
 import { apiBlob } from "@/lib/api/client";
 import { ApiError, isUnknownItemError } from "@/lib/api/errors";
 import { studentHome } from "@/lib/config";
-import { answerPdfPath, evaluatedPdfPath, useLeaderboard, useSittingResult, useStudentExam, type SittingPosition } from "@/lib/api/exam/sitting";
+import { answerPdfPath, evaluatedPdfPath, originalPdfPath, useLeaderboard, useSittingResult, useStudentExam, type SittingPosition } from "@/lib/api/exam/sitting";
 import { formatDateTime, formatNumber, pickTitle } from "@/lib/format";
 import { isMissing } from "@/lib/api/missing";
 import { useServerNow } from "@/lib/time/clock";
@@ -92,6 +92,9 @@ export function ResultPage({ examId }: { examId: string }) {
   const board = useLeaderboard(examId);
   const mine = board.data?.rows.find((row) => row.mine) ?? null;
   const [paperTab, setPaperTab] = useState<"evaluated" | "submitted">("evaluated");
+  // Scopes the viewer's in-memory copies to this visit of the page: switching the two tabs reuses the downloads, while
+  // a later visit (after a retake, say) fetches the latest attempt again.
+  const [pdfScope] = useState(() => Math.random().toString(36).slice(2));
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const textSize = usePaperTextSize();
   const user = useUser();
@@ -308,7 +311,10 @@ export function ResultPage({ examId }: { examId: string }) {
             <div className="grid gap-4">
               {published && data.evaluatedPdf ? (
                 <PdfViewer
-                  load={() => apiBlob(evaluatedPdfPath(examId))}
+                  load={(options) => apiBlob(evaluatedPdfPath(examId), options)}
+                  cacheKey={`${evaluatedPdfPath(examId)}#${pdfScope}`}
+                  download={(options) => apiBlob(originalPdfPath(evaluatedPdfPath(examId)), options)}
+                  fileKind="marked"
                   studentLine={studentLine}
                   allowDownload
                   fileName="evaluated-paper.pdf"
@@ -320,7 +326,10 @@ export function ResultPage({ examId }: { examId: string }) {
             </div>
           ) : data.answerPdf ? (
             <PdfViewer
-              load={() => apiBlob(answerPdfPath(examId))}
+              load={(options) => apiBlob(answerPdfPath(examId), options)}
+              cacheKey={`${answerPdfPath(examId)}#${pdfScope}`}
+              download={(options) => apiBlob(originalPdfPath(answerPdfPath(examId)), options)}
+              fileKind="answer"
               studentLine={studentLine}
               allowDownload
               fileName="submitted-paper.pdf"

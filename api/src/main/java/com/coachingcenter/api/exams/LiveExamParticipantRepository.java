@@ -23,6 +23,19 @@ public interface LiveExamParticipantRepository extends JpaRepository<LiveExamPar
 			""")
 	List<UUID> findDueIds(@Param("now") Instant now, Pageable limit);
 
+	/** Is any sitting's deadline in this window: students are uploading or saving answers then, so background work waits. */
+	boolean existsByDeletedAtIsNullAndDeadlineAtBetween(Instant from, Instant to);
+
+	/** Every stored script of a live sitting: draft, submitted answer, marked and pending marked. Rows of four names, some null. */
+	@Query("""
+			select p.draftStoredFileName, p.answerStoredFileName, p.evaluatedStoredFileName, p.pendingStoredFileName
+			from LiveExamParticipant p
+			where p.deletedAt is null
+			  and (p.draftStoredFileName is not null or p.answerStoredFileName is not null
+			       or p.evaluatedStoredFileName is not null or p.pendingStoredFileName is not null)
+			""")
+	List<Object[]> findStoredScriptNames();
+
 	Optional<LiveExamParticipant> findByExamIdAndStudentIdAndDeletedAtIsNull(UUID examId, UUID studentId);
 
 	List<LiveExamParticipant> findByExamIdAndStudentIdAndDeletedAtIsNullOrderByAttemptNoDesc(UUID examId, UUID studentId);

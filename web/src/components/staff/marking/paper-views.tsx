@@ -7,7 +7,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { QuestionPaperPanel } from "@/components/staff/marking/question-paper-panel";
 import { useLocale } from "@/i18n/locale-context";
-import { answerPaperBlob, evaluatedPaperBlob } from "@/lib/api/exam/staff-marking";
+import { answerPaperBlob, answerPaperPath, evaluatedPaperBlob, evaluatedPaperPath } from "@/lib/api/exam/staff-marking";
 
 type View = "answer" | "question" | "evaluated";
 
@@ -44,10 +44,15 @@ export function PaperViews({
     wasMarked.current = marked;
   }, [marked]);
 
+  // Each file is kept for the page session (cacheKey), so moving between the tabs does not download a large scan again.
+  // The marked script's key carries markedAt, so a new upload is fetched fresh.
   const content =
     view === "answer" ? (
       <PdfViewer
-        load={() => answerPaperBlob(answerId)}
+        load={(options) => answerPaperBlob(answerId, options)}
+        cacheKey={answerPaperPath(answerId)}
+        download={(options) => answerPaperBlob(answerId, options, true)}
+        fileKind="answer"
         allowDownload
         fileName={`${studentName}-${examTitle}.pdf`}
       />
@@ -56,7 +61,10 @@ export function PaperViews({
     ) : (
       <PdfViewer
         key={markedAt ?? "marked"}
-        load={() => evaluatedPaperBlob(answerId)}
+        load={(options) => evaluatedPaperBlob(answerId, options)}
+        cacheKey={`${evaluatedPaperPath(answerId)}#${markedAt ?? ""}`}
+        download={(options) => evaluatedPaperBlob(answerId, options, true)}
+        fileKind="marked"
         allowDownload
         fileName={`${studentName}-${examTitle}-marked.pdf`}
       />

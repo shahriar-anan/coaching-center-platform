@@ -389,6 +389,8 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"PUT /api/v1/public/offline-applications/{token}/photo",
 			"POST /api/v1/public/offline-applications/{token}/submit",
 			"GET /api/v1/public/offline-applications/reopen/{linkToken}",
+			// Anonymous browser failure reports (PDF viewer plan 1.4): logged, nothing stored, nothing audited.
+			"POST /api/v1/public/client-events",
 			"GET /api/v1/me/admissions",
 			"POST /api/v1/me/admission/apply",
 			"POST /api/v1/me/admission/join",

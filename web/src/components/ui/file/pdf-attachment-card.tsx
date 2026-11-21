@@ -5,7 +5,7 @@ import { FileText } from "lucide-react";
 import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { apiBlob } from "@/lib/api/client";
+import { apiBlob, type FileOptions } from "@/lib/api/client";
 import { apiUrl } from "@/lib/config";
 import { useLocale, type Locale } from "@/i18n/locale-context";
 import { formatNumber } from "@/lib/format";
@@ -53,13 +53,16 @@ export function PdfAttachmentCard({ url, fileName, byteSize, title }: PdfAttachm
   const size = byteSize === null ? null : sizeLabel(byteSize, t, locale);
 
   // The viewer fetches the file itself when the dialog opens, so this wrapper reports that fetch to the card.
-  const load = async (): Promise<Blob> => {
+  const load = async (options?: FileOptions): Promise<Blob> => {
     setOpening(true);
     setOpenFailed(false);
     try {
-      return await apiBlob(source);
+      return await apiBlob(source, options);
     } catch (error) {
-      setOpenFailed(true);
+      // Closing the dialog aborts the download; that is not a failure to show.
+      if ((error as { name?: string } | null)?.name !== "AbortError") {
+        setOpenFailed(true);
+      }
       throw error;
     } finally {
       setOpening(false);

@@ -50,6 +50,7 @@ export function QuestionPaperPanel({
   return (
     <PdfViewer
       load={() => Promise.resolve(blob)}
+      fileKind="question"
       fileName={`${examTitle}-question-paper.pdf`}
     />
   );

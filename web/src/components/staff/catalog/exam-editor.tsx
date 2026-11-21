@@ -56,7 +56,8 @@ function StudentPreview({ exam }: { exam: StaffExam }) {
   if (exam.examType === "WRITTEN") {
     return (
       <PdfViewer
-        load={() => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`)}
+        load={(options) => apiBlob(`/api/v1/live-exams/${exam.id}/question-pdf`, options)}
+        fileKind="question"
         allowDownload={false}
         fileName={locale === "bn" ? exam.titleBn : exam.titleEn}
       />

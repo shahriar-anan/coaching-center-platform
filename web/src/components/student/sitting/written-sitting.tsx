@@ -215,7 +215,15 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
           <h2 className="text-label font-semibold text-muted">{t("sitting.written.paper")}</h2>
           <div className="mt-3">
             {exam.questionPdf ? (
-              <PdfViewer load={() => apiBlob(questionPdfPath(exam.id))} studentLine={studentLine} allowDownload={false} label={t("sitting.written.paper")} />
+              <PdfViewer
+                load={(options) => apiBlob(questionPdfPath(exam.id), options)}
+                // The deadline is unique to this sitting, so a retake (possibly another paper version) never gets the old file.
+                cacheKey={`${questionPdfPath(exam.id)}#${deadlineAt}`}
+                fileKind="question"
+                studentLine={studentLine}
+                allowDownload={false}
+                label={t("sitting.written.paper")}
+              />
             ) : (
               <p className="text-muted">{t("sitting.written.noPaper")}</p>
             )}
@@ -281,7 +289,8 @@ export function WrittenSitting({ exam, deadlineAt, studentLine, onClosed, onSubm
       <Dialog open={viewing} onOpenChange={setViewing} title={t("sitting.written.viewUploaded")} className="sm:max-w-3xl">
         {viewing ? (
           <PdfViewer
-            load={() => apiBlob(draft ? answerDraftPath(exam.id) : answerPdfPath(exam.id))}
+            load={(options) => apiBlob(draft ? answerDraftPath(exam.id) : answerPdfPath(exam.id), options)}
+            fileKind="answer"
             allowDownload={false}
             label={t("sitting.written.viewUploaded")}
           />

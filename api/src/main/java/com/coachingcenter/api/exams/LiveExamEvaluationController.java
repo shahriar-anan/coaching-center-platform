@@ -1,8 +1,10 @@
 package com.coachingcenter.api.exams;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,7 @@ import com.coachingcenter.api.auth.permission.PermissionChecker;
 import com.coachingcenter.api.auth.permission.Permissions;
 import com.coachingcenter.api.common.error.ApiException;
 import com.coachingcenter.api.common.error.ErrorCode;
+import com.coachingcenter.api.files.PdfViewCopies;
 
 import tools.jackson.databind.JsonNode;
 
@@ -34,8 +37,11 @@ public class LiveExamEvaluationController {
 
 	private final PermissionChecker permissions;
 
+	private final PdfViewCopies viewCopies;
+
 	public LiveExamEvaluationController(LiveExamEvaluationService evaluations, LiveExamLeaderboardService leaderboards,
-			LiveExamInstructorService examInstructors, PermissionChecker permissions) {
+			LiveExamInstructorService examInstructors, PermissionChecker permissions, PdfViewCopies viewCopies) {
+		this.viewCopies = viewCopies;
 		this.evaluations = evaluations;
 		this.leaderboards = leaderboards;
 		this.examInstructors = examInstructors;
@@ -79,25 +85,33 @@ public class LiveExamEvaluationController {
 		return evaluations.open(id, actor());
 	}
 
+	/**
+	 * The answer script. A large scan is served as its smaller viewing copy once one is ready; {@code original=true} sends
+	 * the file exactly as uploaded (the Download button). The same holds for the other PDF reads below.
+	 */
 	@GetMapping("/api/v1/live-exam-participants/{id}/answer-pdf")
-	public ResponseEntity<byte[]> answerPdf(@PathVariable UUID id) {
+	public ResponseEntity<Resource> answerPdf(@PathVariable UUID id,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
 		requireReader();
-		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.answerPdf(id, actor()));
+		Path pdf = PdfResponses.choose(viewCopies, evaluations.answerPdf(id, actor()), original);
+		return PdfResponses.body(PdfResponses.ok(pdf), pdf);
 	}
 
 	@GetMapping("/api/v1/live-exam-participants/{id}/evaluated-pdf")
-	public ResponseEntity<byte[]> staffEvaluatedPdf(@PathVariable UUID id) {
+	public ResponseEntity<Resource> staffEvaluatedPdf(@PathVariable UUID id,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
 		requireReader();
-		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(evaluations.staffEvaluatedPdf(id, actor()));
+		Path pdf = PdfResponses.choose(viewCopies, evaluations.staffEvaluatedPdf(id, actor()), original);
+		return PdfResponses.body(PdfResponses.ok(pdf), pdf);
 	}
 
 	/** The question paper this participant sat, which can differ from the exam's current paper (E29). */
 	@GetMapping("/api/v1/live-exam-participants/{id}/question-pdf")
-	public ResponseEntity<byte[]> participantQuestionPdf(@PathVariable UUID id) {
+	public ResponseEntity<Resource> participantQuestionPdf(@PathVariable UUID id,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
 		requireReader();
-		return ResponseEntity.ok()
-			.contentType(MediaType.APPLICATION_PDF)
-			.body(evaluations.participantQuestionPdf(id, actor()));
+		Path pdf = PdfResponses.choose(viewCopies, evaluations.participantQuestionPdf(id, actor()), original);
+		return PdfResponses.body(PdfResponses.ok(pdf), pdf);
 	}
 
 	@PostMapping(value = "/api/v1/live-exam-participants/{id}/evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -154,26 +168,26 @@ public class LiveExamEvaluationController {
 
 	/** The student's own marked PDF. {@code attempt} picks an attempt; without it, the latest released one. */
 	@GetMapping("/api/v1/live-exams/{id}/evaluated-pdf")
-	public ResponseEntity<byte[]> evaluatedPdf(@PathVariable UUID id,
-			@RequestParam(value = "attempt", required = false) Integer attempt) {
+	public ResponseEntity<Resource> evaluatedPdf(@PathVariable UUID id,
+			@RequestParam(value = "attempt", required = false) Integer attempt,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
 		if (!permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
 			throw denied();
 		}
-		return ResponseEntity.ok()
-			.contentType(MediaType.APPLICATION_PDF)
-			.body(evaluations.evaluatedPdf(id, actor().userId(), attempt));
+		Path pdf = PdfResponses.choose(viewCopies, evaluations.evaluatedPdf(id, actor().userId(), attempt), original);
+		return PdfResponses.body(PdfResponses.ok(pdf), pdf);
 	}
 
 	/** The student's own submitted answer script. {@code attempt} picks an attempt; without it, the latest one. */
 	@GetMapping("/api/v1/live-exams/{id}/answer-pdf")
-	public ResponseEntity<byte[]> studentAnswerPdf(@PathVariable UUID id,
-			@RequestParam(value = "attempt", required = false) Integer attempt) {
+	public ResponseEntity<Resource> studentAnswerPdf(@PathVariable UUID id,
+			@RequestParam(value = "attempt", required = false) Integer attempt,
+			@RequestParam(value = "original", defaultValue = "false") boolean original) {
 		if (!permissions.has(Permissions.LIVE_EXAM_BROWSE)) {
 			throw denied();
 		}
-		return ResponseEntity.ok()
-			.contentType(MediaType.APPLICATION_PDF)
-			.body(evaluations.studentAnswerPdf(id, actor().userId(), attempt));
+		Path pdf = PdfResponses.choose(viewCopies, evaluations.studentAnswerPdf(id, actor().userId(), attempt), original);
+		return PdfResponses.body(PdfResponses.ok(pdf), pdf);
 	}
 
 	private void require(String permission) {
