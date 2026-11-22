@@ -475,3 +475,23 @@ Rollback (no schema change, so any order works):
   jar ignores them) or be removed with `find /var/lib/coaching-api/files -name '*.view.*' -delete`.
 - **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261121-202730` back,
   start it.
+
+### Incident and fix, 22 November 2026, 17:56 Dhaka: offline admission hidden by the PDF release
+
+- **What happened:** the 02:27 website build (`qSqLubzkk2FAC5Sg9GG4g`) was made without `NEXT_PUBLIC_OFFLINE_ADMISSION=1`.
+  The flag is compiled in at build time. `release-build.sh` did not set it; the 15 and 17 Nov releases had set it by hand. So
+  the whole offline admission section was hidden on both hosts from 02:27 to 17:56 Dhaka: menus, `/admission` (the "page
+  not found" message), the batch pages, and the staff offline pages. The API's offline switch stayed on
+  (`{"enabled":true}`), and no data was touched. Reported by Shahriar.
+- **Fix:** `afb9da0` makes `release-build.sh` refuse to build unless `OFFLINE_ADMISSION` is `1` or `0`, and pass it through.
+  The website was rebuilt from `afb9da0` with `OFFLINE_ADMISSION=1`: `F:\cc-releases\web-afb9da0-20261122-115319.tgz`
+  (SHA-256 `bb36a0e1…8c06`), build `Iafvqqf63YJvkzJCmLqpM`. Checked locally first (`/admission` renders, the home menu links
+  to it). The dry run passed; swapped at 11:56 UTC, up after 1 s. Previous release: `/opt/coaching-web.before-20261122-115627`
+  (the build without the flag). No API change.
+- **Checks after:** `/admission` and the public batch page render; the home menu links to `/admission`; the staff admission
+  pages answer 200; the PDF smoke checks are unchanged (legacy worker, `/pdfjs/` assets, client-events 204, PDF routes 401
+  without sign-in, 0 errors, 0 5xx).
+- **Browser check (no sign-in), Chromium 156, desktop and phone size:** the public batch page's routine PDF opens in the new
+  viewer and draws its 3 pages, with no console errors.
+- **Website rollback now:** put `/opt/coaching-web.before-20261121-202730` back (the 17 Nov site, without the PDF fix).
+  Do not use `.before-20261122-115627`: that build hides offline admission.
