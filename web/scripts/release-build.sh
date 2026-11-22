@@ -8,7 +8,7 @@
 # both host URLs are baked in. The hosts are required, so a release always names
 # the hosts it was built for; nothing falls back to an old address.
 #
-#   SITE_URL=https://exam.symamlaw.com STAFF_URL=https://admin.symamlaw.com \
+#   SITE_URL=https://symamlaw.com STAFF_URL=https://admin.symamlaw.com OFFLINE_ADMISSION=1 \
 #     bash web/scripts/release-build.sh <out.tgz>
 #
 # Under Git Bash an empty variable reaches Next; in PowerShell `$env:X=''`
@@ -18,6 +18,13 @@ set -euo pipefail
 out=${1:?usage: release-build.sh <out.tgz>}
 site=${SITE_URL:?set SITE_URL to the student host, e.g. https://exam.symamlaw.com}
 staff=${STAFF_URL:?set STAFF_URL to the admin host, e.g. https://admin.symamlaw.com}
+# The offline admission pages are compiled in or out at build time, and must match the API's OFFLINE_ADMISSION_ENABLED.
+# Required, with no default: on 22 Nov 2026 a release built without it hid the whole offline admission section.
+offline=${OFFLINE_ADMISSION:?set OFFLINE_ADMISSION=1 (offline admission on, as in production since 15 Nov) or 0}
+case "$offline" in
+  1|0) ;;
+  *) echo "OFFLINE_ADMISSION must be 1 or 0, not \"$offline\"" >&2; exit 1 ;;
+esac
 
 root=$(git rev-parse --show-toplevel)
 web="$root/web"
@@ -41,6 +48,7 @@ NEXT_PUBLIC_API_BASE_URL= \
 NEXT_PUBLIC_SITE_URL="$site" \
 NEXT_PUBLIC_STAFF_URL="$staff" \
 NEXT_PUBLIC_GOOGLE_ENABLED=true \
+NEXT_PUBLIC_OFFLINE_ADMISSION="$offline" \
   npm run build
 
 # Lay the release out as it runs on the box, then check that layout.
