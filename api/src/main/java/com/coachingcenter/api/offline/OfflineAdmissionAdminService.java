@@ -338,16 +338,19 @@ public class OfflineAdmissionAdminService {
 			throw validation(problems);
 		}
 		LocalDate oldAdmittedOn = a.getAdmittedOn();
+		// 18 Nov: the admitted date starts the instalments, so it is the admin's to enter. It is filled in (the day the admission was
+		// made) only when the request leaves the field out; the setup screen sends it empty until the admin enters it, and then nothing
+		// is guessed. The first due date is a month after an admitted date that is there.
 		if (admittedOn != null) {
 			a.setAdmittedOn(admittedOn);
 		}
-		else if (a.getAdmittedOn() == null) {
+		else if (a.getAdmittedOn() == null && (body == null || !body.has("admittedOn"))) {
 			a.setAdmittedOn(OfflineFeeSchedule.today(a.getCreatedAt()));
 		}
 		if (firstDueOn != null) {
 			a.setFirstDueOn(firstDueOn);
 		}
-		else if (a.getFirstDueOn() == null) {
+		else if (a.getFirstDueOn() == null && a.getAdmittedOn() != null) {
 			a.setFirstDueOn(a.getAdmittedOn().plusMonths(1));
 		}
 		else if (admittedOn != null && oldAdmittedOn != null && a.getFirstDueOn().equals(oldAdmittedOn.plusMonths(1))) {
@@ -375,8 +378,9 @@ public class OfflineAdmissionAdminService {
 		if (installments != null) {
 			a.setInstallments(installments);
 		}
-		else if (a.getInstallments() == null && a.getCourseEndsOn() != null) {
-			// The batch's number, cut down to what fits before the course end (course-fee-plan.md section 3).
+		else if (a.getInstallments() == null && a.getCourseEndsOn() != null && a.getFirstDueOn() != null) {
+			// The batch's number, cut down to what fits before the course end (course-fee-plan.md section 3). Without a first due date
+			// yet (the admitted date is the admin's to enter, 18 Nov), the count waits for it.
 			int fitting = OfflineFeeSchedule.fittingInstallments(a.getFirstDueOn(), a.getCourseEndsOn());
 			OfflineBatch chosen = batch != null ? batch : a.getBatchId() == null ? null : batches.findById(a.getBatchId()).orElse(null);
 			a.setInstallments(chosen == null ? fitting : Math.min(chosen.getDefaultInstallments(), fitting));
@@ -396,10 +400,10 @@ public class OfflineAdmissionAdminService {
 			problems.add(new FieldErrorDetail(plan != null ? "installmentPlan" : "courseFee", "৳" + taken.toPlainString()
 					+ " is already paid or waiting for approval, so the course fee cannot be less than that."));
 		}
-		if (a.getFirstDueOn().isBefore(a.getAdmittedOn())) {
+		if (a.getFirstDueOn() != null && a.getAdmittedOn() != null && a.getFirstDueOn().isBefore(a.getAdmittedOn())) {
 			problems.add(new FieldErrorDetail("firstDueOn", "The first due date cannot be before the admitted-on date."));
 		}
-		if (a.getCourseEndsOn() != null && !a.getCourseEndsOn().isAfter(a.getFirstDueOn())) {
+		if (a.getCourseEndsOn() != null && a.getFirstDueOn() != null && !a.getCourseEndsOn().isAfter(a.getFirstDueOn())) {
 			problems.add(new FieldErrorDetail("courseEndsOn", "The course end date must be after the first due date."));
 		}
 		else {

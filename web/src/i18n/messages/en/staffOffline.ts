@@ -168,6 +168,7 @@ const staffOffline = {
       afterEnd: "Falls after the course end date.",
     },
     admittedOn: "Admitted on",
+    admittedOnHint: "Enter the day the student was admitted. The first instalment is due a month later.",
     firstDue: "First due date",
     firstDueHint: "One month after the admitted date, unless you change it.",
     courseEnds: "Course end date",

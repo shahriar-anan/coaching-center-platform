@@ -9,7 +9,8 @@ import { useLocale } from "@/i18n/locale-context";
 import { useFormat } from "@/lib/format/use-format";
 import { useRole } from "@/lib/auth/guards";
 import { useBatches, type AdmissionSetup, type BatchView } from "@/lib/api/exam/offline-admin";
-import { defaultFirstDue, dhakaToday, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
+import { defaultFirstDue, fittingInstallments, MAX_INSTALLMENTS } from "./offline-model";
+import { cn } from "@/components/ui/cn";
 import { SetupCard } from "./setup-card";
 import { rebalanceRows, rowsTotal, setupTotals, text, type PlanRow, type RowIssue, type SetupDraft } from "./setup-draft";
 import { addMonths } from "./offline-model";
@@ -73,26 +74,25 @@ export function SetupForm({
   }
 
   // 17 Nov: an application arrives with its batch already chosen, so the batch's fee, end date and instalments were never filled in and
-  // the fields sat empty. When the setup opens with a batch but no course fee, it is filled from that batch once, as choosing it does,
-  // with today as the admitted date. The admin can change any of it.
+  // the fields sat empty. When the setup opens with a batch but no course fee, it is filled from that batch once, as choosing it does.
+  // 18 Nov: the admitted date is the admin's to enter (it starts the instalments), so it is never guessed; the number of instalments
+  // follows once the first due date is known. The admin can change any of it.
   const filledFrom = useRef<string | null>(null);
   useEffect(() => {
     if (!editable || !chosen || draft.courseFee !== "" || filledFrom.current === chosen.id) {
       return;
     }
     filledFrom.current = chosen.id;
-    const admittedOn = draft.admittedOn || dhakaToday();
-    const firstDueOn = draft.firstDueOn || defaultFirstDue(admittedOn);
     const courseEndsOn = draft.courseEndsOn || text(chosen.endsOn);
     onEdit({
       courseFee: text(chosen.courseFee),
       custom: false,
-      admittedOn,
-      firstDueOn,
       courseEndsOn,
-      installments: String(Math.min(chosen.defaultInstallments, fittingInstallments(firstDueOn, courseEndsOn))),
+      installments: draft.firstDueOn
+        ? String(Math.min(chosen.defaultInstallments, fittingInstallments(draft.firstDueOn, courseEndsOn)))
+        : draft.installments,
     });
-  }, [editable, chosen, draft.courseFee, draft.admittedOn, draft.firstDueOn, draft.courseEndsOn, onEdit]);
+  }, [editable, chosen, draft.courseFee, draft.firstDueOn, draft.courseEndsOn, draft.installments, onEdit]);
 
   // The first due date is a month after the admitted date, and moves with it only while it still holds that default (plan D12).
   function changeAdmittedOn(value: string) {
@@ -218,10 +218,17 @@ export function SetupForm({
         </div>
       ) : null}
 
-      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-        <Field label={t("staffOffline.setup.admittedOn")} error={errors.admittedOn} reserveHint required>
+      <div className="grid items-start gap-x-4 gap-y-3 sm:grid-cols-2">
+        <Field
+          label={t("staffOffline.setup.admittedOn")}
+          error={errors.admittedOn}
+          hint={editable && draft.admittedOn === "" ? t("staffOffline.setup.admittedOnHint") : undefined}
+          reserveHint
+          required
+        >
           <TextInput
-            className="h-11"
+            // 18 Nov: the date is never filled in for the admin, so an empty one stands out until it is entered.
+            className={cn("h-11", editable && draft.admittedOn === "" && "border-warn ring-2 ring-warn/30")}
             type="date"
             value={draft.admittedOn}
             disabled={disabled}

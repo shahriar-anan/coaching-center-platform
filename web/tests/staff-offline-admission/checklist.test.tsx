@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AdmissionDetailView } from "@/components/staff/offline/admission-detail";
 import { AdmissionSetupView } from "@/components/staff/offline/admission-setup";
@@ -130,5 +130,66 @@ describe("the setup shows the overlaps the detail reports (plan 4.4)", () => {
 
     await screen.findByRole("button", { name: "Mark ready" });
     expect(screen.queryByText("Already holds this from an online order")).not.toBeInTheDocument();
+  });
+});
+
+describe("setup of an application that arrives with its batch (17-18 Nov)", () => {
+  const BATCH = {
+    id: "batch-1",
+    nameEn: "Batch 3 (Evening)",
+    nameBn: "ব্যাচ ৩",
+    startsOn: "2026-12-01",
+    endsOn: "2027-06-30",
+    courseFee: 12000,
+    defaultInstallments: 3,
+    status: "ACTIVE",
+    descriptionEn: null,
+    descriptionBn: null,
+    photoUploaded: false,
+    admissionsOpen: true,
+    published: true,
+    routineUploaded: false,
+    studentCount: 0,
+  };
+
+  it("fills the fee and end date from the batch, leaves the admitted date to the admin, and spreads the instalments once it is entered", async () => {
+    const empty = detail();
+    const admission = detail({
+      setup: { ...empty.setup, batchId: "batch-1", courseFee: null, installments: null, admittedOn: null, firstDueOn: null, courseEndsOn: null,
+        installmentPlan: [] } as unknown as typeof empty.setup,
+    });
+    let saved: Record<string, unknown> = {};
+    const api = mockApi({
+      [`GET /api/v1/offline-admissions/${ADMISSION_ID}`]: () => ({ ...admission, setup: { ...admission.setup, ...saved } }),
+      "GET /api/v1/offline-batches": [BATCH],
+      "GET /api/v1/live-exams": page([]),
+      "GET /api/v1/live-exam-modules": page([]),
+      // The API answers with the setup as saved, as the real one does.
+      [`PATCH /api/v1/offline-admissions/${ADMISSION_ID}/setup`]: ({ body }: { body: unknown }) => {
+        saved = { ...saved, ...(body as Record<string, unknown>) };
+        return { ...admission, setup: { ...admission.setup, ...saved } };
+      },
+    });
+    renderSetup();
+
+    const fee = await screen.findByLabelText(/^Course fee for this student/);
+    await waitFor(() => expect(fee).toHaveValue("12000"));
+    expect(screen.getByLabelText(/^Course end date/)).toHaveValue("2027-06-30");
+    const admitted = screen.getByLabelText(/^Admitted on/);
+    expect(admitted).toHaveValue("");
+    expect(screen.getByText(/Enter the day the student was admitted/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Instalment 1 amount/)).toBeNull();
+
+    fireEvent.change(admitted, { target: { value: "2026-11-18" } });
+    await waitFor(() => expect((screen.getByLabelText(/^Number of instalments/) as HTMLInputElement).value).toBe("3"));
+    expect(screen.getByLabelText(/^First due date/)).toHaveValue("2026-12-18");
+    expect(screen.getByLabelText(/^Instalment 1 amount/)).toHaveValue("4000");
+    expect(screen.queryByText(/Enter the day the student was admitted/)).toBeNull();
+    // Nothing saved a guessed admitted date.
+    await waitFor(() => expect(api.calls.some((call) => call.method === "PATCH")).toBe(true));
+    expect(api.calls.filter((call) => call.method === "PATCH").every((call) => {
+      const body = call.body as { admittedOn?: string | null };
+      return !body.admittedOn || body.admittedOn === "2026-11-18";
+    })).toBe(true);
   });
 });

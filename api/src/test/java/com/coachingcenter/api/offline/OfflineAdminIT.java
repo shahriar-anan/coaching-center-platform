@@ -239,6 +239,28 @@ class OfflineAdminIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void anAdmittedDateSentEmptyIsLeftForTheAdminAndNotGuessed() throws Exception {
+		// 18 Nov: the setup screen sends the admitted date empty until the admin enters it. Then no date is filled in, nor the first due
+		// date, and the admission cannot be marked ready; once the date is entered, the first due date follows a month later.
+		UUID master = seed("MASTER_ADMIN", "Master");
+		String token = token(master);
+		UUID batch = batch(token, "2027-02-15", "3000");
+		UUID admission = admission(seed("STUDENT", "Empty Date"), master, "SUBMITTED");
+		String url = "/api/v1/offline-admissions/" + admission + "/setup";
+
+		JsonNode setup = respond(patch(url, token, "{\"batchId\":\"" + batch + "\",\"admittedOn\":null,\"firstDueOn\":null}"), 200).get("setup");
+		assertThat(setup.hasNonNull("admittedOn")).isFalse();
+		assertThat(setup.hasNonNull("firstDueOn")).isFalse();
+		assertThat(setup.get("courseFee").decimalValue()).isEqualByComparingTo("3000");
+		JsonNode refused = respond(post("/api/v1/offline-admissions/" + admission + "/ready", token, null), 400);
+		assertThat(fieldNames(refused)).contains("admittedOn");
+
+		JsonNode entered = respond(patch(url, token, "{\"admittedOn\":\"2026-10-25\",\"firstDueOn\":null}"), 200).get("setup");
+		assertThat(entered.get("admittedOn").asText()).isEqualTo("2026-10-25");
+		assertThat(entered.get("firstDueOn").asText()).isEqualTo("2026-11-25");
+	}
+
+	@Test
 	void aBatchGivesNoExamsOrPackagesAtSetupAndOnlyTheStudentsOwnItemsCount() throws Exception {
 		// P17: the batch carries no default items, so setting it copies nothing onto the admission. Exams and packages are optional
 		// for the ready check; the student's own items, when chosen here, still count.
