@@ -103,8 +103,13 @@ What happens next depends on how the student came in:
 | Student | After onboarding |
 |---|---|
 | Desk admission | Admitted at once. No code is needed. |
+| Student with an account (they applied while signed in, or the form's email is their account's) | Admitted at once. No code is needed. They are told in the app and by email, and see the batch in their account. |
 | Online applicant with no account | An **activation code** goes to their email (valid 7 days). They activate with their email and the code, and are admitted. |
-| Student with an account (by email) | A **join code** goes to their email (valid 7 days). They enter it on the **Join your batch** page and are admitted. |
+
+**Join codes are switched off** (since 24 November). Students with an account used to get a join code to type in before they were
+admitted; now **Onboard** admits them straight away. If a student was sent a join code before this change and has not used it, the
+admission shows that the code went out: the code still works, or you can press **Onboard** to admit the student now, and the old
+code then stops working. Join codes can be switched back on later if you need them.
 
 **Warnings to watch for:**
 - **The mobile number or email is on another person's admission in the same batch:** onboarding is off until the form is sent
@@ -112,7 +117,7 @@ What happens next depends on how the student came in:
 - **The mobile number belongs to an account outside the batch:** onboarding goes ahead. The new account is made without a phone,
   and the student signs in with their email and the activation code.
 - **The account already has this batch:** send the application back, or close it.
-- **The code has expired:** use **Send a new code**. The old code stops working.
+- **The activation code has expired:** use **Send a new code**. The old code stops working.
 
 **Closing an admission** (Master Admin): **Close admission**, with a reason (required). Before onboarding, the application simply
 ends. After onboarding, access stops and future unpaid fees are cancelled; fees already past stay owed. A closed admission keeps

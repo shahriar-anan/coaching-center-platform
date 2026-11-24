@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
-import { useBackToReview, useMarkReady, useRequestChanges, type AdmissionDetail } from "@/lib/api/exam/offline-admin";
+import { useBackToReview, useMarkReady, useRequestChanges, waitsForJoin, type AdmissionDetail } from "@/lib/api/exam/offline-admin";
 import { canMarkReady } from "./offline-model";
 import { offlineErrorText } from "./offline-error";
 import { SendBackDialog } from "./send-back-dialog";
@@ -114,7 +114,7 @@ export function PrimaryActions({
       {state === "READY" && canReview ? (
         <>
           <MatchLine admission={admission} />
-          {admission.joinPending ? (
+          {waitsForJoin(admission) ? (
             <p className="text-meta text-muted">{t("staffOffline.onboard.waitingStudent")}</p>
           ) : canOnboard ? (
             <Button

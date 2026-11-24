@@ -132,14 +132,18 @@ public class OfflineAdmissionAdminService {
 
 	private final OfflineAccountMatcher matcher;
 
+	/** Whether onboarding a student with an account sends a join code (off since 24 Nov). */
+	private final OfflineJoinCodeSwitch joinCode;
+
 	public OfflineAdmissionAdminService(OfflineAdmissionRepository admissions, OfflineAdmissionSubmissionRepository submissions,
 			OfflineAdmissionItemRepository items, OfflineBatchRepository batches, OfflineAdmissionService form,
 			StudentPhotoRepository photoRows, StudentPhotoService photos, LocalFileStorage fileStorage,
 			StaffNotificationWriter staffNotices, OfflineAdmissionNotices studentNotices, OfflineAccessGrants grants,
 			LiveExamRepository exams, LiveExamModuleRepository modules, AuditRecorder audit, JdbcTemplate jdbc, ObjectMapper json,
 			Clock clock, OfflineAdmissionMoney money, OfflineApplicationMail publicMail,
-			OfflineAccountMatcher matcher) {
+			OfflineAccountMatcher matcher, OfflineJoinCodeSwitch joinCode) {
 		this.matcher = matcher;
+		this.joinCode = joinCode;
 		this.publicMail = publicMail;
 		this.money = money;
 		this.admissions = admissions;
@@ -765,11 +769,12 @@ public class OfflineAdmissionAdminService {
 
 	/**
 	 * F3: a new code can be sent: a join code while the student has not joined, or a new activation code for an account the onboarding
-	 * made that is not activated yet. The same rules as {@link OfflineAdmissionOnboardingService#resendCode}.
+	 * made that is not activated yet. The same rules as {@link OfflineAdmissionOnboardingService#resendCode}. With join codes off (24 Nov)
+	 * a waiting join code is not resent: the Master Admin onboards the student instead.
 	 */
 	boolean canResendCode(OfflineAdmission a) {
 		if (joinPending(a)) {
-			return true;
+			return joinCode.isEnabled();
 		}
 		if (!ONBOARDED.equals(a.getStatus()) || !OfflineAdmission.SOURCE_PUBLIC.equals(a.getSource()) || a.getMatchedUserId() != null
 				|| a.getStudentId() == null) {
@@ -1042,7 +1047,8 @@ public class OfflineAdmissionAdminService {
 				match.isPresent() && matchedHasBatch(match.get().getId(), a), linked != null, phoneOwnerName, joinPending(a),
 				resend, a.getRollNo(), resend ? a.getSentCode() : null, accountDeleted(a),
 				a.getDeletedAt(), a.getDeletedReason(), a.getReleasedRoll(),
-				OfflineAdmission.ONBOARDED.equals(a.getStatus()) || OfflineAdmission.CLOSED.equals(a.getStatus()) ? null : sameBatchConflict(a));
+				OfflineAdmission.ONBOARDED.equals(a.getStatus()) || OfflineAdmission.CLOSED.equals(a.getStatus()) ? null : sameBatchConflict(a),
+				joinCode.isEnabled());
 	}
 
 	/**
@@ -1182,7 +1188,8 @@ public class OfflineAdmissionAdminService {
 			Instant closedAt, String closedReason, SignedCopy signedCopy, List<ItemOverlaps> overlaps, String source,
 			String matchedName, String matchedEmail, Instant joinCodeSentAt, List<BatchName> alreadyAccessTo, boolean matchedHasBatch,
 			boolean matchedLinked, String phoneOwnerName, boolean joinPending, boolean canResendCode, String rollNo, String sentCode,
-			boolean accountDeleted, Instant deletedAt, String deletedReason, String releasedRoll, String sameBatchConflictName) {
+			boolean accountDeleted, Instant deletedAt, String deletedReason, String releasedRoll, String sameBatchConflictName,
+			boolean joinCodeOnOnboard) {
 	}
 
 	/** A batch's two names, for the batches a student already has (P14). */

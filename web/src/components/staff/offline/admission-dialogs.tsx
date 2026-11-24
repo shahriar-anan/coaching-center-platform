@@ -165,14 +165,20 @@ function OnboardSummary({ admission }: { admission: AdmissionDetail }) {
 
 /**
  * Which code goes to which email (plan Q3, P8). A student who already has an account, or whose application matched one, gets the join
- * code; a new applicant gets the activation code that makes the account. The code lasts 7 days.
+ * code; a new applicant gets the activation code that makes the account. The code lasts 7 days. With join codes off (24 Nov), a
+ * student with an account gets no code and is admitted at once; a join code sent before stops working.
  */
 function codeLine(admission: AdmissionDetail, t: (key: string, params?: Record<string, string | number>) => string): string {
   if (admission.source === "DESK") {
     return t("staffOffline.onboard.codeDesk");
   }
-  const joining = admission.source !== "PUBLIC" || Boolean(admission.matchedName);
+  // An application started without an account and carried on under one (16 Nov) is PUBLIC with an account: it is joined, as the API does.
+  const joining = admission.source !== "PUBLIC" || Boolean(admission.matchedName) || Boolean(admission.studentId);
   const email = admission.matchedEmail ?? admission.form.email ?? admission.form.mobile ?? "—";
+  if (joining && admission.joinCodeOnOnboard === false) {
+    const admitted = t("staffOffline.onboard.codeAccount");
+    return admission.joinPending ? `${admitted} ${t("staffOffline.onboard.codeCancelled")}` : admitted;
+  }
   const message = joining ? t("staffOffline.onboard.codeJoin", { email }) : t("staffOffline.onboard.codeActivation", { email });
   return `${message} ${t("staffOffline.onboard.codeLasts")}`;
 }

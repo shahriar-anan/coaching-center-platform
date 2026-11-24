@@ -206,7 +206,20 @@ export type AdmissionDetail = {
   canResendCode: boolean;
   /** The code that was sent (join or activation), while it can still be used, so staff can read it out (V101). */
   sentCode?: string | null;
+  /**
+   * Whether Onboard sends a join code to a student who has an account. False since 24 Nov (client): Onboard admits them at once, and
+   * a code sent before is cancelled. Absent from an older API, which always sent one.
+   */
+  joinCodeOnOnboard?: boolean;
 };
+
+/**
+ * True while Onboard must wait for the student to join with the code that was sent. With join codes off (24 Nov) it never waits: the
+ * Master Admin onboards, which admits the student and cancels the code.
+ */
+export function waitsForJoin(admission: Pick<AdmissionDetail, "joinPending" | "joinCodeOnOnboard">): boolean {
+  return admission.joinPending && admission.joinCodeOnOnboard !== false;
+}
 
 export type ItemAdded = { admission: AdmissionDetail; overlaps: ItemOverlap[]; alreadyHeld: boolean };
 

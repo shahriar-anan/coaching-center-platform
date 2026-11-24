@@ -13,7 +13,7 @@ import { useRole } from "@/lib/auth/guards";
 import { useFormat } from "@/lib/format/use-format";
 import { useToast } from "@/components/ui/toast";
 import { offlineErrorText } from "./offline-error";
-import { useAdmission, useResendCode, type AdmissionDetail } from "@/lib/api/exam/offline-admin";
+import { useAdmission, useResendCode, waitsForJoin, type AdmissionDetail } from "@/lib/api/exam/offline-admin";
 import type { AdmissionState } from "@/lib/api/exam/offline-admission";
 import { useListParams } from "@/lib/url/list-params";
 import { AdmissionPhoto } from "./admission-photo";
@@ -169,7 +169,9 @@ function CodeStatus({ admission }: { admission: AdmissionDetail }) {
       <div className="grid min-w-0 gap-1">
         <p className="text-body text-text">
           {admission.joinPending
-            ? t("staffOffline.onboard.waiting", { date: formatDate(admission.joinCodeSentAt) })
+            ? waitsForJoin(admission)
+              ? t("staffOffline.onboard.waiting", { date: formatDate(admission.joinCodeSentAt) })
+              : t("staffOffline.onboard.codeOff", { date: formatDate(admission.joinCodeSentAt) })
             : t("staffOffline.onboard.codeSent", { date: formatDate(admission.joinCodeSentAt) })}
         </p>
         {admission.sentCode ? (
@@ -262,7 +264,7 @@ function WaitingLine({
     return null;
   }
   // "You can onboard" is true only when nothing stops it: a code already out, or a clash shown under Next step, changes the line.
-  if (wait === "onboard" && admission.joinPending) {
+  if (wait === "onboard" && waitsForJoin(admission)) {
     return <p className="rounded-control bg-bg px-3 py-2 text-body text-text">{t("staffOffline.onboard.waitingStudent")}</p>;
   }
   if (wait === "onboard" && (admission.sameBatchConflictName || admission.matchedHasBatch)) {

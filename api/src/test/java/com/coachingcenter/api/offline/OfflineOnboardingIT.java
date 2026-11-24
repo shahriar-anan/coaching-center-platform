@@ -80,9 +80,102 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 	@Autowired
 	private CapturingEmailSender emails;
 
+	@Autowired
+	private TestJoinCodeSwitch joinCodes;
+
+	/** Join codes are on for the tests written for them; the tests for the 24 Nov change switch them off. */
 	@BeforeEach
 	void fixTheClock() {
 		clock.set(NOW);
+		joinCodes.set(true);
+	}
+
+	@Test
+	void withJoinCodesOffAStudentWithAnAccountIsAdmittedAtOnceAndKeepsTheProfileName() throws Exception {
+		joinCodes.set(false);
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Direct " + unique());
+		String email = uniqueEmail();
+		UUID student = seedStudent("Account Name", email, plusForm(validMobile()));
+		UUID admission = studentApplies(token(student), batch, email);
+		readyAdmission(admission, batch, master);
+		assertThat(detail(admission, master).get("joinCodeOnOnboard").asBoolean()).isFalse();
+
+		JsonNode onboarded = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, rollBody()), 200);
+		assertThat(onboarded.get("state").asText()).isEqualTo("ONBOARDED");
+		assertThat(onboarded.hasNonNull("joinCodeSentAt")).isFalse();
+		assertThat(onboarded.get("canResendCode").asBoolean()).isFalse();
+		assertThat(noticeCodes(admission)).isEmpty();
+		assertThat(jdbc().queryForObject("select count(*) from student_notices where user_id = ? and kind = 'ADMISSION_JOIN_CODE'",
+				Long.class, student)).isZero();
+		assertThat(jdbc().queryForObject("select count(*) from student_notices where user_id = ? and kind = 'ADMISSION_APPROVED'",
+				Long.class, student)).isEqualTo(1L);
+		assertThat(jdbc().queryForObject("select count(*) from offline_fee_dues where admission_id = ?", Long.class, admission))
+			.isPositive();
+		// As at a join, the account keeps its own name; only a desk admission takes the form's name.
+		assertThat(jdbc().queryForObject("select full_name from student_profiles where user_id = ?", String.class, student))
+			.isEqualTo("Account Name");
+	}
+
+	@Test
+	void withJoinCodesOffAnApplicantWhoseEmailMatchesAnAccountIsLinkedAndAdmittedAtOnce() throws Exception {
+		joinCodes.set(false);
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Direct match " + unique());
+		String email = uniqueEmail();
+		UUID existing = seedStudent("Existing", email, plusForm(validMobile()));
+		UUID admission = submittedApplication(batch, email, validMobile());
+		readyAdmission(admission, batch, master);
+
+		JsonNode onboarded = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, rollBody()), 200);
+		assertThat(onboarded.get("state").asText()).isEqualTo("ONBOARDED");
+		assertThat(jdbc().queryForObject("select count(*) from users where email = ?", Long.class, email)).isEqualTo(1L);
+		assertThat(jdbc().queryForObject("select student_id from offline_admissions where id = ?", UUID.class, admission))
+			.isEqualTo(existing);
+		assertThat(jdbc().queryForObject("select matched_user_id from offline_admissions where id = ?", UUID.class, admission))
+			.isEqualTo(existing);
+		assertThat(noticeCodes(admission)).isEmpty();
+	}
+
+	@Test
+	void withJoinCodesOffAWaitingCodeIsNotResentAndOnboardingAdmitsTheStudentAndCancelsIt() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Switch off " + unique());
+		String accountEmail = uniqueEmail();
+		UUID existing = seedStudent("Waiting Student", accountEmail, plusForm(validMobile()));
+		UUID admission = submittedApplication(batch, accountEmail, validMobile());
+		joinWaiting(admission, batch, master);
+		String oldCode = codeFrom(accountEmail);
+
+		joinCodes.set(false);
+		JsonNode waiting = detail(admission, master);
+		assertThat(waiting.get("joinPending").asBoolean()).isTrue();
+		assertThat(waiting.get("canResendCode").asBoolean()).isFalse();
+		assertThat(waiting.hasNonNull("sentCode")).isFalse();
+		respond(post("/api/v1/offline-admissions/" + admission + "/resend-code", master, null), 409);
+
+		String roll = rollBody();
+		JsonNode onboarded = respond(post("/api/v1/offline-admissions/" + admission + "/onboard", master, roll), 200);
+		assertThat(onboarded.get("state").asText()).isEqualTo("ONBOARDED");
+		assertThat(roll).contains(onboarded.get("rollNo").asText());
+		assertThat(onboarded.get("joinPending").asBoolean()).isFalse();
+		assertThat(noticeCodes(admission)).isEmpty();
+		respond(post("/api/v1/me/admission/join", token(existing), "{\"code\":\"" + oldCode + "\"}"), 400);
+	}
+
+	@Test
+	void withJoinCodesOffACodeSentBeforeStillJoins() throws Exception {
+		String master = token(seed("MASTER_ADMIN", "Master"));
+		UUID batch = batch(master, "Old code " + unique());
+		String accountEmail = uniqueEmail();
+		UUID existing = seedStudent("Old Code Student", accountEmail, plusForm(validMobile()));
+		UUID admission = submittedApplication(batch, accountEmail, validMobile());
+		joinWaiting(admission, batch, master);
+		String code = codeFrom(accountEmail);
+
+		joinCodes.set(false);
+		JsonNode joined = respond(post("/api/v1/me/admission/join", token(existing), "{\"code\":\"" + code + "\"}"), 200);
+		assertThat(joined.get("state").asText()).isEqualTo("ONBOARDED");
 	}
 
 	@Test
@@ -877,6 +970,32 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		@Primary
 		MutableClock mutableClock() {
 			return new MutableClock(NOW);
+		}
+
+		@Bean
+		@Primary
+		TestJoinCodeSwitch testJoinCodeSwitch() {
+			return new TestJoinCodeSwitch();
+		}
+
+	}
+
+	/** The join-code switch, turned on and off by each test (24 Nov), so one application context serves both. */
+	static class TestJoinCodeSwitch extends OfflineJoinCodeSwitch {
+
+		private volatile boolean on = true;
+
+		TestJoinCodeSwitch() {
+			super(true);
+		}
+
+		void set(boolean on) {
+			this.on = on;
+		}
+
+		@Override
+		public boolean isEnabled() {
+			return on;
 		}
 
 	}

@@ -93,6 +93,9 @@ public class OfflineAdmissionOnboardingService {
 
 	private final OfflineAccountMatcher matcher;
 
+	/** Whether onboarding a student with an account sends a join code; off since 24 Nov (client), so Onboard admits them at once. */
+	private final OfflineJoinCodeSwitch joinCode;
+
 	/** Wrong join codes an admission takes before it is locked until a new code is sent (plan section 9). */
 	static final int MAX_CODE_TRIES = 5;
 
@@ -100,8 +103,9 @@ public class OfflineAdmissionOnboardingService {
 			OfflineFeeDueRepository dues, OfflineAdmissionAdminService admin, OfflineAccessGrants grants,
 			OfflineAdmissionNotices studentNotices, StaffNotificationWriter staffNotices, AuditRecorder audit, JdbcTemplate jdbc,
 			Clock clock, AccountService accounts, AuthService auth, UserRepository users, OfflineApplicationMail publicMail,
-			OfflineAccountMatcher matcher, OfflineFeeLedger feeLedger) {
+			OfflineAccountMatcher matcher, OfflineFeeLedger feeLedger, OfflineJoinCodeSwitch joinCode) {
 		this.feeLedger = feeLedger;
+		this.joinCode = joinCode;
 		this.accounts = accounts;
 		this.auth = auth;
 		this.users = users;
@@ -123,7 +127,8 @@ public class OfflineAdmissionOnboardingService {
 	 * Onboards a ready admission (D2). In one transaction: every active exam or package gets an OFFLINE grant capped at the end of the
 	 * course end date in Dhaka (no per-item notice, C5); the monthly schedule is written; the form's name becomes the profile name; the
 	 * student gets one approval notice and one mail; and whoever marked it ready is told, unless that was the Master Admin.
-	 * An item the student already holds refuses the whole onboarding, naming it.
+	 * An item the student already holds refuses the whole onboarding, naming it. A student with an account is admitted at once too, unless
+	 * the join code is switched on (24 Nov); then the join code goes out and the student joins with it.
 	 */
 	@Transactional
 	public AdmissionDetail onboard(UUID actorId, UUID id, String rollNo) {
@@ -131,7 +136,8 @@ public class OfflineAdmissionOnboardingService {
 		if (!OfflineAdmission.READY.equals(a.getStatus())) {
 			throw state("Only a ready admission can be onboarded. This admission is " + a.getStatus() + ".");
 		}
-		if (a.getJoinCodeSentAt() != null && a.getJoinCodeUsedAt() == null) {
+		boolean codeOut = a.getJoinCodeSentAt() != null && a.getJoinCodeUsedAt() == null;
+		if (codeOut && joinCode.isEnabled()) {
 			throw state("A join code was already sent for this admission. Send a new code instead.");
 		}
 		List<FieldErrorDetail> problems = admin.readyProblems(a, admin.hasPhoto(a));
@@ -143,6 +149,12 @@ public class OfflineAdmissionOnboardingService {
 		if (sameBatch != null) {
 			throw validation(List.of(new FieldErrorDetail("mobile", "The mobile number or email is also on " + sameBatch
 					+ "'s admission in this batch. Send the form back so the applicant fixes it, or close the other admission.")));
+		}
+		if (codeOut) {
+			// 24 Nov: with join codes off, a code sent before is cancelled and the student is admitted now. Cleared before the roll is set,
+			// since clearing a code also clears the roll given with it.
+			OfflineAdmissionAdminService.clearJoinCode(a);
+			studentNotices.clearJoinCodes(a.getId());
 		}
 		// Rule R4: every onboarded student has a roll number, unique across all batches.
 		a.setRollNo(checkedRoll(rollNo, a.getId()));
@@ -161,7 +173,8 @@ public class OfflineAdmissionOnboardingService {
 			return makeAccountAndOnboard(actorId, a, now, phoneTaken);
 		}
 		if (!OfflineAdmission.SOURCE_DESK.equals(a.getSource())) {
-			// A signed-in applicant (or a matched one): the join code is mailed, and the student joins the batch from the link (plan B, C).
+			// A signed-in applicant (or a matched one): the join code is mailed and the student joins from the link (plan B, C), or, with
+			// join codes off, the student is admitted now.
 			return joinedByCode(actorId, a, now);
 		}
 		complete(actorId, a, now, true);
@@ -260,9 +273,18 @@ public class OfflineAdmissionOnboardingService {
 		return admin.detail(id);
 	}
 
-	/** The join code goes out for a student's admission. The batch-added notice waits for the join, when the batch is really added (P14). */
+	/**
+	 * A student with an account (their own application, or a matched one). With join codes on, the code goes out, and the batch-added notice
+	 * waits for the join, when the batch is really added (P14). With them off (24 Nov), the student is admitted now, as at the desk; the
+	 * account's own profile name is kept, as at a join.
+	 */
 	private AdmissionDetail joinedByCode(UUID actorId, OfflineAdmission a, Instant now) {
-		return sendJoinCode(actorId, a, now, false);
+		if (joinCode.isEnabled()) {
+			return sendJoinCode(actorId, a, now, false);
+		}
+		complete(actorId, a, now, false);
+		noticeBatchAdded(a, now);
+		return admin.detail(a.getId());
 	}
 
 	/** P14: the student already has access to other batches, so they get a notice that a batch was added. None when they have no other. */
@@ -488,6 +510,9 @@ public class OfflineAdmissionOnboardingService {
 		Instant now = clock.instant();
 		if (a.getStudentId() != null && OfflineAdmission.READY.equals(a.getStatus()) && a.getJoinCodeSentAt() != null
 				&& a.getJoinCodeUsedAt() == null) {
+			if (!joinCode.isEnabled()) {
+				throw state("Join codes are switched off. Onboard the student instead; the code already sent stops working.");
+			}
 			return sendJoinCode(actorId, a, now, true);
 		}
 		User account = a.getStudentId() == null ? null : users.findByIdAndDeletedAtIsNull(a.getStudentId()).orElse(null);
