@@ -191,15 +191,21 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		UUID first = submittedApplication(batch, uniqueEmail(), mobile);
 		UUID second = submittedApplication(batch, uniqueEmail(), mobile);
 		readyAdmission(second, batch, master);
-		assertThat(detail(second, master).get("sameBatchConflictName").asText()).isNotBlank();
+		// 18 Nov: only a batch mate counts. The first application is only under review, so it does not stop the second.
+		assertThat(detail(second, master).hasNonNull("sameBatchConflictName")).isFalse();
+		readyAdmission(first, batch, master);
+		respond(post("/api/v1/offline-admissions/" + first + "/onboard", master, rollBody()), 200);
 
-		JsonNode refused = respond(post("/api/v1/offline-admissions/" + second + "/onboard", master, rollBody()), 400);
+		// Once the first is admitted, the second is refused.
+		UUID third = submittedApplication(batch, uniqueEmail(), mobile);
+		readyAdmission(third, batch, master);
+		assertThat(detail(third, master).get("sameBatchConflictName").asText()).isNotBlank();
+		JsonNode refused = respond(post("/api/v1/offline-admissions/" + third + "/onboard", master, rollBody()), 400);
 		assertThat(refused.toString()).contains("mobile").contains("in this batch");
 
 		// A closed admission does not count.
 		respond(post("/api/v1/offline-admissions/" + first + "/close", master, "{\"reason\":\"Applied twice\"}"), 200);
-		assertThat(detail(second, master).hasNonNull("sameBatchConflictName")).isFalse();
-		respond(post("/api/v1/offline-admissions/" + second + "/onboard", master, rollBody()), 200);
+		assertThat(detail(third, master).hasNonNull("sameBatchConflictName")).isFalse();
 	}
 
 	@Test

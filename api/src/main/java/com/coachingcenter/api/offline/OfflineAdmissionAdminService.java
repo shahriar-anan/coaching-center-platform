@@ -781,9 +781,10 @@ public class OfflineAdmissionAdminService {
 	}
 
 	/**
-	 * The name of another person whose open admission in the same batch has this admission's mobile number or email, on its form or
-	 * on its account (16 Nov). Onboarding is refused only then; a phone owned by an account outside the batch no longer stops it. Null
-	 * when there is none. A closed or deleted admission does not count, nor does another admission of the same account.
+	 * The name of a batch mate who has this admission's mobile number or email, on their form or on their account (16 Nov). Onboarding
+	 * is refused only then; a phone owned by an account outside the batch no longer stops it. Null when there is none. A batch mate is
+	 * someone admitted to the batch (18 Nov): onboarded, or approved with a join code out. An application that is unfinished, under
+	 * review, sent back, closed or deleted does not count, nor does another admission of the same account.
 	 */
 	String sameBatchConflict(OfflineAdmission a) {
 		if (a.getBatchId() == null) {
@@ -806,7 +807,8 @@ public class OfflineAdmissionAdminService {
 				select coalesce(sp.full_name, o.full_name, o.email, o.mobile) from offline_admissions o
 				left join users u on u.id = o.student_id
 				left join student_profiles sp on sp.user_id = o.student_id
-				where o.batch_id = ? and o.id <> ? and o.status <> 'CLOSED' and o.deleted_at is null
+				where o.batch_id = ? and o.id <> ? and o.deleted_at is null
+				  and (o.status = 'ONBOARDED' or (o.status = 'READY' and o.join_code_hash is not null))
 				  and (cast(? as uuid) is null or o.student_id is distinct from cast(? as uuid))
 				  and ((cast(? as varchar) is not null and (o.mobile = ? or u.phone = ?))
 				    or (cast(? as varchar) is not null and (lower(o.email) = ? or lower(u.email) = ?)))
