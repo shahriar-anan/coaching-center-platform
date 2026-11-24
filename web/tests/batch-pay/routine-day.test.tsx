@@ -82,11 +82,10 @@ describe("a routine counts from the day it is uploaded", () => {
 });
 
 describe("changing the instructor", () => {
-  it("on the preview: says who the routine names, and a new name is added as an instructor", async () => {
+  it("on the preview: says who the routine names, and a name not in the list is refused (24 Nov)", async () => {
     const user = userEvent.setup();
     const api = mockApi({
       ...previewRoutes(),
-      "POST /api/v1/offline-instructors": { ...milon, id: "i9", name: "Kamal Hossain" },
       [`PATCH /api/v1/offline-routines/${ROUTINE_ID}/rows/1`]: previewRoutine(),
     });
     renderWithProviders(<RoutinePreview batchId="b1" routineId={ROUTINE_ID} />, { user: fixtures.masterAdmin, locale: "en" });
@@ -99,14 +98,18 @@ describe("changing the instructor", () => {
 
     await user.click(screen.getByRole("radio", { name: "Someone else" }));
     await user.type(screen.getByLabelText("Instructor name"), "Kamal Hossain");
-    expect(screen.getByText("Kamal Hossain is added as a new instructor.")).toBeInTheDocument();
+    expect(screen.getAllByText(/Kamal Hossain is not in the instructor list/).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(api.calls.some((call) => call.method === "PATCH" && call.path.endsWith("/rows/1"))).toBe(true));
-    expect(api.calls.find((call) => call.method === "POST" && call.path === "/api/v1/offline-instructors")?.body).toEqual({
-      name: "Kamal Hossain",
-    });
-    expect(api.calls.find((call) => call.path.endsWith("/rows/1"))?.body).toEqual({ instructorId: "i9" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Kamal Hossain is not in the instructor list/);
+    expect(api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/offline-instructors")).toBe(false);
+    expect(api.calls.some((call) => call.path.endsWith("/rows/1"))).toBe(false);
+
+    // A name that is in the list picks that instructor.
+    await user.clear(screen.getByLabelText("Instructor name"));
+    await user.type(screen.getByLabelText("Instructor name"), "Rahim Sir");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.calls.find((call) => call.path.endsWith("/rows/1"))?.body).toEqual({ instructorId: "i2" }));
   });
 
   it("on the Classes tab: the same dialog, with No instructor allowed", async () => {

@@ -17,16 +17,16 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { offlineErrorText } from "./offline-error";
 import { useFormat } from "@/lib/format/use-format";
-import { amountOf, classStatusKey, classStatusTone, dhakaInstant } from "./batch-pay-format";
-import { methodLabelKey } from "./labels";
+import { classStatusKey, classStatusTone, dhakaInstant } from "./batch-pay-format";
 import { AddClassDialog } from "./add-class-dialog";
-import { ClassEditDialog, ClassNotTakenDialog, ClassPayDialog } from "./class-dialogs";
+import { ClassEditDialog } from "./class-dialogs";
 import { InstructorChangeDialog, type InstructorChoice } from "./instructor-change-dialog";
 import { InstructorCell } from "./routine-preview";
 
-const STATUSES: ClassStatus[] = ["SCHEDULED", "HELD", "PAID_PENDING", "PAID", "NOT_TAKEN_PENDING", "NOT_TAKEN"];
+// 24 Nov: classes carry no pay. Paid and not-taken are classes settled before then, kept for the record.
+const STATUSES: ClassStatus[] = ["SCHEDULED", "HELD", "PAID", "NOT_TAKEN"];
 
-type OpenDialog = { kind: "edit" | "pay" | "notTaken" | "instructor" | "delete"; item: BatchClass };
+type OpenDialog = { kind: "edit" | "instructor" | "delete"; item: BatchClass };
 
 /** The instructors who teach this batch's classes, the quick picks of the instructor dialog. */
 function batchChoices(items: BatchClass[]): InstructorChoice[] {
@@ -43,7 +43,8 @@ function batchChoices(items: BatchClass[]): InstructorChoice[] {
 
 /**
  * The classes of a batch (plan 8.1). The filters (month, instructor, status) live in the URL. The list is grouped by date; a class is a
- * row on a wide screen and a card on a phone. The row's actions follow its status.
+ * row on a wide screen and a card on a phone. Since 24 Nov a class carries no pay: instructors are paid on their own page. A class
+ * settled before then is read only.
  */
 export function BatchClasses({ batchId, archived = false, classMinutes = 60 }: { batchId: string; archived?: boolean; classMinutes?: number }) {
   const { t } = useLocale();
@@ -114,13 +115,12 @@ export function BatchClasses({ batchId, archived = false, classMinutes = 60 }: {
         <>
           <div
             aria-hidden="true"
-            className="hidden text-meta font-semibold text-text sm:grid sm:grid-cols-[9rem_minmax(0,1.6fr)_minmax(0,1.2fr)_7.5rem_8rem_auto] sm:gap-3 sm:px-3"
+            className="hidden text-meta font-semibold text-text sm:grid sm:grid-cols-[9rem_minmax(0,1.6fr)_minmax(0,1.2fr)_7.5rem_auto] sm:gap-3 sm:px-3"
           >
             <span>{t("batchPay.preview.columns.time")}</span>
             <span>{t("batchPay.preview.columns.subject")}</span>
             <span>{t("batchPay.preview.columns.instructor")}</span>
             <span>{t("batchPay.classes.filters.status")}</span>
-            <span>{t("batchPay.classes.amount")}</span>
             <span />
           </div>
           {groups.map((group) => (
@@ -190,10 +190,6 @@ export function BatchClasses({ batchId, archived = false, classMinutes = 60 }: {
           }}
         />
       ) : null}
-      {dialog?.kind === "pay" ? <ClassPayDialog item={dialog.item} open onOpenChange={(open) => !open && setDialog(null)} /> : null}
-      {dialog?.kind === "notTaken" ? (
-        <ClassNotTakenDialog item={dialog.item} open onOpenChange={(open) => !open && setDialog(null)} />
-      ) : null}
     </div>
   );
 }
@@ -211,18 +207,17 @@ function groupByDate(items: BatchClass[]): { date: string; items: BatchClass[] }
   return groups;
 }
 
-/** One class: time, subject and topic, instructor, amount, status, and the actions its status allows. */
+/** One class: time, subject and topic, instructor, status, and the actions its status allows. */
 function ClassRow({ item, canDelete, onAction }: { item: BatchClass; canDelete: boolean; onAction: (kind: OpenDialog["kind"]) => void }) {
   const { t } = useLocale();
-  const { formatDate, formatMoney, formatTimeRange } = useFormat();
-  const amount = amountOf(item.amount);
+  const { formatTimeRange } = useFormat();
   const open = item.status === "SCHEDULED" || item.status === "HELD";
   const time = item.startsAt
     ? formatTimeRange(dhakaInstant(item.heldOn, item.startsAt), dhakaInstant(item.heldOn, item.endsAt ?? item.startsAt))
     : "—";
 
   return (
-    <div className="grid gap-2 rounded-card border border-border-control bg-card px-3 py-3 sm:grid-cols-[9rem_minmax(0,1.6fr)_minmax(0,1.2fr)_7.5rem_8rem_auto] sm:items-center sm:gap-3">
+    <div className="grid gap-2 rounded-card border border-border-control bg-card px-3 py-3 sm:grid-cols-[9rem_minmax(0,1.6fr)_minmax(0,1.2fr)_7.5rem_auto] sm:items-center sm:gap-3">
       <Cell label={t("batchPay.preview.columns.time")}>
         <span className="whitespace-nowrap">{time}</span>
       </Cell>
@@ -230,11 +225,6 @@ function ClassRow({ item, canDelete, onAction }: { item: BatchClass; canDelete: 
         <span className="grid min-w-0">
           <span className="break-words font-medium text-text">{item.subject}</span>
           {item.topic ? <span className="break-words text-meta text-muted">{item.topic}</span> : null}
-          {item.inRoutine === false ? (
-            <span className="pt-0.5">
-              <Pill tone="muted">{t("instructorPay.detail.payOnly")}</Pill>
-            </span>
-          ) : null}
         </span>
       </Cell>
       <Cell label={t("batchPay.preview.columns.instructor")}>
@@ -246,26 +236,15 @@ function ClassRow({ item, canDelete, onAction }: { item: BatchClass; canDelete: 
           onChange={() => onAction("instructor")}
         />
       </Cell>
-      <Cell label={t("batchPay.classes.amount")}>
-        <span className="grid gap-0.5">
-          <span className="whitespace-nowrap">{amount === null ? t("batchPay.classes.noRate") : formatMoney(amount)}</span>
-          {item.rateOverride != null ? <Pill tone="accent">{t("batchPay.classes.overridden")}</Pill> : null}
-        </span>
-      </Cell>
       <Cell label={t("batchPay.classes.filters.status")}>
         <span className="grid justify-items-start gap-1">
           <Pill tone={classStatusTone(item.status)}>{t(classStatusKey(item.status))}</Pill>
-          {item.status === "PAID" && item.payment ? (
-            <span className="text-meta text-muted">
-              {t("batchPay.classes.paidInfo", { method: t(methodLabelKey(item.payment.method)), date: formatDate(item.payment.paidOn) })}
-            </span>
-          ) : null}
           {item.status === "CANCELLED" ? <span className="text-meta text-muted">{t("batchPay.classes.cancelledNote")}</span> : null}
         </span>
       </Cell>
       <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
         <Actions item={item} onAction={onAction} />
-        {/* 16 Nov: a class with no payment or not-taken mark waiting or settled can be deleted. */}
+        {/* 16 Nov: a class can be deleted unless it was settled before 24 Nov. */}
         {canDelete && open ? (
           <Button size="sm" variant="ghost" onClick={() => onAction("delete")}>
             {t("batchPay.classes.delete.button")}
@@ -278,32 +257,14 @@ function ClassRow({ item, canDelete, onAction }: { item: BatchClass; canDelete: 
 
 function Actions({ item, onAction }: { item: BatchClass; onAction: (kind: OpenDialog["kind"]) => void }) {
   const { t } = useLocale();
-  if (item.status === "SCHEDULED") {
+  if (item.status === "SCHEDULED" || item.status === "HELD") {
     return (
       <Button size="sm" variant="secondary" onClick={() => onAction("edit")}>
         {t("batchPay.classes.actions.edit")}
       </Button>
     );
   }
-  if (item.status === "HELD") {
-    return (
-      <>
-        <Button size="sm" onClick={() => onAction("pay")}>
-          {t("batchPay.classes.actions.recordPayment")}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => onAction("notTaken")}>
-          {t("batchPay.classes.actions.markNotTaken")}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => onAction("edit")}>
-          {t("batchPay.classes.actions.edit")}
-        </Button>
-      </>
-    );
-  }
-  if (item.status === "PAID_PENDING" || item.status === "NOT_TAKEN_PENDING") {
-    return <span className="text-meta text-muted">{t("batchPay.classes.actions.waiting")}</span>;
-  }
-  // Paid, not taken and cancelled classes are read only.
+  // Classes settled before 24 Nov and cancelled classes are read only.
   return <span className="text-meta text-muted">{t("batchPay.classes.actions.readOnly")}</span>;
 }
 

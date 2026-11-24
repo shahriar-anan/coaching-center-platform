@@ -119,12 +119,8 @@ export function classRow(overrides: Partial<BatchClass> & { id: string }): Batch
     instructorId: "i1",
     instructorName: "Milon Hossain",
     instructorText: "Milon Sir",
-    amount: 1500,
-    rateOverride: null,
     status: "HELD",
     version: 3,
-    payment: null,
-    notTakenRequest: null,
     ...overrides,
   };
 }

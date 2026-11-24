@@ -195,20 +195,16 @@ export function ByInstructorTab({ filters, state }: { filters: FinanceFilters; s
   }
   const columns: Column[] = [
     { key: "name", label: t("finance.byInstructor.name") },
-    { key: "classes", label: t("finance.byInstructor.classes"), numeric: true },
+    { key: "payments", label: t("finance.byInstructor.payments"), numeric: true },
     { key: "paid", label: t("finance.byInstructor.paid"), numeric: true },
-    { key: "owed", label: t("finance.byInstructor.owed"), numeric: true },
-    { key: "pending", label: t("finance.byInstructor.pending"), numeric: true },
   ];
   const tableRows: Row[] = rows.map((row) => ({
     key: row.instructorId,
     cells: {
       name: row.name,
-      classes: formatNumber(row.classes, locale),
+      payments: formatNumber(row.payments, locale),
       // The paid figure is the approved payments, which are the entries; the batch filter does not apply to instructors.
       paid: <FigureLink href={entriesHref(state, ["OFFLINE_INSTRUCTORS"], null)}>{formatMoney(row.paid, locale)}</FigureLink>,
-      owed: formatMoney(row.owed, locale),
-      pending: formatMoney(row.pending, locale),
     },
   }));
   return (

@@ -14,8 +14,8 @@ import jakarta.persistence.Version;
 
 /**
  * One class of a batch's routine (V89). "Held" is not stored: a SCHEDULED class whose end time has passed is held (plan G5, 4.2).
- * {@code amount} is the due amount, kept on the row so a rate change can update the unsettled classes; {@code rateOverride} wins over
- * the instructor's rate when it is set.
+ * {@code amount} and {@code rateOverride} held the pay of a class until 24 Nov; they are kept for the record and no longer written
+ * (instructor-pay-simple-plan.md).
  */
 @Entity
 @Table(name = "offline_classes")

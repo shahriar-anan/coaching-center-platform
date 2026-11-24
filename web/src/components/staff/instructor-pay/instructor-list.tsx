@@ -11,50 +11,35 @@ import { Table, type Column } from "@/components/ui/table";
 import { TextInput } from "@/components/ui/text-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/i18n/locale-context";
-import { useRole } from "@/lib/auth/guards";
 import { useFormat } from "@/lib/format/use-format";
-import {
-  useAllBatchClasses,
-  useArchiveInstructor,
-  useOfflineInstructors,
-  type OfflineInstructor,
-} from "@/lib/api/exam/instructor-pay";
-import { currentMonth, instructorFigures } from "./pay-model";
+import { useArchiveInstructor, useOfflineInstructors, usePayFigures, type OfflineInstructor } from "@/lib/api/exam/instructor-pay";
+import { toNumber } from "@/components/staff/offline/offline-model";
 import { InstructorFormDialog } from "./instructor-form-dialog";
 
 type Row = {
   instructor: OfflineInstructor;
   batchNames: string[];
-  classesThisMonth: number;
-  owed: number;
+  paidThisMonth: number;
+  lastPaidOn: string | null;
 };
 
 /**
- * The offline instructors (plan 8.3): name, phone, the batches they teach, this month's classes and what they are owed now. Add and
- * edit are open to both admin roles; archive is the Master Admin's, and the API refuses it while live classes still name the person.
+ * The offline instructors (plan 8.3; 24 Nov): name, phone, the batches they teach, what they were paid this month and their last
+ * payment. The Master Admin only: they add, edit and archive instructors here; the API refuses an archive while live classes still name
+ * the person.
  */
 export function InstructorList() {
   const { t, locale } = useLocale();
-  const { formatMoney, formatNumber } = useFormat();
-  const role = useRole();
+  const { formatDate, formatMoney } = useFormat();
   const instructors = useOfflineInstructors(false);
-  const all = useAllBatchClasses();
+  const figures = usePayFigures();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<OfflineInstructor | null>(null);
   const [adding, setAdding] = useState(false);
   const [archiving, setArchiving] = useState<OfflineInstructor | null>(null);
   const archive = useArchiveInstructor();
 
-  const batchNames = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const batch of all.batches) {
-      names.set(batch.id, locale === "bn" ? batch.nameBn || batch.nameEn : batch.nameEn || batch.nameBn);
-    }
-    return names;
-  }, [all.batches, locale]);
-
   const rows: Row[] = useMemo(() => {
-    const figures = instructorFigures(all.rows, currentMonth());
     const needle = query.trim().toLowerCase();
     return (instructors.data ?? [])
       .filter((instructor) => {
@@ -64,15 +49,15 @@ export function InstructorList() {
         return [instructor.name, instructor.phone ?? "", ...instructor.aliases].some((value) => value.toLowerCase().includes(needle));
       })
       .map((instructor) => {
-        const entry = figures.get(instructor.id);
+        const entry = figures.data?.[instructor.id];
         return {
           instructor,
-          batchNames: (entry?.batchIds ?? []).map((id) => batchNames.get(id) ?? "").filter(Boolean),
-          classesThisMonth: entry?.classesThisMonth ?? 0,
-          owed: entry?.owed ?? 0,
+          batchNames: (entry?.batches ?? []).map((batch) => (locale === "bn" ? batch.nameBn || batch.nameEn : batch.nameEn || batch.nameBn)),
+          paidThisMonth: toNumber(entry?.paidThisMonth),
+          lastPaidOn: entry?.lastPaidOn ?? null,
         };
       });
-  }, [instructors.data, all.rows, batchNames, query]);
+  }, [instructors.data, figures.data, locale, query]);
 
   const columns: Column<Row>[] = [
     {
@@ -99,19 +84,19 @@ export function InstructorList() {
       cell: (row) => (row.batchNames.length > 0 ? row.batchNames.join(", ") : <span className="text-muted">—</span>),
     },
     {
-      key: "month",
-      header: t("instructorPay.instructors.columns.month"),
-      mobileLabel: t("instructorPay.instructors.columns.month"),
-      align: "end",
-      cell: (row) => formatNumber(row.classesThisMonth),
-    },
-    {
-      key: "owed",
-      header: t("instructorPay.instructors.columns.owed"),
-      mobileLabel: t("instructorPay.instructors.columns.owed"),
+      key: "paidMonth",
+      header: t("instructorPay.instructors.columns.paidMonth"),
+      mobileLabel: t("instructorPay.instructors.columns.paidMonth"),
       align: "end",
       nowrap: true,
-      cell: (row) => <span className="font-latin tabular-nums">{formatMoney(row.owed) ?? ""}</span>,
+      cell: (row) => <span className="font-latin tabular-nums">{formatMoney(row.paidThisMonth) ?? ""}</span>,
+    },
+    {
+      key: "lastPaid",
+      header: t("instructorPay.instructors.columns.lastPaid"),
+      mobileLabel: t("instructorPay.instructors.columns.lastPaid"),
+      nowrap: true,
+      cell: (row) => (row.lastPaidOn ? formatDate(row.lastPaidOn) : <span className="text-muted">—</span>),
     },
     {
       key: "actions",
@@ -123,11 +108,9 @@ export function InstructorList() {
           <Button size="sm" variant="secondary" onClick={() => setEditing(row.instructor)}>
             {t("instructorPay.instructors.edit")}
           </Button>
-          {role.canManageOfflineBatches ? (
-            <Button size="sm" variant="ghost" onClick={() => setArchiving(row.instructor)}>
-              {t("instructorPay.instructors.archive")}
-            </Button>
-          ) : null}
+          <Button size="sm" variant="ghost" onClick={() => setArchiving(row.instructor)}>
+            {t("instructorPay.instructors.archive")}
+          </Button>
         </div>
       ),
     },
@@ -154,7 +137,7 @@ export function InstructorList() {
         <TextInput id="instructor-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
 
-      {instructors.isPending || all.isPending ? (
+      {instructors.isPending || figures.isPending ? (
         <Skeleton variant="rows" count={4} />
       ) : (
         <Table

@@ -89,14 +89,12 @@ export interface FinanceBatchRow {
   marginPercent?: number | null;
 }
 
+/** One instructor's approved payments in the period (24 Nov: pay no longer comes from the classes, so nothing is owed or waiting). */
 export interface FinanceInstructorRow {
   instructorId: string;
   name: string;
-  classes: number;
+  payments: number;
   paid: number;
-  owed: number;
-  unpriced: number;
-  pending: number;
 }
 
 export interface FinanceEntry {

@@ -43,16 +43,16 @@ function postedMatch(calls: Call[]) {
 }
 
 describe("import preview (plan 8.1)", () => {
-  it("takes the instructor from the PDF: an unknown name is a new instructor and does not block Confirm", async () => {
+  it("keeps an unknown name as written (24 Nov: no instructor is made) and does not block Confirm", async () => {
     const user = userEvent.setup();
     const api = previewApi(previewRoutine());
     renderWithProviders(<RoutinePreview batchId="b1" routineId={ROUTINE_ID} />, { user: fixtures.masterAdmin, locale: "en" });
 
     const confirm = await screen.findByRole("button", { name: "Confirm 2 classes" });
     expect(confirm).toBeEnabled();
-    expect(screen.getByText("New: Milon Sir")).toBeInTheDocument();
-    expect(screen.getByText(/Confirming adds Milon Sir to the instructors/)).toBeInTheDocument();
-    expect(screen.getByText("New instructor: added when you confirm.")).toBeInTheDocument();
+    expect(screen.getByText("Milon Sir (not in the list)")).toBeInTheDocument();
+    expect(screen.getByText(/Not in the instructor list: Milon Sir\. The classes show the name as written/)).toBeInTheDocument();
+    expect(screen.getByText("Not in the instructor list: the class keeps the name as written.")).toBeInTheDocument();
 
     // When the routine's name is someone already in the list, Change picks them: every row with that name takes them.
     await user.click(screen.getAllByRole("button", { name: "Change" })[0]);

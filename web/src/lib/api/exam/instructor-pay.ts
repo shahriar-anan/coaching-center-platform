@@ -1,14 +1,12 @@
 "use client";
 
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
-import { useBatches, type BatchView } from "@/lib/api/exam/offline-admin";
 import { queryString } from "@/lib/api/exam/staff-ops";
-import type { Role } from "@/lib/api/exam/types";
 
 /*
- * The offline instructor pay screens (plan sections 6 and 8.2, 8.3): the classes that wait for payment, the approvals, the offline
- * instructors. Money fields are JSON numbers or strings. Query keys start with "instructorPay"; every write refreshes them all.
+ * The offline instructors and their pay (24 Nov, instructor-pay-simple-plan.md). Pay no longer comes from the classes: the Master Admin
+ * records each payment by hand. Money fields are JSON numbers or strings. Query keys start with "instructorPay".
  */
 
 export const instructorPayKeys = {
@@ -17,134 +15,62 @@ export const instructorPayKeys = {
 
 // ---- views -------------------------------------------------------------------------------------------------------------
 
-export type ClassStatus = "SCHEDULED" | "HELD" | "PAID_PENDING" | "PAID" | "NOT_TAKEN_PENDING" | "NOT_TAKEN" | "CANCELLED";
+export type PayMethod = "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
+
+/** What a payment was for. A class payment from before 24 Nov takes its class's kind. */
+export type PayKind = "LECTURE" | "EXAM" | "OTHER";
 
 export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "VOIDED";
 
-export type PaymentRecord = {
+/**
+ * One payment to an instructor. `recordKind` is OTHER for a payment recorded by hand, CLASS for a class payment made before 24 Nov (its
+ * type, classes, batch and description come from the class, and only its money fields can be corrected).
+ */
+export type InstructorPayment = {
+  recordKind: "OTHER" | "CLASS";
   id: string;
-  instructorId: string | null;
+  instructorId: string;
+  instructorName: string;
+  kind: PayKind;
+  classCount: number | null;
+  batchId: string | null;
+  batchNameEn: string | null;
+  batchNameBn: string | null;
+  description: string | null;
+  classId: string | null;
+  classOn: string | null;
   amount: number | string;
-  method: "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
+  method: PayMethod;
   reference: string | null;
   paidOn: string;
   note: string | null;
   status: PaymentStatus;
-};
-
-export type NotTakenRequest = {
-  id: string;
-  reason: string;
-  status: string;
-  requestedAt: string;
-};
-
-/** One class as the staff see it (the API's ClassView). Times are Dhaka wall-clock, "HH:mm" or "HH:mm:ss". */
-export type ClassRow = {
-  id: string;
-  batchId: string;
-  routineId: string | null;
-  heldOn: string;
-  startsAt: string | null;
-  endsAt: string | null;
-  subject: string;
-  topic: string | null;
-  kind: string;
-  instructorId: string | null;
-  instructorName: string | null;
-  instructorText: string | null;
-  amount: number | string | null;
-  rateOverride: number | string | null;
-  status: ClassStatus;
-  version: number;
-  payment: PaymentRecord | null;
-  notTakenRequest: NotTakenRequest | null;
-  /** False for a class kept out of the batch's routine (17 Nov): a row of the instructor's pay only, which students never see. */
-  inRoutine?: boolean;
-};
-
-/** A payment to an instructor for something that is not a class (17 Nov), with the reason the admin typed. */
-export type OtherPayment = {
-  id: string;
-  instructorId: string;
-  instructorName: string;
-  batchId?: string | null;
-  batchNameEn?: string | null;
-  batchNameBn?: string | null;
-  reason: string;
-  amount: number | string;
-  method: "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
-  reference?: string | null;
-  paidOn: string;
-  note?: string | null;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "VOIDED";
-  recordedByName?: string | null;
+  recordedByName: string | null;
   recordedAt: string;
-  decisionReason?: string | null;
-  correctedAt?: string | null;
+  voidReason: string | null;
+  correctedAt: string | null;
 };
 
-export type OtherPaymentBody = {
-  reason: string;
-  amount: string;
-  paidOn: string;
-  method: string;
-  reference?: string;
-  note?: string;
-  batchId?: string;
+export type PaymentList = { items: InstructorPayment[]; total: number | string; truncated: boolean };
+
+export type PaySummary = {
+  totalPaid: number | string;
+  paidThisMonth: number | string;
+  lastPaidOn: string | null;
+  lastAmount: number | string | null;
+  payments: number;
+  batches: { id: string; nameEn: string; nameBn: string }[];
 };
 
-export function useOtherPayments(instructorId: string) {
-  return useQuery({
-    queryKey: [...instructorPayKeys.all, "otherPayments", instructorId],
-    queryFn: ({ signal }) => apiRequest<OtherPayment[]>(`/api/v1/offline-instructors/${instructorId}/other-payments`, { signal }),
-    staleTime: 0,
-  });
-}
+export type PayCard = { amount: number | string; payments: number };
 
-/** The other payments waiting for the Master Admin, for the Waiting for approval tab. */
-export function usePendingOtherPayments(enabled = true) {
-  return useQuery({
-    queryKey: [...instructorPayKeys.all, "otherPayments", "pending"],
-    queryFn: ({ signal }) => apiRequest<OtherPayment[]>("/api/v1/offline-other-payments?status=PENDING", { signal }),
-    enabled,
-    staleTime: 0,
-  });
-}
+export type PayCards = { thisMonth: PayCard; lastMonth: PayCard; thisYear: PayCard };
 
-/** Writes that move money: every query is refreshed, so Finance and the payment records follow. */
-function useMoneyWrite<TVars, TResult>(call: (vars: TVars) => Promise<TResult>) {
-  const queryClient = useQueryClient();
-  return useMutation<TResult, Error, TVars>({ mutationFn: call, onSuccess: () => queryClient.invalidateQueries() });
-}
-
-export function useRecordOtherPayment(instructorId: string) {
-  return useMoneyWrite<OtherPaymentBody, OtherPayment>((body) =>
-    apiRequest<OtherPayment>(`/api/v1/offline-instructors/${instructorId}/other-payments`, { method: "POST", body }),
-  );
-}
-
-/** The Master Admin approves, rejects (with a reason) or voids (with a reason) an other payment. */
-export function useDecideOtherPayment() {
-  return useMoneyWrite<{ id: string; action: "approve" | "reject" | "void"; reason?: string }, OtherPayment>(({ id, action, reason }) =>
-    apiRequest<OtherPayment>(`/api/v1/offline-other-payments/${id}/${action}`, { method: "POST", body: reason ? { reason } : {} }),
-  );
-}
-
-export type UnsettledPage = {
-  items: ClassRow[];
-  page: number;
-  size: number;
-  total: number;
-};
-
-export type UnsettledCounts = {
-  held: number;
-  waitingApproval: number;
-  heldAmount: number | string;
-};
-
-export type BulkResult = { id: string; ok: boolean; message: string | null };
+/** Each instructor's paid-this-month and last payment date, keyed by instructor id. */
+export type PayFigures = Record<
+  string,
+  { paidThisMonth: number | string; lastPaidOn: string | null; batches: { id: string; nameEn: string; nameBn: string }[] }
+>;
 
 export type OfflineInstructor = {
   id: string;
@@ -156,77 +82,17 @@ export type OfflineInstructor = {
   version: number;
 };
 
-export type UnsettledFilters = {
-  batchId?: string;
+export type PaymentFilters = {
   instructorId?: string;
   from?: string;
   to?: string;
+  batchId?: string;
+  kind?: string;
 };
 
 // ---- reading -----------------------------------------------------------------------------------------------------------
 
-/** Every page of the unsettled classes for the filters: the page reads them 200 at a time, so the groups are complete. */
-async function unsettledAll(filters: UnsettledFilters, signal?: AbortSignal): Promise<ClassRow[]> {
-  const rows: ClassRow[] = [];
-  for (let page = 0; page < 50; page += 1) {
-    const result = await apiRequest<UnsettledPage>(
-      `/api/v1/offline-classes/unsettled${queryString({ ...filters, page, size: 200 })}`,
-      { signal },
-    );
-    rows.push(...result.items);
-    if (result.items.length === 0 || (page + 1) * result.size >= result.total) {
-      break;
-    }
-  }
-  return rows;
-}
-
-/** The unsettled classes (HELD, waiting for payment approval, waiting for a not-taken approval), oldest first. */
-export function useUnsettledClasses(filters: UnsettledFilters) {
-  return useQuery({
-    queryKey: [...instructorPayKeys.all, "unsettled", filters],
-    queryFn: ({ signal }) => unsettledAll(filters, signal),
-    staleTime: 0,
-  });
-}
-
-/** The counts the cards show: held classes, classes waiting for approval, and the amount still owed on held classes. */
-export function useUnsettledCounts(enabled = true, refetchInterval?: number) {
-  return useQuery({
-    queryKey: [...instructorPayKeys.all, "counts"],
-    queryFn: ({ signal }) => apiRequest<UnsettledCounts>("/api/v1/offline-classes/unsettled/counts", { signal }),
-    enabled,
-    staleTime: 0,
-    refetchInterval,
-  });
-}
-
-/**
- * Every class of every batch, read batch by batch. The batch's own list has all statuses, so the paid, not-taken, owed and
- * per-instructor figures all come from it. Cancelled classes are left out by the API.
- */
-export function useAllBatchClasses() {
-  const batches = useBatches("");
-  const list: BatchView[] = batches.data ?? [];
-  const queries = useQueries({
-    queries: list.map((batch) => ({
-      queryKey: [...instructorPayKeys.all, "batchClasses", batch.id],
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        apiRequest<ClassRow[]>(`/api/v1/offline-batches/${batch.id}/classes`, { signal }),
-      staleTime: 0,
-    })),
-  });
-  const rows = queries.flatMap((query) => query.data ?? []);
-  const isPending = batches.isPending || queries.some((query) => query.isPending);
-  const isError = batches.isError || queries.some((query) => query.isError);
-  const refetch = () => {
-    void batches.refetch();
-    queries.forEach((query) => void query.refetch());
-  };
-  return { batches: list, rows, isPending, isError, refetch };
-}
-
-/** The offline instructors by name. Archived ones only when asked. */
+/** The offline instructors by name. Archived ones only when asked. Both admin roles read the list, to pick an instructor for a class. */
 export function useOfflineInstructors(includeArchived = false) {
   return useQuery({
     queryKey: [...instructorPayKeys.all, "instructors", includeArchived],
@@ -238,32 +104,98 @@ export function useOfflineInstructors(includeArchived = false) {
   });
 }
 
-/**
- * The count the sidebar shows on the Instructor payments item: held classes, plus the entries waiting for approval for the Master
- * Admin. Only the two admin roles read it; the caller passes null for any other role, and when the offline switch is off.
- */
-export function useInstructorPayAttention(role: Role | null | undefined): number {
-  const admin = role === "MASTER_ADMIN" || role === "SYSTEM_ADMIN";
-  const master = role === "MASTER_ADMIN";
-  const counts = useUnsettledCounts(admin, 30_000);
-  if (!admin) {
-    return 0;
-  }
-  return (counts.data?.held ?? 0) + (master ? (counts.data?.waitingApproval ?? 0) : 0);
+/** One instructor's payments, every status, newest first (the Payment history tab). */
+export function useInstructorPayments(instructorId: string, filters: { from?: string; to?: string; kind?: string } = {}) {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "history", instructorId, filters],
+    queryFn: ({ signal }) =>
+      apiRequest<PaymentList>(`/api/v1/offline-instructors/${instructorId}/payments${queryString(filters)}`, { signal }),
+    staleTime: 0,
+  });
+}
+
+export function usePaySummary(instructorId: string) {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "summary", instructorId],
+    queryFn: ({ signal }) => apiRequest<PaySummary>(`/api/v1/offline-instructors/${instructorId}/pay-summary`, { signal }),
+    staleTime: 0,
+  });
+}
+
+/** Payments across instructors (the Instructor payments page): approved and voided, newest first. */
+export function useAllInstructorPayments(filters: PaymentFilters) {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "all", filters],
+    queryFn: ({ signal }) => apiRequest<PaymentList>(`/api/v1/offline-instructor-payments${queryString(filters)}`, { signal }),
+    staleTime: 0,
+  });
+}
+
+export function usePayCards() {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "cards"],
+    queryFn: ({ signal }) => apiRequest<PayCards>("/api/v1/offline-instructor-payments/cards", { signal }),
+    staleTime: 0,
+  });
+}
+
+export function usePayFigures() {
+  return useQuery({
+    queryKey: [...instructorPayKeys.all, "figures"],
+    queryFn: ({ signal }) => apiRequest<PayFigures>("/api/v1/offline-instructor-payments/figures", { signal }),
+    staleTime: 0,
+  });
 }
 
 // ---- writes ------------------------------------------------------------------------------------------------------------
 
-export type RecordPaymentBody = {
-  amount: string;
-  method: PaymentRecord["method"];
-  reference?: string;
+/** What the Record payment form sends. Empty optional fields are sent as null. */
+export type PaymentBody = {
   paidOn: string;
-  note?: string;
+  kind: PayKind;
+  classCount: number | null;
+  amount: string;
+  method: PayMethod;
+  reference: string | null;
+  batchId: string | null;
+  description: string | null;
+  note: string | null;
 };
 
-/** Refreshes every instructor pay query, so the lists, cards and sidebar agree after a write. */
-function useInstructorPayWrite<TVars, TResult>(run: (vars: TVars) => Promise<TResult>) {
+/** Writes that move money: every query is refreshed, so Finance and Payment records follow. */
+function useMoneyWrite<TVars, TResult>(call: (vars: TVars) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation<TResult, Error, TVars>({ mutationFn: call, onSuccess: () => queryClient.invalidateQueries() });
+}
+
+export function useRecordInstructorPayment(instructorId: string) {
+  return useMoneyWrite<PaymentBody, InstructorPayment>((body) =>
+    apiRequest<InstructorPayment>(`/api/v1/offline-instructors/${instructorId}/payments`, { method: "POST", body }),
+  );
+}
+
+/** Corrects a payment, with the reason for the correction. It applies at once. */
+export function useEditInstructorPayment() {
+  return useMoneyWrite<{ payment: InstructorPayment; body: Partial<PaymentBody> & { editReason: string } }, InstructorPayment>(
+    ({ payment, body }) =>
+      apiRequest<InstructorPayment>(`/api/v1/offline-instructor-payments/${payment.recordKind}/${payment.id}`, { method: "PATCH", body }),
+  );
+}
+
+/** Voids a payment made by mistake, with a reason. */
+export function useVoidInstructorPayment() {
+  return useMoneyWrite<{ payment: InstructorPayment; reason: string }, InstructorPayment>(({ payment, reason }) =>
+    apiRequest<InstructorPayment>(`/api/v1/offline-instructor-payments/${payment.recordKind}/${payment.id}/void`, {
+      method: "POST",
+      body: { reason },
+    }),
+  );
+}
+
+export type InstructorBody = { name?: string; phone?: string | null; note?: string | null; aliases?: string[]; version?: number };
+
+/** Refreshes every instructor query after a write. */
+function useInstructorWrite<TVars, TResult>(run: (vars: TVars) => Promise<TResult>) {
   const queryClient = useQueryClient();
   return useMutation<TResult, Error, TVars>({
     mutationFn: run,
@@ -271,51 +203,9 @@ function useInstructorPayWrite<TVars, TResult>(run: (vars: TVars) => Promise<TRe
   });
 }
 
-/** Records a payment for a held class. Staff's waits for approval; the Master Admin's is approved at once. */
-export function useRecordClassPayment() {
-  return useInstructorPayWrite<{ classId: string; body: RecordPaymentBody }, ClassRow>(({ classId, body }) =>
-    apiRequest<ClassRow>(`/api/v1/offline-classes/${classId}/payment`, { method: "POST", body }),
-  );
-}
-
-/** Marks a held class not taken with a reason. Staff's waits for approval. */
-export function useMarkNotTaken() {
-  return useInstructorPayWrite<{ classId: string; reason: string }, ClassRow>(({ classId, reason }) =>
-    apiRequest<ClassRow>(`/api/v1/offline-classes/${classId}/not-taken`, { method: "POST", body: { reason } }),
-  );
-}
-
-/** Approves waiting payments. Each id is handled on its own; the result says which failed and why. */
-export function useApprovePayments() {
-  return useInstructorPayWrite<string[], BulkResult[]>((ids) =>
-    apiRequest<BulkResult[]>("/api/v1/offline-class-payments/approve-many", { method: "POST", body: { ids } }),
-  );
-}
-
-/** Approves waiting not-taken requests. */
-export function useApproveNotTakenMany() {
-  return useInstructorPayWrite<string[], BulkResult[]>((ids) =>
-    apiRequest<BulkResult[]>("/api/v1/offline-class-decisions/approve-many", { method: "POST", body: { ids } }),
-  );
-}
-
-export function useRejectPayment() {
-  return useInstructorPayWrite<{ id: string; reason: string }, unknown>(({ id, reason }) =>
-    apiRequest(`/api/v1/offline-class-payments/${id}/reject`, { method: "POST", body: { reason } }),
-  );
-}
-
-export function useRejectNotTaken() {
-  return useInstructorPayWrite<{ id: string; reason: string }, unknown>(({ id, reason }) =>
-    apiRequest(`/api/v1/offline-class-decisions/${id}/reject`, { method: "POST", body: { reason } }),
-  );
-}
-
-export type InstructorBody = { name?: string; phone?: string | null; note?: string | null; aliases?: string[]; version?: number };
-
-/** Adds an instructor, or changes one when an id is given. A version the caller read goes with the change, so a stale edit is refused. */
+/** Adds an instructor, or changes one when an id is given (the Master Admin). A stale version is refused. */
 export function useSaveInstructor() {
-  return useInstructorPayWrite<{ id?: string; body: InstructorBody }, OfflineInstructor>(({ id, body }) =>
+  return useInstructorWrite<{ id?: string; body: InstructorBody }, OfflineInstructor>(({ id, body }) =>
     id
       ? apiRequest<OfflineInstructor>(`/api/v1/offline-instructors/${id}`, { method: "PATCH", body })
       : apiRequest<OfflineInstructor>("/api/v1/offline-instructors", { method: "POST", body }),
@@ -324,7 +214,7 @@ export function useSaveInstructor() {
 
 /** Archives an instructor. The API refuses while live classes still name them, and says how many. */
 export function useArchiveInstructor() {
-  return useInstructorPayWrite<string, OfflineInstructor>((id) =>
+  return useInstructorWrite<string, OfflineInstructor>((id) =>
     apiRequest<OfflineInstructor>(`/api/v1/offline-instructors/${id}/archive`, { method: "POST" }),
   );
 }

@@ -89,7 +89,8 @@ public class PaymentRecordController {
 		if (permissions.has(Permissions.OFFLINE_FEE_RECORD)) {
 			kinds.add(PaymentRecordService.FEE);
 		}
-		if (permissions.has(Permissions.OFFLINE_CLASS_SETTLE)) {
+		// 24 Nov: instructor payments are the Master Admin's alone (instructor-pay-simple-plan.md).
+		if (permissions.has(Permissions.OFFLINE_INSTRUCTOR_PAY)) {
 			kinds.add(PaymentRecordService.CLASS);
 			kinds.add(PaymentRecordService.OTHER);
 		}

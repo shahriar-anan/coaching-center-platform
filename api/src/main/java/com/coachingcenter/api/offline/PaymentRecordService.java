@@ -186,12 +186,16 @@ public class PaymentRecordService {
 			left join admin_profiles ap on ap.user_id = p.created_by
 			""";
 
-	/** Other payments to an offline instructor (17 Nov): the reason the admin typed is what the payment was for. */
+	/**
+	 * Payments to an offline instructor recorded by hand (17 Nov; since 24 Nov every new one): the description the admin typed is what the
+	 * payment was for, else its type (Lecture, Exam).
+	 */
 	private static final String OTHER_ROWS = """
 			select 'OTHER' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note, p.status, null::varchar as receipt_no,
 			  i.name as person_name, p.batch_id, b.name_en as batch_name_en, b.name_bn as batch_name_bn,
 			  p.instructor_id, i.name as instructor_name, coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.corrected_at,
-			  'OTHER' as item_type, null::uuid as item_id, p.reason as item_en, p.reason as item_bn, null::numeric as refunded_amount,
+			  'OTHER' as item_type, null::uuid as item_id, coalesce(p.reason, initcap(p.kind)) as item_en,
+			  coalesce(p.reason, initcap(p.kind)) as item_bn, null::numeric as refunded_amount,
 			  null::uuid as item_category
 			from offline_instructor_other_payments p
 			join offline_instructors i on i.id = p.instructor_id
@@ -498,15 +502,9 @@ public class PaymentRecordService {
 		update("offline_fee_payments", paymentId, after);
 	}
 
-	/** An instructor payment: a paid amount different from the class's amount due needs a note, as when it is recorded. */
+	/** A class payment from before 24 Nov. Classes carry no amount due any more, so any amount is taken. */
 	private void applyClass(UUID paymentId, Values after) {
-		BigDecimal due = jdbc.queryForObject("""
-				select c.amount from offline_class_payments p join offline_classes c on c.id = p.class_id where p.id = ? for update of p
-				""", BigDecimal.class, paymentId);
-		if (due != null && after.amount().compareTo(due) != 0 && (after.note() == null || after.note().isBlank())) {
-			throw validation(List.of(new FieldErrorDetail("note", "Add a note: the amount differs from the ৳" + due.toPlainString()
-					+ " due for the class.")));
-		}
+		jdbc.queryForList("select id from offline_class_payments where id = ? for update", UUID.class, paymentId);
 		update("offline_class_payments", paymentId, after);
 	}
 

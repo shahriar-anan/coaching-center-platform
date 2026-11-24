@@ -12,8 +12,7 @@ describe("offline instructors page", () => {
     const user = userEvent.setup();
     const api = mockApi({
       "GET /api/v1/offline-instructors": [MILON],
-      "GET /api/v1/offline-batches": [BATCH],
-      "GET /api/v1/offline-batches/batch-1/classes": [],
+      "GET /api/v1/offline-instructor-payments/figures": {},
       "POST /api/v1/offline-instructors/ins-milon/archive": apiError(409, "VALIDATION_FAILED", REFUSAL),
     });
     renderWithProviders(<InstructorList />, {
@@ -33,20 +32,22 @@ describe("offline instructors page", () => {
     expect(screen.getByRole("dialog", { name: "Archive Milon?" })).toBeInTheDocument();
   });
 
-  it("does not offer archive to a System Admin", async () => {
+  it("shows each instructor's batches, what they were paid this month and their last payment (24 Nov)", async () => {
     mockApi({
       "GET /api/v1/offline-instructors": [MILON],
-      "GET /api/v1/offline-batches": [BATCH],
-      "GET /api/v1/offline-batches/batch-1/classes": [],
+      "GET /api/v1/offline-instructor-payments/figures": {
+        [MILON.id]: { paidThisMonth: 2500, lastPaidOn: "2026-11-20", batches: [{ id: BATCH.id, nameEn: BATCH.nameEn, nameBn: BATCH.nameBn }] },
+      },
     });
     renderWithProviders(<InstructorList />, {
-      user: fixtures.systemAdmin,
+      user: fixtures.masterAdmin,
       locale: "en",
       route: "/staff/offline-instructors",
     });
 
     expect((await screen.findAllByRole("link", { name: "Milon" })).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Edit" }).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(BATCH.nameEn)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/2,500/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Owed now")).not.toBeInTheDocument();
   });
 });

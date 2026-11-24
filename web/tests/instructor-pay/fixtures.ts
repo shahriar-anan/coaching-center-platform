@@ -1,5 +1,5 @@
 import type { BatchView } from "@/lib/api/exam/offline-admin";
-import type { ClassRow, OfflineInstructor } from "@/lib/api/exam/instructor-pay";
+import type { InstructorPayment, OfflineInstructor, PayCards, PaySummary } from "@/lib/api/exam/instructor-pay";
 
 export const BATCH: BatchView = {
   id: "batch-1",
@@ -44,73 +44,69 @@ export const TUHIN: OfflineInstructor = {
   version: 1,
 };
 
-/** One class of the batch, held unless the overrides say otherwise. */
-export function classRow(overrides: Partial<ClassRow> & Pick<ClassRow, "id">): ClassRow {
+/** A payment to Milon recorded by hand (24 Nov): 4 lectures in the batch, paid by bKash. */
+export function payment(overrides: Partial<InstructorPayment> = {}): InstructorPayment {
   return {
-    batchId: BATCH.id,
-    routineId: "routine-1",
-    heldOn: "2026-11-10",
-    startsAt: "09:00:00",
-    endsAt: "10:20:00",
-    subject: "Evidence Act",
-    topic: null,
-    kind: "LECTURE",
+    recordKind: "OTHER",
+    id: "pay-1",
     instructorId: MILON.id,
     instructorName: MILON.name,
-    instructorText: "Milon",
-    amount: 500,
-    rateOverride: null,
-    status: "HELD",
-    version: 1,
-    payment: null,
-    notTakenRequest: null,
+    kind: "LECTURE",
+    classCount: 4,
+    batchId: BATCH.id,
+    batchNameEn: BATCH.nameEn,
+    batchNameBn: BATCH.nameBn,
+    description: null,
+    classId: null,
+    classOn: null,
+    amount: 2000,
+    method: "BKASH",
+    reference: "TX-77",
+    paidOn: "2026-11-20",
+    note: null,
+    status: "APPROVED",
+    recordedByName: "Master",
+    recordedAt: "2026-11-20T05:00:00Z",
+    voidReason: null,
+    correctedAt: null,
     ...overrides,
   };
 }
 
-/** Three held classes for Milon (500 each) and one for Tuhin (400). */
-export const HELD_ROWS: ClassRow[] = [
-  classRow({ id: "c-1", heldOn: "2026-11-10", subject: "Evidence Act" }),
-  classRow({ id: "c-2", heldOn: "2026-11-11", subject: "Contract Act" }),
-  classRow({ id: "c-3", heldOn: "2026-11-12", subject: "Penal Code" }),
-  classRow({
-    id: "c-4",
-    heldOn: "2026-11-11",
-    subject: "Constitution",
-    instructorId: TUHIN.id,
-    instructorName: TUHIN.name,
-    instructorText: "Tuhin",
-    amount: 400,
-  }),
-];
+/** A class payment made before 24 Nov: its type, batch and description come from the class. */
+export const OLD_CLASS_PAYMENT: InstructorPayment = payment({
+  recordKind: "CLASS",
+  id: "old-1",
+  kind: "EXAM",
+  classCount: 1,
+  description: "Evidence Act",
+  classId: "class-1",
+  classOn: "2026-11-02",
+  amount: 500,
+  method: "CASH",
+  reference: null,
+  paidOn: "2026-11-03",
+});
 
-/** Two waiting entries staff recorded: one payment and one not-taken mark. */
-export const WAITING_ROWS: ClassRow[] = [
-  classRow({
-    id: "w-1",
-    heldOn: "2026-11-09",
-    subject: "Evidence Act",
-    status: "PAID_PENDING",
-    payment: {
-      id: "pay-1",
-      instructorId: MILON.id,
-      amount: 500,
-      method: "CASH",
-      reference: null,
-      paidOn: "2026-11-09",
-      note: null,
-      status: "PENDING",
-    },
-  }),
-  classRow({
-    id: "w-2",
-    heldOn: "2026-11-09",
-    subject: "Contract Act",
-    status: "NOT_TAKEN_PENDING",
-    notTakenRequest: { id: "dec-1", reason: "Holiday", status: "PENDING", requestedAt: "2026-11-09T10:00:00Z" },
-  }),
-];
+export const SUMMARY: PaySummary = {
+  totalPaid: 2500,
+  paidThisMonth: 2500,
+  lastPaidOn: "2026-11-20",
+  lastAmount: 2000,
+  payments: 2,
+  batches: [{ id: BATCH.id, nameEn: BATCH.nameEn, nameBn: BATCH.nameBn }],
+};
 
-export function unsettledPage(items: ClassRow[]) {
-  return { items, page: 0, size: 200, total: items.length };
+export const CARDS: PayCards = {
+  thisMonth: { amount: 2500, payments: 2 },
+  lastMonth: { amount: 0, payments: 0 },
+  thisYear: { amount: 2500, payments: 2 },
+};
+
+export function list(items: InstructorPayment[]) {
+  return {
+    items,
+    total: items.filter((item) => item.status === "APPROVED").reduce((sum, item) => sum + Number(item.amount), 0),
+    truncated: false,
+  };
 }

@@ -3,227 +3,162 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { InstructorPayments } from "@/components/staff/instructor-pay/instructor-payments-page";
 import { InstructorDetail } from "@/components/staff/instructor-pay/instructor-detail";
+import { dhakaToday } from "@/components/staff/offline/offline-model";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
-import { BATCH, HELD_ROWS, MILON, TUHIN, WAITING_ROWS, unsettledPage } from "./fixtures";
+import { BATCH, CARDS, MILON, OLD_CLASS_PAYMENT, SUMMARY, TUHIN, list, payment } from "./fixtures";
 
-const COUNTS = { held: 4, waitingApproval: 2, heldAmount: 1900 };
+/*
+ * Instructor pay made simple (24 Nov, instructor-pay-simple-plan.md): the Instructor payments page, and one instructor's page with
+ * Record payment and Payment history.
+ */
 
-function payRoutes(extra: Record<string, unknown> = {}) {
-  const rows = [...HELD_ROWS, ...WAITING_ROWS];
+function detailRoutes(extra: Record<string, unknown> = {}) {
   return mockApi({
-    "GET /api/v1/offline-batches": [BATCH],
-    "GET /api/v1/offline-batches/batch-1/classes": rows,
-    "GET /api/v1/offline-classes/unsettled": unsettledPage(rows),
-    "GET /api/v1/offline-classes/unsettled/counts": COUNTS,
     "GET /api/v1/offline-instructors": [MILON, TUHIN],
+    "GET /api/v1/offline-batches": [BATCH],
+    [`GET /api/v1/offline-instructors/${MILON.id}/pay-summary`]: SUMMARY,
+    [`GET /api/v1/offline-instructors/${MILON.id}/payments`]: list([payment(), OLD_CLASS_PAYMENT]),
     ...extra,
   });
 }
 
-describe("instructor payments page: grouping", () => {
-  it("groups the held classes by instructor, with the name, the count and the amount due", async () => {
-    payRoutes();
-    renderWithProviders(<InstructorPayments />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: "/staff/offline-instructor-payments",
-    });
-
-    const milon = await screen.findByRole("link", { name: /Milon/ });
-    expect(within(milon).getByText(/3 classes/)).toBeInTheDocument();
-    expect(within(milon).getByText(/৳1,500\.00 due/)).toBeInTheDocument();
-
-    const tuhin = screen.getByRole("link", { name: /Tuhin Hossain/ });
-    expect(within(tuhin).getByText(/1 class\b/)).toBeInTheDocument();
-    expect(within(tuhin).getByText(/৳400\.00 due/)).toBeInTheDocument();
+function renderDetail(tab = "") {
+  return renderWithProviders(<InstructorDetail id={MILON.id} />, {
+    user: fixtures.masterAdmin,
+    locale: "en",
+    route: `/staff/offline-instructors/${MILON.id}${tab ? `?tab=${tab}` : ""}`,
   });
+}
 
-  it("opens an instructor's own page from their group (17 Nov)", async () => {
-    payRoutes();
-    renderWithProviders(<InstructorPayments />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: "/staff/offline-instructor-payments",
-    });
-
-    expect(await screen.findByRole("link", { name: /Milon/ })).toHaveAttribute("href", `/staff/offline-instructors/${MILON.id}`);
-  });
-
-  it("shows the empty state when nothing is held", async () => {
-    mockApi({
-      "GET /api/v1/offline-batches": [BATCH],
-      "GET /api/v1/offline-batches/batch-1/classes": [],
-      "GET /api/v1/offline-classes/unsettled": unsettledPage([]),
-      "GET /api/v1/offline-classes/unsettled/counts": { held: 0, waitingApproval: 0, heldAmount: 0 },
-      "GET /api/v1/offline-instructors": [],
-    });
-    renderWithProviders(<InstructorPayments />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: "/staff/offline-instructor-payments",
-    });
-
-    expect(await screen.findByText("Nothing to settle.")).toBeInTheDocument();
-    expect(screen.getByText("Classes appear here after their time has passed.")).toBeInTheDocument();
-  });
-});
-
-describe("record payment dialog", () => {
-  it("prefills the amount with the class's due amount", async () => {
-    // 17 Nov: classes are settled on the instructor's own page.
-    const user = userEvent.setup();
-    payRoutes({ [`GET /api/v1/offline-instructors/${MILON.id}/other-payments`]: [] });
-    renderWithProviders(<InstructorDetail id={MILON.id} />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: `/staff/offline-instructors/${MILON.id}`,
-    });
-
-    expect((await screen.findAllByRole("button", { name: "Mark not taken" })).length).toBeGreaterThan(0);
-    await user.click(screen.getAllByRole("button", { name: "Record payment" })[0] as HTMLElement);
-
-    const dialog = await screen.findByRole("dialog", { name: "Record payment" });
-    expect(within(dialog).getByLabelText(/Amount paid/)).toHaveValue("500");
-    expect(within(dialog).getByText("Due: ৳500.00")).toBeInTheDocument();
-  });
-});
-
-describe("approvals (Master Admin)", () => {
-  it("lists the selected rows in one confirmation before it calls the API", async () => {
-    const user = userEvent.setup();
-    const api = payRoutes({
-      "POST /api/v1/offline-class-payments/approve-many": [{ id: "pay-1", ok: true, message: null }],
-      "POST /api/v1/offline-class-decisions/approve-many": [{ id: "dec-1", ok: true, message: null }],
-    });
-    renderWithProviders(<InstructorPayments />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: "/staff/offline-instructor-payments?tab=waiting",
-    });
-
-    await user.click(await screen.findByRole("checkbox", { name: /Select Evidence Act by Milon/ }));
-    await user.click(screen.getByRole("checkbox", { name: /Select Contract Act by Milon/ }));
-    await user.click(screen.getByRole("button", { name: "Approve 2" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Approve 2 entries?" });
-    expect(within(dialog).getByText(/Evidence Act/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/Contract Act/)).toBeInTheDocument();
-    // Nothing is sent until the person confirms.
-    expect(api.calls.some((call) => call.path.includes("approve-many"))).toBe(false);
-
-    await user.click(within(dialog).getByRole("button", { name: "Approve 2" }));
-
-    await waitFor(() => expect(api.calls.some((call) => call.path.endsWith("offline-class-payments/approve-many"))).toBe(true));
-    const payments = api.calls.find((call) => call.path.endsWith("offline-class-payments/approve-many"));
-    const decisions = api.calls.find((call) => call.path.endsWith("offline-class-decisions/approve-many"));
-    expect(payments?.body).toEqual({ ids: ["pay-1"] });
-    expect(decisions?.body).toEqual({ ids: ["dec-1"] });
-  });
-
-  it("gives staff no approve buttons on the waiting tab, and says the entries are theirs", async () => {
-    payRoutes();
-    renderWithProviders(<InstructorPayments />, {
-      user: fixtures.systemAdmin,
-      locale: "en",
-      route: "/staff/offline-instructor-payments?tab=waiting",
-    });
-
-    expect(await screen.findByText("Your entries waiting")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-    expect(screen.queryByRole("checkbox")).toBeNull();
-  });
-});
-
-describe("a class with no rate, on the instructor's page (17 Nov)", () => {
-  it("says the batch has no rate, and Set rate saves the instructor's rate in that batch", async () => {
-    const user = userEvent.setup();
-    const noRate = { ...HELD_ROWS[0], amount: null, rateOverride: null } as (typeof HELD_ROWS)[number];
+describe("instructor payments page", () => {
+  it("shows the cards and every payment, from this month to start with, each linked to its instructor", async () => {
     const api = mockApi({
-      "GET /api/v1/offline-batches": [BATCH],
-      "GET /api/v1/offline-batches/batch-1/classes": [noRate],
       "GET /api/v1/offline-instructors": [MILON, TUHIN],
-      [`GET /api/v1/offline-instructors/${MILON.id}/other-payments`]: [],
-      [`PUT /api/v1/offline-batches/batch-1/rates/${MILON.id}`]: { instructorId: MILON.id, name: MILON.name, rate: 450 },
+      "GET /api/v1/offline-batches": [BATCH],
+      "GET /api/v1/offline-instructor-payments/cards": CARDS,
+      "GET /api/v1/offline-instructor-payments": list([payment(), payment({ id: "pay-2", instructorId: TUHIN.id, instructorName: TUHIN.name })]),
     });
-    renderWithProviders(<InstructorDetail id={MILON.id} />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: `/staff/offline-instructors/${MILON.id}`,
-    });
+    renderWithProviders(<InstructorPayments />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/offline-instructor-payments" });
 
-    expect((await screen.findAllByText("No rate set for this batch")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
-    await user.click(screen.getAllByRole("button", { name: "Set rate" })[0] as HTMLElement);
+    expect(await screen.findByText(/Paid this month · 2 payments/)).toBeInTheDocument();
+    expect((await screen.findAllByRole("link", { name: TUHIN.name })).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: MILON.name })[0]).toHaveAttribute("href", `/staff/offline-instructors/${MILON.id}`);
+    // Nothing is recorded, edited or voided here.
+    expect(screen.queryByRole("button", { name: "Void" })).not.toBeInTheDocument();
+    const call = api.calls.find((item) => item.path === "/api/v1/offline-instructor-payments");
+    expect(call?.search).toContain(`from=${dhakaToday().slice(0, 7)}-01`);
+  });
+});
 
-    const dialog = await screen.findByRole("dialog", { name: "Set the class rate" });
-    await user.type(within(dialog).getByLabelText(/Amount per class/), "450");
-    await user.click(within(dialog).getByRole("button", { name: "Save rate" }));
+describe("an instructor's page: Record payment (D7)", () => {
+  it("shows the summary and starts on Record payment with today's date", async () => {
+    detailRoutes();
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "Record payment" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Total paid")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Date/)).toHaveValue(dhakaToday());
+    expect(screen.getAllByText(BATCH.nameEn).length).toBeGreaterThan(0);
+  });
+
+  it("asks for a description for Other and sends nothing until it is there", async () => {
+    const user = userEvent.setup();
+    const api = detailRoutes();
+    renderDetail();
+
+    await user.selectOptions(await screen.findByLabelText(/^Type/), "OTHER");
+    await user.type(screen.getByLabelText(/^Amount/), "300");
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+
+    expect(await screen.findByText("Say what the payment is for.")).toBeInTheDocument();
+    expect(api.calls.some((call) => call.method === "POST")).toBe(false);
+  });
+
+  it("records a lecture payment with the number of classes, at once", async () => {
+    const user = userEvent.setup();
+    const api = detailRoutes({ [`POST /api/v1/offline-instructors/${MILON.id}/payments`]: payment() });
+    renderDetail();
+
+    await user.selectOptions(await screen.findByLabelText(/^Type/), "LECTURE");
+    await user.type(screen.getByLabelText(/^Number of classes/), "4");
+    await user.type(screen.getByLabelText(/^Amount/), "2000");
+    await user.selectOptions(screen.getByLabelText(/^Batch/), BATCH.id);
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
 
     await waitFor(() =>
-      expect(api.calls.find((call) => call.method === "PUT" && call.path.endsWith(`/rates/${MILON.id}`))?.body).toEqual({ rate: "450" }),
-    );
-  });
-});
-
-describe("a class with its own rate, on the instructor's page (17 Nov)", () => {
-  it("is tagged Own rate, and a batch rate set from it removes its own rate so it follows the batch", async () => {
-    const user = userEvent.setup();
-    const own = { ...HELD_ROWS[0], amount: 350, rateOverride: 350 } as (typeof HELD_ROWS)[number];
-    const api = mockApi({
-      "GET /api/v1/offline-batches": [BATCH],
-      "GET /api/v1/offline-batches/batch-1/classes": [own, HELD_ROWS[1], HELD_ROWS[2]],
-      "GET /api/v1/offline-instructors": [MILON, TUHIN],
-      [`GET /api/v1/offline-instructors/${MILON.id}/other-payments`]: [],
-      [`PUT /api/v1/offline-batches/batch-1/rates/${MILON.id}`]: { instructorId: MILON.id, name: MILON.name, rate: 450 },
-      [`PATCH /api/v1/offline-classes/${own.id}`]: { ...own, amount: 450, rateOverride: null },
-    });
-    renderWithProviders(<InstructorDetail id={MILON.id} />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: `/staff/offline-instructors/${MILON.id}`,
-    });
-
-    expect((await screen.findAllByText("Own rate")).length).toBeGreaterThan(0);
-    const ownRow = screen.getAllByText("Own rate")[0]?.closest("tr") as HTMLElement;
-    await user.click(within(ownRow).getByRole("button", { name: "Change rate" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Set the class rate" });
-    // A class with its own rate opens on "This class only"; choosing the batch says what changes.
-    expect(within(dialog).getByLabelText("This class only")).toBeChecked();
-    await user.click(within(dialog).getByLabelText(/Every class of Milon/));
-    expect(within(dialog).getByText("Unpaid classes that get this rate: 3")).toBeInTheDocument();
-    expect(within(dialog).getByText(/own rate is removed/)).toBeInTheDocument();
-    await user.clear(within(dialog).getByLabelText(/Amount per class/));
-    await user.type(within(dialog).getByLabelText(/Amount per class/), "450");
-    await user.click(within(dialog).getByRole("button", { name: "Save rate" }));
-
-    await waitFor(() =>
-      expect(api.calls.find((call) => call.method === "PATCH" && call.path.endsWith(`/offline-classes/${own.id}`))?.body).toEqual({
-        version: own.version,
-        rateOverride: null,
+      expect(api.calls.find((call) => call.method === "POST")?.body).toEqual({
+        paidOn: dhakaToday(),
+        kind: "LECTURE",
+        classCount: 4,
+        amount: "2000",
+        method: "CASH",
+        reference: null,
+        batchId: BATCH.id,
+        description: null,
+        note: null,
       }),
     );
-    expect(api.calls.some((call) => call.method === "PUT" && call.path.endsWith(`/rates/${MILON.id}`))).toBe(true);
+    expect(await screen.findByText("Payment recorded.")).toBeInTheDocument();
   });
 });
 
-describe("the waiting tab shows the rate beside a recorded payment (17 Nov)", () => {
-  it("says the rate per class and how far the payment is from it", async () => {
-    const paid = { ...WAITING_ROWS[0], amount: 400 } as (typeof WAITING_ROWS)[number];
-    mockApi({
-      "GET /api/v1/offline-batches": [BATCH],
-      "GET /api/v1/offline-batches/batch-1/classes": [paid],
-      "GET /api/v1/offline-classes/unsettled": unsettledPage([paid]),
-      "GET /api/v1/offline-classes/unsettled/counts": { held: 0, waitingApproval: 1, heldAmount: 0 },
-      "GET /api/v1/offline-instructors": [MILON, TUHIN],
-    });
-    renderWithProviders(<InstructorPayments />, {
-      user: fixtures.masterAdmin,
-      locale: "en",
-      route: "/staff/offline-instructor-payments?tab=waiting",
-    });
+describe("an instructor's page: Payment history", () => {
+  it("lists the new payments and the class payments from before", async () => {
+    detailRoutes();
+    renderDetail("history");
 
-    expect(await screen.findByText(/Rate per class: ৳400\.00/)).toBeInTheDocument();
-    expect(screen.getByText("৳100.00 more than the rate")).toBeInTheDocument();
+    // The table is drawn twice (a table, and cards for a phone), so each text is found at least once.
+    expect((await screen.findAllByText("4 lectures")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Class: Evidence Act on/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Total paid in this list/)).toBeInTheDocument();
+  });
+
+  it("corrects a class payment from before with its money fields only, and a reason", async () => {
+    const user = userEvent.setup();
+    const api = detailRoutes({ "PATCH /api/v1/offline-instructor-payments/CLASS/old-1": { ...OLD_CLASS_PAYMENT, amount: 450 } });
+    renderDetail("history");
+
+    const row = (await screen.findAllByText(/Class: Evidence Act on/))[0].closest("tr") ?? document.body;
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/made for a class before 24 Nov 2026/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Type/)).not.toBeInTheDocument();
+
+    const amount = within(dialog).getByLabelText(/^Amount/);
+    await user.clear(amount);
+    await user.type(amount, "450");
+    await user.click(within(dialog).getByRole("button", { name: "Save correction" }));
+    expect(await within(dialog).findByText("Say why the payment is corrected.")).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText(/Why is it corrected/), "Paid less");
+    await user.click(within(dialog).getByRole("button", { name: "Save correction" }));
+    await waitFor(() =>
+      expect(api.calls.find((call) => call.method === "PATCH")?.body).toEqual({
+        paidOn: OLD_CLASS_PAYMENT.paidOn,
+        amount: "450",
+        method: "CASH",
+        reference: null,
+        note: null,
+        editReason: "Paid less",
+      }),
+    );
+  });
+
+  it("voids a payment with a reason", async () => {
+    const user = userEvent.setup();
+    const api = detailRoutes({ "POST /api/v1/offline-instructor-payments/OTHER/pay-1/void": payment({ status: "VOIDED" }) });
+    renderDetail("history");
+
+    const row = (await screen.findAllByText("4 lectures"))[0].closest("tr") ?? document.body;
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "Void" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Void payment" }));
+    expect(await within(dialog).findByText("Give a reason.")).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText(/^Reason/), "Entered twice");
+    await user.click(within(dialog).getByRole("button", { name: "Void payment" }));
+    await waitFor(() =>
+      expect(api.calls.find((call) => call.method === "POST" && call.path.endsWith("/void"))?.body).toEqual({ reason: "Entered twice" }),
+    );
   });
 });

@@ -93,12 +93,10 @@ const finance = {
   },
   byInstructor: {
     name: "Instructor",
-    classes: "Classes",
+    payments: "Payments",
     paid: "Paid",
-    owed: "Owed",
-    pending: "Waiting for approval",
-    note: "Paid links to the entries. Owed and waiting are not entries yet.",
-    empty: "No offline classes or payments in this period.",
+    note: "Paid links to the entries behind it.",
+    empty: "No instructor payments in this period.",
   },
   entries: {
     date: "Date",

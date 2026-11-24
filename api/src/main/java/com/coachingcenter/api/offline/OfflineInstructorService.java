@@ -156,7 +156,7 @@ public class OfflineInstructorService {
 
 	/**
 	 * Archives an instructor: they drop out of the live list and their name is free again. Refused while any class that is not cancelled
-	 * still names them, and the message says how many. The classes and rates stay as they are for the record.
+	 * still names them, and the message says how many. The classes and payments stay as they are for the record.
 	 */
 	@Transactional
 	public InstructorView archive(UUID id) {

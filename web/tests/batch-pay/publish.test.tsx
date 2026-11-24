@@ -21,7 +21,6 @@ function routes(published: boolean) {
     "GET /api/v1/offline-batches/b1/students": [],
     "GET /api/v1/offline-batches/b1/routines": [],
     "GET /api/v1/offline-batches/b1/classes": [],
-    "GET /api/v1/offline-batches/b1/rates": [],
     "GET /api/v1/offline-instructors": [],
     "POST /api/v1/offline-batches/b1/publish": { ...batch, published: true },
     "POST /api/v1/offline-batches/b1/unpublish": { ...batch, published: false },

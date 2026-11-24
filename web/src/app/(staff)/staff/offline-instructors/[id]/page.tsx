@@ -16,7 +16,7 @@ export default function StaffOfflineInstructorPage({ params }: { params: Promise
 function InstructorRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
-    <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
+    <RequireStaff roles={["MASTER_ADMIN"]}>
       <InstructorDetail id={id} />
     </RequireStaff>
   );

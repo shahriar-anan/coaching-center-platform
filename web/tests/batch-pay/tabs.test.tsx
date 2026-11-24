@@ -18,13 +18,12 @@ function routes() {
     "GET /api/v1/offline-batches/b1/students": [],
     "GET /api/v1/offline-batches/b1/routines": [],
     "GET /api/v1/offline-batches/b1/classes": [],
-    "GET /api/v1/offline-batches/b1/rates": [],
     "GET /api/v1/offline-instructors": [],
   };
 }
 
 describe("batch page tabs (plan 8.1)", () => {
-  it("shows the five tabs and opens the one named in the URL", async () => {
+  it("shows the tabs, without instructor rates, and opens the one named in the URL", async () => {
     mockApi(routes());
     renderWithProviders(<BatchDetail id="b1" />, {
       user: fixtures.masterAdmin,
@@ -35,7 +34,7 @@ describe("batch page tabs (plan 8.1)", () => {
     expect(await screen.findByRole("tab", { name: "Routines" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("tab", { name: "Classes" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Instructor rates" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Instructor rates" })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Students" })).toBeInTheDocument();
     expect(await screen.findByText("No routine yet")).toBeInTheDocument();
   });
@@ -53,8 +52,8 @@ describe("batch page tabs (plan 8.1)", () => {
     mockApi(routes());
     renderWithProviders(<BatchDetail id="b1" />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/offline-batches/b1" });
 
-    await user.click(await screen.findByRole("tab", { name: "Instructor rates" }));
+    await user.click(await screen.findByRole("tab", { name: "Classes" }));
 
-    expect(routerState.replace).toHaveBeenCalledWith(expect.stringContaining("tab=rates"), expect.anything());
+    expect(routerState.replace).toHaveBeenCalledWith(expect.stringContaining("tab=classes"), expect.anything());
   });
 });

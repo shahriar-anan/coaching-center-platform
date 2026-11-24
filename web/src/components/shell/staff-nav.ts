@@ -255,14 +255,15 @@ export const STAFF_NAV: StaffNavItem[] = [
     key: "instructorPayments",
     group: "offline",
     href: "/staff/offline-instructor-payments",
-    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    // 24 Nov: instructor pay is the Master Admin's alone (instructor-pay-simple-plan.md).
+    access: { MASTER_ADMIN: "full" },
     icon: Coins,
   },
   {
     key: "offlineInstructors",
     group: "offline",
     href: "/staff/offline-instructors",
-    access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
+    access: { MASTER_ADMIN: "full" },
     icon: IdCard,
   },
   { key: "audit", group: "admin", href: "/staff/audit", access: { MASTER_ADMIN: "full" }, icon: ScrollText },

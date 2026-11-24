@@ -231,7 +231,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void milonIsUnknownBeforeMatchingAndResolvedAfter() throws Exception {
+	void milonIsUnknownBeforeMatchingAndResolvedAfterMatchingAnExistingInstructor() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		ensureKnown(master, "Tuhin Hossain");
 		ensureKnown(master, "Anarul Islam");
@@ -244,18 +244,24 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(before.hasNonNull("instructorId")).isFalse();
 		assertThat(codes(before)).contains("INSTRUCTOR_UNKNOWN");
 
+		// 24 Nov: a name is matched to an instructor already in the list; the routine no longer makes one (D11).
+		JsonNode refused = respond(post("/api/v1/offline-routines/" + id + "/instructor-matches", master,
+				"{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 400);
+		assertThat(refused.toString()).contains("instructorId");
+		String fullName = "Milon Hossain " + UUID.randomUUID();
+		JsonNode milon = respond(post("/api/v1/offline-instructors", master, "{\"name\":\"" + fullName + "\"}"), 201);
 		JsonNode matched = respond(post("/api/v1/offline-routines/" + id + "/instructor-matches", master,
-				"{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
+				"{\"name\":\"Milon\",\"instructorId\":\"" + milon.get("id").asText() + "\"}"), 200);
 
 		assertThat(unmatchedNames(matched)).isEmpty();
 		assertThat(fixTypo(master, id).get("canConfirm").asBoolean()).isTrue();
 		JsonNode after = findRow(matched, "2026-11-07", "Constitution");
-		assertThat(after.hasNonNull("instructorId")).isTrue();
+		assertThat(after.get("instructorId").asText()).isEqualTo(milon.get("id").asText());
 		assertThat(codes(after)).doesNotContain("INSTRUCTOR_UNKNOWN");
 		assertThat(count(matched.get("rows"), "instructorText", "Milon")).isEqualTo(12);
-		// The name is now a live instructor, so the next routine matches it without a choice.
-		assertThat(jdbc().queryForObject("select count(*) from offline_instructors where lower(name) = 'milon' and archived_at is null",
-				Long.class)).isEqualTo(1L);
+		// The spelling the routine uses is kept as an alias, so the next routine matches it without a choice.
+		assertThat(jdbc().queryForObject("select aliases::text from offline_instructors where id = ?::uuid", String.class,
+				milon.get("id").asText())).contains("Milon");
 	}
 
 	@Test
@@ -282,7 +288,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void thePreviewIsNotAConfirmedRoutineAndConfirmAddsAnUnknownInstructorFromThePdf() throws Exception {
+	void thePreviewIsNotAConfirmedRoutineAndConfirmKeepsAnUnknownNameAsWritten() throws Exception {
 		String master = token(seed("MASTER_ADMIN", "Master"));
 		ensureKnown(master, "Tuhin Hossain");
 		ensureKnown(master, "Anarul Islam");
@@ -295,17 +301,19 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		assertThat(listed.get(0).get("status").asText()).isEqualTo("PREVIEW");
 		assertThat(listed.get(0).get("studentCopy").asBoolean()).isFalse();
 
-		// Nobody matched "Milon": the confirm adds him as an instructor under the name the PDF uses and assigns his classes to him.
+		// Nobody matched "Milon": since 24 Nov the confirm makes no instructor (D11). His classes keep the name as written, with no
+		// instructor, until someone links it.
+		Integer before = jdbc().queryForObject("select count(*) from offline_instructors", Integer.class);
 		fixTypo(master, id);
 		JsonNode confirmed = respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
 		assertThat(confirmed.get("status").asText()).isEqualTo("CONFIRMED");
-		assertThat(unmatchedNames(confirmed)).isEmpty();
-		Integer milons = jdbc().queryForObject("select count(*) from offline_instructors where name = ? and archived_at is null", Integer.class,
-				"Milon");
-		assertThat(milons).isEqualTo(1);
-		Integer taught = jdbc().queryForObject("select count(*) from offline_classes c join offline_instructors i on i.id = c.instructor_id"
-				+ " where c.batch_id = ? and i.name = ?", Integer.class, batch, "Milon");
-		assertThat(taught).isPositive();
+		assertThat(unmatchedNames(confirmed)).isNotEmpty();
+		assertThat(jdbc().queryForObject("select count(*) from offline_instructors", Integer.class)).isEqualTo(before);
+		Integer asWritten = jdbc().queryForObject("select count(*) from offline_classes where batch_id = ? and instructor_text = 'Milon'"
+				+ " and instructor_id is null", Integer.class, batch);
+		assertThat(asWritten).isPositive();
+		assertThat(jdbc().queryForObject("select count(*) from offline_classes where batch_id = ? and amount is not null", Integer.class,
+				batch)).as("a class carries no amount").isZero();
 	}
 
 	@Test
@@ -319,7 +327,6 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		UUID student = seed("STUDENT", "Rahim");
 		admitted(student, masterId, batch);
 		UUID id = id(upload(master, batch, "2026-11", sample(), 201));
-		respond(post("/api/v1/offline-routines/" + id + "/instructor-matches", master, "{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
 
 		fixTypo(master, id);
 		JsonNode confirmed = respond(post("/api/v1/offline-routines/" + id + "/confirm", master, null), 200);
@@ -354,7 +361,6 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		makeUnknown(master, "Milon");
 		UUID batch = batch(master, "2027-06-30");
 		UUID first = id(upload(master, batch, "2026-11", sample(), 201));
-		respond(post("/api/v1/offline-routines/" + first + "/instructor-matches", master, "{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 200);
 		fixTypo(master, first);
 		respond(post("/api/v1/offline-routines/" + first + "/confirm", master, null), 200);
 

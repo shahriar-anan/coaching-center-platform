@@ -16,14 +16,14 @@ Nothing changed for students who buy exams online. Existing students, orders and
 | Start a desk admission, review forms, send a form back, set up a batch and fee | Yes | Yes |
 | **Onboard** a student (the final approval) | No | Yes |
 | Record a fee payment | Yes, it waits for the Master Admin's approval | Yes, it counts at once |
-| Upload the routine PDF, set instructor rates, add a class | Yes | Yes |
-| Record an instructor payment or a "not taken" class | Yes, it waits for approval | Yes, it counts at once |
+| Upload the routine PDF, add or edit a class | Yes | Yes |
+| Add an offline instructor, record and correct instructor payments | No | Yes |
 | Upload an exam result sheet | Yes | Yes |
 | **Publish** an exam result | No | Yes |
 | See the **Finance** page | No | Yes |
 
-The offline pages are in the staff menu under **Offline admission**: **Admissions**, **Fee approvals**, **Batches**,
-**Instructor payments** and **Offline instructors**. **Finance** is under **Money**.
+The offline pages are in the staff menu under **Offline admission**: **Admissions**, **Fee approvals** and **Batches**, and, for the
+Master Admin only, **Instructor payments** and **Offline instructors**. **Finance** is under **Money**.
 
 ---
 
@@ -42,7 +42,7 @@ The offline pages are in the staff menu under **Offline admission**: **Admission
   presses **Publish** on the batch page.
 - **A published batch can't be edited.** To change its details, fee, photo or WhatsApp link, press **Move to draft**, edit it, then
   **Publish** again. While it is a draft it leaves the Admission page; students already in the batch keep everything. Routines,
-  classes, instructor rates and results can be managed at any time.
+  classes and results can be managed at any time.
 
 ---
 
@@ -189,9 +189,10 @@ of the course fee is spread over the other instalments.
    a date outside the batch's dates, a weekday that does not match its date, or a row with no subject. You can correct any row
    first, or confirm the routine as it is. A row whose date or time can't be read is left out when you confirm, unless you type
    it in.
-5. An instructor name the site does not know yet is added as a new instructor when you confirm. If it is someone already in
-   the list under another spelling (for example "Milon" for "Milon Hossain"), use **Change** on that row and choose them; every
-   row with that name follows, and the site remembers the spelling.
+5. An instructor name the site does not know is **not** added as an instructor: the class keeps the name as the routine writes it.
+   If it is someone already in the list under another spelling (for example "Milon" for "Milon Hossain"), use **Change** on that row
+   and choose them; every row with that name follows, and the site remembers the spelling. A new instructor is added by the Master
+   Admin on **Offline instructors** (section 8).
 6. Press **Confirm N classes**.
 
 **An exam batch's routine** (a table of Exam, Date, Exam Topics and Time, such as the 20th MCQ Exam Batch routine):
@@ -199,8 +200,7 @@ of the course fee is spread over the other instalments.
 - Tick **This is an exam batch routine** in the upload dialog and set the exam time (for example 4:00 PM, 120 minutes). Every exam
   gets that time unless its row has its own.
 - Each exam (Exam-01, Exam-02 …) becomes an exam class on its date. Results are uploaded against these exams as usual.
-- No instructor is set from the upload. After confirming, set who is paid on each exam from the batch's **Classes**; it is then
-  paid like any class.
+- No instructor is set from the upload. After confirming, you can set the instructor of each exam from the batch's **Classes**.
 - Students see the exam number, date and time in their routine, and the full topics in the routine PDF. The topics are not
   copied, because the Bangla in this PDF does not come out as the text it shows.
 - A new upload matches each exam by its number, so an exam whose date moves keeps its class and its result.
@@ -209,46 +209,44 @@ of the course fee is spread over the other instalments.
 
 - The routine counts **from the day you upload it**. Dates before that day are added as earlier classes, and you can still
   change them.
-- Uploading a **changed routine** later replaces only the classes from that day onward. Classes already paid or marked
-  "not taken", and exams that have a result, are never changed by an upload.
+- Uploading a **changed routine** later replaces only the classes from that day onward. Exams that have a result, and classes paid
+  or marked "not taken" before 24 November, are never changed by an upload.
 - Students see the routine **without instructor names**, and the PDF they open is a copy with the instructor column removed
   and the SYMAM LAW watermark. They are told when the routine changes.
 
 ---
 
-## 8. Paying instructors
+## 8. Paying instructors (Master Admin)
 
-1. **Batches →** the batch **→ Instructor rates**: set each instructor's **rate per class** for that batch. Every class takes
-   that rate, unless you give a class its own rate (**Edit** on the class, "Rate for this class").
-2. To use a substitute, press **Change** on that class and pick, or type, the person who took it.
-3. After a class has ended, it appears on **Instructor payments → To settle**, grouped by instructor, with the amount due.
-4. Press **Record payment** (the amount, the method, the date paid; a note is needed if the amount differs from the amount
-   due), or **Mark not taken** with a reason (instructor absent, class cancelled, holiday).
-5. Staff entries wait under **Waiting for approval**. The Master Admin can approve several at once, or reject one with a
-   reason. The staff member is told the decision.
-6. Paid and not-taken classes move to **History**. Changing a rate later never changes a class already paid.
+**Since 24 November, instructor pay no longer comes from the classes.** Uploading a routine or adding a class adds nothing to pay:
+there are no instructor rates, nothing is "owed", and classes are not marked paid or "not taken". The Master Admin records each payment
+by hand. System Admins do not see these pages.
 
-The admins get one notice a day at 9 pm when held classes are still unsettled, and a weekly reminder on Sundays for classes
-waiting more than a week.
+**Offline instructors** lists every instructor: their phone, the batches they teach, what they were paid this month and their last
+payment. **Add instructor** adds one; **Edit** changes the name, phone or the other names the routine uses; **Archive** removes one who
+no longer teaches (not while a class still names them).
 
-**Offline instructors** lists every instructor, their batches, their classes this month and what is owed now.
+Open an instructor to see what they were paid in total and this month, their last payment and their batches, and two tabs:
 
-**Each instructor's page.** On **Instructor payments**, an instructor's card on **To settle** opens their own page, and **Add
-instructor** creates one and opens their page. The page lists every class and exam of theirs, held or coming, with **Record
-payment** and **Mark not taken** on the ones held.
+**Record payment**
 
-- **Add class:** for a class they took that is not in the routine, or before the routine is updated. Choose the batch, date,
-  time, subject and kind, then answer **"Add this class to the batch's routine too?"**
-  - **Yes:** it becomes a normal class of the batch, which its students see. If the batch already has a class at that time
-    that day, the dialog names it: **keep both**, or **replace** it (that class is cancelled).
-  - **No:** it is only a row of this instructor's pay, marked "Not in the routine". Students never see it, and a routine
-    upload never changes it.
-- **Record other payment:** for money paid that is not for a class (travel, a bonus, an advance). Type what it is for; a
-  batch is optional. A System Admin's payment waits for the Master Admin under **Waiting for approval**, like class payments.
-  It counts in Finance as instructor pay, and can be corrected on **Payment records**. The Master Admin can void one, with a
-  reason.
+1. The **date** is today; change it for a payment made on another day (not a future one).
+2. Choose the **type**: Lecture, Exam or Other.
+3. The **number of classes** is optional and only for the record, for example 4 for four lectures. The amount is not worked out from it.
+4. Enter the **amount**, the **method** (Cash, bKash, Nagad, Rocket, Bank) and, if you have one, a **reference**.
+5. Choose a **batch** if the payment belongs to one: Finance then counts it in that batch's instructor cost.
+6. A **description** says what the payment is for. It is required for Other (for example travel, a bonus or an advance).
+7. Press **Record payment**. It counts at once.
 
----
+**Payment history** lists every payment to the instructor, newest first, with a total. Payments for classes made before 24 November are
+there too, shown as "Class: subject on date".
+
+- **Edit** corrects a payment. Say why: the reason is kept in **Payment records** under **Correction history**. A payment from before
+  24 November can change only its date, amount, method, reference and note.
+- **Void** removes a payment made by mistake, with a reason. It leaves Finance and the totals, and cannot be edited again.
+
+**Instructor payments** shows what was paid this month, last month and this year, and every payment to every instructor. Choose the
+dates (this month to start with), a batch, an instructor or a type. Each row opens its instructor.
 
 ## 9. Exam results
 
@@ -290,12 +288,12 @@ be thrown away with **Discard staged**. If another admin's staged version is abo
   you like.
 - The three cards show **Income**, **Expenditure** and **Net**, compared with the period before. The chart shows each month.
 - The tabs show the totals **by source**, **by batch** (fees, instructor cost, net and margin of each batch) and **by
-  instructor** (paid, owed and waiting for approval).
+  instructor** (what each was paid, and in how many payments).
 - **All entries** lists every amount behind the figures, and **Export CSV** downloads it for Excel.
 
 ### Correcting a recorded payment
 
-**Money → Payment records** lists every recorded payment: course fees, instructor payments and (Master Admin only) direct
+**Money → Payment records** lists every recorded payment: course fees, and (Master Admin only) instructor payments and direct
 enrolment payments.
 
 - **Filters**: today, this month, last month or custom dates; the kind; a batch; an instructor; a search by name, reference or
@@ -309,8 +307,8 @@ enrolment payments.
 - **Correction history** lists the finalized and rejected ones.
 - Once finalized, **Finance, the fee pages and the instructor pages all show the new amount**. A corrected fee receipt keeps its
   number and says **Corrected on** with the date.
-- Limits: a fee payment cannot be more than the student owes. An instructor payment that differs from the class amount needs a
-  note. On a direct enrolment plan, only the latest payment's amount can change.
+- Limits: a fee payment cannot be more than the student owes. On a direct enrolment plan, only the latest payment's amount can
+  change.
 
 ---
 

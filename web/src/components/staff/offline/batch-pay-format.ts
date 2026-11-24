@@ -3,7 +3,7 @@ import type { Locale } from "@/i18n/locale-context";
 import type { ClassStatus, RoutineStatus } from "@/lib/api/exam/offline-batch-pay";
 
 /*
- * Labels and small formats for the batch pay screens. Message keys are written out in full so the catalogue check can find them.
+ * Labels and small formats for the batch routine and class screens. Message keys are written out in full so the catalogue check can find them.
  */
 
 /** The month label of a yyyy-MM value: "November 2026", or in Bangla digits and month names. */
@@ -42,7 +42,8 @@ export function classStatusTone(status: ClassStatus): PillTone {
     case "SCHEDULED":
       return "muted";
     case "HELD":
-      return "warn";
+      // 24 Nov: a held class no longer waits for pay, so it is not a warning.
+      return "ok";
     case "PAID_PENDING":
     case "NOT_TAKEN_PENDING":
       return "accent";

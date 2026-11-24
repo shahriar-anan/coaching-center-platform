@@ -1,17 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { BadgeCheck, Ban, CalendarClock, CircleAlert, FileText, Hourglass, Users, type LucideIcon } from "lucide-react";
+import { CalendarCheck, CalendarClock, FileText, Users, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ErrorState } from "@/components/ui/error-state";
 import { Pill, type PillTone } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/i18n/locale-context";
-import { useBatchClasses, useBatchRates, useBatchRoutines } from "@/lib/api/exam/offline-batch-pay";
+import { useBatchClasses, useBatchRoutines } from "@/lib/api/exam/offline-batch-pay";
 import { useFormat } from "@/lib/format/use-format";
-import { amountOf } from "./batch-pay-format";
-import { instructorLines } from "./batch-rates";
 
 type Tone = "neutral" | "accent" | "ok" | "warn" | "danger";
 
@@ -68,36 +66,28 @@ function Tile({
 }
 
 /**
- * The batch's Overview, above its details: the current routine, the classes by where they stand, the instructors, and the default class
- * length. Everything is read from the routines, classes and rates the other tabs use, so nothing here is kept in two places.
+ * The batch's Overview, above its details: the current routine, the classes coming and held, the instructors, and the default class
+ * length. Everything is read from the routines and classes the other tabs use, so nothing here is kept in two places. Classes carry no
+ * pay since 24 Nov, so no money is shown here.
  */
 export function BatchOverview({ batchId, minutes, onGo }: { batchId: string; minutes: number; onGo: (tab: string) => void }) {
   const { t } = useLocale();
-  const { formatDate, formatMoney, formatNumber } = useFormat();
+  const { formatDate, formatNumber } = useFormat();
   const routines = useBatchRoutines(batchId);
   const classes = useBatchClasses(batchId);
-  const rates = useBatchRates(batchId);
 
-  if (routines.isPending || classes.isPending || rates.isPending) {
+  if (routines.isPending || classes.isPending) {
     return <Skeleton variant="card" count={2} />;
   }
-  if (routines.isError || classes.isError || rates.isError) {
-    return (
-      <ErrorState
-        onRetry={() => void Promise.all([routines.refetch(), classes.refetch(), rates.refetch()])}
-        error={routines.error ?? classes.error ?? rates.error}
-      />
-    );
+  if (routines.isError || classes.isError) {
+    return <ErrorState onRetry={() => void Promise.all([routines.refetch(), classes.refetch()])} error={routines.error ?? classes.error} />;
   }
 
   const current = routines.data.find((routine) => routine.status === "CONFIRMED");
   const waiting = routines.data.find((routine) => routine.status === "PREVIEW");
   const items = classes.data;
-  const count = (status: string) => items.filter((item) => item.status === status).length;
-  const sum = (status: string) => items.filter((item) => item.status === status).reduce((total, item) => total + (amountOf(item.amount) ?? 0), 0);
+  const count = (...statuses: string[]) => items.filter((item) => statuses.includes(item.status)).length;
   const teaching = new Set(items.filter((item) => item.instructorId && item.status !== "CANCELLED").map((item) => item.instructorId));
-  const needRate = instructorLines(rates.data, items).filter((line) => line.rate === null && line.classes > 0).length;
-  const held = count("HELD");
   const pillTone: PillTone = current?.studentCopy ? "ok" : "muted";
 
   return (
@@ -113,29 +103,8 @@ export function BatchOverview({ batchId, minutes, onGo }: { batchId: string; min
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Tile icon={CalendarClock} label={t("batchPay.overview.scheduled")} value={formatNumber(count("SCHEDULED"))} tone="accent" />
-        <Tile
-          icon={Hourglass}
-          label={t("batchPay.overview.waitingPayment")}
-          value={formatNumber(held)}
-          sub={formatMoney(sum("HELD")) ?? undefined}
-          tone={held > 0 ? "warn" : "neutral"}
-        />
-        <Tile
-          icon={BadgeCheck}
-          label={t("batchPay.overview.paid")}
-          value={formatNumber(count("PAID"))}
-          sub={formatMoney(sum("PAID")) ?? undefined}
-          tone="ok"
-        />
-        <Tile icon={Ban} label={t("batchPay.overview.notTaken")} value={formatNumber(count("NOT_TAKEN"))} tone="neutral" />
+        <Tile icon={CalendarCheck} label={t("batchPay.overview.held")} value={formatNumber(count("HELD", "PAID", "NOT_TAKEN"))} tone="ok" />
         <Tile icon={Users} label={t("batchPay.overview.instructors")} value={formatNumber(teaching.size)} tone="accent" />
-        <Tile
-          icon={CircleAlert}
-          label={t("batchPay.overview.noRate")}
-          value={formatNumber(needRate)}
-          sub={needRate > 0 ? t("batchPay.overview.noRateNote") : undefined}
-          tone={needRate > 0 ? "danger" : "neutral"}
-        />
       </div>
 
       <div className="grid gap-3 rounded-card border border-border bg-card p-4 shadow-[var(--card-shadow)] sm:p-5">
@@ -175,11 +144,6 @@ export function BatchOverview({ batchId, minutes, onGo }: { batchId: string; min
           <Button size="sm" variant="ghost" className="px-0 text-text-accent" onClick={() => onGo("classes")}>
             {t("batchPay.overview.viewClasses")}
           </Button>
-          {needRate > 0 ? (
-            <Button size="sm" variant="ghost" className="px-0 text-danger" onClick={() => onGo("rates")}>
-              {t("batchPay.overview.setRates")}
-            </Button>
-          ) : null}
         </div>
       </div>
     </section>

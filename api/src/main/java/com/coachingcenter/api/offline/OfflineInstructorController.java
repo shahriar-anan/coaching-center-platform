@@ -23,8 +23,9 @@ import com.coachingcenter.api.offline.OfflineInstructorService.InstructorView;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Offline instructors (plan section 6). Staff and the Master Admin list, create and rename them (OFFLINE_BATCH_ROUTINE). Only the Master
- * Admin archives one (OFFLINE_BATCH_MANAGE). Instructors have no account, so no student route reaches these.
+ * Offline instructors (plan section 6). Staff and the Master Admin list them (OFFLINE_BATCH_ROUTINE), to pick one for a class or a
+ * routine name. Since 24 Nov only the Master Admin adds, edits and archives one (OFFLINE_INSTRUCTOR_PAY): a routine upload no longer
+ * adds instructors (instructor-pay-simple-plan.md, D11). Instructors have no account, so no student route reaches these.
  */
 @RestController
 public class OfflineInstructorController {
@@ -48,19 +49,19 @@ public class OfflineInstructorController {
 	@PostMapping("/api/v1/offline-instructors")
 	@ResponseStatus(HttpStatus.CREATED)
 	public InstructorView create(@RequestBody JsonNode body) {
-		require(permissions, Permissions.OFFLINE_BATCH_ROUTINE);
+		require(permissions, Permissions.OFFLINE_INSTRUCTOR_PAY);
 		return instructors.create(actorId(), body);
 	}
 
 	@PatchMapping("/api/v1/offline-instructors/{id}")
 	public InstructorView update(@PathVariable UUID id, @RequestBody JsonNode body) {
-		require(permissions, Permissions.OFFLINE_BATCH_ROUTINE);
+		require(permissions, Permissions.OFFLINE_INSTRUCTOR_PAY);
 		return instructors.update(id, body);
 	}
 
 	@PostMapping("/api/v1/offline-instructors/{id}/archive")
 	public InstructorView archive(@PathVariable UUID id) {
-		require(permissions, Permissions.OFFLINE_BATCH_MANAGE);
+		require(permissions, Permissions.OFFLINE_INSTRUCTOR_PAY);
 		return instructors.archive(id);
 	}
 

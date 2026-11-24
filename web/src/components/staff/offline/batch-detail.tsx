@@ -30,19 +30,18 @@ import {
 import { AdmissionMoneyPills } from "./money-pills";
 import { BatchFormDialog } from "./batch-form-dialog";
 import { BatchClasses } from "./batch-classes";
-import { BatchRates } from "./batch-rates";
 import { BatchOverview } from "./batch-overview";
 import { BatchRoutines } from "./batch-routines";
 import { BatchResults } from "./batch-results";
 import { offlineErrorText } from "./offline-error";
 import { stateLabelKey } from "./labels";
 
-const TABS = ["overview", "classes", "rates", "routines", "results", "students"] as const;
+const TABS = ["overview", "classes", "routines", "results", "students"] as const;
 type BatchTab = (typeof TABS)[number];
 
 /**
- * One batch (plan 6.3, 8.1). Overview holds its details (the Master Admin edits them). Classes, instructor rates, routines and students
- * sit on their own tabs; the tab is kept in the URL (`?tab=`), so a refresh or Back lands on the same one.
+ * One batch (plan 6.3, 8.1). Overview holds its details (the Master Admin edits them). Classes, routines, results and students sit on
+ * their own tabs (instructor rates went on 24 Nov: pay no longer comes from the classes); the tab is kept in the URL (`?tab=`), so a refresh or Back lands on the same one.
  */
 export function BatchDetail({ id }: { id: string }) {
   const { t } = useLocale();
@@ -73,7 +72,6 @@ export function BatchDetail({ id }: { id: string }) {
   const tabs = [
     { value: "overview", label: t("batchPay.tabs.overview") },
     { value: "classes", label: t("batchPay.tabs.classes") },
-    { value: "rates", label: t("batchPay.tabs.rates") },
     { value: "routines", label: t("batchPay.tabs.routines") },
     { value: "results", label: t("staffOfflineResults.tab") },
     { value: "students", label: t("batchPay.tabs.students") },
@@ -236,7 +234,6 @@ export function BatchDetail({ id }: { id: string }) {
 
       {tab === "classes" ? <BatchClasses batchId={id} archived={archived} classMinutes={b.defaultClassMinutes} /> : null}
 
-      {tab === "rates" ? <BatchRates batchId={id} archived={archived} /> : null}
 
       {tab === "routines" ? <BatchRoutines batchId={id} archived={archived} /> : null}
 

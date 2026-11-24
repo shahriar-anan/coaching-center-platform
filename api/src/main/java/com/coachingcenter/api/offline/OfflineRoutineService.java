@@ -7,7 +7,6 @@ import static com.coachingcenter.api.offline.OfflineSupport.validation;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +41,6 @@ import com.coachingcenter.api.common.error.FieldErrorDetail;
 import com.coachingcenter.api.files.LocalFileStorage;
 import com.coachingcenter.api.files.PdfUploads;
 import com.coachingcenter.api.offline.OfflineBatchService.RoutineFile;
-import com.coachingcenter.api.offline.OfflineInstructorService.InstructorView;
 import com.coachingcenter.api.offline.OfflineRoutineMatcher.Action;
 import com.coachingcenter.api.offline.OfflineRoutineMatcher.Plan;
 import com.coachingcenter.api.offline.OfflineRoutineMatcher.RowPlan;
@@ -99,8 +97,6 @@ public class OfflineRoutineService {
 
 	private final OfflineInstructorRepository instructors;
 
-	private final OfflineInstructorService instructorService;
-
 	private final OfflineBatchService batchService;
 
 	private final PdfUploads uploads;
@@ -118,7 +114,7 @@ public class OfflineRoutineService {
 	private final OfflineResultService results;
 
 	public OfflineRoutineService(OfflineBatchRepository batches, OfflineBatchRoutineRepository routines, OfflineClassRepository classes,
-			OfflineInstructorRepository instructors, OfflineInstructorService instructorService, OfflineBatchService batchService,
+			OfflineInstructorRepository instructors, OfflineBatchService batchService,
 			PdfUploads uploads, LocalFileStorage files, AuditRecorder audit, JdbcTemplate jdbc, ObjectMapper json, Clock clock,
 			OfflineResultService results) {
 		this.results = results;
@@ -126,7 +122,6 @@ public class OfflineRoutineService {
 		this.routines = routines;
 		this.classes = classes;
 		this.instructors = instructors;
-		this.instructorService = instructorService;
 		this.batchService = batchService;
 		this.uploads = uploads;
 		this.files = files;
@@ -278,8 +273,9 @@ public class OfflineRoutineService {
 	}
 
 	/**
-	 * Matches an unknown name in the routine to an existing instructor, or to a new one, for every row with that name (plan G4). The name
-	 * the routine used is added to the instructor's aliases, so the next routine matches it on its own.
+	 * Matches an unknown name in the routine to an existing instructor, for every row with that name (plan G4). The name the routine used
+	 * is added to the instructor's aliases, so the next routine matches it on its own. Since 24 Nov no instructor is made here: the Master
+	 * Admin adds instructors (instructor-pay-simple-plan.md, D11).
 	 */
 	@Transactional
 	public RoutineView matchInstructor(UUID id, JsonNode body, UUID actorId) {
@@ -291,15 +287,13 @@ public class OfflineRoutineService {
 			problems.add(new FieldErrorDetail("name", "Enter the name as the routine writes it."));
 		}
 		UUID instructorId = liveInstructorId(body.get("instructorId"), problems);
-		String newName = clip(text(body, "newName"), 200);
-		if (instructorId == null && newName.isEmpty() && problems.isEmpty()) {
-			problems.add(new FieldErrorDetail("instructorId", "Choose an instructor, or enter a new name."));
+		if (instructorId == null && problems.isEmpty()) {
+			problems.add(new FieldErrorDetail("instructorId", "Choose an instructor from the list."));
 		}
 		if (!problems.isEmpty()) {
 			throw validation(problems);
 		}
-		OfflineInstructor target = instructorId != null ? instructors.findById(instructorId).orElseThrow(OfflineSupport::notFound)
-				: existingOrNew(newName, actorId);
+		OfflineInstructor target = instructors.findById(instructorId).orElseThrow(OfflineSupport::notFound);
 		Instant now = clock.instant();
 		if (!OfflineRoutineRules.key(target.getName()).equals(OfflineRoutineRules.key(name))) {
 			String[] aliases = target.getAliases() == null ? new String[0] : target.getAliases();
@@ -326,11 +320,11 @@ public class OfflineRoutineService {
 
 	/**
 	 * Confirms a PREVIEW. Nothing in the rows blocks it (Shahriar, 15 Nov): the admin confirms with the warnings in view. A row with no
-	 * readable date or time cannot be a class, so it is left out (the warnings say so); a row with no subject is saved as "Class". The instructors come from the PDF: a name
-	 * that no instructor has (by name or alias) is added as a new instructor under that name and assigned to its rows, so nobody has to
-	 * match names before confirming. A name can still be matched to an existing instructor on the preview, and a class's instructor can be
-	 * changed later until it is settled. The classes of the batch change in this transaction: matched unsettled classes take the new
-	 * values, settled ones stay, new rows are added and unsettled classes of the month that no row matches are cancelled.
+	 * readable date or time cannot be a class, so it is left out (the warnings say so); a row with no subject is saved as "Class". A name
+	 * that matches an instructor (by name or alias) is assigned; since 24 Nov a name no instructor has is kept on the class as written,
+	 * with no instructor, and no instructor is made (D11). A name can be matched to an existing instructor on the preview, and a class's
+	 * instructor can be changed later. The classes of the batch change in this transaction: matched classes take the new values, settled
+	 * ones stay, new rows are added and classes of the month that no row matches are cancelled.
 	 */
 	@Transactional
 	public RoutineView confirm(UUID id, UUID actorId) {
@@ -344,7 +338,6 @@ public class OfflineRoutineService {
 			throw state("This batch is archived, so its routine cannot be confirmed.");
 		}
 		Report report = report(routine);
-		report = withNewInstructors(routine, report, actorId);
 		// A row with no date or time cannot be held on a day and hour, so it is left out; every other row becomes a class.
 		List<OfflineRoutineRow> usable = report.rows().stream().filter(row -> row.date() != null && row.startsAt() != null).toList();
 		report = new Report(report.defaultClassMinutes(), report.pageCount(), usable);
@@ -551,32 +544,6 @@ public class OfflineRoutineService {
 		return warnings;
 	}
 
-	/**
-	 * The report with every name no instructor has assigned to an instructor of that name: an existing one when the name is already
-	 * known, otherwise a new one created now. The rows are saved, so the confirmed routine shows who teaches each class. Rows with no
-	 * instructor in the PDF stay without one.
-	 */
-	private Report withNewInstructors(OfflineBatchRoutine routine, Report report, UUID actorId) {
-		List<UnmatchedName> names = unmatched(report.rows());
-		if (names.isEmpty()) {
-			return report;
-		}
-		Map<String, UUID> assigned = new LinkedHashMap<>();
-		for (UnmatchedName name : names) {
-			assigned.put(OfflineRoutineRules.key(name.name()), existingOrNew(clip(name.name(), 200), actorId).getId());
-		}
-		List<OfflineRoutineRow> rows = new ArrayList<>();
-		for (OfflineRoutineRow row : report.rows()) {
-			UUID instructorId = row.instructorId() == null && row.instructorText() != null && !row.instructorText().isEmpty()
-					? assigned.get(OfflineRoutineRules.key(row.instructorText()))
-					: row.instructorId();
-			rows.add(instructorId == row.instructorId() ? row : new OfflineRoutineRow(row.page(), row.date(), row.day(), row.time(),
-					row.startsAt(), row.endsAt(), row.subject(), row.topic(), row.kind(), row.instructorText(), instructorId, row.flags()));
-		}
-		save(routine, report, rows);
-		return report(routine);
-	}
-
 	private static List<UnmatchedName> unmatched(List<OfflineRoutineRow> rows) {
 		Map<String, UnmatchedName> found = new LinkedHashMap<>();
 		for (OfflineRoutineRow row : rows) {
@@ -613,7 +580,7 @@ public class OfflineRoutineService {
 		return item;
 	}
 
-	/** Copies the row's values onto a class and sets its due amount: the override, else the instructor's rate in the batch. */
+	/** Copies the row's values onto a class. A class carries no amount since 24 Nov. */
 	private void apply(OfflineClass item, OfflineRoutineRow row, UUID routineId, Instant now, UUID batchId) {
 		item.setRoutineId(routineId);
 		item.setHeldOn(LocalDate.parse(row.date()));
@@ -625,17 +592,7 @@ public class OfflineRoutineService {
 		item.setInstructorId(row.instructorId());
 		item.setInstructorText(row.instructorText() == null || row.instructorText().isEmpty() ? null
 				: cut(row.instructorText(), MAX_INSTRUCTOR_TEXT));
-		item.setAmount(item.getRateOverride() != null ? item.getRateOverride() : rate(batchId, row.instructorId()));
 		item.setUpdatedAt(now);
-	}
-
-	private BigDecimal rate(UUID batchId, UUID instructorId) {
-		if (instructorId == null) {
-			return null;
-		}
-		List<BigDecimal> rates = jdbc.query("select rate from offline_batch_instructor_rates where batch_id = ? and instructor_id = ?",
-				(rs, rowNum) -> rs.getBigDecimal("rate"), batchId, instructorId);
-		return rates.isEmpty() ? null : rates.get(0);
 	}
 
 	/** The highest version a confirmed (live or replaced) routine of the batch has, or 0. Versions count per batch. */
@@ -692,17 +649,6 @@ public class OfflineRoutineService {
 		if (!OfflineBatchRoutine.STATUS_PREVIEW.equals(routine.getStatus())) {
 			throw state("This routine was replaced by a later upload, so it cannot be changed.");
 		}
-	}
-
-	private OfflineInstructor existingOrNew(String name, UUID actorId) {
-		String key = OfflineRoutineRules.key(name);
-		for (OfflineInstructor instructor : instructors.findByArchivedAtIsNullOrderByNameAsc()) {
-			if (OfflineRoutineRules.key(instructor.getName()).equals(key)) {
-				return instructor;
-			}
-		}
-		InstructorView created = instructorService.create(actorId, json.createObjectNode().put("name", name));
-		return instructors.findById(created.id()).orElseThrow(OfflineSupport::notFound);
 	}
 
 	private UUID liveInstructorId(JsonNode node, List<FieldErrorDetail> problems) {

@@ -5,9 +5,10 @@ import { apiRequest } from "@/lib/api/client";
 import { offlineResultKeys } from "./offline-results";
 
 /*
- * The batch pages for offline instructor pay (plan section 6 and 8.1): the monthly routines and their import preview, the instructors,
- * the default rate of each instructor in a batch, and the classes with their settling. Every change refreshes all of these queries, so the
- * tabs agree. Query keys start with "batchPay". The student copy and the original PDFs are read with apiBlob by the screens.
+ * The batch pages for routines and classes (plan section 6 and 8.1): the routines and their import preview, the instructors for the
+ * pickers, and the classes. Since 24 Nov a class carries no pay (instructor-pay-simple-plan.md): instructors are paid by hand on their
+ * own page. Every change refreshes all of these queries, so the tabs agree. Query keys start with "batchPay". The student copy and the
+ * original PDFs are read with apiBlob by the screens.
  */
 
 export const batchPayKeys = {
@@ -115,25 +116,11 @@ export type InstructorRow = {
   version: number;
 };
 
-/** The default rate of one instructor in one batch. */
-export type RateRow = { instructorId: string; name: string; rate: number | string };
-
+/**
+ * A class's status. HELD is a scheduled class whose end time has passed. PAID and NOT_TAKEN are classes settled before 24 Nov, kept for
+ * the record and locked; the PENDING ones no longer occur.
+ */
 export type ClassStatus = "SCHEDULED" | "HELD" | "PAID_PENDING" | "PAID" | "NOT_TAKEN_PENDING" | "NOT_TAKEN" | "CANCELLED";
-
-export type PayMethod = "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
-
-export type ClassPayment = {
-  id: string;
-  instructorId: string;
-  amount: number | string;
-  method: PayMethod;
-  reference: string | null;
-  paidOn: string;
-  note: string | null;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "VOIDED";
-};
-
-export type ClassDecision = { id: string; reason: string; status: string; requestedAt: string };
 
 /** One class of a batch. `status` is the computed one: HELD is a scheduled class whose end time has passed. */
 export type BatchClass = {
@@ -149,14 +136,8 @@ export type BatchClass = {
   instructorId: string | null;
   instructorName: string | null;
   instructorText: string | null;
-  amount: number | string | null;
-  rateOverride: number | string | null;
-  /** False for a class kept out of the routine (17 Nov): a row of the instructor's pay only. */
-  inRoutine?: boolean;
   status: ClassStatus;
   version: number;
-  payment: ClassPayment | null;
-  notTakenRequest: ClassDecision | null;
   /** An exam with a staged or published result: its date cannot change (results rule A1). The API always sends it. */
   hasResult?: boolean;
 };
@@ -202,15 +183,6 @@ export function useInstructors(enabled = true) {
     queryKey: [...batchPayKeys.all, "instructors"],
     queryFn: ({ signal }) => apiRequest<InstructorRow[]>("/api/v1/offline-instructors", { signal }),
     enabled,
-    staleTime: 0,
-  });
-}
-
-export function useBatchRates(batchId: string) {
-  return useQuery({
-    queryKey: [...batchPayKeys.all, "rates", batchId],
-    queryFn: ({ signal }) => apiRequest<RateRow[]>(`/api/v1/offline-batches/${batchId}/rates`, { signal }),
-    enabled: Boolean(batchId),
     staleTime: 0,
   });
 }
@@ -273,9 +245,9 @@ export function useEditRoutineRow(routineId: string) {
   );
 }
 
-/** Maps an unknown name to an existing instructor (`instructorId`) or to a new one (`newName`). */
+/** Maps an unknown name to an existing instructor. Since 24 Nov no instructor is made from a routine name. */
 export function useMatchInstructor(routineId: string) {
-  return useBatchPayCall<{ name: string; instructorId?: string; newName?: string }, RoutineView>((body) => ({
+  return useBatchPayCall<{ name: string; instructorId: string }, RoutineView>((body) => ({
     path: `/api/v1/offline-routines/${routineId}/instructor-matches`,
     method: "POST",
     body,
@@ -292,30 +264,6 @@ export function useDiscardRoutine(routineId: string) {
   return useBatchPayCall<void, void>(() => ({ path: `/api/v1/offline-routines/${routineId}`, method: "DELETE" }));
 }
 
-/** Saves an instructor's phone number. The version the caller read goes with it, so a stale edit is refused. */
-export function useSaveInstructorPhone() {
-  return useBatchPayCall<{ id: string; version: number; phone: string | null }, InstructorRow>(({ id, version, phone }) => ({
-    path: `/api/v1/offline-instructors/${id}`,
-    method: "PATCH",
-    body: { phone, version },
-  }));
-}
-
-export function useSetRate(batchId: string) {
-  return useBatchPayCall<{ instructorId: string; rate: string }, RateRow>(({ instructorId, rate }) => ({
-    path: `/api/v1/offline-batches/${batchId}/rates/${instructorId}`,
-    method: "PUT",
-    body: { rate },
-  }));
-}
-
-export function useRemoveRate(batchId: string) {
-  return useBatchPayCall<string, void>((instructorId) => ({
-    path: `/api/v1/offline-batches/${batchId}/rates/${instructorId}`,
-    method: "DELETE",
-  }));
-}
-
 export type ClassEditBody = {
   version: number;
   heldOn?: string;
@@ -324,10 +272,9 @@ export type ClassEditBody = {
   subject?: string;
   topic?: string;
   instructorId?: string | null;
-  rateOverride?: string | null;
 };
 
-/** Edits a class that is not settled yet. A stale version is refused (409). */
+/** Edits a class. A class settled before 24 Nov is refused, and so is a stale version (409). */
 export function useEditClass() {
   return useBatchPayCall<{ id: string; body: ClassEditBody }, BatchClass>(({ id, body }) => ({
     path: `/api/v1/offline-classes/${id}`,
@@ -337,8 +284,8 @@ export function useEditClass() {
 }
 
 /**
- * Deletes a class by hand (16 Nov). The API refuses an exam with a result and a class whose payment or not-taken mark is waiting or
- * settled. A class that still has old payment records is marked cancelled instead of erased; either way it leaves the list.
+ * Deletes a class by hand (16 Nov). The API refuses an exam with a result and a class settled before 24 Nov. A class that still has old
+ * payment records is marked cancelled instead of erased; either way it leaves the list.
  */
 export function useDeleteClass() {
   return useBatchPayCall<string, void>((id) => ({ path: `/api/v1/offline-classes/${id}`, method: "DELETE" }));
@@ -353,10 +300,6 @@ export type ClassCreateBody = {
   topic?: string;
   kind: RoutineKind;
   instructorId?: string;
-  /** False keeps the class out of the routine: a row of the instructor's pay only (17 Nov). */
-  inRoutine?: boolean;
-  /** A class of the batch on that day that this one replaces (an exchange): it is cancelled. */
-  replaceClassId?: string;
 };
 
 /** Adds a class to a batch that is not archived. The new class shows in the classes list after the refresh. */
@@ -370,24 +313,6 @@ export function useAddClass(batchId: string) {
       void queryClient.invalidateQueries({ queryKey: offlineResultKeys.all });
     },
   });
-}
-
-export type ClassPaymentBody = { amount: string; method: PayMethod; reference?: string; paidOn: string; note?: string };
-
-export function useRecordClassPayment() {
-  return useBatchPayCall<{ id: string; body: ClassPaymentBody }, BatchClass>(({ id, body }) => ({
-    path: `/api/v1/offline-classes/${id}/payment`,
-    method: "POST",
-    body,
-  }));
-}
-
-export function useMarkNotTaken() {
-  return useBatchPayCall<{ id: string; reason: string }, BatchClass>(({ id, reason }) => ({
-    path: `/api/v1/offline-classes/${id}/not-taken`,
-    method: "POST",
-    body: { reason },
-  }));
 }
 
 // ---- files and checks --------------------------------------------------------------------------------------------------

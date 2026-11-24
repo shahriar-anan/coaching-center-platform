@@ -24,14 +24,15 @@ describe("staff navigation for offline instructor pay", () => {
     expect(money("INSTRUCTOR")).not.toContain("finance");
   });
 
-  it("shows the two offline items to both admin roles, and to no one else", () => {
+  it("shows the two offline instructor items to the Master Admin only (24 Nov)", () => {
     const offline = (role: "MASTER_ADMIN" | "SYSTEM_ADMIN" | "INSTRUCTOR") =>
       staffNavFor(role)
         .filter((item) => item.group === "offline")
         .map((item) => item.key);
 
     expect(offline("MASTER_ADMIN")).toEqual(expect.arrayContaining(["instructorPayments", "offlineInstructors"]));
-    expect(offline("SYSTEM_ADMIN")).toEqual(expect.arrayContaining(["instructorPayments", "offlineInstructors"]));
+    expect(offline("SYSTEM_ADMIN")).not.toContain("instructorPayments");
+    expect(offline("SYSTEM_ADMIN")).not.toContain("offlineInstructors");
     expect(offline("INSTRUCTOR")).toEqual([]);
   });
 
@@ -45,14 +46,14 @@ describe("staff navigation for offline instructor pay", () => {
     expect(screen.getByRole("link", { name: "Offline instructors" })).toHaveAttribute("href", "/staff/offline-instructors");
   });
 
-  it("gives a System Admin the two offline items but not Finance", () => {
+  it("gives a System Admin neither the offline instructor items nor Finance", () => {
     const { container } = renderWithProviders(<StaffNavList items={staffNavFor("SYSTEM_ADMIN")} />, {
       user: fixtures.systemAdmin,
       locale: "en",
     });
     expect(container.querySelector(FINANCE)).toBeNull();
-    expect(container.querySelector(PAYMENTS)).not.toBeNull();
-    expect(container.querySelector(INSTRUCTORS)).not.toBeNull();
+    expect(container.querySelector(PAYMENTS)).toBeNull();
+    expect(container.querySelector(INSTRUCTORS)).toBeNull();
   });
 
   it("gives an instructor none of the three items", () => {

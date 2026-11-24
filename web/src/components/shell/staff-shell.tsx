@@ -19,7 +19,6 @@ import { usePendingChanges } from "@/lib/api/exam/staff-exams";
 import { usePendingReviewCount } from "@/lib/api/exam/staff-reviews";
 import { useStaffAttention } from "@/lib/api/exam/staff-attention";
 import { useOfflineAttention } from "@/lib/api/exam/offline-admin";
-import { useInstructorPayAttention } from "@/lib/api/exam/instructor-pay";
 import { offlineAdmissionEnabled } from "@/lib/config";
 import { canModerateReviews } from "@/components/staff/reviews/review-access";
 import { useRole } from "@/lib/auth/guards";
@@ -54,9 +53,8 @@ export function StaffShell({ children }: { children: ReactNode }) {
   // Offline admissions waiting for review, and fee payments waiting for the Master Admin's approval.
   // While the offline admission switch is off the counts are not asked for (the API answers 404).
   const offline = useOfflineAttention(offlineAdmissionEnabled ? role : null);
-  // Offline classes to settle (and, for the Master Admin, entries waiting for approval). Off while the offline switch is off.
-  const instructorPayments = useInstructorPayAttention(offlineAdmissionEnabled ? role : null);
-  const staffCounts = { ...attention, admissions: offline.admissions, offlineFees: offline.offlineFees, instructorPayments };
+  // 24 Nov: instructor pay has nothing waiting any more (the Master Admin records payments by hand), so it has no count.
+  const staffCounts = { ...attention, admissions: offline.admissions, offlineFees: offline.offlineFees };
 
   function toggleCollapsed() {
     setNavCollapsed(!collapsed);

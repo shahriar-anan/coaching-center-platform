@@ -167,11 +167,11 @@ public final class Permissions {
 	/** Offline fees: approve, reject and void payments. The Master Admin only. */
 	public static final String OFFLINE_FEE_APPROVE = "OFFLINE_FEE_APPROVE";
 
-	/** Offline classes: record a payment to an instructor or mark a class not taken (a System Admin's waits for approval). Master Admin and System Admin. */
-	public static final String OFFLINE_CLASS_SETTLE = "OFFLINE_CLASS_SETTLE";
-
-	/** Offline classes: approve, reject and void instructor payments and not-taken marks. The Master Admin only. */
-	public static final String OFFLINE_CLASS_APPROVE = "OFFLINE_CLASS_APPROVE";
+	/**
+	 * Offline instructors and their pay (24 Nov): add, edit and archive an instructor, and record, edit and void a payment to one. The
+	 * Master Admin only. Pay no longer comes from the classes.
+	 */
+	public static final String OFFLINE_INSTRUCTOR_PAY = "OFFLINE_INSTRUCTOR_PAY";
 
 	/** Finance: the income and expenditure pages, online and offline. The Master Admin only (plan G3). */
 	public static final String FINANCE_READ = "FINANCE_READ";

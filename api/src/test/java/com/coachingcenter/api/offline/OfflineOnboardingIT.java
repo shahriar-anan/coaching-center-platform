@@ -98,6 +98,9 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 		String email = uniqueEmail();
 		UUID student = seedStudent("Account Name", email, plusForm(validMobile()));
 		UUID admission = studentApplies(token(student), batch, email);
+		// The student's own form already gave the profile its name when it was submitted. The student renames the account after that,
+		// and onboarding must not put the form's name back.
+		jdbc().update("update student_profiles set full_name = 'Account Name' where user_id = ?", student);
 		readyAdmission(admission, batch, master);
 		assertThat(detail(admission, master).get("joinCodeOnOnboard").asBoolean()).isFalse();
 
@@ -112,7 +115,7 @@ class OfflineOnboardingIT extends PostgresIntegrationTest {
 				Long.class, student)).isEqualTo(1L);
 		assertThat(jdbc().queryForObject("select count(*) from offline_fee_dues where admission_id = ?", Long.class, admission))
 			.isPositive();
-		// As at a join, the account keeps its own name; only a desk admission takes the form's name.
+		// As at a join, the account keeps its own name; only a desk admission takes the form's name at onboarding.
 		assertThat(jdbc().queryForObject("select full_name from student_profiles where user_id = ?", String.class, student))
 			.isEqualTo("Account Name");
 	}

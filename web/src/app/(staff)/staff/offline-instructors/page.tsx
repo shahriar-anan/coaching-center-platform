@@ -8,7 +8,7 @@ import { RequireStaff } from "@/lib/auth/guards";
 export default function StaffOfflineInstructorsPage() {
   return (
     <Suspense fallback={<Skeleton variant="rows" count={5} />}>
-      <RequireStaff roles={["MASTER_ADMIN", "SYSTEM_ADMIN"]}>
+      <RequireStaff roles={["MASTER_ADMIN"]}>
         <InstructorList />
       </RequireStaff>
     </Suspense>

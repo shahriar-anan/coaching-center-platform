@@ -3,7 +3,6 @@ package com.coachingcenter.api.offline;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -93,8 +92,8 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 
 		JsonNode duplicate = respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"" + name.toUpperCase() + "\"}"), 400);
 		assertThat(fieldNames(duplicate)).contains("name");
-		JsonNode staffDuplicate = respond(post("/api/v1/offline-instructors", staffToken, "{\"name\":\"" + name.toLowerCase() + "\"}"), 400);
-		assertThat(fieldNames(staffDuplicate)).contains("name");
+		// 24 Nov: only the Master Admin adds instructors; a System Admin is refused before the name is checked.
+		respond(post("/api/v1/offline-instructors", staffToken, "{\"name\":\"" + name.toLowerCase() + "\"}"), 403);
 
 		// A rename onto a live name is refused too, with the field error.
 		String other = "Anarul " + suffix();
@@ -126,68 +125,18 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void rateChangeUpdatesUnsettledClassesWithoutOverrideOnly() throws Exception {
-		UUID master = seed("MASTER_ADMIN", "Master");
-		String masterToken = token(master);
-		UUID instructor = instructor(masterToken, "Rafiq " + suffix());
-		UUID batch = batch(masterToken);
-
-		JsonNode set = respond(put("/api/v1/offline-batches/" + batch + "/rates/" + instructor, masterToken, "{\"rate\":400}"), 200);
-		assertThat(set.get("rate").decimalValue()).isEqualByComparingTo("400");
-
-		UUID unsettled = insertClass(batch, instructor, "SCHEDULED", new BigDecimal("400"), null);
-		UUID overridden = insertClass(batch, instructor, "SCHEDULED", new BigDecimal("700"), new BigDecimal("700"));
-		UUID paid = insertClass(batch, instructor, "PAID", new BigDecimal("400"), null);
-		UUID notTaken = insertClass(batch, instructor, "NOT_TAKEN", new BigDecimal("400"), null);
-
-		respond(put("/api/v1/offline-batches/" + batch + "/rates/" + instructor, masterToken, "{\"rate\":500}"), 200);
-
-		assertThat(amount(unsettled)).isEqualByComparingTo("500");
-		assertThat(version(unsettled)).isEqualTo(1L);
-		assertThat(amount(overridden)).as("an override keeps its amount").isEqualByComparingTo("700");
-		assertThat(amount(paid)).as("a paid class keeps its amount").isEqualByComparingTo("400");
-		assertThat(amount(notTaken)).as("a class marked not taken keeps its amount").isEqualByComparingTo("400");
-
-		JsonNode listed = respond(get("/api/v1/offline-batches/" + batch + "/rates", masterToken), 200);
-		assertThat(listed.size()).isEqualTo(1);
-		assertThat(listed.get(0).get("instructorId").asText()).isEqualTo(instructor.toString());
-		assertThat(listed.get(0).get("rate").decimalValue()).isEqualByComparingTo("500");
-
-		// Removing the rate changes no class.
-		mockMvc.perform(delete("/api/v1/offline-batches/" + batch + "/rates/" + instructor).header("Authorization", "Bearer " + masterToken))
-			.andExpect(status().isNoContent());
-		assertThat(amount(unsettled)).isEqualByComparingTo("500");
-		assertThat(jdbc().queryForObject("select count(*) from offline_batch_instructor_rates where batch_id = ?", Long.class, batch))
-			.isEqualTo(0L);
-	}
-
-	@Test
-	void ratesAreRefusedWhenNegativeAndStaffCanSetThem() throws Exception {
-		UUID master = seed("MASTER_ADMIN", "Master");
-		UUID staff = seed("SYSTEM_ADMIN", "Staff");
-		String masterToken = token(master);
-		String staffToken = token(staff);
-		UUID instructor = instructor(masterToken, "Anarul " + suffix());
-		UUID batch = batch(masterToken);
-
-		JsonNode negative = respond(put("/api/v1/offline-batches/" + batch + "/rates/" + instructor, masterToken, "{\"rate\":-1}"), 400);
-		assertThat(fieldNames(negative)).contains("rate");
-
-		respond(put("/api/v1/offline-batches/" + batch + "/rates/" + instructor, staffToken, "{\"rate\":350}"), 200);
-		assertThat(jdbc().queryForObject("select rate from offline_batch_instructor_rates where batch_id = ? and instructor_id = ?",
-				BigDecimal.class, batch, instructor)).isEqualByComparingTo("350");
-	}
-
-	@Test
-	void staffCreateAndRenameInstructorsButCannotArchive() throws Exception {
+	void onlyTheMasterAdminAddsRenamesAndArchivesInstructorsAndStaffStillSearchThem() throws Exception {
+		// 24 Nov (instructor-pay-simple-plan.md, D10, D11): instructors are the Master Admin's; a System Admin picks from the list.
 		UUID master = seed("MASTER_ADMIN", "Master");
 		UUID staff = seed("SYSTEM_ADMIN", "Staff");
 		String masterToken = token(master);
 		String staffToken = token(staff);
 
-		JsonNode created = respond(post("/api/v1/offline-instructors", staffToken, "{\"name\":\"Staff Made " + suffix() + "\"}"), 201);
+		respond(post("/api/v1/offline-instructors", staffToken, "{\"name\":\"Staff Made " + suffix() + "\"}"), 403);
+		JsonNode created = respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"Master Made " + suffix() + "\"}"), 201);
 		String id = created.get("id").asText();
-		respond(patch("/api/v1/offline-instructors/" + id, staffToken, "{\"phone\":\"01822222222\",\"aliases\":[\"Tuhin\", \"tuhin\", \" \"]}"),
+		respond(patch("/api/v1/offline-instructors/" + id, staffToken, "{\"phone\":\"01822222222\"}"), 403);
+		respond(patch("/api/v1/offline-instructors/" + id, masterToken, "{\"phone\":\"01822222222\",\"aliases\":[\"Tuhin\", \"tuhin\", \" \"]}"),
 				200);
 		respond(post("/api/v1/offline-instructors/" + id + "/archive", staffToken, null), 403);
 		JsonNode archived = respond(post("/api/v1/offline-instructors/" + id + "/archive", masterToken, null), 200);
@@ -308,15 +257,6 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 		return id;
 	}
 
-	private BigDecimal amount(UUID classId) {
-		return jdbc().queryForObject("select amount from offline_classes where id = ?", BigDecimal.class, classId);
-	}
-
-	private long version(UUID classId) {
-		Long version = jdbc().queryForObject("select version from offline_classes where id = ?", Long.class, classId);
-		return version == null ? -1L : version;
-	}
-
 	private UUID instructor(String token, String name) throws Exception {
 		JsonNode created = respond(post("/api/v1/offline-instructors", token, "{\"name\":\"" + name + "\"}"), 201);
 		return UUID.fromString(created.get("id").asText());
@@ -347,12 +287,6 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 		return mockMvc.perform(MockMvcRequestBuilders.patch(url).header("Authorization", "Bearer " + token)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(body == null ? "{}" : body));
-	}
-
-	private ResultActions put(String url, String token, String body) throws Exception {
-		return mockMvc.perform(MockMvcRequestBuilders.put(url).header("Authorization", "Bearer " + token)
-			.contentType(MediaType.APPLICATION_JSON)
-			.content(body));
 	}
 
 	private ResultActions get(String url, String token) throws Exception {

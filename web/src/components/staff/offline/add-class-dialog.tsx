@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
 import {
   useAddClass,
-  useBatchRates,
+  useBatchClasses,
   useInstructors,
   type ClassCreateBody,
   type RoutineKind,
@@ -54,16 +54,17 @@ export function AddClassDialog({
   const { toast } = useToast();
   const add = useAddClass(batchId);
   const instructors = useInstructors(open);
-  const rates = useBatchRates(batchId);
+  const batchClasses = useBatchClasses(batchId);
   const [kind, setKind] = useState<RoutineKind>("LECTURE");
   const [instructorId, setInstructorId] = useState("");
   const [details, setDetails] = useState<ClassDetails>({ heldOn: dhakaToday(), startsAt: "", endsAt: "", subject: "", topic: "" });
   const [endTouched, setEndTouched] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // The batch's own instructors (the ones with a rate in this batch) come first; the other active instructors follow.
-  const batchInstructors = (rates.data ?? []).map((rate) => ({ id: rate.instructorId, name: rate.name }));
-  const batchIds = new Set(batchInstructors.map((instructor) => instructor.id));
+  // The batch's own instructors (the ones who teach its classes) come first; the other active instructors follow. Only instructors in
+  // the list can be chosen: since 24 Nov the Master Admin adds instructors on their own page.
+  const batchIds = new Set((batchClasses.data ?? []).map((item) => item.instructorId).filter((id): id is string => Boolean(id)));
+  const batchInstructors = (instructors.data ?? []).filter((instructor) => batchIds.has(instructor.id));
   const otherInstructors = (instructors.data ?? []).filter((instructor) => !batchIds.has(instructor.id));
 
   function change(patch: Partial<ClassDetails>) {

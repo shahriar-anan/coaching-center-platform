@@ -150,7 +150,7 @@ class FinanceIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void theInstructorViewGivesWhatIsOwedAndWhatWaits() throws Exception {
+	void theInstructorViewGivesWhatWasPaid() throws Exception {
 		Seeded s = seed();
 
 		JsonNode rows = respondArray(get("/api/v1/finance/instructors?from=2026-10-01&to=2026-10-31").header("Authorization",
@@ -163,11 +163,12 @@ class FinanceIT extends PostgresIntegrationTest {
 			}
 		}
 		assertThat(mine).isNotNull();
-		// Two classes are held or settled (one held and unpaid, one paid); the held one is owed at its due amount.
-		assertThat(mine.get("classes").asLong()).isEqualTo(2L);
-		assertThat(mine.get("owed").decimalValue()).isEqualByComparingTo("150");
+		// 24 Nov: pay no longer comes from the classes, so only what was paid shows: the one approved payment of October. The payment
+		// still waiting is not counted, and nothing is owed.
+		assertThat(mine.get("payments").asLong()).isEqualTo(1L);
 		assertThat(mine.get("paid").decimalValue()).isEqualByComparingTo("200");
-		assertThat(mine.get("pending").decimalValue()).isEqualByComparingTo("60");
+		assertThat(mine.has("owed")).isFalse();
+		assertThat(mine.has("pending")).isFalse();
 	}
 
 	@Test

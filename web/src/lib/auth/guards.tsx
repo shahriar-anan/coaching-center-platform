@@ -45,10 +45,8 @@ export type RoleInfo = {
   canRecordOfflineFee: boolean;
   /** Approve, reject and void offline fee payments. The Master Admin only. */
   canApproveOfflineFee: boolean;
-  /** Record a payment or a not-taken mark on an offline class (staff: pending until approved). Both admin roles. */
-  canSettleOfflineClass: boolean;
-  /** Approve, reject offline instructor payments and not-taken marks. The Master Admin only. */
-  canApproveOfflineClass: boolean;
+  /** Offline instructors and their pay: add and edit instructors, record, correct and void payments (24 Nov). The Master Admin only. */
+  canPayInstructors: boolean;
   /** Upload, check and discard an exam's result sheet (OFFLINE_RESULT_UPLOAD). Both admin roles. */
   canUploadOfflineResult: boolean;
   /** Publish a staged result sheet (OFFLINE_RESULT_PUBLISH). The Master Admin only. */
@@ -81,8 +79,7 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "canUploadRoutine",
     "canRecordOfflineFee",
     "canApproveOfflineFee",
-    "canSettleOfflineClass",
-    "canApproveOfflineClass",
+    "canPayInstructors",
     "canUploadOfflineResult",
     "canPublishOfflineResult",
     "canResetStudentPassword",
@@ -96,7 +93,6 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "canSeeAdmissions",
     "canUploadRoutine",
     "canRecordOfflineFee",
-    "canSettleOfflineClass",
     "canUploadOfflineResult",
   ],
   INSTRUCTOR: ["canEvaluate"],
@@ -132,8 +128,7 @@ export function roleInfo(role: Role | null | undefined): RoleInfo {
     canUploadRoutine: has("canUploadRoutine"),
     canRecordOfflineFee: has("canRecordOfflineFee"),
     canApproveOfflineFee: has("canApproveOfflineFee"),
-    canSettleOfflineClass: has("canSettleOfflineClass"),
-    canApproveOfflineClass: has("canApproveOfflineClass"),
+    canPayInstructors: has("canPayInstructors"),
     canUploadOfflineResult: has("canUploadOfflineResult"),
     canPublishOfflineResult: has("canPublishOfflineResult"),
     canResetStudentPassword: has("canResetStudentPassword"),

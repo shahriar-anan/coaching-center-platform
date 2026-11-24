@@ -3,12 +3,9 @@ package com.coachingcenter.api.finance;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -131,7 +128,8 @@ public class FinanceService {
 					  join offline_classes c on c.id = p.class_id
 					  where p.status = 'APPROVED'
 					  union all
-					  select o.paid_on, 'Instructor pay: ' || o.reason as description, o.amount, o.reference, o.id, o.batch_id
+					  select o.paid_on, 'Instructor pay: ' || coalesce(o.reason, initcap(o.kind)) as description, o.amount, o.reference, o.id,
+					    o.batch_id
 					  from offline_instructor_other_payments o
 					  where o.status = 'APPROVED'
 					) x
@@ -224,52 +222,20 @@ public class FinanceService {
 	}
 
 	/**
-	 * Per offline instructor, over the classes held in the range: how many are held or settled, what was paid (approved payments), what is
-	 * owed (held and not settled, at the class's due amount), and what waits for approval (pending payments). A class with no amount counts
-	 * as zero and is counted in {@code unpriced}.
+	 * Per offline instructor, what was paid in the range (approved payments, recorded by hand or the class payments from before 24 Nov) and
+	 * how many payments make it. Pay no longer comes from the classes, so nothing is owed or waiting (instructor-pay-simple-plan.md).
 	 */
 	public List<InstructorRow> instructors(String from, String to) {
 		LocalDate start = day(from, "from");
 		LocalDate end = day(to, "to");
 		checkRange(start, end);
-		Instant now = clock.instant();
 		Map<UUID, InstructorRow.Builder> rows = new HashMap<>();
-		jdbc.query("""
-				select c.instructor_id, c.status, c.amount, c.held_on, c.starts_at, c.ends_at
-				from offline_classes c
-				where c.instructor_id is not null and c.status <> 'CANCELLED' and c.held_on between ? and ?
-				""", (rs) -> {
-			InstructorRow.Builder row = rows.computeIfAbsent(rs.getObject("instructor_id", UUID.class), key -> new InstructorRow.Builder());
-			String status = rs.getString("status");
-			LocalTime end0 = rs.getObject("ends_at", LocalTime.class) != null ? rs.getObject("ends_at", LocalTime.class)
-					: rs.getObject("starts_at", LocalTime.class);
-			LocalDate heldOn = rs.getObject("held_on", LocalDate.class);
-			boolean held = "SCHEDULED".equals(status) && end0 != null
-					&& ZonedDateTime.of(heldOn, end0, DHAKA).toInstant().isBefore(now);
-			boolean settled = "PAID".equals(status) || "NOT_TAKEN".equals(status);
-			if (held || settled) {
-				row.classes++;
-			}
-			if (held) {
-				BigDecimal amount = rs.getBigDecimal("amount");
-				if (amount == null) {
-					row.unpriced++;
-				}
-				else {
-					row.owed = row.owed.add(amount);
-				}
-			}
-		}, start, end);
-		addPayments(rows, "APPROVED", start, end, true);
-		addPayments(rows, "PENDING", start, end, false);
+		addPayments(rows, start, end);
 		Map<UUID, String> names = instructorNames();
 		List<InstructorRow> found = new ArrayList<>();
 		for (Map.Entry<UUID, InstructorRow.Builder> row : rows.entrySet()) {
 			InstructorRow.Builder value = row.getValue();
-			if (value.classes > 0 || value.paid.signum() > 0 || value.pending.signum() > 0 || value.unpriced > 0) {
-				found.add(new InstructorRow(row.getKey(), names.getOrDefault(row.getKey(), ""), value.classes, value.paid, value.owed,
-						value.unpriced, value.pending));
-			}
+			found.add(new InstructorRow(row.getKey(), names.getOrDefault(row.getKey(), ""), value.payments, value.paid));
 		}
 		found.sort(Comparator.comparing(InstructorRow::name));
 		return found;
@@ -399,26 +365,21 @@ public class FinanceService {
 
 	// ---- helpers ------------------------------------------------------------------------------------------------------
 
-	private void addPayments(Map<UUID, InstructorRow.Builder> rows, String status, LocalDate start, LocalDate end, boolean paid) {
+	private void addPayments(Map<UUID, InstructorRow.Builder> rows, LocalDate start, LocalDate end) {
 		jdbc.query("""
-				select p.instructor_id, sum(p.amount) as total
+				select p.instructor_id, sum(p.amount) as total, count(*) as payments
 				from (
 				  select instructor_id, amount, status, paid_on from offline_class_payments
 				  union all
 				  select instructor_id, amount, status, paid_on from offline_instructor_other_payments
 				) p
-				where p.status = ? and p.paid_on between ? and ?
+				where p.status = 'APPROVED' and p.paid_on between ? and ?
 				group by p.instructor_id
 				""", (rs) -> {
-			UUID instructor = rs.getObject("instructor_id", UUID.class);
-			InstructorRow.Builder row = rows.computeIfAbsent(instructor, key -> new InstructorRow.Builder());
-			if (paid) {
-				row.paid = row.paid.add(rs.getBigDecimal("total"));
-			}
-			else {
-				row.pending = row.pending.add(rs.getBigDecimal("total"));
-			}
-		}, status, start, end);
+			InstructorRow.Builder row = rows.computeIfAbsent(rs.getObject("instructor_id", UUID.class), key -> new InstructorRow.Builder());
+			row.paid = row.paid.add(rs.getBigDecimal("total"));
+			row.payments += rs.getLong("payments");
+		}, start, end);
 	}
 
 	private Map<UUID, String> batchNames() {
@@ -590,21 +551,15 @@ public class FinanceService {
 			BigDecimal marginPercent) {
 	}
 
-	public record InstructorRow(UUID instructorId, String name, long classes, BigDecimal paid, BigDecimal owed, long unpriced,
-			BigDecimal pending) {
+	/** One instructor's approved payments in the range: how many, and how much. */
+	public record InstructorRow(UUID instructorId, String name, long payments, BigDecimal paid) {
 
 		/** The figures of one instructor while they are being read. */
 		static final class Builder {
 
-			long classes;
+			long payments;
 
 			BigDecimal paid = BigDecimal.ZERO;
-
-			BigDecimal owed = BigDecimal.ZERO;
-
-			long unpriced;
-
-			BigDecimal pending = BigDecimal.ZERO;
 
 		}
 

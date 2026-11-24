@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { TextInput } from "@/components/ui/text-input";
 import { useLocale } from "@/i18n/locale-context";
+import { ApiError } from "@/lib/api/errors";
 import type { InstructorRow } from "@/lib/api/exam/offline-batch-pay";
-import { useSaveInstructor } from "@/lib/api/exam/instructor-pay";
 import { offlineErrorText } from "./offline-error";
 
-/** One instructor to choose: an existing instructor (with an id), or a name the routine uses that is not an instructor yet. */
+/** One instructor to choose: an existing instructor (with an id), or a name the routine uses that is not in the list. */
 export type InstructorChoice = { id: string | null; name: string };
 
 /** A name for matching: trimmed, inner spaces collapsed, case ignored (the API matches names the same way). */
@@ -31,7 +31,8 @@ type Picked = { kind: "choice"; index: number } | { kind: "other" } | { kind: "n
 /**
  * Changes who teaches a class, the same dialog on the routine preview and on the Classes tab (13 Nov 2026). It says first who the routine
  * names ("Instructor as per routine: Kamal Hossain"), then offers the instructors of that routine to pick from, or a name to type. A typed
- * name that an instructor already has picks that instructor; a new name is added as a new instructor. `allowNone` offers "No instructor".
+ * name that an instructor already has (by name or alias) picks that instructor. Since 24 Nov a name that is not in the list is refused:
+ * only the Master Admin adds instructors, on Offline instructors. `allowNone` offers "No instructor".
  */
 export function InstructorChangeDialog({
   open,
@@ -60,7 +61,6 @@ export function InstructorChangeDialog({
 }) {
   const { t } = useLocale();
   const listId = useId();
-  const create = useSaveInstructor();
   // The API leaves out empty fields, so a class with no instructor has none of these: treat a missing one as empty.
   const asPer = asPerRoutine || null;
   const startIndex = choices.findIndex((choice) => (currentId ? choice.id === currentId : asPer !== null && key(choice.name) === key(asPer)));
@@ -71,14 +71,13 @@ export function InstructorChangeDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  /** The instructor a name means: an existing one, or a new one added now. */
-  async function idForName(name: string): Promise<string> {
+  /** The instructor a name means. A name no instructor has is refused, with a message that says who adds instructors. */
+  function idForName(name: string): string {
     const existing = existingByName(name, instructors);
-    if (existing) {
-      return existing.id;
+    if (!existing) {
+      throw new Error(t("batchPay.instructor.notInList", { name: name.trim() }));
     }
-    const created = await create.mutateAsync({ body: { name: name.trim() } });
-    return created.id;
+    return existing.id;
   }
 
   async function save() {
@@ -92,14 +91,15 @@ export function InstructorChangeDialog({
     try {
       if (picked.kind === "choice") {
         const choice = choices[picked.index];
-        target = choice.id ?? (await idForName(choice.name));
+        target = choice.id ?? idForName(choice.name);
       } else if (picked.kind === "other") {
-        target = await idForName(typed);
+        target = idForName(typed);
       }
       await onSave(target);
       onOpenChange(false);
     } catch (failure) {
-      setError(offlineErrorText(failure, t));
+      // A name not in the list is this dialog's own refusal, with its own words; the API's refusals get the offline sentences.
+      setError(failure instanceof Error && !(failure instanceof ApiError) ? failure.message : offlineErrorText(failure, t));
     } finally {
       setSaving(false);
     }
@@ -180,7 +180,7 @@ export function InstructorChangeDialog({
               </datalist>
               <span className="text-meta text-muted">
                 {typed.trim() && !existingByName(typed, instructors)
-                  ? t("batchPay.instructor.willAdd", { name: typed.trim() })
+                  ? t("batchPay.instructor.notInList", { name: typed.trim() })
                   : t("batchPay.instructor.typeHint")}
               </span>
             </div>
