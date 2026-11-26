@@ -495,3 +495,34 @@ Rollback (no schema change, so any order works):
   viewer and draws its 3 pages, with no console errors.
 - **Website rollback now:** put `/opt/coaching-web.before-20261121-202730` back (the 17 Nov site, without the PDF fix).
   Do not use `.before-20261122-115627`: that build hides offline admission.
+
+## Emergency move to the new VPS, 26 November 2026 (Dhaka)
+
+The old box (`srv2089893`, `187.52.115.111`) stopped answering on ports 22 and 443 at about 18:20 Dhaka on 26 November.
+Its Hostinger subscription had ended (auto-renew was off, renewal payment failed). Plan written the day before:
+[../plans/vps-move-plan.md](../plans/vps-move-plan.md); the calm cutover in it was replaced by a restore from backup.
+
+- **New box:** `srv2197598.hstgr.cloud`, `72.62.69.214`, Hostinger KVM 2 on a 24-month plan in the client's own account.
+  Ubuntu 24.04.5, 2 vCPU, 8 GiB, 96 GB, 2 GiB swap, UTC. SSH alias `exam-kvm` (and `symam-vps`) now points here, key
+  `symam_vps_ed25519`; the old box is `old-exam-kvm`. SSH is key-only. UFW 22/80/443, fail2ban, unattended upgrades.
+- **Same stack:** OpenJDK 21.0.13, PostgreSQL 16.15, Node 22.23.5, nginx 1.24, certbot 2.9.
+- **Restored from backup** (`F:\exam-vps-backups\full-20261125-054244`): database `db-20261125-095400.dump` (25 Nov 15:54
+  Dhaka, SHA-256 `37ac11ed…a44e`), uploaded files and config of 25 Nov 11:42 (no file changed between the two), the running jar
+  (`fca58170…`) and website build `pilnQf0pqE7uQMtXVesE3` copied as they were, the env file with every secret, the four
+  symamlaw nginx sites, and `/etc/letsencrypt` (the `nip.io` and `hstgr.cloud` staging names were dropped). A default server
+  refuses unknown host names.
+- **Lost:** everything written between 25 Nov 15:54 and the shutdown on 26 Nov. SSLCommerz showed no online payment in that
+  window. Office entries for that window are re-entered by hand; students who need it are onboarded manually.
+- **Started** 12:51 UTC: 107 migrations validated, none applied, 0 errors. 272 users, 9 orders, 285 files.
+- **DNS** (Namecheap, by Shahriar): `@`, `www`, `admin`, `exam`, `admin.exam` A records to `72.62.69.214`, about 13:10 UTC;
+  seen at Namecheap, 1.1.1.1 and 8.8.8.8. Mail records unchanged.
+- **Checks:** live preflight (`MODE=live`, new `BOX_IP` default) 0 failed of 21; `certbot renew --dry-run` succeeds for all
+  four certificates (it failed on the old box); every public page and redirect answers as before.
+- **Live payment:** order `e1278da7a1504db69454947f99f733`, 15.00 BDT, 19:34 Dhaka: IPN from SSLCommerz 200, validation
+  accepted, granted; the browser return found it already granted.
+- **Mail is refused:** Brevo answers `525 5.7.1 Unauthorized IP address`. `72.62.69.214` must be added in Brevo, Security,
+  Authorised IPs (left for later by Shahriar). Until then no code, reset or receipt mail goes out.
+- **Backups:** the nightly job (`/usr/local/bin/coaching-backup`, 02:30 Dhaka, 14 days on the box) is installed. New: the PC
+  pulls it daily with `F:\exam-vps-backups\tools\pull-backups.ps1` (scheduled task "SYMAM backup pull", 10:00 or the next
+  time the PC is on): the newest database dump checked by SHA-256 (last 30 kept) and an incremental mirror of the uploaded files
+  in `F:\exam-vps-backups\nightly\`. Log: `pull.log` there. Object storage is still open.

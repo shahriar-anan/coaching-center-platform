@@ -10,13 +10,13 @@
 # MODE    sandbox (staging profile, sandbox store) or live (prod profile, live store). Default sandbox.
 # SITE    student host. Default symamlaw.com.
 # STAFF   admin host. Default admin.symamlaw.com.
-# BOX_IP  the address both hosts must resolve to. Default 187.52.115.111.
+# BOX_IP  the address both hosts must resolve to. Default 72.62.69.214 (new box since 26 Nov 2026).
 set -u
 
 MODE=${MODE:-sandbox}
 SITE=${SITE:-symamlaw.com}
 STAFF=${STAFF:-admin.symamlaw.com}
-BOX_IP=${BOX_IP:-187.52.115.111}
+BOX_IP=${BOX_IP:-72.62.69.214}
 ENV_FILE=/etc/coaching-api.env
 
 fails=0
