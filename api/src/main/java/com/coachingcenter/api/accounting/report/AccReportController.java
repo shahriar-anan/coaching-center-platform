@@ -4,7 +4,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import java.util.UUID;
+
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -67,6 +70,33 @@ public class AccReportController {
 			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + csv.fileName() + "\"")
 			.contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
 			.body(csv.bytes());
+	}
+
+	@GetMapping("/reports/owed")
+	public AccReportService.OwedReport owed() {
+		requireAccounting();
+		return reports.owed();
+	}
+
+	@GetMapping("/reports/monthly")
+	public AccReportService.MonthlyReport monthly(@RequestParam(required = false) String from,
+			@RequestParam(required = false) String to) {
+		requireAccounting();
+		return reports.monthly(from, to);
+	}
+
+	@GetMapping("/groups/{id}/summary")
+	public AccReportService.GroupSummary summary(@PathVariable UUID id, @RequestParam(required = false) String from,
+			@RequestParam(required = false) String to) {
+		requireAccounting();
+		return reports.summary(id, from, to);
+	}
+
+	@GetMapping("/payees/{id}/statement")
+	public AccReportService.Statement statement(@PathVariable UUID id, @RequestParam(required = false) String from,
+			@RequestParam(required = false) String to) {
+		requireAccounting();
+		return reports.statement(id, from, to);
 	}
 
 	private void requireAccounting() {
