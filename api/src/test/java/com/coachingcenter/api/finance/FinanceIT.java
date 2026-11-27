@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +35,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.accounting.AccIds;
+import com.coachingcenter.api.accounting.AccTestData;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 
 import tools.jackson.databind.JsonNode;
@@ -266,6 +269,86 @@ class FinanceIT extends PostgresIntegrationTest {
 		assertThat(names).contains(s.year() + "-01", s.year() + "-02");
 	}
 
+	@Test
+	void theAccountingSourcesCountTheOtherGroupsThatCountInFinanceAndTheBatchCostOfSpending() throws Exception {
+		Seeded s = seed();
+		// Rows of March in the seeded year only (the seed's rows are in January): spending of a printing group in the batch (120), a
+		// voided one (700), a payment to a staff payee (80), income (60), and spending of a group that does not count in Finance (500).
+		AccTestData data = new AccTestData(jdbc());
+		UUID cash = data.account("CASH");
+		UUID printing = data.group("LOG", "EXPENSE");
+		UUID printType = data.type(printing, "AMOUNT");
+		UUID printed = data.spend(printing, printType, cash, "120.00", LocalDate.of(s.year(), 3, 5));
+		data.inBatch(printed, s.batch());
+		UUID voided = data.spend(printing, printType, cash, "700.00", LocalDate.of(s.year(), 3, 9));
+		data.voidEntry(voided, "Entered twice");
+		UUID staff = data.group("PAYEES", "EXPENSE");
+		UUID staffPayee = data.payee(staff);
+		data.payment(staffPayee, cash, "80.00", LocalDate.of(s.year(), 3, 6));
+		UUID income = data.group("LOG", "INCOME");
+		UUID incomeType = data.type(income, "AMOUNT");
+		data.income(income, incomeType, cash, "60.00", LocalDate.of(s.year(), 3, 7));
+		UUID personal = data.group("LOG", "EXPENSE");
+		UUID personalType = data.type(personal, "AMOUNT");
+		jdbc().update("UPDATE acc_groups SET in_finance = FALSE WHERE id = ?", personal);
+		data.spend(personal, personalType, cash, "500.00", LocalDate.of(s.year(), 3, 8));
+
+		String range = "from=" + s.year() + "-03-01&to=" + s.year() + "-03-31";
+		JsonNode summary = api("/api/v1/finance/summary?" + range, s.master);
+		assertThat(sourceTotal(summary, "ACCOUNTS_EXPENSE")).isEqualByComparingTo("200");
+		assertThat(sourceTotal(summary, "ACCOUNTS_INCOME")).isEqualByComparingTo("60");
+		assertThat(summary.get("expense").decimalValue()).isEqualByComparingTo("200");
+		assertThat(summary.get("income").decimalValue()).isEqualByComparingTo("60");
+
+		// With a batch chosen, the spending in the batch counts as its cost; the staff payment and the income do not.
+		JsonNode batched = api("/api/v1/finance/summary?" + range + "&batchId=" + s.batch(), s.master);
+		assertThat(batched.get("expense").decimalValue()).isEqualByComparingTo("120");
+		assertThat(batched.get("income").decimalValue()).isZero();
+		JsonNode batches = respondArray(get("/api/v1/finance/batches?" + range).header("Authorization", "Bearer " + s.master));
+		JsonNode row = null;
+		for (JsonNode found : batches) {
+			if (found.get("batchId").asText().equals(s.batch().toString())) {
+				row = found;
+			}
+		}
+		assertThat(row).isNotNull();
+		assertThat(row.get("instructorCost").decimalValue()).isEqualByComparingTo("120");
+		assertThat(row.get("feesCollected").decimalValue()).isZero();
+		assertThat(row.has("marginPercent")).isFalse();
+
+		// The rows: the description is the group and the type, or the group and the payee.
+		JsonNode spending = api("/api/v1/finance/entries?" + range + "&sources=ACCOUNTS_EXPENSE&size=200", s.master);
+		assertThat(spending.get("total").asLong()).isEqualTo(2L);
+		String printingName = jdbc().queryForObject("select name_en from acc_groups where id = ?", String.class, printing);
+		String typeName = jdbc().queryForObject("select name_en from acc_types where id = ?", String.class, printType);
+		assertThat(descriptions(spending)).contains(printingName + ": " + typeName);
+		String staffName = jdbc().queryForObject("select name_en from acc_groups where id = ?", String.class, staff);
+		String payeeName = jdbc().queryForObject("select name from acc_payees where id = ?", String.class, staffPayee);
+		assertThat(descriptions(spending)).contains(staffName + ": " + payeeName);
+
+		// The instructors table reads the ledger: the 250 paid in January, and the voided 75 left out.
+		JsonNode instructors = respondArray(get("/api/v1/finance/instructors?from=" + s.jan() + "&to=" + s.jan31()).header("Authorization",
+				"Bearer " + s.master));
+		JsonNode mine = null;
+		for (JsonNode found : instructors) {
+			if (found.get("instructorId").asText().equals(s.instructor().toString())) {
+				mine = found;
+			}
+		}
+		assertThat(mine).isNotNull();
+		assertThat(mine.get("payments").asLong()).isEqualTo(1L);
+		assertThat(mine.get("paid").decimalValue()).isEqualByComparingTo("250");
+	}
+
+	/** The descriptions of the items of an entries page. */
+	private static java.util.Set<String> descriptions(JsonNode page) {
+		java.util.Set<String> found = new java.util.HashSet<>();
+		for (JsonNode item : page.get("items")) {
+			found.add(item.get("description").asText());
+		}
+		return found;
+	}
+
 	// ---- seeding --------------------------------------------------------------------------------------------------------
 
 	/** The rows of one run, in a year of its own. */
@@ -292,9 +375,9 @@ class FinanceIT extends PostgresIntegrationTest {
 		UUID staffUser = seedUser("SYSTEM_ADMIN", "Ledger Staff");
 		UUID student = seedUser("STUDENT", "Finance Student");
 		UUID batch = batch(master);
-		UUID instructor = UUID.randomUUID();
-		jdbc().update("insert into offline_instructors (id, name, aliases, created_by, created_at, updated_at, version)"
-				+ " values (?, ?, '{}', ?, now(), now(), 0)", instructor, "Finance Instructor " + instructor, masterId);
+		// The offline instructor is a payee of the Offline instructors group of the accounting ledger; its id is the old instructor id.
+		AccTestData data = new AccTestData(jdbc());
+		UUID instructor = data.payee(AccIds.GROUP_OFFLINE_INSTRUCTORS);
 
 		// Online orders: 1000 paid 5 Jan (refund 300), 100 paid 31 Jan 23:30 Dhaka, 50 paid 1 Feb 00:30 Dhaka, 70 still INITIATED.
 		UUID exam = exam();
@@ -328,19 +411,19 @@ class FinanceIT extends PostgresIntegrationTest {
 		staffPayment(staffUser, 400, year + "-01-08", null);
 		staffPayment(staffUser, 100, year + "-01-09", masterId);
 
-		// Offline instructor pay: 250 approved on 18 Jan for the batch; 75 pending on the same day is left out.
-		UUID classApproved = offlineClass(batch, year + "-01-18", "PAID");
-		classPayment(classApproved, instructor, 250, year + "-01-18", "APPROVED", masterId);
-		UUID classPending = offlineClass(batch, year + "-01-18", "PAID_PENDING");
-		classPayment(classPending, instructor, 75, year + "-01-18", "PENDING", masterId);
+		// Offline instructor pay (accounting ledger): 250 paid on 18 Jan for the batch; 75 paid the same day and voided is left out.
+		UUID cash = data.account("CASH");
+		UUID paid = data.payment(instructor, cash, "250.00", LocalDate.parse(year + "-01-18"));
+		data.inBatch(paid, batch);
+		UUID voidedPay = data.payment(instructor, cash, "75.00", LocalDate.parse(year + "-01-18"));
+		data.voidEntry(voidedPay, "Entered twice");
 
-		// The instructor's own October figures: one held and unpaid class at 150, one paid class (200 on 18 Oct), one waiting payment (60).
-		UUID held = offlineClass(batch, "2026-10-19", "SCHEDULED", instructor, 150);
-		UUID paidOct = offlineClass(batch, "2026-10-18", "PAID", instructor, 200);
-		classPayment(paidOct, instructor, 200, "2026-10-18", "APPROVED", masterId);
-		UUID waitingOct = offlineClass(batch, "2026-10-17", "PAID_PENDING", instructor, 60);
-		classPayment(waitingOct, instructor, 60, "2026-10-17", "PENDING", masterId);
-		assertThat(held).isNotNull();
+		// The instructor's own October figures: a charge of 150 not paid (owed, not counted), 200 paid on 18 Oct, and 60 paid on 17 Oct
+		// and voided.
+		data.charge(instructor, AccIds.TYPE_INSTRUCTOR_OTHER, "150.00", LocalDate.parse("2026-10-19"));
+		data.payment(instructor, cash, "200.00", LocalDate.parse("2026-10-18"));
+		UUID voidedOct = data.payment(instructor, cash, "60.00", LocalDate.parse("2026-10-17"));
+		data.voidEntry(voidedOct, "Entered twice");
 		return new Seeded(year, master, batch, instructor);
 	}
 
@@ -391,28 +474,6 @@ class FinanceIT extends PostgresIntegrationTest {
 				values (?, ?, 'PAYMENT', ?, ?, ?, 'BANK', ?, now(), ?, ?, ?)
 				""", UUID.randomUUID(), user, amount, java.sql.Date.valueOf(paidOn), java.sql.Date.valueOf(paidOn), user,
 				voidedBy == null ? null : Timestamp.from(NOW), voidedBy, voidedBy == null ? null : "Entered twice");
-	}
-
-	private void classPayment(UUID classId, UUID instructor, int amount, String paidOn, String status, UUID by) {
-		jdbc().update("""
-				insert into offline_class_payments (id, class_id, instructor_id, amount, method, paid_on, status, recorded_by, recorded_at)
-				values (?, ?, ?, ?, 'CASH', ?, ?, ?, now())
-				""", UUID.randomUUID(), classId, instructor, amount, java.sql.Date.valueOf(paidOn), status, by);
-	}
-
-	private UUID offlineClass(UUID batch, String heldOn, String status) {
-		return offlineClass(batch, heldOn, status, null, null);
-	}
-
-	/** A class on the date, ended at 11:20 Dhaka; an amount (the due amount) when one is given. */
-	private UUID offlineClass(UUID batch, String heldOn, String status, UUID instructor, Integer amount) {
-		UUID id = UUID.randomUUID();
-		jdbc().update("""
-				insert into offline_classes (id, batch_id, held_on, starts_at, ends_at, subject, kind, instructor_id, amount, status,
-				  created_at, updated_at)
-				values (?, ?, ?, '10:00', '11:20', 'Contract Act', 'LECTURE', ?, ?, ?, now(), now())
-				""", id, batch, java.sql.Date.valueOf(heldOn), instructor, amount, status);
-		return id;
 	}
 
 	private UUID admission(UUID student, UUID createdBy, UUID batch, int year) {
