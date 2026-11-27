@@ -24,8 +24,9 @@ import com.coachingcenter.api.common.error.ErrorCode;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The payment records page (payment-records-edit-plan.md). Who sees a kind is who records it today: course fee payments and instructor
- * payments for the Master Admin and the System Admins, direct enrolment payments for the Master Admin only. Finalizing and rejecting a
+ * The payment records page (payment-records-edit-plan.md). Who sees a kind is who records it today: course fee payments for the Master
+ * Admin and the System Admins, direct enrolment payments for the Master Admin only. Instructor payments left this page with the
+ * accounting ledger (R3). Finalizing and rejecting a
  * correction is the Master Admin's (P3), and the Master Admin's own correction is final at once.
  */
 @RestController
@@ -43,12 +44,12 @@ public class PaymentRecordController {
 	@GetMapping("/api/v1/payment-records")
 	public List<PaymentRecordService.PaymentRow> list(@RequestParam(required = false) LocalDate from,
 			@RequestParam(required = false) LocalDate to, @RequestParam(required = false) String kind,
-			@RequestParam(required = false) UUID batchId, @RequestParam(required = false) UUID instructorId,
-			@RequestParam(required = false) String q, @RequestParam(required = false) String direction,
-			@RequestParam(required = false) String item, @RequestParam(required = false) String method,
-			@RequestParam(required = false) String status, @RequestParam(required = false) UUID categoryId) {
+			@RequestParam(required = false) UUID batchId, @RequestParam(required = false) String q,
+			@RequestParam(required = false) String direction, @RequestParam(required = false) String item,
+			@RequestParam(required = false) String method, @RequestParam(required = false) String status,
+			@RequestParam(required = false) UUID categoryId) {
 		Set<String> kinds = visibleKinds(true);
-		return records.list(kinds, new PaymentRecordService.Filters(from, to, upper(kind), batchId, instructorId, q, upper(direction),
+		return records.list(kinds, new PaymentRecordService.Filters(from, to, upper(kind), batchId, q, upper(direction),
 				upper(item), upper(method), upper(status), categoryId));
 	}
 
@@ -89,11 +90,7 @@ public class PaymentRecordController {
 		if (permissions.has(Permissions.OFFLINE_FEE_RECORD)) {
 			kinds.add(PaymentRecordService.FEE);
 		}
-		// 24 Nov: instructor payments are the Master Admin's alone (instructor-pay-simple-plan.md).
-		if (permissions.has(Permissions.OFFLINE_INSTRUCTOR_PAY)) {
-			kinds.add(PaymentRecordService.CLASS);
-			kinds.add(PaymentRecordService.OTHER);
-		}
+		// R3 (accounting): instructor payments are corrected in Accounting, not here.
 		if (permissions.has(Permissions.LIVE_EXAM_INSTALLMENT)) {
 			kinds.add(PaymentRecordService.DIRECT);
 		}

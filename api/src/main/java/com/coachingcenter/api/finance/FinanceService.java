@@ -52,12 +52,24 @@ public class FinanceService {
 
 	public static final String OFFLINE_INSTRUCTORS = "OFFLINE_INSTRUCTORS";
 
+	/** Payments and spending of the accounting groups that expense money and count in Finance (accounting plan 4.7). */
+	public static final String ACCOUNTS_EXPENSE = "ACCOUNTS_EXPENSE";
+
+	/** Income of the accounting groups that take money in and count in Finance (accounting plan 4.7). */
+	public static final String ACCOUNTS_INCOME = "ACCOUNTS_INCOME";
+
 	public static final List<String> ALL = List.of(ONLINE_ORDERS, DIRECT_ENROLMENT, OFFLINE_FEES, OTHER_ONLINE, STAFF_PAY,
-			OFFLINE_INSTRUCTORS);
+			OFFLINE_INSTRUCTORS, ACCOUNTS_EXPENSE, ACCOUNTS_INCOME);
 
 	static final ZoneId DHAKA = ZoneId.of("Asia/Dhaka");
 
 	static final List<String> OFFLINE = List.of(OFFLINE_FEES, OFFLINE_INSTRUCTORS);
+
+	/** The sources a batch can filter: the offline ones and the accounting spending, which carries a batch as the offline cost does. */
+	static final List<String> BATCH_SOURCES = List.of(OFFLINE_FEES, OFFLINE_INSTRUCTORS, ACCOUNTS_EXPENSE);
+
+	/** The accounting group of the offline instructors (accounting AccIds.GROUP_OFFLINE_INSTRUCTORS, seeded by V107_1). */
+	private static final String GROUP_OFFLINE_INSTRUCTORS = "a0000000-0000-4000-8000-000000000001";
 
 	/** The longest range the finance reports answer: ten years, which covers "All time" from the first year of records. */
 	static final long MAX_DAYS = 3653;
@@ -75,7 +87,9 @@ public class FinanceService {
 	 * and ends with the date predicate; a batch filter is appended to the offline ones. The paid date is:
 	 * ONLINE_ORDERS: paid_at (created_at when paid_at is empty), in Dhaka. DIRECT_ENROLMENT: paid_on. OFFLINE_FEES: paid_on, approved only.
 	 * OTHER_ONLINE: created_at in Dhaka (the older table keeps no paid date). STAFF_PAY: paid_on, PAYMENT rows not voided.
-	 * OFFLINE_INSTRUCTORS: paid_on, approved payments only.
+	 * OFFLINE_INSTRUCTORS: the entry date of the active payments of the offline instructors group (accounting ledger), when that group
+	 * counts in Finance. ACCOUNTS_EXPENSE and ACCOUNTS_INCOME: the entry date of the active payments and spending, or income, of the other
+	 * groups that count in Finance (accounting plan 4.7).
 	 */
 	private static final Map<String, String> PARTS = Map.of(
 			ONLINE_ORDERS, """
@@ -120,24 +134,44 @@ public class FinanceService {
 					where l.kind = 'PAYMENT' and l.voided_at is null and l.paid_on between ? and ?
 					""",
 			OFFLINE_INSTRUCTORS, """
-					select 'OFFLINE_INSTRUCTORS' as source, x.paid_on as paid_on, x.description as description, x.amount as amount,
-					  'EXPENSE' as direction, x.reference as reference, x.id as id, x.batch_id as batch_id
-					from (
-					  select p.paid_on, 'Instructor pay: ' || c.subject as description, p.amount, p.reference, p.id, c.batch_id
-					  from offline_class_payments p
-					  join offline_classes c on c.id = p.class_id
-					  where p.status = 'APPROVED'
-					  union all
-					  select o.paid_on, 'Instructor pay: ' || coalesce(o.reason, initcap(o.kind)) as description, o.amount, o.reference, o.id,
-					    o.batch_id
-					  from offline_instructor_other_payments o
-					  where o.status = 'APPROVED'
-					) x
-					where x.paid_on between ? and ?
+					select 'OFFLINE_INSTRUCTORS' as source, e.entry_date as paid_on,
+					  'Instructor pay: ' || p.name || ' (' || coalesce(t.name_en, 'Payment') || ')' as description,
+					  e.amount as amount, 'EXPENSE' as direction, e.reference as reference, e.id as id, e.batch_id as batch_id
+					from acc_entries e
+					join acc_groups g on g.id = e.group_id
+					join acc_payees p on p.id = e.payee_id
+					left join acc_entries c on c.id = e.paired_entry_id
+					left join acc_types t on t.id = c.type_id
+					where e.kind = 'PAYMENT' and e.status = 'ACTIVE' and g.id = cast('%s' as uuid) and g.in_finance
+					  and e.entry_date between ? and ?
+					""".formatted(GROUP_OFFLINE_INSTRUCTORS),
+			ACCOUNTS_EXPENSE, """
+					select 'ACCOUNTS_EXPENSE' as source, e.entry_date as paid_on,
+					  g.name_en || ': ' || coalesce(t.name_en, p.name) as description, e.amount as amount, 'EXPENSE' as direction,
+					  e.reference as reference, e.id as id, e.batch_id as batch_id
+					from acc_entries e
+					join acc_groups g on g.id = e.group_id
+					left join acc_types t on t.id = e.type_id
+					left join acc_payees p on p.id = e.payee_id
+					where e.kind in ('PAYMENT', 'SPEND') and e.status = 'ACTIVE' and g.direction = 'EXPENSE' and g.in_finance
+					  and g.id <> cast('%s' as uuid)
+					  and e.entry_date between ? and ?
+					""".formatted(GROUP_OFFLINE_INSTRUCTORS),
+			ACCOUNTS_INCOME, """
+					select 'ACCOUNTS_INCOME' as source, e.entry_date as paid_on,
+					  g.name_en || ': ' || coalesce(t.name_en, p.name) as description, e.amount as amount, 'INCOME' as direction,
+					  e.reference as reference, e.id as id, e.batch_id as batch_id
+					from acc_entries e
+					join acc_groups g on g.id = e.group_id
+					left join acc_types t on t.id = e.type_id
+					left join acc_payees p on p.id = e.payee_id
+					where e.kind = 'INCOME' and e.status = 'ACTIVE' and g.direction = 'INCOME' and g.in_finance
+					  and e.entry_date between ? and ?
 					""");
 
-	/** The column each offline source filters by when a batch is chosen. */
-	private static final Map<String, String> BATCH_COLUMN = Map.of(OFFLINE_FEES, "a.batch_id", OFFLINE_INSTRUCTORS, "x.batch_id");
+	/** The column each source filters by when a batch is chosen. */
+	private static final Map<String, String> BATCH_COLUMN = Map.of(OFFLINE_FEES, "a.batch_id", OFFLINE_INSTRUCTORS, "e.batch_id",
+			ACCOUNTS_EXPENSE, "e.batch_id", ACCOUNTS_INCOME, "e.batch_id");
 
 	private final JdbcTemplate jdbc;
 
@@ -204,7 +238,7 @@ public class FinanceService {
 		Query query = query(from, to, null, batch);
 		Map<UUID, List<Entry>> byBatch = new HashMap<>();
 		for (Entry entry : entries(query)) {
-			if (entry.batchId() != null) {
+			if (entry.batchId() != null && BATCH_SOURCES.contains(entry.source())) {
 				byBatch.computeIfAbsent(entry.batchId(), key -> new ArrayList<>()).add(entry);
 			}
 		}
@@ -212,7 +246,8 @@ public class FinanceService {
 		List<BatchRow> rows = new ArrayList<>();
 		for (Map.Entry<UUID, List<Entry>> found : byBatch.entrySet()) {
 			BigDecimal fees = sum(found.getValue().stream().filter(entry -> OFFLINE_FEES.equals(entry.source())).toList());
-			BigDecimal cost = sum(found.getValue().stream().filter(entry -> OFFLINE_INSTRUCTORS.equals(entry.source())).toList());
+			BigDecimal cost = sum(found.getValue().stream().filter(entry -> OFFLINE_INSTRUCTORS.equals(entry.source())
+					|| ACCOUNTS_EXPENSE.equals(entry.source())).toList());
 			BigDecimal net = fees.subtract(cost);
 			BigDecimal margin = fees.signum() == 0 ? null : net.multiply(BigDecimal.valueOf(100)).divide(fees, 1, RoundingMode.HALF_UP);
 			rows.add(new BatchRow(found.getKey(), names.getOrDefault(found.getKey(), ""), fees, cost, net, margin));
@@ -342,7 +377,7 @@ public class FinanceService {
 	private List<String> available(UUID batchId) {
 		List<String> available = new ArrayList<>();
 		for (String source : ALL) {
-			if (batchId != null && !OFFLINE.contains(source)) {
+			if (batchId != null && !BATCH_SOURCES.contains(source)) {
 				continue;
 			}
 			if (OFFLINE.contains(source) && !offlineSwitch.isEnabled()) {
@@ -365,21 +400,18 @@ public class FinanceService {
 
 	// ---- helpers ------------------------------------------------------------------------------------------------------
 
+	/** The active payments of the offline instructors group in the range, by payee (the payee id is the old instructor id). */
 	private void addPayments(Map<UUID, InstructorRow.Builder> rows, LocalDate start, LocalDate end) {
 		jdbc.query("""
-				select p.instructor_id, sum(p.amount) as total, count(*) as payments
-				from (
-				  select instructor_id, amount, status, paid_on from offline_class_payments
-				  union all
-				  select instructor_id, amount, status, paid_on from offline_instructor_other_payments
-				) p
-				where p.status = 'APPROVED' and p.paid_on between ? and ?
-				group by p.instructor_id
+				select e.payee_id, sum(e.amount) as total, count(*) as payments
+				from acc_entries e
+				where e.group_id = cast(? as uuid) and e.kind = 'PAYMENT' and e.status = 'ACTIVE' and e.entry_date between ? and ?
+				group by e.payee_id
 				""", (rs) -> {
-			InstructorRow.Builder row = rows.computeIfAbsent(rs.getObject("instructor_id", UUID.class), key -> new InstructorRow.Builder());
+			InstructorRow.Builder row = rows.computeIfAbsent(rs.getObject("payee_id", UUID.class), key -> new InstructorRow.Builder());
 			row.paid = row.paid.add(rs.getBigDecimal("total"));
 			row.payments += rs.getLong("payments");
-		}, start, end);
+		}, GROUP_OFFLINE_INSTRUCTORS, start, end);
 	}
 
 	private Map<UUID, String> batchNames() {
@@ -390,11 +422,12 @@ public class FinanceService {
 		return names;
 	}
 
+	/** The names of the offline instructors' payees, archived ones too. */
 	private Map<UUID, String> instructorNames() {
 		Map<UUID, String> names = new HashMap<>();
-		jdbc.query("select id, name from offline_instructors", (rs) -> {
+		jdbc.query("select id, name from acc_payees where group_id = cast(? as uuid)", (rs) -> {
 			names.put(rs.getObject("id", UUID.class), rs.getString("name"));
-		});
+		}, GROUP_OFFLINE_INSTRUCTORS);
 		return names;
 	}
 
@@ -434,7 +467,7 @@ public class FinanceService {
 	}
 
 	private static String direction(String source) {
-		return STAFF_PAY.equals(source) || OFFLINE_INSTRUCTORS.equals(source) ? EXPENSE : INCOME;
+		return STAFF_PAY.equals(source) || OFFLINE_INSTRUCTORS.equals(source) || ACCOUNTS_EXPENSE.equals(source) ? EXPENSE : INCOME;
 	}
 
 	private static Totals totals(List<Entry> entries) {

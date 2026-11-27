@@ -128,4 +128,9 @@ public class AccTestData {
 		jdbc.update("UPDATE acc_entries SET description = ?, reference = ?, note = ? WHERE id = ?", description, reference, note, entry);
 	}
 
+	/** Puts an entry in an offline batch (the Finance tests, R3). */
+	public void inBatch(UUID entry, UUID batch) {
+		jdbc.update("UPDATE acc_entries SET batch_id = ? WHERE id = ?", batch, entry);
+	}
+
 }
