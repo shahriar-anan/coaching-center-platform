@@ -190,7 +190,8 @@ function EntriesList() {
             ))}
           </Select>
         </Field>
-        {filters.groupId ? (
+        {/* The payee filter: only a Payees group has payees (a Log group's entries have none). */}
+        {filters.groupId && (groups.data ?? []).find((group) => group.id === filters.groupId)?.mode === "PAYEES" ? (
           <Field label={t("accounting.entries.filters.payee")}>
             <Select value={filters.payeeId} onChange={(event) => update({ payeeId: event.target.value })}>
               <option value="">{t("accounting.entries.filters.allPayees")}</option>

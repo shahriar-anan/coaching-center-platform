@@ -152,5 +152,12 @@ export function monthLabel(month: string, locale: Locale): string {
 
 /** A unit as it reads with a count: "40 answer sheets" in English (singular in the data), Bangla unchanged. */
 export function unitWithCount(unit: string, quantity: string, locale: Locale): string {
-  return locale === "en" && quantity !== "1" ? `${unit}s` : unit;
+  return locale === "en" && quantity !== "1" ? pluralEnglish(unit) : unit;
+}
+
+/** The plural of a unit typed in the singular: class -> classes, poster -> posters, hour -> hours, body -> bodies. */
+export function pluralEnglish(unit: string): string {
+  if (/(s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`;
+  if (/[^aeiou]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`;
+  return `${unit}s`;
 }

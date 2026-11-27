@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale } from "@/i18n/locale-context";
+import { FinanceTheme } from "@/components/staff/finance/finance-theme";
 import { money, monthLabel } from "./accounting-model";
 
 /** One month of the chart: what went out and what came in (plan 4.6, the 12-month chart). */
@@ -23,7 +24,9 @@ export function MonthChart({ months }: { months: MonthPoint[] }) {
   const largest = Math.max(1, ...values);
 
   return (
-    <figure className="grid gap-3">
+    // The bars and legend use the finance palette, which is defined on .finance-viz and only comes with FinanceTheme.
+    <figure className="finance-viz grid gap-3">
+      <FinanceTheme />
       <div className="flex items-center gap-4 text-meta text-muted" aria-hidden="true">
         <span className="inline-flex items-center gap-1.5">
           <span className="size-3 rounded-sm" style={{ background: "var(--fin-src-1)" }} />

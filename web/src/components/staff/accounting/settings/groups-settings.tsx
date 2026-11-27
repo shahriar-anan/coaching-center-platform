@@ -78,7 +78,7 @@ export function GroupsSettings() {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Switch checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
+        <Switch showLabel checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
         <Button onClick={() => setEditing("new")}>{t("accounting.settings.groups.add")}</Button>
       </div>
       {actionError ? <p role="alert" className="text-meta text-danger">{actionError}</p> : null}
@@ -226,7 +226,7 @@ function GroupForm({ group, onClose }: { group: Group | null; onClose: () => voi
         )}
         <p className="text-meta text-muted">{t("accounting.settings.groups.lockedHint")}</p>
         <div className="grid gap-1">
-          <Switch checked={inFinance} onCheckedChange={setInFinance} label={t("accounting.settings.groups.inFinance")} />
+          <Switch showLabel checked={inFinance} onCheckedChange={setInFinance} label={t("accounting.settings.groups.inFinance")} />
           <p className="text-meta text-muted">{t("accounting.settings.groups.inFinanceHint")}</p>
         </div>
         {formError ? <p role="alert" className="text-meta text-danger">{formError}</p> : null}

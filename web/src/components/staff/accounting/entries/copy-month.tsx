@@ -149,7 +149,7 @@ export function CopyMonthSheet({ group, onClose }: { group: Group; onClose: () =
                   </div>
                   {draft.alreadyThisMonth ? <Pill tone="warn">{t("accounting.copy.alreadyNote")}</Pill> : null}
                 </div>
-                <Switch checked={edit.included} onCheckedChange={(on) => update(index, draft, { included: on })} label={t("accounting.copy.include")} />
+                <Switch showLabel checked={edit.included} onCheckedChange={(on) => update(index, draft, { included: on })} label={t("accounting.copy.include")} />
                 <div className="grid gap-3 sm:grid-cols-2">
                   {counted ? (
                     <Field label={t("accounting.form.unitPrice")}>

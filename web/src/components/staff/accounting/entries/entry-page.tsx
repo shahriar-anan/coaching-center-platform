@@ -398,7 +398,7 @@ function VoidForm({ entry, onClose }: { entry: EntryDetail; onClose: () => void 
         </Field>
         {paired ? (
           <div className="grid gap-1">
-            <Switch checked={alsoPaired} onCheckedChange={setAlsoPaired} label={t("accounting.entry.alsoVoidPaired")} />
+            <Switch showLabel checked={alsoPaired} onCheckedChange={setAlsoPaired} label={t("accounting.entry.alsoVoidPaired")} />
             <p className="text-meta text-muted">{t("accounting.entry.alsoVoidPairedHint", { no: paired.no })}</p>
           </div>
         ) : null}

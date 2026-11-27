@@ -87,7 +87,7 @@ export function TypesSettings() {
           {t("accounting.settings.types.add")}
         </Button>
       </div>
-      <Switch checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
+      <Switch showLabel checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
       {actionError ? <p role="alert" className="text-meta text-danger">{actionError}</p> : null}
 
       {types.isError ? (
@@ -241,11 +241,11 @@ function TypeForm({ group, type, onClose }: { group: Group; type: AccType | null
           </div>
         ) : null}
         <div className="grid gap-1">
-          <Switch checked={needsPeriod} onCheckedChange={setNeedsPeriod} label={t("accounting.settings.types.needsPeriod")} />
+          <Switch showLabel checked={needsPeriod} onCheckedChange={setNeedsPeriod} label={t("accounting.settings.types.needsPeriod")} />
           <p className="text-meta text-muted">{t("accounting.settings.types.needsPeriodHint")}</p>
         </div>
         <div className="grid gap-1">
-          <Switch checked={needsDescription} onCheckedChange={setNeedsDescription} label={t("accounting.settings.types.needsDescription")} />
+          <Switch showLabel checked={needsDescription} onCheckedChange={setNeedsDescription} label={t("accounting.settings.types.needsDescription")} />
           <p className="text-meta text-muted">{t("accounting.settings.types.needsDescriptionHint")}</p>
         </div>
         {formError ? <p role="alert" className="text-meta text-danger">{formError}</p> : null}

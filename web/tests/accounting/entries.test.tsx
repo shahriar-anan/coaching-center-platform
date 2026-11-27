@@ -44,6 +44,29 @@ describe("entries list", () => {
     expect(call?.search).toContain(`from=${dhakaToday().slice(0, 7)}-01`);
   });
 
+  it("filters by payee within a Payees group, and offers no payee filter for a Log group", async () => {
+    const api = routes();
+    const { unmount } = renderWithProviders(<EntriesPage />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: `/staff/accounting/entries?groupId=${OFFLINE_ID}&payeeId=${MILON_PAYEE.id}`,
+    });
+
+    const payee = await screen.findByLabelText(/^Person/, {}, { timeout: 4000 });
+    expect(within(payee).getByRole("option", { name: MILON_PAYEE.name })).toBeInTheDocument();
+    await screen.findAllByRole("link", { name: "#1043" }, { timeout: 4000 });
+    expect(api.calls.find((item) => item.path === "/api/v1/accounting/entries")?.search).toContain(`payeeId=${MILON_PAYEE.id}`);
+    unmount();
+
+    renderWithProviders(<EntriesPage />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: `/staff/accounting/entries?groupId=${GROUPS[3].id}`,
+    });
+    await screen.findAllByRole("link", { name: "#1043" }, { timeout: 4000 });
+    expect(screen.queryByLabelText(/^Person/)).not.toBeInTheDocument();
+  });
+
   it("shows the totals of the rows, and the payment with a minus sign", async () => {
     routes();
     renderWithProviders(<EntriesPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/accounting/entries" });

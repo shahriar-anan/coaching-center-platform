@@ -407,7 +407,7 @@ export function EntryForm({
 
       {kind === "CHARGE" && type && type.kind !== "DEDUCTION" ? (
         <div className="grid gap-3 rounded-card border border-border p-4">
-          <Switch
+          <Switch showLabel
             checked={values.paidNow}
             onCheckedChange={(on) => {
               set("paidNow", on);
