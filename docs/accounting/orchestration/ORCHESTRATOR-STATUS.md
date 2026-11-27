@@ -56,3 +56,8 @@ The main checkout `F:\coaching-center-platform` stays on `lms/integration` (cour
 - 27 Nov: plan and orchestration written; reviewed for gaps (test isolation on the shared database, `STALE_VERSION`, batches never
   deleted, `FINANCE_READ` in the instructor contributor, legacy counted charges without a price, archived rows on edits, copy-twice
   guard, linked-user uniqueness, payee of a moved class payment, migration numbering after hotfixes, branch flow to production).
+- 27 Nov: agent F finished (F1 58280d1d, F2 91879822, F3 1ab9c483). Merged into acc/integration as 39d5ff8c. Gate 1 API: F's full
+  run on the same tree, 222 classes, 1334 tests, 0 failures, 0 errors (verified from surefire reports). Gate 1 web: not run yet
+  (web untouched so far; baseline run still to do). Phase 2 (L, R, W) not launched yet.
+- Open contract points from F, to pass to L and W: money accounts are seeded in English only (plan 5.3 asks for Bangla; W maps
+  by account kind, or a name_bn column is added before release); L passes "was" ids on edit and checks the kind sign rule.
