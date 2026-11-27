@@ -249,7 +249,143 @@ class AccEntryEditIT extends PostgresIntegrationTest {
 		api.respond(api.post(url(unknown) + "/void", master, "{\"reason\":\"x\"}"), 404);
 	}
 
+	// ---- the web's edit form (review fixes, 28 Nov) ---------------------------------------------------------------------------
+
+	@Test
+	void theWholeFormKeepsTheBatch_andAFormWithoutItClearsIt() throws Exception {
+		UUID batch = batch(api.token(api.user("MASTER_ADMIN", "Batch owner")));
+		UUID payees = group("PAYEES", "EXPENSE");
+		UUID payee = data.payee(payees);
+		UUID type = data.type(payees, "AMOUNT");
+		UUID entry = data.charge(payee, type, "500.00", today);
+		data.inBatch(entry, batch);
+
+		// The web sends the whole form, batch included: a note change keeps the batch.
+		JsonNode kept = api.respond(api.patch(url(entry), master, json("typeId", type, "date", today, "amount", "500", "batchId", batch,
+				"note", "Checked", "reason", "Note", "version", 0)), 200);
+		assertThat(kept.get("batchId").asText()).isEqualTo(batch.toString());
+		assertThat(kept.get("note").asText()).isEqualTo("Checked");
+
+		// The contract: a field left out is cleared. This is why the form must send the batch.
+		JsonNode cleared = api.respond(api.patch(url(entry), master, json("typeId", type, "date", today, "amount", "500", "note",
+				"Checked", "reason", "Batch removed", "version", 1)), 200);
+		assertThat(cleared.has("batchId")).isFalse();
+	}
+
+	@Test
+	void aMovedOverClassChargeAndPaymentTakeTheWebsFormWithTheirOwnValues() throws Exception {
+		UUID batch = batch(api.token(api.user("MASTER_ADMIN", "Batch owner")));
+		UUID payees = group("PAYEES", "EXPENSE");
+		UUID payee = data.payee(payees);
+		UUID lecture = data.type(payees, "COUNTED");
+		UUID cash = data.account("CASH");
+		String description = "Class: Evidence Act on 2026-11-03";
+		UUID charge = legacyCharge(payees, payee, lecture, "CLASS", "1", "300.00", batch, description, today);
+		UUID payment = legacyPayment(payees, payee, cash, null, "300.00");
+		jdbc.update("update acc_entries set batch_id = ?, paired_entry_id = ? where id = ?", batch, charge, payment);
+
+		// What the web sends for a moved class entry: its own type, quantity, batch and description, and the changed amount.
+		JsonNode chargeEdited = api.respond(api.patch(url(charge), master, json("typeId", lecture, "date", today, "quantity", "1",
+				"amount", "350", "batchId", batch, "description", description, "reason", "Wrong amount", "version", 0)), 200);
+		assertThat(chargeEdited.get("amount").asText()).isEqualTo("350.00");
+		assertThat(chargeEdited.get("batchId").asText()).isEqualTo(batch.toString());
+
+		JsonNode paymentEdited = api.respond(api.patch(url(payment), master, json("date", today, "amount", "350", "accountId", cash,
+				"batchId", batch, "reason", "Wrong amount", "version", 0)), 200);
+		assertThat(paymentEdited.get("amount").asText()).isEqualTo("350.00");
+		assertThat(paymentEdited.get("batchId").asText()).isEqualTo(batch.toString());
+	}
+
+	@Test
+	void aMovedOverCountedChargeWithNoPriceChangesItsAmountDirectly() throws Exception {
+		UUID payees = group("PAYEES", "EXPENSE");
+		UUID payee = data.payee(payees);
+		UUID lecture = data.type(payees, "COUNTED");
+		UUID charge = legacyCharge(payees, payee, lecture, "OTHER", "4", "1000.00", null, "Four lectures", today);
+
+		JsonNode edited = api.respond(api.patch(url(charge), master, json("typeId", lecture, "date", today, "quantity", "4",
+				"amount", "1200", "description", "Four lectures", "reason", "Agreed more", "version", 0)), 200);
+		assertThat(edited.get("amount").asText()).isEqualTo("1200.00");
+		assertThat(edited.get("quantity").asText()).isEqualTo("4");
+		assertThat(edited.has("unitPrice")).isFalse();
+	}
+
+	@Test
+	void copyLastMonthTurnsMovedOverCountedChargesIntoQuantityAndPrice_andTheDraftsSave() throws Exception {
+		UUID payees = group("PAYEES", "EXPENSE");
+		UUID payee = data.payee(payees);
+		UUID otherPayee = data.payee(payees);
+		UUID lecture = data.type(payees, "COUNTED");
+		UUID other = data.type(payees, "AMOUNT");
+		LocalDate lastMonth = today.withDayOfMonth(1).minusMonths(1);
+		legacyCharge(payees, payee, lecture, "OTHER", "4", "1000.00", null, "Four lectures", lastMonth);
+		legacyCharge(payees, otherPayee, lecture, "OTHER", "3", "1000.00", null, "Three lectures", lastMonth);
+		legacyCharge(payees, payee, other, "OTHER", "2", "700.00", null, "Other work", lastMonth);
+
+		JsonNode drafts = api.respond(api.get("/api/v1/accounting/groups/" + payees + "/copy-source", master), 200);
+		assertThat(drafts.size()).isEqualTo(3);
+		java.util.Map<String, JsonNode> byDescription = new java.util.HashMap<>();
+		for (JsonNode draft : drafts) {
+			byDescription.put(draft.get("description").asText(), draft);
+		}
+		// 4 × 250.00 is exact; 1000 does not split into 3 whole-paisa prices, so it is 1 × 1000.00; a plain type keeps only its amount.
+		assertThat(byDescription.get("Four lectures").get("quantity").asText()).isEqualTo("4");
+		assertThat(byDescription.get("Four lectures").get("unitPrice").asText()).isEqualTo("250.00");
+		assertThat(byDescription.get("Three lectures").get("quantity").asText()).isEqualTo("1");
+		assertThat(byDescription.get("Three lectures").get("unitPrice").asText()).isEqualTo("1000.00");
+		assertThat(byDescription.get("Other work").has("quantity")).isFalse();
+		assertThat(byDescription.get("Other work").get("amount").asText()).isEqualTo("700.00");
+
+		// The drafts save as they are (as the web posts them, without the copy-only fields).
+		StringBuilder lines = new StringBuilder("{\"entries\":[");
+		for (int i = 0; i < drafts.size(); i++) {
+			tools.jackson.databind.node.ObjectNode line = (tools.jackson.databind.node.ObjectNode) drafts.get(i).deepCopy();
+			line.remove("sourceEntryId");
+			line.remove("alreadyThisMonth");
+			lines.append(i == 0 ? "" : ",").append(json.writeValueAsString(line));
+		}
+		lines.append("]}");
+		JsonNode saved = api.respond(api.post(ENTRIES + "/many", master, lines.toString()), 201);
+		assertThat(saved.size()).isEqualTo(3);
+		java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+		for (JsonNode entry : saved) {
+			total = total.add(new java.math.BigDecimal(entry.get("amount").asText()));
+		}
+		assertThat(total).isEqualByComparingTo("2700.00");
+	}
+
+	@Test
+	void aRefusalInASeveralLinesSaveNamesItsLine() throws Exception {
+		UUID payees = group("PAYEES", "EXPENSE");
+		UUID otherGroup = group("PAYEES", "EXPENSE");
+		UUID payee = data.payee(payees);
+		UUID stranger = data.payee(otherGroup);
+		UUID type = data.type(payees, "AMOUNT");
+		String body = "{\"entries\":[" + json("kind", "CHARGE", "groupId", payees, "payeeId", payee, "typeId", type, "date", today,
+				"amount", "100") + "," + json("kind", "CHARGE", "groupId", payees, "payeeId", stranger, "typeId", type, "date", today,
+						"amount", "100") + "]}";
+
+		JsonNode refused = api.respond(api.post(ENTRIES + "/many", master, body), 409);
+		assertThat(refused.get("message").asText()).isEqualTo("accounting.errors.payee_wrong_group");
+		assertThat(refused.get("details").get("line").asInt()).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select count(*) from acc_entries where payee_id = ?", Long.class, payee)).as("nothing is saved")
+				.isZero();
+	}
+
 	// ---- helpers ----------------------------------------------------------------------------------------------------------
+
+	/** A moved-over charge, written the way the migration writes one: a quantity, no unit price, the typed amount. */
+	private UUID legacyCharge(UUID group, UUID payee, UUID type, String source, String quantity, String amount, UUID batch,
+			String description, LocalDate date) {
+		UUID id = UUID.randomUUID();
+		jdbc.update("""
+				insert into acc_entries (id, kind, status, group_id, payee_id, type_id, entry_date, quantity, amount, batch_id, description,
+				  note, legacy_source, recorded_by, recorded_at, created_at, updated_at)
+				values (?, 'CHARGE', 'ACTIVE', ?, ?, ?, ?, cast(? as numeric), cast(? as numeric), ?, ?, 'Moved from instructor payments', ?, ?,
+				  now(), now(), now())
+				""", id, group, payee, type, date, quantity, amount, batch, description, source, data.masterAdmin());
+		return id;
+	}
 
 	private UUID group(String mode, String direction) throws Exception {
 		JsonNode group = api.respond(api.post("/api/v1/accounting/groups", master,

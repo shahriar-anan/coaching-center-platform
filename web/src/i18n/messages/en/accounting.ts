@@ -25,6 +25,7 @@ const accounting = {
     loading: "Loading…",
     loadError: "Could not load this. Try again.",
     failed: "Something went wrong. Try again.",
+    onLine: "{text} (line {line})",
     retry: "Try again",
     fixFields: "Check the highlighted fields.",
     stale: "This changed while you were looking at it. Reload the page and try again.",
@@ -348,6 +349,7 @@ const accounting = {
     corrected: "Corrected on {date}",
     corrections: "Corrections",
     editTitle: "Edit #{no}",
+    legacyPriceHint: "Moved from the old pages with a typed amount. Leave empty to keep the amount, or enter a price.",
     fields: {
       group: "Group",
       payee: "Person",

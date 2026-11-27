@@ -5,7 +5,7 @@ import { EntryPage } from "@/components/staff/accounting/entries/entry-page";
 import type { EntryDetail } from "@/lib/api/accounting/types";
 import { ACC_ACCOUNT_IDS } from "@/lib/api/accounting/ids";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
-import { ACCOUNTS, GROUPS, entry } from "./fixtures";
+import { ACCOUNTS, GROUPS, LECTURE, entry } from "./fixtures";
 import { ANSWER_SHEET, OFFLINE_ID, OFFLINE_TYPES } from "./fixtures-entries";
 
 /*
@@ -115,6 +115,103 @@ describe("entry page", () => {
       version: 3,
       quantity: "40",
       unitPrice: "50.00",
+    });
+  });
+
+  it("sends the batch and the exam with every correction, so an edit never clears them", async () => {
+    const user = userEvent.setup();
+    const linked: EntryDetail = { ...CHARGE, batchId: "batch-1", batchNameEn: "BJS 2026", liveExamId: "exam-1", liveExamTitleEn: "Mock 3" };
+    const api = routes(linked, { [`PATCH /api/v1/accounting/entries/${CHARGE.id}`]: entry({ id: CHARGE.id }) });
+    renderEntry(CHARGE.id);
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/^Reason/), "Note only");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.calls.some((call) => call.method === "PATCH")).toBe(true));
+    expect(api.calls.find((call) => call.method === "PATCH")?.body).toMatchObject({ batchId: "batch-1", liveExamId: "exam-1" });
+  });
+
+  it("sends a moved class charge's own type, quantity, batch and description with the new amount", async () => {
+    const user = userEvent.setup();
+    const moved: EntryDetail = {
+      ...entry({
+        id: "e-class",
+        kind: "CHARGE",
+        accountId: null,
+        accountName: null,
+        typeId: LECTURE.id,
+        typeNameEn: "Lecture",
+        typeKind: "COUNTED",
+        unitEn: "class",
+        quantity: "1",
+        amount: "300.00",
+        batchId: "batch-1",
+        description: "Class: Evidence Act on 2026-11-03",
+        legacy: "CLASS",
+        version: 0,
+      }),
+      paired: null,
+      edits: [],
+    };
+    const api = routes(moved, { "PATCH /api/v1/accounting/entries/e-class": entry({ id: "e-class" }) });
+    renderEntry("e-class");
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const amount = within(dialog).getByLabelText(/^Amount/);
+    await user.clear(amount);
+    await user.type(amount, "350");
+    await user.type(within(dialog).getByLabelText(/^Reason/), "Wrong amount");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.calls.some((call) => call.method === "PATCH")).toBe(true));
+    expect(api.calls.find((call) => call.method === "PATCH")?.body).toMatchObject({
+      typeId: LECTURE.id,
+      quantity: "1",
+      batchId: "batch-1",
+      description: "Class: Evidence Act on 2026-11-03",
+      amount: "350.00",
+    });
+  });
+
+  it("lets a moved counted charge with no price change its amount, even when the API leaves the empty fields out", async () => {
+    const user = userEvent.setup();
+    const base = entry({
+      id: "e-old",
+      kind: "CHARGE",
+      accountId: null,
+      accountName: null,
+      typeId: LECTURE.id,
+      typeNameEn: "Lecture",
+      typeKind: "COUNTED",
+      unitEn: "class",
+      quantity: "4",
+      amount: "1000.00",
+      description: "Four lectures",
+      legacy: "OTHER",
+    });
+    // The API omits null fields (non_null), so the price is missing, not null.
+    const withoutPrice: Record<string, unknown> = { ...base };
+    delete withoutPrice.unitPrice;
+    const moved = { ...withoutPrice, paired: null, edits: [] } as unknown as EntryDetail;
+    const api = routes(moved, { "PATCH /api/v1/accounting/entries/e-old": entry({ id: "e-old" }) });
+    renderEntry("e-old");
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const amount = within(dialog).getByLabelText(/^Amount/);
+    await user.clear(amount);
+    await user.type(amount, "1200");
+    await user.type(within(dialog).getByLabelText(/^Reason/), "Agreed more");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.calls.some((call) => call.method === "PATCH")).toBe(true));
+    expect(api.calls.find((call) => call.method === "PATCH")?.body).toMatchObject({
+      amount: "1200.00",
+      quantity: "4",
+      unitPrice: null,
     });
   });
 

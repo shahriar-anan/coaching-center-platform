@@ -58,7 +58,7 @@ function EntryBody({ entry, group, locale }: { entry: EntryDetail; group: Group 
   const [voiding, setVoiding] = useState(false);
   const active = entry.status === "ACTIVE";
   const accountName = entry.accountName ? accountLabel({ name: entry.accountName, kind: (accounts.data ?? []).find((a) => a.id === entry.accountId)?.kind ?? null }, locale, t) : "—";
-  const counted = entry.quantity !== null && entry.unitPrice !== null;
+  const counted = entry.quantity != null && entry.unitPrice != null;
   const unit = pickName({ nameEn: entry.unitEn ?? "", nameBn: entry.unitBn }, locale);
 
   const fields: [string, string][] = [
@@ -198,7 +198,11 @@ function EntryEditForm({ entry, group, onClose }: { entry: EntryDetail; group: G
   const [formError, setFormError] = useState<string | null>(null);
 
   const type: AccType | null = (types.data ?? []).find((item) => item.id === typeId) ?? null;
-  const counted = type ? type.kind === "COUNTED" : entry.quantity !== null;
+  const typeCounted = type ? type.kind === "COUNTED" : entry.unitPrice != null;
+  // A moved-over charge of a counted type has no price: its amount was typed in the old pages, and stays typed while its type is kept
+  // and no price is given (plan 4.4). Its quantity is kept as it is.
+  const legacyAmount = entry.legacy != null && entry.unitPrice == null && typeId === entry.typeId && !unitPrice.trim();
+  const counted = typeCounted && !legacyAmount;
   // A deduction stays a deduction: only the deduction types are offered for one (plan 4.5).
   const isDeduction = entry.typeKind === "DEDUCTION";
   const offered = (types.data ?? []).filter((item) => (!item.archived && (item.kind === "DEDUCTION") === isDeduction) || item.id === entry.typeId);
@@ -220,7 +224,8 @@ function EntryEditForm({ entry, group, onClose }: { entry: EntryDetail; group: G
     if (Object.keys(found).length > 0) {
       return;
     }
-    // A charge has no money account; a moved class payment keeps only its money fields (plan 4.5).
+    // The API takes the whole form: a field left out is cleared. So the fields this form does not show (batch, exam) are sent as they
+    // are, and a moved class entry sends its own values for everything but its money fields (plan 4.5).
     const body: EntryEditBody = {
       date,
       amount: counted && !restricted ? null : parseAmount(amount),
@@ -229,12 +234,21 @@ function EntryEditForm({ entry, group, onClose }: { entry: EntryDetail; group: G
       note: note.trim() || null,
       reason: reason.trim(),
       version: entry.version,
+      batchId: entry.batchId ?? null,
+      liveExamId: entry.kind === "CHARGE" ? (entry.liveExamId ?? null) : null,
       ...(restricted
-        ? {}
+        ? {
+            typeId: entry.typeId ?? null,
+            period: entry.period ?? null,
+            quantity: entry.quantity ?? null,
+            unitPrice: entry.unitPrice ?? null,
+            counterparty: entry.counterparty ?? null,
+            description: entry.description ?? null,
+          }
         : {
             typeId: typeId || null,
             period: type?.needsPeriod ? period || null : null,
-            quantity: counted ? parseQuantity(quantity) : null,
+            quantity: counted || legacyAmount ? parseQuantity(quantity) : null,
             unitPrice: counted ? parseAmount(unitPrice) : null,
             counterparty: counterparty.trim() || null,
             description: description.trim() || null,
@@ -283,6 +297,20 @@ function EntryEditForm({ entry, group, onClose }: { entry: EntryDetail; group: G
             {quantity && unitPrice ? (
               <p className="text-body text-text sm:col-span-2">{money(countedAmount(quantity, unitPrice), locale)}</p>
             ) : null}
+          </div>
+        ) : !restricted && legacyAmount ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t("accounting.form.quantity")}>
+              <TextInput inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+            </Field>
+            <Field label={t("accounting.form.unitPrice")} hint={t("accounting.entry.legacyPriceHint")}>
+              <TextInput inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label={t("accounting.form.amount")} required error={problem.amount}>
+                <TextInput inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} invalid={Boolean(problem.amount)} />
+              </Field>
+            </div>
           </div>
         ) : (
           <Field label={t("accounting.form.amount")} required error={problem.amount}>

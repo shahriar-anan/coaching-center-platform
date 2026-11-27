@@ -189,6 +189,8 @@ public class AccEntryService {
 			return List.of();
 		}
 		List<CopyDraft> drafts = new ArrayList<>();
+		Set<UUID> countedTypes = new HashSet<>(jdbc.queryForList(
+				"select id from acc_types where group_id = ? and kind = 'COUNTED'", UUID.class, groupId));
 		Set<String> thisMonth = new HashSet<>();
 		jdbc.query("""
 				select payee_id, type_id, period from acc_entries
@@ -207,10 +209,21 @@ public class AccEntryService {
 					UUID payee = rs.getObject("payee_id", UUID.class);
 					UUID type = rs.getObject("type_id", UUID.class);
 					String period = rs.getString("period") == null ? null : YearMonth.parse(rs.getString("period")).plusMonths(1).toString();
-					// A moved-over charge has a quantity but no price; it is copied as a plain amount, as the old pages typed it.
-					String quantity = legacy ? null : quantityText(rs.getBigDecimal("quantity"));
-					String unitPrice = legacy ? null : moneyText(rs.getBigDecimal("unit_price"));
 					BigDecimal amount = rs.getBigDecimal("amount").abs();
+					String quantity = quantityText(rs.getBigDecimal("quantity"));
+					String unitPrice = moneyText(rs.getBigDecimal("unit_price"));
+					if (legacy && !countedTypes.contains(type)) {
+						// A moved-over charge of a plain type keeps only its amount; its old class count was for the record.
+						quantity = null;
+						unitPrice = null;
+					}
+					else if (legacy && rs.getBigDecimal("unit_price") == null) {
+						// A moved-over counted charge has no price (the old pages typed the amount). A new charge of a counted type needs
+						// quantity and price, so the copy splits the amount: its quantity times an exact price, else 1 × the amount.
+						BigDecimal[] split = exactSplit(rs.getBigDecimal("quantity"), amount);
+						quantity = quantityText(split[0]);
+						unitPrice = moneyText(split[1]);
+					}
 					drafts.add(new CopyDraft(kind, groupId, payee, type, today.toString(), period, quantity, unitPrice,
 							AccMoney.format(amount), AccRules.SPEND.equals(kind) ? rs.getObject("account_id", UUID.class) : null,
 							AccRules.SPEND.equals(kind) ? rs.getString("counterparty") : null, rs.getObject("batch_id", UUID.class),
@@ -621,7 +634,10 @@ public class AccEntryService {
 	/** An error of one line of a "many" save, with its field named as entries[i].field (so the web can show the line). */
 	private static ApiException prefixed(ApiException exception, int line) {
 		if (!(exception.details() instanceof List<?> problems) || problems.isEmpty()) {
-			return exception;
+			// A refusal (409) or a missing row (404) has no field: the line goes in the details, {"line": i}, so the web can name it.
+			return exception.details() == null
+					? new ApiException(exception.code(), exception.status(), exception.getMessage(), Map.of("line", line))
+					: exception;
 		}
 		List<FieldErrorDetail> named = new ArrayList<>();
 		for (Object problem : problems) {
@@ -714,6 +730,20 @@ public class AccEntryService {
 		}
 		JsonNode node = json.readTree(text);
 		return json.convertValue(node, Map.class);
+	}
+
+	/**
+	 * Splits an amount into quantity and unit price for a copy: the quantity, when it divides the amount into whole paisa, else 1 × the
+	 * amount. Returns {quantity, unitPrice}.
+	 */
+	static BigDecimal[] exactSplit(BigDecimal quantity, BigDecimal amount) {
+		if (quantity != null && quantity.signum() > 0) {
+			BigDecimal price = amount.divide(quantity, 2, java.math.RoundingMode.HALF_UP);
+			if (price.signum() > 0 && AccMoney.counted(quantity, price).compareTo(amount) == 0) {
+				return new BigDecimal[] { quantity, price };
+			}
+		}
+		return new BigDecimal[] { BigDecimal.ONE, amount };
 	}
 
 	private static String key(UUID payee, UUID type, String period) {

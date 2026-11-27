@@ -194,7 +194,10 @@ public class AccEntryListService {
 		return String.join(",", cells);
 	}
 
-	private static String csvCell(String value) {
+	private static String csvCell(String raw) {
+		// A typed text that starts like a formula (=, +, -, @, tab, return) is opened by Excel as one; a leading ' keeps it text.
+		// Numbers such as a deduction's -500.00 stay as they are.
+		String value = !raw.isEmpty() && "=+-@\t\r".indexOf(raw.charAt(0)) >= 0 && !raw.matches("-?\\d+(\\.\\d+)?") ? "'" + raw : raw;
 		if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
 			return "\"" + value.replace("\"", "\"\"") + "\"";
 		}

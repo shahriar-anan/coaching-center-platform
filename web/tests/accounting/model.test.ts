@@ -55,6 +55,30 @@ describe("failed writes", () => {
     expect(writeErrorText(error, key)).toBe("accounting.common.stale");
   });
 
+  it("names the line of a several-lines save, from a refusal's details or a field error's name", () => {
+    const withVars = ((text: string, vars?: Record<string, unknown>) =>
+      vars ? `${text} ${JSON.stringify(vars)}` : text) as unknown as Parameters<typeof writeErrorText>[1];
+    const refused = new ApiError(
+      { code: "ACC_REFUSED", message: "accounting.errors.payee_wrong_group", requestId: "t", timestamp: "2026-11-27T00:00:00Z", details: { line: 1 } } as never,
+      409,
+    );
+    expect(writeErrorText(refused, withVars)).toBe(
+      'accounting.common.onLine {"text":"accounting.errors.payee_wrong_group","line":2}',
+    );
+    expect(writeErrorText(refused, withVars, { withLine: false })).toBe("accounting.errors.payee_wrong_group");
+    const field = new ApiError(
+      {
+        code: "VALIDATION_FAILED",
+        message: "Request validation failed.",
+        requestId: "t",
+        timestamp: "2026-11-27T00:00:00Z",
+        fieldErrors: [{ field: "entries[0].amount", message: "Enter an amount above 0." }],
+      } as never,
+      400,
+    );
+    expect(writeErrorText(field, withVars)).toBe('accounting.common.onLine {"text":"Enter an amount above 0.","line":1}');
+  });
+
   it("gives the generic text for anything else", () => {
     expect(writeErrorText(new Error("boom"), key)).toBe("accounting.common.failed");
   });

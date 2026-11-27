@@ -7,7 +7,7 @@ import { dhakaToday } from "@/components/staff/offline/offline-model";
 import { shiftMonth, monthOf } from "@/components/staff/accounting/accounting-model";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { MILON_PAYEE, entry } from "./fixtures";
-import { ANSWER_SHEET, OFFLINE_GROUP, OFFLINE_TYPES, TUHIN_PAYEE } from "./fixtures-entries";
+import { ANSWER_SHEET, OFFLINE_GROUP, OFFLINE_TYPES, OTHER_AMOUNT, TUHIN_PAYEE } from "./fixtures-entries";
 
 /*
  * Copy last month (B7, accounting-plan 4.4): last month's charges, ticked; a draft that already looks added this month starts unticked;
@@ -97,6 +97,46 @@ describe("copy last month", () => {
     expect(body.entries[0]).toMatchObject({ payeeId: MILON_PAYEE.id, quantity: "40", unitPrice: "50.00", amount: null });
     expect(body.entries[0]).not.toHaveProperty("sourceEntryId");
     expect(body.entries[0]).not.toHaveProperty("alreadyThisMonth");
+  });
+});
+
+describe("copy last month: what counts as counted", () => {
+  it("takes a plain type's draft as an amount even when it carries a quantity, and a counted one as quantity times price", async () => {
+    const user = userEvent.setup();
+    const plain: CopyDraft = {
+      kind: "CHARGE",
+      groupId: OFFLINE_GROUP.id,
+      payeeId: MILON_PAYEE.id,
+      typeId: OTHER_AMOUNT.id,
+      date: today,
+      period: null,
+      quantity: "2",
+      unitPrice: null,
+      amount: "700.00",
+      description: "Other work",
+      sourceEntryId: "e-old-3",
+      alreadyThisMonth: false,
+    };
+    const api = mockApi({
+      [`GET /api/v1/accounting/groups/${OFFLINE_GROUP.id}/copy-source`]: [drafts()[0], plain],
+      [`GET /api/v1/accounting/groups/${OFFLINE_GROUP.id}/types`]: OFFLINE_TYPES,
+      [`GET /api/v1/accounting/groups/${OFFLINE_GROUP.id}/payees`]: [MILON_PAYEE, TUHIN_PAYEE],
+      "POST /api/v1/accounting/entries/many": [entry({ kind: "CHARGE" })],
+    });
+    renderWithProviders(<CopyMonthSheet group={OFFLINE_GROUP} onClose={() => undefined} />, {
+      user: fixtures.masterAdmin,
+      locale: "en",
+      route: "/staff/accounting/groups/x",
+    });
+
+    await screen.findAllByRole("switch");
+    await waitFor(() => expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.calls.some((call) => call.method === "POST")).toBe(true));
+    const body = api.calls.find((call) => call.method === "POST")?.body as { entries: Record<string, unknown>[] };
+    expect(body.entries[0]).toMatchObject({ quantity: "40", unitPrice: "50.00", amount: null });
+    expect(body.entries[1]).toMatchObject({ typeId: OTHER_AMOUNT.id, amount: "700.00", unitPrice: null });
   });
 });
 

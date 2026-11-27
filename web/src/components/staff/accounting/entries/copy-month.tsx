@@ -8,6 +8,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { TextInput } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
+import { ApiError } from "@/lib/api/errors";
 import { useLocale } from "@/i18n/locale-context";
 import { useGroupTypes } from "@/lib/api/accounting/account-types";
 import { useGroupPayees } from "@/lib/api/accounting/payees";
@@ -16,6 +17,7 @@ import type { CopyDraft, EntryInput, Group } from "@/lib/api/accounting/types";
 import { dhakaToday } from "@/components/staff/offline/offline-model";
 import {
   countedAmount,
+  errorLine,
   money,
   monthLabel,
   monthOf,
@@ -60,8 +62,13 @@ export function CopyMonthSheet({ group, onClose }: { group: Group; onClose: () =
     return edits[index] ?? { included: !draft.alreadyThisMonth, amount: draft.amount, unitPrice: draft.unitPrice ?? "" };
   }
 
+  /** Quantity times price: the draft's type is counted (the API gives such a draft a quantity and a price, moved-over ones too). */
   function isCounted(draft: CopyDraft): boolean {
-    return draft.quantity !== null && draft.quantity !== undefined;
+    const type = (types.data ?? []).find((item) => item.id === draft.typeId);
+    if (type) {
+      return type.kind === "COUNTED";
+    }
+    return draft.unitPrice !== null && draft.unitPrice !== undefined;
   }
 
   function amountOf(draft: CopyDraft, edit: Edit): string | null {
@@ -80,17 +87,20 @@ export function CopyMonthSheet({ group, onClose }: { group: Group; onClose: () =
   async function save() {
     setProblem(null);
     const chosen: EntryInput[] = [];
+    const rowNames: string[] = [];
     for (let index = 0; index < drafts.length; index += 1) {
       const draft = drafts[index];
       const edit = editFor(index, draft);
       if (!edit.included) {
         continue;
       }
+      const rowName = payeeName(draft.payeeId ?? null) || typeName(draft.typeId ?? null);
       if (!amountOf(draft, edit)) {
-        setProblem(t("accounting.form.amountInvalid"));
+        setProblem(`${t("accounting.form.amountInvalid")} (${rowName})`);
         return;
       }
       const counted = isCounted(draft);
+      rowNames.push(rowName);
       chosen.push({
         ...draftInput(draft),
         unitPrice: counted ? parseAmount(edit.unitPrice) : null,
@@ -106,7 +116,10 @@ export function CopyMonthSheet({ group, onClose }: { group: Group; onClose: () =
       toast({ title: t("accounting.common.saved"), tone: "ok" });
       onClose();
     } catch (error) {
-      setProblem(writeErrorText(error, t));
+      // The API's line counts the ticked rows only; name the row instead of a number.
+      const line = error instanceof ApiError ? errorLine(error) : null;
+      const text = writeErrorText(error, t, { withLine: false });
+      setProblem(line !== null && rowNames[line] ? `${text} (${rowNames[line]})` : text);
     }
   }
 

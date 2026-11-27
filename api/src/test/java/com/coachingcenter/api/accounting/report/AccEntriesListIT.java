@@ -198,6 +198,22 @@ class AccEntriesListIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	void aTypedTextThatLooksLikeAFormulaIsKeptAsTextButANegativeAmountStaysANumber() throws Exception {
+		ReportTestSupport support = new ReportTestSupport(mockMvc, jdbc, passwords, json);
+		String master = support.token(support.seedUser("MASTER_ADMIN"));
+		Rows rows = rows();
+		new AccTestData(jdbc).annotate(rows.lecture(), "=HYPERLINK(\"x\")", null, "+1 note");
+		// A deduction's amount is stored negative and must stay a number.
+		jdbc.update("UPDATE acc_entries SET amount = -500 WHERE id = ?", rows.lecture());
+
+		var result = support.raw("/api/v1/accounting/entries.csv?groupId=" + rows.group() + "&from=2034-03-01&to=2034-03-31", master);
+		String text = new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+		assertThat(text).contains("\"'=HYPERLINK(\"\"x\"\")\"");
+		assertThat(text).contains("'+1 note");
+		assertThat(text).contains(",-500.00,");
+	}
+
+	@Test
 	void aBadValueIsAFieldErrorAndADateRangeTheWrongWayRoundIsRefused() throws Exception {
 		ReportTestSupport support = new ReportTestSupport(mockMvc, jdbc, passwords, json);
 		String master = support.token(support.seedUser("MASTER_ADMIN"));

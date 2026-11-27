@@ -76,7 +76,7 @@ export function VoucherSheet({ entry, groupName }: { entry: EntryDetail; groupNa
   const { formatDate, formatDateTime } = useFormat();
   const kind = entry.kind === "CHARGE" ? "SPEND" : entry.kind;
   const title = t(`accounting.voucher.${TITLES[kind as "PAYMENT" | "SPEND" | "INCOME"]}`);
-  const counted = entry.quantity !== null && entry.unitPrice !== null;
+  const counted = entry.quantity != null && entry.unitPrice != null;
   const unit = pickName({ nameEn: entry.unitEn ?? "", nameBn: entry.unitBn }, locale);
   const voided = entry.status === "VOIDED";
   const amount = entry.amount.replace("-", "");

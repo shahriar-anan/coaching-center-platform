@@ -129,6 +129,11 @@ export function EntryForm({
   });
   // The unit price the person typed, if they typed one. Until then the payee's last price for the type is shown (plan A7).
   const [typedPrice, setTypedPrice] = useState<string | null>(initial?.unitPrice ?? null);
+  // The amount the person typed, if they typed one. Until then a plain charge type (a monthly salary, say) shows the payee's last
+  // amount for that type (plan A7).
+  const [typedAmount, setTypedAmount] = useState<string | null>(initial?.amount ? initial.amount : null);
+  // "Paid now" follows the charge amount until the person types their own.
+  const [paidTyped, setPaidTyped] = useState(Boolean(initial?.paidAmount));
   const [problems, setProblems] = useState<Problems>({});
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -157,6 +162,9 @@ export function EntryForm({
   const suggestion = lastPrices.data?.find((row) => row.typeId === values.typeId);
   const suggestedPrice = suggestion?.unitPrice ?? "";
   const unitPrice = typedPrice ?? suggestedPrice;
+  const suggestedAmount =
+    kind === "CHARGE" && suggestion && values.typeId && suggestion.unitPrice == null ? Math.abs(Number(suggestion.amount)).toFixed(2) : "";
+  const amountValue = typedAmount ?? suggestedAmount;
 
   // The charge amount: the counted product, or the typed amount. It is the default for "Paid now".
   let chargeAmount: string | null = null;
@@ -166,11 +174,11 @@ export function EntryForm({
       const price = parseAmount(unitPrice);
       chargeAmount = quantity && price ? countedAmount(quantity, price) : null;
     } else {
-      chargeAmount = parseAmount(values.amount);
+      chargeAmount = parseAmount(amountValue);
     }
   }
-  // The paid-now amount is set once, when the switch turns on, and is a plain field after that.
-  const paidAmount = values.paidAmount;
+  // The paid-now amount is the charge amount until the person types one.
+  const paidAmount = paidTyped ? values.paidAmount : (chargeAmount ?? "");
 
   function pickType(typeId: string) {
     set("typeId", typeId);
@@ -222,11 +230,11 @@ export function EntryForm({
         if (!parseAmount(unitPrice)) {
           found.unitPrice = t("accounting.errors.price_required");
         }
-      } else if (!parseAmount(values.amount)) {
+      } else if (!parseAmount(amountValue)) {
         found.amount = t("accounting.form.amountInvalid");
       }
     }
-    if (kind === "PAYMENT" && !parseAmount(values.amount)) {
+    if (kind === "PAYMENT" && !parseAmount(amountValue)) {
       found.amount = t("accounting.form.amountInvalid");
     }
     if (type?.needsDescription && !values.description.trim()) {
@@ -261,7 +269,7 @@ export function EntryForm({
       period,
       quantity: type && counted ? parseQuantity(values.quantity) : null,
       unitPrice: type && counted ? parseAmount(unitPrice) : null,
-      amount: type && counted ? null : parseAmount(values.amount),
+      amount: type && counted ? null : parseAmount(amountValue),
       accountId: isCharge ? null : accountId,
       reference: values.reference.trim() || null,
       counterparty: kind === "SPEND" || kind === "INCOME" ? values.counterparty.trim() || null : null,
@@ -342,7 +350,7 @@ export function EntryForm({
 
       {showAmount ? (
         <Field label={t("accounting.form.amount")} required error={problems.amount}>
-          <TextInput inputMode="decimal" value={values.amount} onChange={(event) => set("amount", event.target.value)} invalid={Boolean(problems.amount)} />
+          <TextInput inputMode="decimal" value={amountValue} onChange={(event) => setTypedAmount(event.target.value)} invalid={Boolean(problems.amount)} />
         </Field>
       ) : null}
 
@@ -403,9 +411,6 @@ export function EntryForm({
             checked={values.paidNow}
             onCheckedChange={(on) => {
               set("paidNow", on);
-              if (on && !values.paidAmount) {
-                set("paidAmount", chargeAmount ?? "");
-              }
             }}
             label={t("accounting.form.paidNow")}
           />
@@ -421,7 +426,10 @@ export function EntryForm({
                 </Select>
               </Field>
               <Field label={t("accounting.form.paidAmount")} required error={problems.paidAmount} hint={t("accounting.form.paidAmountHint")}>
-                <TextInput inputMode="decimal" value={paidAmount} onChange={(event) => set("paidAmount", event.target.value)} invalid={Boolean(problems.paidAmount)} />
+                <TextInput inputMode="decimal" value={paidAmount} onChange={(event) => {
+                  setPaidTyped(true);
+                  set("paidAmount", event.target.value);
+                }} invalid={Boolean(problems.paidAmount)} />
               </Field>
               <Field label={t("accounting.form.reference")}>
                 <TextInput value={values.paidReference} onChange={(event) => set("paidReference", event.target.value)} maxLength={100} />

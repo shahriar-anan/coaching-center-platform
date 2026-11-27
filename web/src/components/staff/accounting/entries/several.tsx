@@ -15,7 +15,8 @@ import { useGroupPayees, useLastPrices } from "@/lib/api/accounting/payees";
 import { useCreateEntries } from "@/lib/api/accounting/entries";
 import type { AccType, EntryInput, Group } from "@/lib/api/accounting/types";
 import { dhakaToday } from "@/components/staff/offline/offline-model";
-import { countedAmount, money, monthOf, parseAmount, parseQuantity, pickName, writeErrorText } from "../accounting-model";
+import { ApiError } from "@/lib/api/errors";
+import { countedAmount, errorLine, money, monthOf, parseAmount, parseQuantity, pickName, writeErrorText } from "../accounting-model";
 
 /** The lines of one several-save are at most this many (plan 4.4). */
 const MAX_LINES = 200;
@@ -125,7 +126,10 @@ export function SeveralSheet({ group, onClose }: { group: Group; onClose: () => 
       toast({ title: t("accounting.common.saved"), tone: "ok" });
       onClose();
     } catch (error) {
-      setProblem(writeErrorText(error, t));
+      // The API names the line by its place among the ticked payees; show the payee's name instead.
+      const line = error instanceof ApiError ? errorLine(error) : null;
+      const text = writeErrorText(error, t, { withLine: false });
+      setProblem(line !== null && ticked[line] ? `${ticked[line].name}: ${text}` : text);
     }
   }
 
@@ -134,7 +138,16 @@ export function SeveralSheet({ group, onClose }: { group: Group; onClose: () => 
       <div className="grid gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("accounting.form.type")} required>
-            <Select value={typeId} onChange={(event) => setTypeId(event.target.value)}>
+            <Select
+              value={typeId}
+              onChange={(event) => {
+                // A new type starts each ticked line empty, so each person's last price for that type can fill it.
+                setTypeId(event.target.value);
+                setLines((current) =>
+                  Object.fromEntries(Object.keys(current).map((id) => [id, { quantity: "", unitPrice: "", amount: "" }])),
+                );
+              }}
+            >
               <option value="">{t("accounting.form.chooseType")}</option>
               {typeList.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -222,17 +235,24 @@ function LineFields({
 }) {
   const { t, locale } = useLocale();
   const lastPrices = useLastPrices(payeeId);
-  const suggestion = lastPrices.data?.find((row) => row.typeId === typeId)?.unitPrice ?? null;
-  const prefilled = useRef(false);
+  const last = lastPrices.data?.find((row) => row.typeId === typeId) ?? null;
+  // The price for a counted type; the amount (as a positive number) for a plain one, such as a monthly salary (plan A7).
+  const suggestion = !last ? null : counted ? last.unitPrice : Math.abs(Number(last.amount)).toFixed(2);
+  const prefilledFor = useRef<string | null>(null);
   useEffect(() => {
-    // Only the first suggestion fills the line. Later edits belong to the person typing.
-    if (!prefilled.current && suggestion && counted && !line.unitPrice) {
-      prefilled.current = true;
+    // Each type's first suggestion fills an empty field once. Later edits belong to the person typing.
+    if (!suggestion || prefilledFor.current === typeId) {
+      return;
+    }
+    prefilledFor.current = typeId;
+    if (counted && !line.unitPrice) {
       onChange({ ...line, unitPrice: suggestion });
+    } else if (!counted && !line.amount) {
+      onChange({ ...line, amount: suggestion });
     }
     // The line is read when the suggestion arrives; it is not a dependency on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggestion, counted]);
+  }, [suggestion, counted, typeId]);
 
   if (!counted) {
     return (

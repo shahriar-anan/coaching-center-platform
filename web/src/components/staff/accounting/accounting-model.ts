@@ -71,16 +71,33 @@ export function moveId(ids: string[], id: string, step: -1 | 1): string[] | null
  * The text to show for a failed write. A refusal (409 ACC_REFUSED) carries its message key, `accounting.errors.<key>`; a stale version
  * (409 CONFLICT or STALE_VERSION) asks the person to reload; anything else gets the generic failure text.
  */
-export function writeErrorText(error: unknown, t: Translate): string {
+export function writeErrorText(error: unknown, t: Translate, options: { withLine?: boolean } = {}): string {
   if (error instanceof ApiError) {
+    // A save of several lines names the bad line: {"line": i} on a refusal, or a field "entries[i].…" on a field error.
+    const line = options.withLine === false ? null : errorLine(error);
+    const withLine = (text: string) => (line === null ? text : t("accounting.common.onLine", { text, line: line + 1 }));
     if (error.code === "ACC_REFUSED" && error.message.startsWith("accounting.errors.")) {
-      return t(error.message);
+      return withLine(t(error.message));
+    }
+    if (line !== null && error.fieldErrors?.length) {
+      return withLine(error.fieldErrors[0].message);
     }
     if (error.code === "CONFLICT" || error.code === "STALE_VERSION") {
       return t("accounting.common.stale");
     }
   }
   return t("accounting.common.failed");
+}
+
+/** The 0-based line of a several-lines save that the error is about, or null. */
+export function errorLine(error: ApiError): number | null {
+  const details = error.details as { line?: unknown } | null | undefined;
+  if (details && typeof details.line === "number") {
+    return details.line;
+  }
+  const field = error.fieldErrors?.[0]?.field ?? "";
+  const match = /^entries\[(\d+)\]/.exec(field);
+  return match ? Number(match[1]) : null;
 }
 
 /** A typed amount as the API takes it: two decimals, more than 0, with at most 2 decimal places. Null when it is not one. */

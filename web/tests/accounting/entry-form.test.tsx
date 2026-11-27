@@ -6,7 +6,7 @@ import { dhakaToday } from "@/components/staff/offline/offline-model";
 import { ACC_ACCOUNT_IDS } from "@/lib/api/accounting/ids";
 import { fixtures, mockApi, renderWithProviders } from "../helpers";
 import { ACCOUNTS, MILON_PAYEE, entry } from "./fixtures";
-import { ANSWER_SHEET, EMPTY_LIVE_EXAMS, LAST_PRICES_MILON, OFFLINE_TYPES, OTHER_AMOUNT, OFFLINE_GROUP } from "./fixtures-entries";
+import { ANSWER_SHEET, EMPTY_LIVE_EXAMS, LAST_PRICES_MILON, MONTHLY, OFFLINE_TYPES, OTHER_AMOUNT, OFFLINE_GROUP } from "./fixtures-entries";
 
 /*
  * The entry form (accounting-plan 4.4, W2): one form for the four kinds. Counted types show the line live and start from the last price;
@@ -51,6 +51,25 @@ describe("entry form: counted types", () => {
     expect(screen.getByText("40 answer sheets × ৳50.00 = ৳2,000.00")).toBeInTheDocument();
     // The amount is computed, so there is no amount field for a counted type.
     expect(screen.queryByLabelText(/^Amount/)).not.toBeInTheDocument();
+  });
+
+  it("starts a plain type's amount from the payee's last amount for it, such as a monthly salary", async () => {
+    const user = userEvent.setup();
+    // The API leaves the empty quantity and price out of the answer.
+    routes({
+      [`GET /api/v1/accounting/payees/${MILON_PAYEE.id}/last-prices`]: [
+        ...LAST_PRICES_MILON,
+        { typeId: MONTHLY.id, amount: "15000.00", date: "2026-10-31" } as unknown as (typeof LAST_PRICES_MILON)[number],
+      ],
+    });
+    renderCharge();
+
+    await screen.findByRole("option", { name: "Monthly salary" });
+    await user.selectOptions(screen.getByLabelText(/^Type/), MONTHLY.id);
+    await waitFor(() => expect(screen.getByLabelText(/^Amount/)).toHaveValue("15000.00"));
+    await user.clear(screen.getByLabelText(/^Amount/));
+    await user.type(screen.getByLabelText(/^Amount/), "16000");
+    expect(screen.getByLabelText(/^Amount/)).toHaveValue("16000");
   });
 
   it("starts the unit price from the payee's last price for that type", async () => {
@@ -113,6 +132,31 @@ describe("entry form: paid now", () => {
     expect(api.calls.find((call) => call.method === "POST")?.body).toMatchObject({
       paidNow: { accountId: ACC_ACCOUNT_IDS.CASH, amount: "2000.00", reference: null },
     });
+  });
+
+  it("keeps the paid-now amount in step with the charge until the person types their own", async () => {
+    const user = userEvent.setup();
+    routes();
+    renderCharge();
+
+    await screen.findByRole("option", { name: "Answer sheet evaluation" });
+    await user.selectOptions(screen.getByLabelText(/^Type/), ANSWER_SHEET.id);
+    await user.type(screen.getByLabelText(/^Quantity/), "40");
+    await waitFor(() => expect(screen.getByLabelText(/^Unit price/)).toHaveValue("50.00"));
+    await user.click(screen.getByRole("switch", { name: /^Paid now/ }));
+    expect(screen.getByLabelText(/^Paid now: amount/)).toHaveValue("2000.00");
+
+    // Two more sheets after the switch: the payment follows.
+    await user.clear(screen.getByLabelText(/^Quantity/));
+    await user.type(screen.getByLabelText(/^Quantity/), "42");
+    expect(screen.getByLabelText(/^Paid now: amount/)).toHaveValue("2100.00");
+
+    // A typed part payment stays as typed.
+    await user.clear(screen.getByLabelText(/^Paid now: amount/));
+    await user.type(screen.getByLabelText(/^Paid now: amount/), "1000");
+    await user.clear(screen.getByLabelText(/^Quantity/));
+    await user.type(screen.getByLabelText(/^Quantity/), "44");
+    expect(screen.getByLabelText(/^Paid now: amount/)).toHaveValue("1000");
   });
 
   it("refuses a paid-now amount that is more than the charge, before any write", async () => {
