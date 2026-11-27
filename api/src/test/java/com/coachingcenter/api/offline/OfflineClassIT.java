@@ -45,6 +45,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.accounting.AccIds;
+import com.coachingcenter.api.accounting.AccTestData;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 
 import tools.jackson.databind.JsonNode;
@@ -275,9 +277,23 @@ class OfflineClassIT extends PostgresIntegrationTest {
 	}
 
 	private UUID instructor(String token, String label) throws Exception {
-		String name = label + " " + UUID.randomUUID();
-		JsonNode created = respond(post("/api/v1/offline-instructors", token, "{\"name\":\"" + name + "\"}"), 201);
-		return UUID.fromString(created.get("id").asText());
+		return newInstructor(label + " " + UUID.randomUUID());
+	}
+
+	/**
+	 * An instructor as the ledger makes one (accounting 27 Nov): a payee of the Offline instructors group, with its offline_instructors row
+	 * under the same id. The name is set on both, and the aliases start empty.
+	 */
+	private UUID newInstructor(String name) {
+		UUID id = new AccTestData(jdbc()).payee(AccIds.GROUP_OFFLINE_INSTRUCTORS);
+		renameInstructor(id.toString(), name);
+		return id;
+	}
+
+	/** Renames an instructor and clears its aliases, in the instructor row and its payee, as the ledger does on an edit. */
+	private void renameInstructor(String id, String name) {
+		jdbc().update("update offline_instructors set name = ?, aliases = '{}' where id = ?::uuid", name, id);
+		jdbc().update("update acc_payees set name = ? where id = ?::uuid", name, id);
 	}
 
 	private JsonNode classAt(String token, UUID batch, String heldOn, String startsAt, String endsAt, UUID instructor) throws Exception {
@@ -388,7 +404,7 @@ class OfflineClassIT extends PostgresIntegrationTest {
 			}
 		}
 		if (!keys.contains(key(name))) {
-			respond(post("/api/v1/offline-instructors", token, "{\"name\":\"" + name + "\"}"), 201);
+			newInstructor(name);
 		}
 	}
 
@@ -401,8 +417,7 @@ class OfflineClassIT extends PostgresIntegrationTest {
 				aliased |= key(alias.asText()).equals(key(name));
 			}
 			if (named || aliased) {
-				respond(patch("/api/v1/offline-instructors/" + instructor.get("id").asText(), token,
-						"{\"name\":\"" + name + " (earlier " + UUID.randomUUID() + ")\",\"aliases\":[]}"), 200);
+				renameInstructor(instructor.get("id").asText(), name + " (earlier " + UUID.randomUUID() + ")");
 			}
 		}
 	}

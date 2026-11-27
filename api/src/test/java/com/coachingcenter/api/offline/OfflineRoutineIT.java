@@ -53,6 +53,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.coachingcenter.api.MutableClock;
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.accounting.AccIds;
+import com.coachingcenter.api.accounting.AccTestData;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 
 import tools.jackson.databind.JsonNode;
@@ -249,19 +251,19 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 				"{\"name\":\"Milon\",\"newName\":\"Milon\"}"), 400);
 		assertThat(refused.toString()).contains("instructorId");
 		String fullName = "Milon Hossain " + UUID.randomUUID();
-		JsonNode milon = respond(post("/api/v1/offline-instructors", master, "{\"name\":\"" + fullName + "\"}"), 201);
+		UUID milon = newInstructor(fullName);
 		JsonNode matched = respond(post("/api/v1/offline-routines/" + id + "/instructor-matches", master,
-				"{\"name\":\"Milon\",\"instructorId\":\"" + milon.get("id").asText() + "\"}"), 200);
+				"{\"name\":\"Milon\",\"instructorId\":\"" + milon.toString() + "\"}"), 200);
 
 		assertThat(unmatchedNames(matched)).isEmpty();
 		assertThat(fixTypo(master, id).get("canConfirm").asBoolean()).isTrue();
 		JsonNode after = findRow(matched, "2026-11-07", "Constitution");
-		assertThat(after.get("instructorId").asText()).isEqualTo(milon.get("id").asText());
+		assertThat(after.get("instructorId").asText()).isEqualTo(milon.toString());
 		assertThat(codes(after)).doesNotContain("INSTRUCTOR_UNKNOWN");
 		assertThat(count(matched.get("rows"), "instructorText", "Milon")).isEqualTo(12);
 		// The spelling the routine uses is kept as an alias, so the next routine matches it without a choice.
 		assertThat(jdbc().queryForObject("select aliases::text from offline_instructors where id = ?::uuid", String.class,
-				milon.get("id").asText())).contains("Milon");
+				milon.toString())).contains("Milon");
 	}
 
 	@Test
@@ -660,7 +662,7 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 		if (knownKeys(token).contains(key(name))) {
 			return;
 		}
-		respond(post("/api/v1/offline-instructors", token, "{\"name\":\"" + name + "\"}"), 201);
+		newInstructor(name);
 	}
 
 	/**
@@ -675,10 +677,25 @@ class OfflineRoutineIT extends PostgresIntegrationTest {
 				aliased |= key(alias.asText()).equals(key(name));
 			}
 			if (named || aliased) {
-				respond(patch("/api/v1/offline-instructors/" + instructor.get("id").asText(), token,
-						"{\"name\":\"" + name + " (earlier " + UUID.randomUUID() + ")\",\"aliases\":[]}"), 200);
+				renameInstructor(instructor.get("id").asText(), name + " (earlier " + UUID.randomUUID() + ")");
 			}
 		}
+	}
+
+	/**
+	 * An instructor as the ledger makes one (accounting 27 Nov): a payee of the Offline instructors group, with its offline_instructors row
+	 * under the same id. The name is set on both, and the aliases start empty.
+	 */
+	private UUID newInstructor(String name) {
+		UUID id = new AccTestData(jdbc()).payee(AccIds.GROUP_OFFLINE_INSTRUCTORS);
+		renameInstructor(id.toString(), name);
+		return id;
+	}
+
+	/** Renames an instructor and clears its aliases, in the instructor row and its payee, as the ledger does on an edit. */
+	private void renameInstructor(String id, String name) {
+		jdbc().update("update offline_instructors set name = ?, aliases = '{}' where id = ?::uuid", name, id);
+		jdbc().update("update acc_payees set name = ? where id = ?::uuid", name, id);
 	}
 
 	private Set<String> knownKeys(String token) throws Exception {
