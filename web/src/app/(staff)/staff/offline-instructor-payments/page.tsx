@@ -1,16 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
+import { ACC_GROUP_IDS } from "@/lib/api/accounting/ids";
 
-import { Suspense } from "react";
-import { InstructorPayments } from "@/components/staff/instructor-pay/instructor-payments-page";
-import { Skeleton } from "@/components/ui/skeleton";
-import { RequireStaff } from "@/lib/auth/guards";
-
-export default function StaffOfflineInstructorPaymentsPage() {
-  return (
-    <Suspense fallback={<Skeleton variant="rows" count={5} />}>
-      <RequireStaff roles={["MASTER_ADMIN"]}>
-        <InstructorPayments />
-      </RequireStaff>
-    </Suspense>
-  );
+/** The old Instructor payments address: the entries of the Offline instructors group (accounting-plan 4.6). */
+export default function StaffOfflineInstructorPaymentsRedirect() {
+  redirect(`/staff/accounting/entries?groupId=${ACC_GROUP_IDS.OFFLINE_INSTRUCTORS}`);
 }

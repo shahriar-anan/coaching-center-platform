@@ -1,16 +1,15 @@
 import {
   Activity,
   Banknote,
+  Calculator,
   CalendarClock,
   ClipboardCheck,
   ClipboardList,
-  Coins,
   CreditCard,
   FileCheck,
   FilePenLine,
   GraduationCap,
   HandCoins,
-  IdCard,
   Landmark,
   LayoutDashboard,
   Megaphone,
@@ -58,8 +57,7 @@ export type StaffNavKey =
   | "admissions"
   | "offlineFees"
   | "offlineBatches"
-  | "instructorPayments"
-  | "offlineInstructors"
+  | "accounting"
   | "finance"
   | "paymentRecords";
 
@@ -189,6 +187,14 @@ export const STAFF_NAV: StaffNavItem[] = [
   { key: "instructors", group: "people", href: "/staff/instructors", access: { MASTER_ADMIN: "full" }, icon: UserCheck },
   { key: "admins", group: "people", href: "/staff/admins", access: { MASTER_ADMIN: "full" }, icon: ShieldCheck },
   {
+    // Accounting (accounting-plan.md, 4.6) replaces Instructor payments and Offline instructors. The Master Admin only.
+    key: "accounting",
+    group: "money",
+    href: "/staff/accounting",
+    access: { MASTER_ADMIN: "full" },
+    icon: Calculator,
+  },
+  {
     key: "finance",
     group: "money",
     href: "/staff/finance",
@@ -250,21 +256,6 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/staff/offline-batches",
     access: { MASTER_ADMIN: "full", SYSTEM_ADMIN: "full" },
     icon: GraduationCap,
-  },
-  {
-    key: "instructorPayments",
-    group: "offline",
-    href: "/staff/offline-instructor-payments",
-    // 24 Nov: instructor pay is the Master Admin's alone (instructor-pay-simple-plan.md).
-    access: { MASTER_ADMIN: "full" },
-    icon: Coins,
-  },
-  {
-    key: "offlineInstructors",
-    group: "offline",
-    href: "/staff/offline-instructors",
-    access: { MASTER_ADMIN: "full" },
-    icon: IdCard,
   },
   { key: "audit", group: "admin", href: "/staff/audit", access: { MASTER_ADMIN: "full" }, icon: ScrollText },
   {
