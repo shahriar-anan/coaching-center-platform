@@ -82,3 +82,58 @@ export function writeErrorText(error: unknown, t: Translate): string {
   }
   return t("accounting.common.failed");
 }
+
+/** A typed amount as the API takes it: two decimals, more than 0, with at most 2 decimal places. Null when it is not one. */
+export function parseAmount(text: string): string | null {
+  const value = text.trim().replace(/,/g, "");
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(value)) {
+    return null;
+  }
+  const amount = Number(value);
+  return amount > 0 ? amount.toFixed(2) : null;
+}
+
+/** A typed quantity: more than 0, up to 2 decimals (plan 4.4). Returned without trailing zeros, as the API answers them. */
+export function parseQuantity(text: string): string | null {
+  const value = text.trim().replace(/,/g, "");
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(value)) {
+    return null;
+  }
+  const quantity = Number(value);
+  return quantity > 0 ? String(quantity) : null;
+}
+
+/** Quantity × unit price, rounded half up to the paisa (the same rule as AccMoney.counted). Shown live; the server computes the saved one. */
+export function countedAmount(quantity: string, unitPrice: string): string {
+  const q = Math.round(Number(quantity) * 100);
+  const p = Math.round(Number(unitPrice) * 100);
+  const cents = Math.floor((q * p + 50) / 100);
+  return (cents / 100).toFixed(2);
+}
+
+/** The month (`YYYY-MM`) of a Dhaka day. */
+export function monthOf(date: string): string {
+  return date.slice(0, 7);
+}
+
+/** A month moved by some months, as `YYYY-MM`. */
+export function shiftMonth(month: string, delta: number): string {
+  const [year, mon] = month.split("-").map(Number);
+  const index = year * 12 + (mon - 1) + delta;
+  const y = Math.floor(index / 12);
+  const m = (index % 12) + 1;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/** A month's name for the site: "November 2026" or "নভেম্বর ২০২৬". */
+export function monthLabel(month: string, locale: Locale): string {
+  const [year, mon] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat(locale === "bn" ? "bn-BD" : "en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, mon - 1, 1)),
+  );
+}
+
+/** A unit as it reads with a count: "40 answer sheets" in English (singular in the data), Bangla unchanged. */
+export function unitWithCount(unit: string, quantity: string, locale: Locale): string {
+  return locale === "en" && quantity !== "1" ? `${unit}s` : unit;
+}

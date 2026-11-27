@@ -12,6 +12,7 @@ import { useLocale } from "@/i18n/locale-context";
 import { RequireStaff } from "@/lib/auth/guards";
 import { useGroups } from "@/lib/api/accounting/groups";
 import { pickName } from "./accounting-model";
+import { QuickAddButton } from "./entries/quick-add";
 
 export const ACCOUNTING_HOME = "/staff/accounting";
 
@@ -63,7 +64,16 @@ function AccountingBody({
   ];
   return (
     <div className="grid gap-5">
-      <PageHeader title={title} breadcrumbs={trail} actions={actions} />
+      <PageHeader
+        title={title}
+        breadcrumbs={trail}
+        actions={
+          <>
+            {actions}
+            <QuickAddButton />
+          </>
+        }
+      />
       <AccountingSubNav />
       {children}
     </div>
