@@ -568,7 +568,12 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/accounting/payees/{id}/archive",
 			"POST /api/v1/accounting/payees/{id}/restore",
 			"GET /api/v1/accounting/payees/{id}/last-prices",
-			"GET /api/v1/accounting/users/linkable");
+			"GET /api/v1/accounting/users/linkable",
+			// ACC-L: entries, several at once, copy last month and the entry page (L3).
+			"POST /api/v1/accounting/entries",
+			"POST /api/v1/accounting/entries/many",
+			"GET /api/v1/accounting/groups/{id}/copy-source",
+			"GET /api/v1/accounting/entries/{id}");
 
 	@Autowired
 	private MockMvc mockMvc;

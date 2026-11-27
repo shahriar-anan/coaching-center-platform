@@ -80,6 +80,10 @@ class AccAccessIT extends PostgresIntegrationTest {
 				{ "POST", base + "/payees/" + id + "/restore" },
 				{ "GET", base + "/payees/" + id + "/last-prices" },
 				{ "GET", base + "/users/linkable" },
+				{ "POST", base + "/entries" },
+				{ "POST", base + "/entries/many" },
+				{ "GET", base + "/groups/" + id + "/copy-source" },
+				{ "GET", base + "/entries/" + id },
 		};
 		for (String[] route : routes) {
 			int status = send(route[0], route[1], systemAdmin);

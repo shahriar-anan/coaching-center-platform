@@ -1,5 +1,6 @@
 package com.coachingcenter.api.accounting.ledger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.HashSet;
@@ -89,8 +90,9 @@ class LedgerTestApi {
 
 	/** A request answered with the expected status; returns its JSON body (an empty object when there is none). */
 	JsonNode respond(ResultActions actions, int expected) throws Exception {
-		MvcResult result = actions.andExpect(status().is(expected)).andReturn();
+		MvcResult result = actions.andReturn();
 		String text = result.getResponse().getContentAsString();
+		assertThat(result.getResponse().getStatus()).as("status for %s", text).isEqualTo(expected);
 		return text.isBlank() ? json.createObjectNode() : json.readTree(text);
 	}
 
