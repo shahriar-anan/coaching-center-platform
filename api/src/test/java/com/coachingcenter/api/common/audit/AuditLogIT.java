@@ -550,7 +550,26 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"GET /api/v1/staff/reviews/counts",
 			"GET /api/v1/staff/reviews/pending-count",
 			"PUT /api/v1/staff/reviews/{id}/status",
-			"PUT /api/v1/staff/reviews/{id}/featured");
+			"PUT /api/v1/staff/reviews/{id}/featured",
+			// ACC-L: accounting ledger, groups, types and money accounts (L1).
+			"GET /api/v1/accounting/groups",
+			"POST /api/v1/accounting/groups",
+			"PATCH /api/v1/accounting/groups/{id}",
+			"POST /api/v1/accounting/groups/{id}/archive",
+			"POST /api/v1/accounting/groups/{id}/restore",
+			"POST /api/v1/accounting/groups/order",
+			"GET /api/v1/accounting/groups/{id}/types",
+			"POST /api/v1/accounting/groups/{id}/types",
+			"POST /api/v1/accounting/groups/{id}/types/order",
+			"PATCH /api/v1/accounting/types/{id}",
+			"POST /api/v1/accounting/types/{id}/archive",
+			"POST /api/v1/accounting/types/{id}/restore",
+			"GET /api/v1/accounting/accounts",
+			"POST /api/v1/accounting/accounts",
+			"PATCH /api/v1/accounting/accounts/{id}",
+			"POST /api/v1/accounting/accounts/{id}/archive",
+			"POST /api/v1/accounting/accounts/{id}/restore",
+			"POST /api/v1/accounting/accounts/order");
 
 	@Autowired
 	private MockMvc mockMvc;
