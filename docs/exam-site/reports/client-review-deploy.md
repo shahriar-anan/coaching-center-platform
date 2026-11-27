@@ -526,3 +526,50 @@ Its Hostinger subscription had ended (auto-renew was off, renewal payment failed
   pulls it daily with `F:\exam-vps-backups\tools\pull-backups.ps1` (scheduled task "SYMAM backup pull", 10:00 or the next
   time the PC is on): the newest database dump checked by SHA-256 (last 30 kept) and an incremental mirror of the uploaded files
   in `F:\exam-vps-backups\nightly\`. Log: `pull.log` there. Object storage is still open.
+
+## Accounting, 28 November 2026 (Dhaka)
+
+API and website, two migrations (Flyway 107 to 107.2). Release code `ca7f97ae` (`demo/client-review`, the merge of
+`acc/integration`). Released by the agent on Shahriar's go, 03:57 to 03:58 Dhaka. Plan: [../../accounting/accounting-plan.md](../../accounting/accounting-plan.md).
+
+- **Ships:** the Accounting section (Master Admin only) replaces Instructor payments and Offline instructors: groups (Offline
+  instructors, Staff, Suppliers, Personal, Other income, and his own), payees with owed vs paid balances, charges as quantity × price,
+  "Paid now", money accounts, several payees at once, copy last month, edit and void with history, vouchers and statements (HTML
+  print), reports and CSV. Finance reads instructor pay from the ledger and gains two sources (`ACCOUNTS_EXPENSE`, `ACCOUNTS_INCOME`).
+  Payment records no longer lists instructor payments. The old instructor pages redirect to Accounting.
+- **Migrations:** `V107_1__accounting.sql` (new `acc_` tables and seed, nothing existing changed) and `V107_2__accounting_move.sql`
+  (old instructor payments moved as charge plus payment, with its own refusal on pending rows and its own total and balance checks).
+- **Before:** quiet window (no sitting in progress, no payment started in 15 minutes, no exam opening, closing or releasing answers
+  within 6 hours). Blockers all 0: no pending instructor payment, class decision or CLASS/OTHER payment edit.
+- **Tests:** full API suite on a fresh database 1,402/1,402 (`-ResetDb`; a run on the shared test database gave 6 false failures from
+  left-over rows, all four classes pass alone on a fresh database). Web: accounting 90/90, typecheck clean, lint with no new errors
+  (3 errors in files unchanged from production), full suite passes except the known `pdf-viewer` worker test and a course test that
+  passes alone. Production build passes.
+- **Browser check** on a local copy of production (`docs/accounting/orchestration/browser-check-report.md`): no blockers, the move
+  matched to the paisa, four fixes before the release.
+- **Rollback proof** on a local copy of the 26 Nov 20:30 dump: the new jar applied V107_1 and V107_2 (3 payments, 2,100.00), the live
+  jar (`api-2d78524.jar`, `fca58170…`) then started on 107.2 with 0 errors (Flyway ignores future migrations), and the new jar again.
+- **Jar:** `F:\cc-releases\api-ca7f97ae.jar`, SHA-256 `f5b87b0755fad682003c6488042617e58325ba47c620b434ae1e0b42eb1bca52`.
+  Restarted 21:57:23 UTC, started in 11.2 s, "Successfully applied 2 migrations", Flyway 107.2, 0 errors.
+- **Website:** `F:\cc-releases\web-ca7f97ae-20261127-215345.tgz` (SHA-256 `d0a6b8cd…81bd`), build `1kLe9z1Mk_gIgwegt354q`,
+  built with `OFFLINE_ADMISSION=1`. The dry run passed; swapped at 21:58 UTC, up after 1 s. Previous release:
+  `/opt/coaching-web.before-20261127-215804`.
+- **Backups** (stamp `20261127-215556`):
+  - `/var/backups/coaching/coaching-pre-acc-20261127-215556.dump` (600 entries, `3b545bf6…570f`), also in
+    `F:\cc-releases\backup-pre-acc-20261127-215556\` (SHA-256 checked);
+  - `files-pre-acc-20261127-215556.tgz` (627 MB, `01c30654…a57c`), on the box only (the release changes no file; the PC mirror is
+    pulled daily);
+  - `/etc/coaching-api.env.before-acc-20261127-215556` (also on the PC);
+  - `/opt/coaching-api/api.jar.before-acc-20261127-215556` (`fca58170…`, the 24 Nov release).
+- **Checks after:** live preflight 0 failed of 21; move figures on production match (6 payees with the instructors' ids, 3 charges and
+  3 payments moved, 2,100.00 in November, batch costs unchanged, 0 non-zero balances, old tables untouched); public pages, `/admission`
+  (not the not-found page, linked from home), admin login, `/staff/accounting` and the old `/staff/offline-instructors` answer 200;
+  accounting routes answer 401 without a sign-in; PDF worker unchanged (1,321,391 bytes); 0 API errors, 0 5xx.
+- **Not checked by the agent** (needs a Master Admin sign-in): the Accounting pages with the live account, a ৳1 test charge and
+  payment, voided afterwards; Finance totals on screen.
+- **Not pushed:** `origin/demo/client-review` is behind; push on Shahriar's go.
+
+Rollback (both together; the old website calls the removed instructor pay routes):
+- **API:** stop `coaching-api`, copy `api.jar.before-acc-20261127-215556` over `api.jar`, start it. The `acc_` tables stay; the old jar
+  ignores them and reads the untouched old payment tables. Entries recorded in Accounting after the release do not show in the old pages.
+- **Website:** stop `coaching-web`, move `/opt/coaching-web` aside, put `/opt/coaching-web.before-20261127-215804` back, start it.
