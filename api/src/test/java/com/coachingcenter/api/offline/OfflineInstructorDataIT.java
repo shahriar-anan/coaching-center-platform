@@ -37,6 +37,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.coachingcenter.api.PostgresIntegrationTest;
+import com.coachingcenter.api.accounting.AccIds;
+import com.coachingcenter.api.accounting.AccTestData;
 import com.coachingcenter.api.auth.CapturingEmailConfig;
 
 import tools.jackson.databind.JsonNode;
@@ -78,82 +80,21 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void instructorNameIsUniqueIgnoringCaseAmongLiveInstructors() throws Exception {
-		UUID master = seed("MASTER_ADMIN", "Master");
+	void staffStillSearchesInstructorsAndTheListHidesArchivedOnes() throws Exception {
+		// Since the accounting build (27 Nov) the Master Admin writes instructors in the ledger (AccPayeeIT); staff only read them here.
 		UUID staff = seed("SYSTEM_ADMIN", "Staff");
-		String masterToken = token(master);
 		String staffToken = token(staff);
-		String name = "Tuhin " + suffix();
+		String liveName = "Live " + suffix();
+		UUID live = instructor(liveName);
+		String retiredName = "Retired " + suffix();
+		UUID retired = instructor(retiredName);
+		jdbc().update("update offline_instructors set archived_at = now() where id = ?", retired);
 
-		JsonNode created = respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"" + name + "\",\"phone\":\"01711111111\"}"),
-				201);
-		assertThat(created.get("name").asText()).isEqualTo(name);
-		assertThat(created.get("archived").asBoolean()).isFalse();
-
-		JsonNode duplicate = respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"" + name.toUpperCase() + "\"}"), 400);
-		assertThat(fieldNames(duplicate)).contains("name");
-		// 24 Nov: only the Master Admin adds instructors; a System Admin is refused before the name is checked.
-		respond(post("/api/v1/offline-instructors", staffToken, "{\"name\":\"" + name.toLowerCase() + "\"}"), 403);
-
-		// A rename onto a live name is refused too, with the field error.
-		String other = "Anarul " + suffix();
-		JsonNode second = respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"" + other + "\"}"), 201);
-		JsonNode renamed = respond(patch("/api/v1/offline-instructors/" + second.get("id").asText(), masterToken,
-				"{\"name\":\"" + name.toLowerCase() + "\"}"), 400);
-		assertThat(fieldNames(renamed)).contains("name");
-
-		// Archived names are free again.
-		respond(post("/api/v1/offline-instructors/" + created.get("id").asText() + "/archive", masterToken, null), 200);
-		respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"" + name.toLowerCase() + "\"}"), 201);
-	}
-
-	@Test
-	void archiveIsRefusedWhileALiveClassReferencesTheInstructor() throws Exception {
-		UUID master = seed("MASTER_ADMIN", "Master");
-		String masterToken = token(master);
-		UUID instructor = instructor(masterToken, "Milon " + suffix());
-		UUID batch = batch(masterToken);
-		UUID classId = insertClass(batch, instructor, "SCHEDULED", null, null);
-
-		JsonNode refused = respond(post("/api/v1/offline-instructors/" + instructor + "/archive", masterToken, null), 409);
-		assertThat(refused.get("message").asText()).contains("1 offline class still uses this instructor").contains("cannot be archived");
-
-		// A cancelled class no longer counts; the archive then goes through.
-		jdbc().update("update offline_classes set status = 'CANCELLED', cancelled_at = now() where id = ?", classId);
-		JsonNode archived = respond(post("/api/v1/offline-instructors/" + instructor + "/archive", masterToken, null), 200);
-		assertThat(archived.get("archived").asBoolean()).isTrue();
-	}
-
-	@Test
-	void onlyTheMasterAdminAddsRenamesAndArchivesInstructorsAndStaffStillSearchThem() throws Exception {
-		// 24 Nov (instructor-pay-simple-plan.md, D10, D11): instructors are the Master Admin's; a System Admin picks from the list.
-		UUID master = seed("MASTER_ADMIN", "Master");
-		UUID staff = seed("SYSTEM_ADMIN", "Staff");
-		String masterToken = token(master);
-		String staffToken = token(staff);
-
-		respond(post("/api/v1/offline-instructors", staffToken, "{\"name\":\"Staff Made " + suffix() + "\"}"), 403);
-		JsonNode created = respond(post("/api/v1/offline-instructors", masterToken, "{\"name\":\"Master Made " + suffix() + "\"}"), 201);
-		String id = created.get("id").asText();
-		respond(patch("/api/v1/offline-instructors/" + id, staffToken, "{\"phone\":\"01822222222\"}"), 403);
-		respond(patch("/api/v1/offline-instructors/" + id, masterToken, "{\"phone\":\"01822222222\",\"aliases\":[\"Tuhin\", \"tuhin\", \" \"]}"),
-				200);
-		respond(post("/api/v1/offline-instructors/" + id + "/archive", staffToken, null), 403);
-		JsonNode archived = respond(post("/api/v1/offline-instructors/" + id + "/archive", masterToken, null), 200);
-		assertThat(archived.get("archived").asBoolean()).isTrue();
-
-		// The list hides archived instructors unless asked, and finds a live one by an alias.
-		UUID live = instructor(masterToken, "Alias Holder " + suffix());
-		respond(patch("/api/v1/offline-instructors/" + live, masterToken, "{\"aliases\":[\"Milon Hossain\"]}"), 200);
-		JsonNode found = respond(get("/api/v1/offline-instructors?q=milon hossain", staffToken), 200);
+		JsonNode found = respond(get("/api/v1/offline-instructors?q=" + liveName, staffToken), 200);
 		assertThat(found.toString()).contains(live.toString());
-
-		String archivedName = "Retired " + suffix();
-		UUID retired = instructor(masterToken, archivedName);
-		respond(post("/api/v1/offline-instructors/" + retired + "/archive", masterToken, null), 200);
-		JsonNode liveOnly = respond(get("/api/v1/offline-instructors?q=" + archivedName, staffToken), 200);
+		JsonNode liveOnly = respond(get("/api/v1/offline-instructors?q=" + retiredName, staffToken), 200);
 		assertThat(liveOnly.toString()).doesNotContain(retired.toString());
-		JsonNode withArchived = respond(get("/api/v1/offline-instructors?q=" + archivedName + "&includeArchived=true", staffToken), 200);
+		JsonNode withArchived = respond(get("/api/v1/offline-instructors?q=" + retiredName + "&includeArchived=true", staffToken), 200);
 		assertThat(withArchived.toString()).contains(retired.toString());
 	}
 
@@ -196,7 +137,7 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 	void partialUniqueIndexAllowsOneLivePaymentPerClass() throws Exception {
 		UUID master = seed("MASTER_ADMIN", "Master");
 		String masterToken = token(master);
-		UUID instructor = instructor(masterToken, "Payee " + suffix());
+		UUID instructor = instructor("Payee " + suffix());
 		UUID batch = batch(masterToken);
 		UUID classId = insertClass(batch, instructor, "PAID_PENDING", new BigDecimal("400"), null);
 
@@ -257,9 +198,12 @@ class OfflineInstructorDataIT extends PostgresIntegrationTest {
 		return id;
 	}
 
-	private UUID instructor(String token, String name) throws Exception {
-		JsonNode created = respond(post("/api/v1/offline-instructors", token, "{\"name\":\"" + name + "\"}"), 201);
-		return UUID.fromString(created.get("id").asText());
+	/** An instructor as the ledger makes one: a payee of the Offline instructors group, with its offline_instructors row (same id). */
+	private UUID instructor(String name) {
+		UUID id = new AccTestData(jdbc()).payee(AccIds.GROUP_OFFLINE_INSTRUCTORS);
+		jdbc().update("update offline_instructors set name = ? where id = ?", name, id);
+		jdbc().update("update acc_payees set name = ? where id = ?", name, id);
+		return id;
 	}
 
 	private UUID batch(String token) throws Exception {

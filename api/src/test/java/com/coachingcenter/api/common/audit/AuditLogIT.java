@@ -307,14 +307,6 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/offline-batches/{id}/classes",
 			"PATCH /api/v1/offline-classes/{id}",
 			"DELETE /api/v1/offline-classes/{id}",
-			"GET /api/v1/offline-instructors/{id}/payments",
-			"POST /api/v1/offline-instructors/{id}/payments",
-			"GET /api/v1/offline-instructors/{id}/pay-summary",
-			"GET /api/v1/offline-instructor-payments",
-			"GET /api/v1/offline-instructor-payments/figures",
-			"GET /api/v1/offline-instructor-payments/cards",
-			"PATCH /api/v1/offline-instructor-payments/{recordKind}/{id}",
-			"POST /api/v1/offline-instructor-payments/{recordKind}/{id}/void",
 			"GET /api/v1/offline-batches/{batchId}/results",
 			"POST /api/v1/offline-classes/{classId}/results/preview",
 			"POST /api/v1/offline-classes/{classId}/results",
@@ -334,9 +326,6 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"POST /api/v1/payment-records/{kind}/{id}/edits",
 			"POST /api/v1/payment-edits/{id}/finalize",
 			"POST /api/v1/payment-edits/{id}/reject",
-			"POST /api/v1/offline-instructors",
-			"POST /api/v1/offline-instructors/{id}/archive",
-			"PATCH /api/v1/offline-instructors/{id}",
 			"GET /api/v1/offline-instructors",
 			"GET /api/v1/me/admission",
 			"GET /api/v1/offline-admissions/overdue",
@@ -569,7 +558,17 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"PATCH /api/v1/accounting/accounts/{id}",
 			"POST /api/v1/accounting/accounts/{id}/archive",
 			"POST /api/v1/accounting/accounts/{id}/restore",
-			"POST /api/v1/accounting/accounts/order");
+			"POST /api/v1/accounting/accounts/order",
+			// ACC-L: payees, the offline instructors mirror, last prices and linkable users (L2).
+			"GET /api/v1/accounting/groups/{id}/payees",
+			"POST /api/v1/accounting/groups/{id}/payees",
+			"GET /api/v1/accounting/payees",
+			"GET /api/v1/accounting/payees/{id}",
+			"PATCH /api/v1/accounting/payees/{id}",
+			"POST /api/v1/accounting/payees/{id}/archive",
+			"POST /api/v1/accounting/payees/{id}/restore",
+			"GET /api/v1/accounting/payees/{id}/last-prices",
+			"GET /api/v1/accounting/users/linkable");
 
 	@Autowired
 	private MockMvc mockMvc;
