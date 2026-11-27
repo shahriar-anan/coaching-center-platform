@@ -176,6 +176,9 @@ public final class Permissions {
 	/** Finance: the income and expenditure pages, online and offline. The Master Admin only (plan G3). */
 	public static final String FINANCE_READ = "FINANCE_READ";
 
+	/** Accounting (plan 6.1): every accounting page and route. The Master Admin only; System Admins have none of it. */
+	public static final String ACCOUNTING = "ACCOUNTING";
+
 	private Permissions() {
 	}
 
