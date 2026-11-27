@@ -149,6 +149,8 @@ public enum ErrorCode {
 	OPEN_ADMISSION,
 	/** Someone else changed the same row first (optimistic lock). The client reloads and tries again. */
 	STALE_VERSION,
-	INTERNAL_ERROR
+	INTERNAL_ERROR,
+	/** An accounting refusal: the change is not allowed now. The message is the key accounting.errors.<key>. */
+	ACC_REFUSED
 
 }
