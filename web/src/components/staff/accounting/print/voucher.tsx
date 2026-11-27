@@ -82,11 +82,12 @@ export function VoucherSheet({ entry, groupName }: { entry: EntryDetail; groupNa
   const amount = entry.amount.replace("-", "");
   const who = entry.payeeName ?? entry.counterparty ?? "—";
   const accountName = entry.accountName ? accountLabel({ name: entry.accountName, kind: null }, locale, t) : "—";
+  // The type and the quantity line are printed only where the entry has them: an amount-only payment shows its amount and nothing else.
   const rows: [string, string][] = [
     [t("accounting.voucher.paidTo"), who],
     [t("accounting.voucher.group"), groupName],
-    [t("accounting.voucher.type"), entry.typeNameEn ? pickName({ nameEn: entry.typeNameEn, nameBn: entry.typeNameBn }, locale) : "—"],
-    [t("accounting.voucher.quantityPrice"), counted ? `${entry.quantity} ${unitWithCount(unit, entry.quantity ?? "0", locale)} × ${money(entry.unitPrice, locale)}` : "—"],
+    ...(entry.typeNameEn ? [[t("accounting.voucher.type"), pickName({ nameEn: entry.typeNameEn, nameBn: entry.typeNameBn }, locale)] as [string, string]] : []),
+    ...(counted ? [[t("accounting.voucher.quantityPrice"), `${entry.quantity} ${unitWithCount(unit, entry.quantity ?? "0", locale)} × ${money(entry.unitPrice, locale)}`] as [string, string]] : []),
     [t("accounting.voucher.account"), entry.reference ? `${accountName} · ${entry.reference}` : accountName],
     [t("accounting.voucher.description"), entry.description ?? "—"],
   ];
