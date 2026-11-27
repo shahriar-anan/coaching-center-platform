@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,7 +20,9 @@ import com.coachingcenter.api.accounting.ledger.AccEntryService.CopyDraft;
 import com.coachingcenter.api.accounting.ledger.AccEntryService.Entry;
 import com.coachingcenter.api.accounting.ledger.AccEntryService.EntryDetail;
 import com.coachingcenter.api.accounting.ledger.AccEntryService.EntryInput;
+import com.coachingcenter.api.accounting.ledger.AccEntryService.EntryPatch;
 import com.coachingcenter.api.accounting.ledger.AccEntryService.ManyInput;
+import com.coachingcenter.api.accounting.ledger.AccEntryService.VoidRequest;
 import com.coachingcenter.api.auth.permission.PermissionChecker;
 
 /** Entries of the accounting section (contracts 3.1). Master Admin only: every route checks the ACCOUNTING permission. */
@@ -60,6 +63,18 @@ public class AccEntryController {
 	public EntryDetail get(@PathVariable UUID id) {
 		require(permissions);
 		return entries.get(id);
+	}
+
+	@PatchMapping("/entries/{id}")
+	public Entry edit(@PathVariable UUID id, @RequestBody EntryPatch body) {
+		require(permissions);
+		return entries.edit(id, body);
+	}
+
+	@PostMapping("/entries/{id}/void")
+	public List<Entry> voidEntry(@PathVariable UUID id, @RequestBody VoidRequest body) {
+		require(permissions);
+		return entries.voidEntry(id, body);
 	}
 
 }

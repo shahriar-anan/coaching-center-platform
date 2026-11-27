@@ -2,6 +2,8 @@ package com.coachingcenter.api.accounting.ledger;
 
 import static com.coachingcenter.api.accounting.ledger.LedgerSupport.actorId;
 import static com.coachingcenter.api.accounting.ledger.LedgerSupport.check;
+import static com.coachingcenter.api.accounting.ledger.LedgerSupport.checkVersion;
+import static com.coachingcenter.api.accounting.ledger.LedgerSupport.required;
 import static com.coachingcenter.api.accounting.ledger.LedgerSupport.text;
 
 import java.math.BigDecimal;
@@ -13,8 +15,11 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -47,6 +52,10 @@ public class AccEntryService {
 	public static final String CREATED = "ACC_ENTRY_CREATED";
 
 	public static final String MANY_CREATED = "ACC_ENTRIES_CREATED";
+
+	public static final String EDITED = "ACC_ENTRY_EDITED";
+
+	public static final String VOIDED = "ACC_ENTRY_VOIDED";
 
 	/** Most lines one "many" save may hold (plan 4.4). */
 	static final int MAX_LINES = 200;
@@ -243,6 +252,250 @@ public class AccEntryService {
 		}
 		List<UUID> ids = save(plans, MANY_CREATED);
 		return ids.stream().map(this::view).toList();
+	}
+
+	// ---- edit and void ----------------------------------------------------------------------------------------------------
+
+	/**
+	 * The fields of an edit: the entry's form, filled in (plan 4.5). Kind, group and payee never change, so they are not here. A field
+	 * sent null is cleared (the required ones are then refused by AccRules). {@code reason} and {@code version} are required.
+	 */
+	public record EntryPatch(UUID typeId, String date, String period, Object quantity, Object unitPrice, Object amount, UUID accountId,
+			String reference, String counterparty, UUID batchId, UUID liveExamId, String description, String note, String reason,
+			Long version) {
+	}
+
+	/** Body of POST /entries/{id}/void: the reason, and whether the paired entry is voided too (plan 4.5). */
+	public record VoidRequest(String reason, Boolean alsoVoidPaired) {
+	}
+
+	/** An entry's stored values, locked for an edit or a void. */
+	private record Row(UUID id, String kind, boolean voided, UUID groupId, UUID payeeId, UUID typeId, UUID accountId, String legacySource,
+			UUID legacyClassId, long version, LocalDate date, String period, BigDecimal quantity, BigDecimal unitPrice, BigDecimal amount,
+			String reference, String counterparty, UUID batchId, UUID liveExamId, String description, String note) {
+	}
+
+	/**
+	 * Corrects an entry at once (plan 4.5). The kind, group and payee stay. A type may change only to one whose kind keeps the sign. A
+	 * moved-over class payment or class charge changes only its date, amount, account, reference and note. Each changed field is kept
+	 * as a before and after value in acc_entry_edits. An edit that changes nothing writes nothing.
+	 */
+	@Transactional
+	public Entry edit(UUID id, EntryPatch body) {
+		Row old = lockRow(id);
+		if (old.voided()) {
+			throw AccRefusals.refuse("voided");
+		}
+		checkVersion(body.version(), old.version());
+		List<FieldErrorDetail> problems = new ArrayList<>();
+		String reason = required(body.reason(), 500, "reason", problems);
+		String reference = text(body.reference(), 100, "reference", problems);
+		String counterparty = text(body.counterparty(), 200, "counterparty", problems);
+		String description = text(body.description(), 500, "description", problems);
+		String note = text(body.note(), 500, "note", problems);
+		check(problems);
+
+		String kind = old.kind();
+		boolean charge = AccRules.CHARGE.equals(kind);
+		boolean spendOrIncome = AccRules.SPEND.equals(kind) || AccRules.INCOME.equals(kind);
+		boolean legacy = old.legacySource() != null;
+		LocalDate date = AccDates.parseDay(body.date(), "date");
+		UUID typeId = AccRules.PAYMENT.equals(kind) ? null : body.typeId();
+		UUID accountId = charge ? null : body.accountId();
+		UUID batchId = body.batchId();
+		UUID liveExamId = charge ? body.liveExamId() : null;
+		BigDecimal quantity = AccMoney.parseQuantity(body.quantity(), "quantity");
+		BigDecimal unitPrice = AccMoney.parseMoney(body.unitPrice(), "unitPrice");
+
+		AccRules.TypeRef type = null;
+		if (typeId != null) {
+			type = typeRef(typeId);
+			if (type == null) {
+				throw AccRefusals.notFound("type");
+			}
+		}
+		boolean counted = type != null && "COUNTED".equals(type.kind());
+		// The amount is typed unless a counted type has its quantity and price (a moved-over counted entry with no price keeps its amount).
+		BigDecimal amount = !counted || (legacy && unitPrice == null) ? AccMoney.parseMoney(body.amount(), "amount") : null;
+
+		if ("CLASS".equals(old.legacySource())) {
+			// A moved-over class entry changes only its date, amount, account, reference and note (plan 4.5).
+			if (!Objects.equals(typeId, old.typeId()) || !Objects.equals(body.period(), old.period())
+					|| !same(quantity, old.quantity()) || !same(unitPrice, old.unitPrice())
+					|| !Objects.equals(counterparty, old.counterparty()) || !Objects.equals(batchId, old.batchId())
+					|| !Objects.equals(liveExamId, old.liveExamId()) || !Objects.equals(description, old.description())) {
+				throw AccRefusals.refuse("legacy_fields");
+			}
+		}
+		AccRules.Was was = new AccRules.Was(old.groupId(), old.typeId(), old.accountId());
+		AccRules.AccountRef account = null;
+		if (accountId != null) {
+			account = accountRef(accountId);
+			if (account == null) {
+				throw AccRefusals.notFound("account");
+			}
+		}
+		if (batchId != null && !Objects.equals(batchId, old.batchId()) && !exists(
+				"select exists (select 1 from offline_batches where id = ?)", batchId)) {
+			throw AccRefusals.notFound("batch");
+		}
+		if (liveExamId != null && !Objects.equals(liveExamId, old.liveExamId()) && !exists(
+				"select exists (select 1 from live_exams where id = ? and deleted_at is null)", liveExamId)) {
+			throw AccRefusals.notFound("exam");
+		}
+		GroupRow group = groupRow(old.groupId());
+		AccRules.GroupRef groupRef = new AccRules.GroupRef(group.id(), group.mode(), group.direction(), group.archived());
+		AccRules.PayeeRef payee = old.payeeId() == null ? null : payeeRef(old.payeeId());
+		AccRules.Draft draft = new AccRules.Draft(kind, old.payeeId(), typeId, accountId, date, body.period(), quantity, unitPrice,
+				amount, description);
+		AccRules.Checked c = AccRules.check(draft, groupRef, type, payee, account, was, legacy, AccDates.today(clock));
+
+		if (charge) {
+			// A type's kind may not change so that the amount's sign changes: a deduction stays a deduction (plan 4.5).
+			AccRules.TypeRef oldType = old.typeId() == null ? null : typeRef(old.typeId());
+			boolean wasDeduction = oldType != null && "DEDUCTION".equals(oldType.kind());
+			if (wasDeduction != c.deduction()) {
+				throw AccRefusals.refuse("type_kind_mismatch");
+			}
+		}
+
+		String referenceOut = charge ? null : reference;
+		String counterpartyOut = spendOrIncome ? counterparty : null;
+		String liveOut = liveExamId == null ? null : liveExamId.toString();
+		Map<String, Object> before = new LinkedHashMap<>();
+		Map<String, Object> after = new LinkedHashMap<>();
+		change(before, after, "date", old.date().toString(), c.date().toString());
+		change(before, after, "typeId", idText(old.typeId()), idText(c.typeId()));
+		change(before, after, "period", old.period(), c.period());
+		change(before, after, "quantity", quantityText(old.quantity()), quantityText(c.quantity()));
+		change(before, after, "unitPrice", moneyText(old.unitPrice()), moneyText(c.unitPrice()));
+		change(before, after, "amount", moneyText(old.amount()), moneyText(c.amount()));
+		change(before, after, "accountId", idText(old.accountId()), idText(c.accountId()));
+		change(before, after, "reference", old.reference(), referenceOut);
+		change(before, after, "counterparty", old.counterparty(), counterpartyOut);
+		change(before, after, "batchId", idText(old.batchId()), idText(batchId));
+		change(before, after, "liveExamId", idText(old.liveExamId()), liveOut);
+		change(before, after, "description", old.description(), description);
+		change(before, after, "note", old.note(), note);
+		if (before.isEmpty()) {
+			return view(id);
+		}
+
+		UUID actor = actorId();
+		Timestamp now = Timestamp.from(clock.instant());
+		jdbc.update("""
+				update acc_entries set type_id = ?, entry_date = ?, period = ?, quantity = ?, unit_price = ?, amount = ?, account_id = ?,
+				  reference = ?, counterparty = ?, batch_id = ?, live_exam_id = ?, description = ?, note = ?, corrected_at = ?,
+				  version = version + 1, updated_at = ?
+				where id = ?
+				""", c.typeId(), c.date(), c.period(), c.quantity(), c.unitPrice(), c.amount(), c.accountId(), referenceOut,
+				counterpartyOut, batchId, liveExamId, description, note, now, now, id);
+		jdbc.update("""
+				insert into acc_entry_edits (id, entry_id, before_values, after_values, reason, edited_by, edited_at, created_at, updated_at)
+				values (?, ?, cast(? as jsonb), cast(? as jsonb), ?, ?, ?, ?, ?)
+				""", UUID.randomUUID(), id, json.writeValueAsString(before), json.writeValueAsString(after), reason, actor, now, now, now);
+		audit.record(EDITED, ENTITY, id);
+		return view(id);
+	}
+
+	/**
+	 * Voids an entry with a reason (plan 4.5). Nothing is deleted. A voided entry leaves every figure; "also void the paired entry" voids
+	 * the other one too, if it is still active. Voiding a moved-over class payment sets its class back from Paid to Scheduled when no
+	 * other active class payment points at it, as the old pages did. Returns the voided entry, then its pair if that was voided too.
+	 */
+	@Transactional
+	public List<Entry> voidEntry(UUID id, VoidRequest body) {
+		Row row = lockRow(id);
+		if (row.voided()) {
+			throw AccRefusals.refuse("voided");
+		}
+		List<FieldErrorDetail> problems = new ArrayList<>();
+		String reason = required(body.reason(), 500, "reason", problems);
+		check(problems);
+		List<UUID> toVoid = new ArrayList<>();
+		toVoid.add(id);
+		if (Boolean.TRUE.equals(body.alsoVoidPaired())) {
+			activePairOf(id).ifPresent(toVoid::add);
+		}
+		UUID actor = actorId();
+		Timestamp now = Timestamp.from(clock.instant());
+		for (UUID voided : toVoid) {
+			jdbc.update("""
+					update acc_entries set status = 'VOIDED', voided_by = ?, voided_at = ?, void_reason = ?, version = version + 1,
+					  updated_at = ? where id = ?
+					""", actor, now, reason, now, voided);
+			audit.record(VOIDED, ENTITY, voided);
+		}
+		for (UUID voided : toVoid) {
+			jdbc.query("select kind, legacy_source, legacy_class_id from acc_entries where id = ?", rs -> {
+				if (AccRules.PAYMENT.equals(rs.getString("kind")) && "CLASS".equals(rs.getString("legacy_source"))
+						&& rs.getObject("legacy_class_id", UUID.class) != null) {
+					unlockClass(rs.getObject("legacy_class_id", UUID.class), actor, now);
+				}
+			}, voided);
+		}
+		return toVoid.stream().map(this::view).toList();
+	}
+
+	/** Sets the class of a moved-over class payment back to Scheduled when no other active class payment points at it. */
+	private void unlockClass(UUID classId, UUID actor, Timestamp now) {
+		Integer active = jdbc.queryForObject("""
+				select count(*) from acc_entries
+				where kind = 'PAYMENT' and legacy_source = 'CLASS' and legacy_class_id = ? and status = 'ACTIVE'
+				""", Integer.class, classId);
+		if (active == null || active == 0) {
+			jdbc.update("""
+					update offline_classes set status = 'SCHEDULED', status_by = ?, status_at = ?, updated_at = ?
+					where id = ? and status = 'PAID'
+					""", actor, now, now, classId);
+		}
+	}
+
+	/** The other entry of a pair (either way round), if it is still active. */
+	private Optional<UUID> activePairOf(UUID id) {
+		return jdbc.query("""
+				select id from acc_entries
+				where status = 'ACTIVE' and (id = (select paired_entry_id from acc_entries where id = ?) or paired_entry_id = ?)
+				order by no limit 1
+				""", (rs, number) -> rs.getObject("id", UUID.class), id, id).stream().findFirst();
+	}
+
+	/** The entry's stored values, locked for the change. Unknown is 404. */
+	private Row lockRow(UUID id) {
+		List<Row> found = jdbc.query("""
+				select id, kind, status, group_id, payee_id, type_id, account_id, legacy_source, legacy_class_id, version, entry_date,
+				  period, quantity, unit_price, amount, reference, counterparty, batch_id, live_exam_id, description, note
+				from acc_entries where id = ? for update
+				""", (rs, number) -> new Row(rs.getObject("id", UUID.class), rs.getString("kind"), "VOIDED".equals(rs.getString("status")),
+						rs.getObject("group_id", UUID.class), rs.getObject("payee_id", UUID.class), rs.getObject("type_id", UUID.class),
+						rs.getObject("account_id", UUID.class), rs.getString("legacy_source"), rs.getObject("legacy_class_id", UUID.class),
+						rs.getLong("version"), rs.getDate("entry_date").toLocalDate(), rs.getString("period"), rs.getBigDecimal("quantity"),
+						rs.getBigDecimal("unit_price"), rs.getBigDecimal("amount"), rs.getString("reference"),
+						rs.getString("counterparty"), rs.getObject("batch_id", UUID.class), rs.getObject("live_exam_id", UUID.class),
+						rs.getString("description"), rs.getString("note")), id);
+		if (found.isEmpty()) {
+			throw AccRefusals.notFound("entry");
+		}
+		return found.get(0);
+	}
+
+	private static boolean same(BigDecimal a, BigDecimal b) {
+		if (a == null || b == null) {
+			return a == null && b == null;
+		}
+		return a.compareTo(b) == 0;
+	}
+
+	/** Records a changed field: its old and new value as text (null when empty). Unchanged fields are left out. */
+	private static void change(Map<String, Object> before, Map<String, Object> after, String field, String oldValue, String newValue) {
+		if (!Objects.equals(oldValue, newValue)) {
+			before.put(field, oldValue);
+			after.put(field, newValue);
+		}
+	}
+
+	private static String idText(UUID id) {
+		return id == null ? null : id.toString();
 	}
 
 	// ---- rules ------------------------------------------------------------------------------------------------------------

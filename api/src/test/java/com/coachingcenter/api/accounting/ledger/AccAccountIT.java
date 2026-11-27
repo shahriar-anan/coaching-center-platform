@@ -5,7 +5,6 @@ import static com.coachingcenter.api.accounting.ledger.LedgerTestApi.suffix;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -128,22 +127,25 @@ class AccAccountIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void theOrderNamesEveryLiveAccountOnce() throws Exception {
+	void theOrderNamesEveryLiveAccountOnceAndTheSwapIsKept() throws Exception {
+		// The order names every live account, so the test swaps two accounts it made and leaves the seeded ones where they are.
+		String first = api.respond(api.post("/api/v1/accounting/accounts", master,
+				"{\"name\":\"Alpha %s\",\"kind\":\"CASH\"}".formatted(suffix())), 201).get("id").asText();
+		String second = api.respond(api.post("/api/v1/accounting/accounts", master,
+				"{\"name\":\"Beta %s\",\"kind\":\"CASH\"}".formatted(suffix())), 201).get("id").asText();
 		List<String> live = ids(false);
 		JsonNode missing = api.respond(api.post("/api/v1/accounting/accounts/order", master,
 				"{\"ids\":" + json.writeValueAsString(live.subList(1, live.size())) + "}"), 400);
 		assertThat(fieldNames(missing)).contains("ids");
 
-		List<String> reversed = new ArrayList<>(live);
-		Collections.reverse(reversed);
+		List<String> swapped = new ArrayList<>(live);
+		swapped.set(swapped.indexOf(first), second);
+		swapped.set(swapped.indexOf(second), first);
 		JsonNode ordered = api.respond(api.post("/api/v1/accounting/accounts/order", master,
-				"{\"ids\":" + json.writeValueAsString(reversed) + "}"), 200);
+				"{\"ids\":" + json.writeValueAsString(swapped) + "}"), 200);
 		List<String> after = new ArrayList<>();
 		ordered.forEach(account -> after.add(account.get("id").asText()));
-		assertThat(after).containsExactlyElementsOf(reversed);
-
-		// Put the order back as it was, so the seeded accounts keep their places.
-		api.respond(api.post("/api/v1/accounting/accounts/order", master, "{\"ids\":" + json.writeValueAsString(live) + "}"), 200);
+		assertThat(after).containsExactlyElementsOf(swapped);
 	}
 
 	@Test

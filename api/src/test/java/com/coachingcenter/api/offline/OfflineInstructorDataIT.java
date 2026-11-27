@@ -45,9 +45,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The data layer of offline instructor pay (plan sections 4.1 to 4.3, 4.4, side effects 2 and 3, Gate 1): the new tables, the case-insensitive
- * instructor names, the archive guard, the rates and how a rate change reaches the classes, the staff and Master Admin roles, the old routine
- * copied into the routines table, and one live payment per class. Every test makes its own rows with random names and ids, so the class
+ * The data layer of offline instructors and their routines: the new tables, the old routine copied into the routines table, one live payment
+ * per class, and the staff read of the instructors. Since the accounting build (27 Nov) the Master Admin writes instructors in the ledger
+ * (AccPayeeIT), so this class no longer writes them through the routes. Every test makes its own rows with random names and ids, so the class
  * can run again on the same database.
  */
 @SpringBootTest
