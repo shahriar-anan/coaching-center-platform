@@ -70,7 +70,7 @@ export function AccountsSettings() {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Switch checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
+        <Switch showLabel checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
         <Button onClick={() => setEditing("new")}>{t("accounting.settings.accounts.add")}</Button>
       </div>
       {actionError ? <p role="alert" className="text-meta text-danger">{actionError}</p> : null}

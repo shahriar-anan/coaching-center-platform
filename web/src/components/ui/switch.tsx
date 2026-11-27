@@ -10,12 +10,14 @@ type SwitchProps = {
   label: string;
   disabled?: boolean;
   id?: string;
+  /** Writes the label beside the switch too. Without it the words are only read aloud, and a sighted person sees a bare toggle. */
+  showLabel?: boolean;
 };
 
 /** An on/off switch. The state is also written in words for screen readers. */
-export function Switch({ checked, onCheckedChange, label, disabled, id }: SwitchProps) {
+export function Switch({ checked, onCheckedChange, label, disabled, id, showLabel }: SwitchProps) {
   const { t } = useLocale();
-  return (
+  const control = (
     <button
       type="button"
       id={id}
@@ -37,5 +39,12 @@ export function Switch({ checked, onCheckedChange, label, disabled, id }: Switch
         )}
       />
     </button>
+  );
+  if (!showLabel) return control;
+  return (
+    <span className="flex min-w-0 items-center justify-between gap-3">
+      <span className="text-label text-text">{label}</span>
+      {control}
+    </span>
   );
 }

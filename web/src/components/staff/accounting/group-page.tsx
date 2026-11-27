@@ -148,7 +148,7 @@ function PayeesPanel({ group }: { group: Group }) {
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <TextInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("accounting.payees.search")} aria-label={t("accounting.payees.search")} />
-        <Switch checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
+        <Switch showLabel checked={showArchived} onCheckedChange={setShowArchived} label={t("accounting.common.showArchived")} />
       </div>
       {payees.isError ? (
         <ErrorState onRetry={() => void payees.refetch()} error={payees.error} />
