@@ -47,10 +47,11 @@ import {
 import { FinanceTheme, SOURCE_COLOR } from "@/components/staff/finance/finance-theme";
 
 /** The streams in their groups, the order the page lists them in. */
-const STREAM_GROUPS: { key: "online" | "offline" | "staff"; sources: FinanceSource[] }[] = [
+const STREAM_GROUPS: { key: "online" | "offline" | "staff" | "accounts"; sources: FinanceSource[] }[] = [
   { key: "online", sources: ["ONLINE_ORDERS", "DIRECT_ENROLMENT", "OTHER_ONLINE"] },
   { key: "offline", sources: ["OFFLINE_FEES", "OFFLINE_INSTRUCTORS"] },
   { key: "staff", sources: ["STAFF_PAY"] },
+  { key: "accounts", sources: ["ACCOUNTS_INCOME", "ACCOUNTS_EXPENSE"] },
 ];
 
 /** One figure of the totals strip: an icon, the label, and the amount. */

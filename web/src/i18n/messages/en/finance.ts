@@ -41,6 +41,8 @@ const finance = {
     OTHER_ONLINE: "Other online",
     STAFF_PAY: "Staff and online instructor pay",
     OFFLINE_INSTRUCTORS: "Offline instructors",
+    ACCOUNTS_INCOME: "Accounting: money in",
+    ACCOUNTS_EXPENSE: "Accounting: money out",
   },
   direction: {
     INCOME: "Income",
@@ -128,6 +130,7 @@ const finance = {
       online: "Online",
       offline: "Offline",
       staff: "Staff",
+      accounts: "Accounting",
     },
     batch: "Batch",
     allBatches: "All batches",

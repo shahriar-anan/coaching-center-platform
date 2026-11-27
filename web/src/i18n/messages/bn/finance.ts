@@ -41,6 +41,8 @@ const finance = {
     OTHER_ONLINE: "অন্যান্য অনলাইন",
     STAFF_PAY: "স্টাফ ও অনলাইন শিক্ষকের বেতন",
     OFFLINE_INSTRUCTORS: "অফলাইন শিক্ষক",
+    ACCOUNTS_INCOME: "হিসাবপত্র: আয়",
+    ACCOUNTS_EXPENSE: "হিসাবপত্র: খরচ",
   },
   direction: {
     INCOME: "আয়",
@@ -128,6 +130,7 @@ const finance = {
       online: "অনলাইন",
       offline: "অফলাইন",
       staff: "স্টাফ",
+      accounts: "হিসাবপত্র",
     },
     batch: "ব্যাচ",
     allBatches: "সব ব্যাচ",

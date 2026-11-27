@@ -34,12 +34,12 @@ import bnStaffPayOverview from "./bn/staffPayOverview";
 import bnAdmission from "./bn/admission";
 import bnStaffOffline from "./bn/staffOffline";
 import bnMyAdmission from "./bn/myAdmission";
-import bnInstructorPay from "./bn/instructorPay";
 import bnBatchPay from "./bn/batchPay";
 import bnFinance from "./bn/finance";
 import bnPaymentRecords from "./bn/paymentRecords";
 import bnPublicAdmission from "./bn/publicAdmission";
 import bnStaffOfflineResults from "./bn/staffOfflineResults";
+import bnAccounting from "./bn/accounting";
 
 import enLegacy from "./en/legacy";
 import enCommon from "./en/common";
@@ -70,12 +70,12 @@ import enStaffPayOverview from "./en/staffPayOverview";
 import enAdmission from "./en/admission";
 import enStaffOffline from "./en/staffOffline";
 import enMyAdmission from "./en/myAdmission";
-import enInstructorPay from "./en/instructorPay";
 import enBatchPay from "./en/batchPay";
 import enFinance from "./en/finance";
 import enPaymentRecords from "./en/paymentRecords";
 import enPublicAdmission from "./en/publicAdmission";
 import enStaffOfflineResults from "./en/staffOfflineResults";
+import enAccounting from "./en/accounting";
 
 export type { MessageTree };
 
@@ -120,12 +120,12 @@ export const bn: MessageTree = merge(bnLegacy as MessageTree, {
   admission: bnAdmission,
   myAdmission: bnMyAdmission,
   staffOffline: bnStaffOffline,
-  instructorPay: bnInstructorPay,
   batchPay: bnBatchPay,
   finance: bnFinance,
   paymentRecords: bnPaymentRecords,
   publicAdmission: bnPublicAdmission,
   staffOfflineResults: bnStaffOfflineResults,
+  accounting: bnAccounting,
 });
 
 export const en: MessageTree = merge(enLegacy as MessageTree, {
@@ -157,12 +157,12 @@ export const en: MessageTree = merge(enLegacy as MessageTree, {
   admission: enAdmission,
   myAdmission: enMyAdmission,
   staffOffline: enStaffOffline,
-  instructorPay: enInstructorPay,
   batchPay: enBatchPay,
   finance: enFinance,
   paymentRecords: enPaymentRecords,
   publicAdmission: enPublicAdmission,
   staffOfflineResults: enStaffOfflineResults,
+  accounting: enAccounting,
 });
 
 export const catalogs = { bn, en };

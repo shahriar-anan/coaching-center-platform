@@ -118,7 +118,7 @@ const batchPay = {
     readOnlySuperseded: "A newer routine replaced this one.",
     confirm: "Confirm {count} classes",
     warningsTitle: "Check before confirming. You can fix these in the rows below, or confirm as they are:",
-    newInstructors: "Not in the instructor list: {names}. The classes show the name as written. To link them, choose an instructor with Change, or ask the Master Admin to add them.",
+    newInstructors: "Not in the instructor list: {names}. The classes show the name as written. To link them, choose an instructor with Change, or the Master Admin can add them in Accounting → Offline instructors.",
     discard: "Discard",
     discardTitle: "Discard this routine?",
     discardBody: "The rows of this upload are thrown away. Nothing in the batch's classes changes.",

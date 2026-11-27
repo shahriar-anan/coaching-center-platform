@@ -35,7 +35,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The payment records page (payment-records-edit-plan.md): every recorded course fee payment, instructor payment and direct enrolment
+ * The payment records page (payment-records-edit-plan.md): every recorded course fee payment, direct enrolment
  * payment the caller may see, with filters, and their corrections. A System Admin's correction waits for the Master Admin, who finalizes
  * or rejects it; the Master Admin's own is final at once (P3). A finalized correction changes the payment row itself, so Finance, which
  * reads those rows, shows it (P5). Every correction keeps the values before and after.
@@ -45,6 +45,10 @@ public class PaymentRecordService {
 
 	public static final String FEE = "FEE";
 
+	/**
+	 * Retired (accounting, R3): instructor payments are corrected in Accounting now, and no longer listed here. The constant stays until
+	 * the old instructor pay service is removed; nothing here lists or corrects this kind.
+	 */
 	public static final String CLASS = "CLASS";
 
 	public static final String DIRECT = "DIRECT";
@@ -55,16 +59,16 @@ public class PaymentRecordService {
 	/** Staff pay (staff_ledger PAYMENT rows): listed, corrected on the Staff pay page (16 Nov). */
 	public static final String STAFF = "STAFF";
 
-	/** Payments to an offline instructor for something that is not a class (17 Nov): listed and corrected here. */
+	/** Retired (accounting, R3): instructor payments moved to the accounting ledger. See {@link #CLASS}. */
 	public static final String OTHER = "OTHER";
 
-	/** The kinds a correction can be made to: the payments the office records by hand. */
-	static final Set<String> KINDS = Set.of(FEE, CLASS, DIRECT, OTHER);
+	/** The kinds a correction can be made to: the payments the office records by hand, fees and direct enrolment payments. */
+	static final Set<String> KINDS = Set.of(FEE, DIRECT);
 
 	/** Money in and money out, as Finance counts them (16 Nov). */
 	static final Set<String> INCOME = Set.of(ONLINE, DIRECT, FEE);
 
-	static final Set<String> EXPENSE = Set.of(CLASS, OTHER, STAFF);
+	static final Set<String> EXPENSE = Set.of(STAFF);
 
 	private static final Set<String> METHODS = Set.of("CASH", "BKASH", "NAGAD", "ROCKET", "BANK");
 
@@ -105,12 +109,12 @@ public class PaymentRecordService {
 	}
 
 	/** The filters of the page. Null means no filter. */
-	public record Filters(LocalDate from, LocalDate to, String kind, UUID batchId, UUID instructorId, String q, String direction,
-			String itemType, String method, String status, UUID categoryId) {
+	public record Filters(LocalDate from, LocalDate to, String kind, UUID batchId, String q, String direction, String itemType,
+			String method, String status, UUID categoryId) {
 
 		/** The filters of the first version of the page: no direction, item, method or status. */
-		public Filters(LocalDate from, LocalDate to, String kind, UUID batchId, UUID instructorId, String q) {
-			this(from, to, kind, batchId, instructorId, q, null, null, null, null, null);
+		public Filters(LocalDate from, LocalDate to, String kind, UUID batchId, String q) {
+			this(from, to, kind, batchId, q, null, null, null, null, null);
 		}
 	}
 
@@ -155,19 +159,6 @@ public class PaymentRecordService {
 			left join admin_profiles ap on ap.user_id = p.recorded_by
 			""";
 
-	private static final String CLASS_ROWS = """
-			select 'CLASS' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note, p.status, null::varchar as receipt_no,
-			  i.name as person_name, c.batch_id, b.name_en as batch_name_en, b.name_bn as batch_name_bn,
-			  p.instructor_id, i.name as instructor_name, coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.corrected_at,
-			  'CLASS' as item_type, null::uuid as item_id, c.subject as item_en, c.subject as item_bn, null::numeric as refunded_amount,
-			  null::uuid as item_category
-			from offline_class_payments p
-			join offline_classes c on c.id = p.class_id
-			join offline_instructors i on i.id = p.instructor_id
-			left join offline_batches b on b.id = c.batch_id
-			left join admin_profiles ap on ap.user_id = p.recorded_by
-			""";
-
 	private static final String DIRECT_ROWS = """
 			select 'DIRECT' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note,
 			  case when p.voided_at is null then 'APPROVED' else 'VOIDED' end as status, p.receipt_no,
@@ -184,23 +175,6 @@ public class PaymentRecordService {
 			left join live_exams e on e.id = g.exam_id
 			left join student_profiles sp on sp.user_id = pl.student_id
 			left join admin_profiles ap on ap.user_id = p.created_by
-			""";
-
-	/**
-	 * Payments to an offline instructor recorded by hand (17 Nov; since 24 Nov every new one): the description the admin typed is what the
-	 * payment was for, else its type (Lecture, Exam).
-	 */
-	private static final String OTHER_ROWS = """
-			select 'OTHER' as kind, p.id, p.paid_on, p.amount, p.method, p.reference, p.note, p.status, null::varchar as receipt_no,
-			  i.name as person_name, p.batch_id, b.name_en as batch_name_en, b.name_bn as batch_name_bn,
-			  p.instructor_id, i.name as instructor_name, coalesce(ap.full_name, '') as recorded_by_name, p.recorded_at, p.corrected_at,
-			  'OTHER' as item_type, null::uuid as item_id, coalesce(p.reason, initcap(p.kind)) as item_en,
-			  coalesce(p.reason, initcap(p.kind)) as item_bn, null::numeric as refunded_amount,
-			  null::uuid as item_category
-			from offline_instructor_other_payments p
-			join offline_instructors i on i.id = p.instructor_id
-			left join offline_batches b on b.id = p.batch_id
-			left join admin_profiles ap on ap.user_id = p.recorded_by
 			""";
 
 	/** Online purchases: the gateway's paid orders, a refunded one shown as REFUNDED with what was given back (16 Nov). */
@@ -243,15 +217,13 @@ public class PaymentRecordService {
 	@Transactional(readOnly = true)
 	public List<PaymentRow> list(Set<String> kinds, Filters filters) {
 		List<String> parts = new ArrayList<>();
-		for (String kind : List.of(ONLINE, DIRECT, FEE, CLASS, OTHER, STAFF)) {
+		for (String kind : List.of(ONLINE, DIRECT, FEE, STAFF)) {
 			boolean direction = filters.direction() == null || ("INCOME".equals(filters.direction()) ? INCOME : EXPENSE).contains(kind);
 			if (kinds.contains(kind) && (filters.kind() == null || filters.kind().equals(kind)) && direction) {
 				parts.add(switch (kind) {
 					case ONLINE -> ONLINE_ROWS;
 					case DIRECT -> DIRECT_ROWS;
 					case FEE -> FEE_ROWS;
-					case CLASS -> CLASS_ROWS;
-					case OTHER -> OTHER_ROWS;
 					default -> STAFF_ROWS;
 				});
 			}
@@ -276,10 +248,6 @@ public class PaymentRecordService {
 		if (filters.batchId() != null) {
 			sql.append(" and x.batch_id = ?");
 			args.add(filters.batchId());
-		}
-		if (filters.instructorId() != null) {
-			sql.append(" and x.instructor_id = ?");
-			args.add(filters.instructorId());
 		}
 		if (filters.itemType() != null) {
 			sql.append(" and x.item_type = ?");
@@ -462,9 +430,8 @@ public class PaymentRecordService {
 	private void apply(String kind, UUID paymentId, Values after) {
 		switch (kind) {
 			case FEE -> applyFee(paymentId, after);
-			case CLASS -> applyClass(paymentId, after);
-			case OTHER -> update("offline_instructor_other_payments", paymentId, after);
-			default -> installments.correctPayment(paymentId, after.amount(), after.paidOn(), after.method(), after.reference(), after.note());
+			case DIRECT -> installments.correctPayment(paymentId, after.amount(), after.paidOn(), after.method(), after.reference(), after.note());
+			default -> throw OfflineSupport.notFound();
 		}
 	}
 
@@ -502,12 +469,6 @@ public class PaymentRecordService {
 		update("offline_fee_payments", paymentId, after);
 	}
 
-	/** A class payment from before 24 Nov. Classes carry no amount due any more, so any amount is taken. */
-	private void applyClass(UUID paymentId, Values after) {
-		jdbc.queryForList("select id from offline_class_payments where id = ? for update", UUID.class, paymentId);
-		update("offline_class_payments", paymentId, after);
-	}
-
 	private void update(String table, UUID paymentId, Values after) {
 		jdbc.update("update " + table + " set amount = ?, paid_on = ?, method = ?, reference = ?, note = ?, corrected_at = ? where id = ?",
 				after.amount(), Date.valueOf(after.paidOn()), after.method(), after.reference(), after.note(),
@@ -530,9 +491,8 @@ public class PaymentRecordService {
 	private static String table(String kind) {
 		return switch (kind) {
 			case FEE -> "offline_fee_payments";
-			case CLASS -> "offline_class_payments";
-			case OTHER -> "offline_instructor_other_payments";
-			default -> "live_exam_direct_payments";
+			case DIRECT -> "live_exam_direct_payments";
+			default -> throw OfflineSupport.notFound();
 		};
 	}
 
@@ -559,8 +519,6 @@ public class PaymentRecordService {
 			case FEE -> """
 					select coalesce(a.full_name, sp.full_name, '') from offline_fee_payments p join offline_admissions a on a.id = p.admission_id
 					left join student_profiles sp on sp.user_id = a.student_id where p.id = ?""";
-			case CLASS -> "select i.name from offline_class_payments p join offline_instructors i on i.id = p.instructor_id where p.id = ?";
-			case OTHER -> "select i.name from offline_instructor_other_payments p join offline_instructors i on i.id = p.instructor_id where p.id = ?";
 			default -> """
 					select coalesce(sp.full_name, '') from live_exam_direct_payments p join live_exam_payment_plans pl on pl.id = p.plan_id
 					left join student_profiles sp on sp.user_id = pl.student_id where p.id = ?""";
@@ -656,6 +614,10 @@ public class PaymentRecordService {
 		}
 		if (!"PENDING".equals(rows.get(0).get("status"))) {
 			throw state("This correction is already " + String.valueOf(rows.get(0).get("status")).toLowerCase(Locale.ROOT) + ".");
+		}
+		// An instructor payment correction (CLASS or OTHER) is no longer decided here: it is corrected in Accounting (R3).
+		if (!KINDS.contains(String.valueOf(rows.get(0).get("kind")))) {
+			throw state("This correction is for an instructor payment, which is now corrected in Accounting.");
 		}
 		return rows.get(0);
 	}
