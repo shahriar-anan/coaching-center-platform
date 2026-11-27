@@ -47,13 +47,12 @@ function routes(extra: Record<string, unknown> = {}) {
   return mockApi({
     "GET /api/v1/payment-records": [
       row(),
-      row({ kind: "CLASS", id: "cls-1", personName: "Ayesha Khan", amount: 400, receiptNo: null, instructorId: "ins-1", correctedAt: "2026-11-12T05:00:00Z" }),
+      row({ id: "pay-3", personName: "Ayesha Khan", amount: 400, receiptNo: null, correctedAt: "2026-11-12T05:00:00Z" }),
       row({ id: "pay-2", personName: "Karim Ali", amount: 1500, pendingEdit: { id: "edit-2", after: row().amount as never, reason: "x", requestedAt: "2026-11-11T05:00:00Z" } as never }),
     ],
     "GET /api/v1/payment-records/edits": ({ url }: { url: URL }) =>
       url.searchParams.get("status") === "PENDING" ? [edit()] : [edit({ id: "edit-3", status: "REJECTED", decisionReason: "Receipt says 3000", decidedByName: "Master" })],
     "GET /api/v1/offline-batches": [{ id: "batch-1", nameEn: "BJS Evening", nameBn: "বিজেএস সান্ধ্য" }],
-    "GET /api/v1/offline-instructors": [{ id: "ins-1", name: "Ayesha Khan", phone: null, note: null, aliases: [], archived: false }],
     ...extra,
   });
 }
@@ -71,7 +70,7 @@ describe("payment records period", () => {
 describe("payment records page (payment-records-edit-plan.md)", () => {
   it("lists payments with their badges and asks the API with this month's dates and the filters", async () => {
     const api = routes();
-    renderWithProviders(<PaymentRecordsPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/payment-records?kind=CLASS&instructorId=ins-1" });
+    renderWithProviders(<PaymentRecordsPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/payment-records?kind=FEE" });
 
     const corrected = (await screen.findAllByText("Ayesha Khan")).map((node) => node.closest("tr")).find(Boolean) as HTMLElement;
     expect(within(corrected).getByText("Corrected")).toBeInTheDocument();
@@ -81,8 +80,7 @@ describe("payment records page (payment-records-edit-plan.md)", () => {
 
     const list = api.calls.find((call) => call.path === "/api/v1/payment-records");
     const search = new URLSearchParams(list?.search);
-    expect(search.get("kind")).toBe("CLASS");
-    expect(search.get("instructorId")).toBe("ins-1");
+    expect(search.get("kind")).toBe("FEE");
     expect(search.get("from")).toMatch(/^\d{4}-\d{2}-01$/);
   });
 
@@ -186,7 +184,6 @@ describe("every money stream on one page (16 Nov)", () => {
       ],
       "GET /api/v1/payment-records/edits": [],
       "GET /api/v1/offline-batches": [],
-      "GET /api/v1/offline-instructors": [],
     });
     renderWithProviders(<PaymentRecordsPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/payment-records" });
 
@@ -205,7 +202,7 @@ describe("every money stream on one page (16 Nov)", () => {
     renderWithProviders(<PaymentRecordsPage />, { user: fixtures.masterAdmin, locale: "en", route: "/staff/payment-records?direction=EXPENSE" });
 
     const options = (await screen.findByLabelText("Source")).querySelectorAll("option");
-    expect([...options].map((option) => option.textContent)).toEqual(["All sources", "Offline instructor pay", "Other instructor payment", "Staff and online instructor pay"]);
+    expect([...options].map((option) => option.textContent)).toEqual(["All sources", "Staff and online instructor pay"]);
     await waitFor(() => expect(api.calls.some((call) => call.path === "/api/v1/payment-records" && call.search.includes("direction=EXPENSE"))).toBe(true));
   });
 });

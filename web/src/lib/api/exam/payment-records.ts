@@ -13,8 +13,8 @@ export const paymentRecordKeys = {
   all: ["paymentRecords"] as const,
 };
 
-/** The payments the office records by hand, which can be corrected here. */
-export type PaymentKind = "FEE" | "CLASS" | "DIRECT" | "OTHER";
+/** The payments the office records by hand, which can be corrected here. Instructor pay is in Accounting now (plan 4.8). */
+export type PaymentKind = "FEE" | "DIRECT";
 /**
  * Every money stream the page lists (16 Nov): online purchases through the gateway, direct enrolment, offline course fees (money in);
  * offline instructor pay and staff pay (money out).
@@ -24,7 +24,7 @@ export type Direction = "INCOME" | "EXPENSE";
 /** What the money was for. */
 export type ItemType = "PACKAGE" | "EXAM" | "BATCH" | "CLASS" | "OTHER" | "STAFF";
 export const INCOME_KINDS: readonly RecordKind[] = ["ONLINE", "DIRECT", "FEE"];
-export const EXPENSE_KINDS: readonly RecordKind[] = ["CLASS", "OTHER", "STAFF"];
+export const EXPENSE_KINDS: readonly RecordKind[] = ["STAFF"];
 export type PaymentMethod = "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
 export type PaymentRecordStatus = "PENDING" | "APPROVED" | "REJECTED" | "VOIDED" | "REFUNDED";
 export type PaymentEditStatus = "PENDING" | "FINALIZED" | "REJECTED";
@@ -101,7 +101,6 @@ export type PaymentRecordFilters = {
   to: string;
   kind: RecordKind | "";
   batchId: string;
-  instructorId: string;
   q: string;
   direction?: Direction | "";
   /** PACKAGE or EXAM: what an online or direct payment was for. */
@@ -141,7 +140,6 @@ export function usePaymentRecords(filters: PaymentRecordFilters) {
           to: filters.to,
           kind: filters.kind,
           batchId: filters.batchId,
-          instructorId: filters.instructorId,
           q: filters.q.trim(),
           direction: filters.direction,
           item: filters.item,
