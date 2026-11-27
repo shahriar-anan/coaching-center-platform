@@ -4,7 +4,7 @@ Run 27 Nov 2026 on `acc/browser-check` (from `acc/integration`), against a local
 
 ## 1. Verdict
 
-**Ready after the listed fixes.** Four fixes are committed on this branch (section 5). One bug is left open for Shahriar to decide: the entries list has no payee filter (section 5, B1). Ten UX notes (section 6).
+**Ready after the listed fixes.** Four fixes are committed on this branch (section 5). B1 below turned out not to be a bug (orchestrator review, 28 Nov). Ten UX notes (section 6).
 
 ## 2. Release blockers
 
@@ -105,7 +105,7 @@ Home totals, checked against the ledger for this month: spent 21,350.00 and inco
 
 Checks run for the fixes: `npx vitest run tests/accounting` → 18 files, 89 tests passed; `npx tsc --noEmit -p .` → no errors. No API code changed, so no API suite was run for this check.
 
-**Open bug, not fixed (B1):** the entries list `/staff/accounting/entries` has no payee filter (the plan's section 4.6 lists one). The API takes `payeeId`, so the gap is in the page: it needs a payee picker that depends on the group. That is a design choice, so it is left for Shahriar.
+**B1, withdrawn on review (28 Nov):** the payee filter exists; it appears once a group is chosen, and the check ran with no group. Since the review it shows only for a Payees group (a Log group has no payees), with a test. Original note: the entries list `/staff/accounting/entries` has no payee filter (the plan's section 4.6 lists one). The API takes `payeeId`, so the gap is in the page: it needs a payee picker that depends on the group. That is a design choice, so it is left for Shahriar.
 
 ## 6. UX notes (10, most valuable first)
 
