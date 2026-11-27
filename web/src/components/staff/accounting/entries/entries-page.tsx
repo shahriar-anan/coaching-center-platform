@@ -27,8 +27,7 @@ import { ACCOUNTING_HOME, AccountingFrame } from "../accounting-frame";
 import { accountLabel, money, pickName, writeErrorText } from "../accounting-model";
 
 /** The filter names, as the URL holds them (shareable). Each one is optional. */
-const FILTER_KEYS = ["from", "to", "groupId", "payeeId", "typeId", "kind", "accountId", "batchId", "status", "q"] as const;
-type FilterKey = (typeof FILTER_KEYS)[number];
+type FilterKey = "from" | "to" | "groupId" | "payeeId" | "typeId" | "kind" | "accountId" | "batchId" | "status" | "q";
 
 /** The entries of every group, with the filters of plan 4.6 in the URL. Starts with this month. */
 export function EntriesPage() {

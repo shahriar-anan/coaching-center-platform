@@ -50,8 +50,7 @@ export function runningBalances(balance: string, entries: Entry[]): string[] {
   return out;
 }
 
-const TAB_VALUES = ["entries", "details"] as const;
-type PayeeTab = (typeof TAB_VALUES)[number];
+type PayeeTab = "entries" | "details";
 
 /** One payee (accounting-plan 4.6): the balance and totals, the buttons, the Entries tab with a running balance, and the details. */
 export function PayeePage({ payeeId }: { payeeId: string }) {

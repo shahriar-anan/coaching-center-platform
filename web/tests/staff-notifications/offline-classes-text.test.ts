@@ -1,20 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { translate, type Locale } from "@/i18n/locale-context";
 import { notificationText, type Translate } from "@/components/staff/notifications/notification-text";
-import en from "@/i18n/messages/en/instructorPay";
-import bn from "@/i18n/messages/bn/instructorPay";
 import type { StaffNotificationPayload } from "@/lib/api/exam/staff-notifications";
 
 function tFor(locale: Locale): Translate {
   return (key, params) => translate(locale, key, params);
-}
-
-/** Every leaf key of a message tree, as dotted paths. */
-function leafKeys(tree: Record<string, unknown>, prefix = ""): string[] {
-  return Object.entries(tree).flatMap(([key, value]) => {
-    const path = prefix ? `${prefix}.${key}` : key;
-    return typeof value === "object" && value !== null ? leafKeys(value as Record<string, unknown>, path) : [path];
-  });
 }
 
 /** The three kinds this work adds, and the offline kinds already in the catalogue, each with a payload that fills its sentence. */
@@ -87,8 +77,3 @@ describe("staff notification text for offline instructor pay", () => {
   });
 });
 
-describe("instructor pay catalogue", () => {
-  it("has the same keys in Bangla as in English", () => {
-    expect(leafKeys(bn as Record<string, unknown>).sort()).toEqual(leafKeys(en as Record<string, unknown>).sort());
-  });
-});

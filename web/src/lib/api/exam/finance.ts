@@ -14,15 +14,17 @@ export const FINANCE_SOURCES = [
   "DIRECT_ENROLMENT",
   "OFFLINE_FEES",
   "OTHER_ONLINE",
+  "ACCOUNTS_INCOME",
   "STAFF_PAY",
   "OFFLINE_INSTRUCTORS",
+  "ACCOUNTS_EXPENSE",
 ] as const;
 
 export type FinanceSource = (typeof FINANCE_SOURCES)[number];
 
-export const INCOME_SOURCES: readonly FinanceSource[] = ["ONLINE_ORDERS", "DIRECT_ENROLMENT", "OFFLINE_FEES", "OTHER_ONLINE"];
+export const INCOME_SOURCES: readonly FinanceSource[] = ["ONLINE_ORDERS", "DIRECT_ENROLMENT", "OFFLINE_FEES", "OTHER_ONLINE", "ACCOUNTS_INCOME"];
 
-export const EXPENSE_SOURCES: readonly FinanceSource[] = ["STAFF_PAY", "OFFLINE_INSTRUCTORS"];
+export const EXPENSE_SOURCES: readonly FinanceSource[] = ["STAFF_PAY", "OFFLINE_INSTRUCTORS", "ACCOUNTS_EXPENSE"];
 
 /** The sources that exist only with the offline segment (plan 9, side effect 6). */
 export const OFFLINE_SOURCES: readonly FinanceSource[] = ["OFFLINE_FEES", "OFFLINE_INSTRUCTORS"];

@@ -19,7 +19,7 @@ import type { PayeeRow } from "@/lib/api/accounting/types";
 import { dhakaToday } from "@/components/staff/offline/offline-model";
 import { ACCOUNTING_HOME, AccountingFrame } from "../accounting-frame";
 import { BalanceText } from "../balance-text";
-import { money, monthLabel, monthOf, pickName, shiftMonth, writeErrorText } from "../accounting-model";
+import { money, monthLabel, monthOf, pickName, shiftMonth } from "../accounting-model";
 import { downloadCsv, toCsv } from "../csv";
 
 type ReportTab = "owed" | "monthly" | "summary";

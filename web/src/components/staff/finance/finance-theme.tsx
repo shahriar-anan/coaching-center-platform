@@ -12,6 +12,8 @@ const CSS = `
   --fin-src-4: #eda100;
   --fin-src-5: #e87ba4;
   --fin-src-6: #008300;
+  --fin-src-7: #7a5a12;
+  --fin-src-8: #0b7a86;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .finance-viz {
@@ -21,6 +23,8 @@ const CSS = `
     --fin-src-4: #c98500;
     --fin-src-5: #d55181;
     --fin-src-6: #008300;
+    --fin-src-7: #b89a4a;
+    --fin-src-8: #3fb3c0;
   }
 }
 :root[data-theme="dark"] .finance-viz {
@@ -30,6 +34,8 @@ const CSS = `
   --fin-src-4: #c98500;
   --fin-src-5: #d55181;
   --fin-src-6: #008300;
+  --fin-src-7: #b89a4a;
+  --fin-src-8: #3fb3c0;
 }
 `;
 
@@ -41,6 +47,8 @@ export const SOURCE_COLOR: Record<FinanceSource, string> = {
   OTHER_ONLINE: "var(--fin-src-4)",
   STAFF_PAY: "var(--fin-src-5)",
   OFFLINE_INSTRUCTORS: "var(--fin-src-6)",
+  ACCOUNTS_INCOME: "var(--fin-src-8)",
+  ACCOUNTS_EXPENSE: "var(--fin-src-7)",
 };
 
 /** Puts the source colours on the page. Render it once, at the top of the finance page. */

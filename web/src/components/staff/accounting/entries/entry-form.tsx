@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
@@ -127,7 +127,8 @@ export function EntryForm({
     paidReference: "",
     ...initial,
   });
-  const [priceTouched, setPriceTouched] = useState(false);
+  // The unit price the person typed, if they typed one. Until then the payee's last price for the type is shown (plan A7).
+  const [typedPrice, setTypedPrice] = useState<string | null>(initial?.unitPrice ?? null);
   const [problems, setProblems] = useState<Problems>({});
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -155,18 +156,14 @@ export function EntryForm({
   // The unit price starts from the payee's last price for this type (plan A7) until the person types one.
   const suggestion = lastPrices.data?.find((row) => row.typeId === values.typeId);
   const suggestedPrice = suggestion?.unitPrice ?? "";
-  useEffect(() => {
-    if (!priceTouched) {
-      setValues((current) => (current.unitPrice === suggestedPrice ? current : { ...current, unitPrice: suggestedPrice }));
-    }
-  }, [suggestedPrice, priceTouched]);
+  const unitPrice = typedPrice ?? suggestedPrice;
 
   // The charge amount: the counted product, or the typed amount. It is the default for "Paid now".
   let chargeAmount: string | null = null;
   if (kind === "CHARGE" && type) {
     if (counted) {
       const quantity = parseQuantity(values.quantity);
-      const price = parseAmount(values.unitPrice);
+      const price = parseAmount(unitPrice);
       chargeAmount = quantity && price ? countedAmount(quantity, price) : null;
     } else {
       chargeAmount = parseAmount(values.amount);
@@ -177,7 +174,7 @@ export function EntryForm({
 
   function pickType(typeId: string) {
     set("typeId", typeId);
-    setPriceTouched(false);
+    setTypedPrice(null);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -222,7 +219,7 @@ export function EntryForm({
         if (!parseQuantity(values.quantity)) {
           found.quantity = t("accounting.errors.quantity_required");
         }
-        if (!parseAmount(values.unitPrice)) {
+        if (!parseAmount(unitPrice)) {
           found.unitPrice = t("accounting.errors.price_required");
         }
       } else if (!parseAmount(values.amount)) {
@@ -263,7 +260,7 @@ export function EntryForm({
       date: values.date,
       period,
       quantity: type && counted ? parseQuantity(values.quantity) : null,
-      unitPrice: type && counted ? parseAmount(values.unitPrice) : null,
+      unitPrice: type && counted ? parseAmount(unitPrice) : null,
       amount: type && counted ? null : parseAmount(values.amount),
       accountId: isCharge ? null : accountId,
       reference: values.reference.trim() || null,
@@ -282,7 +279,7 @@ export function EntryForm({
 
   const unitName = type && counted ? pickName({ nameEn: type.unitEn ?? "", nameBn: type.unitBn }, locale) : "";
   const quantityText = parseQuantity(values.quantity);
-  const priceText = parseAmount(values.unitPrice);
+  const priceText = parseAmount(unitPrice);
   const liveLine =
     counted && quantityText && priceText
       ? `${quantityText} ${unitWithCount(unitName, quantityText, locale)} × ${money(priceText, locale)} = ${money(countedAmount(quantityText, priceText), locale)}`
@@ -334,11 +331,8 @@ export function EntryForm({
           <Field label={t("accounting.form.unitPrice")} required error={problems.unitPrice} hint={suggestion ? t("accounting.form.priceFromLast") : undefined}>
             <TextInput
               inputMode="decimal"
-              value={values.unitPrice}
-              onChange={(event) => {
-                setPriceTouched(true);
-                set("unitPrice", event.target.value);
-              }}
+              value={unitPrice}
+              onChange={(event) => setTypedPrice(event.target.value)}
               invalid={Boolean(problems.unitPrice)}
             />
           </Field>

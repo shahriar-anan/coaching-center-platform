@@ -19,7 +19,6 @@ import { useToast } from "@/components/ui/toast";
 import { useLocale } from "@/i18n/locale-context";
 import { ApiError } from "@/lib/api/errors";
 import { useBatches } from "@/lib/api/exam/offline-admin";
-import { useOfflineInstructors } from "@/lib/api/exam/instructor-pay";
 import { useCategoryTree, type CategoryTreeNode } from "@/lib/api/exam/staff-catalog";
 import {
   useFinalizePaymentEdit,
@@ -150,15 +149,15 @@ function flattenCategories(nodes: CategoryTreeNode[], depth = 0): { node: Catego
   return nodes.flatMap((node) => [{ node, depth }, ...flattenCategories(node.children ?? [], depth + 1)]);
 }
 
-const RECORD_KINDS: readonly RecordKind[] = ["ONLINE", "DIRECT", "FEE", "CLASS", "OTHER", "STAFF"];
+const RECORD_KINDS: readonly RecordKind[] = ["ONLINE", "DIRECT", "FEE", "STAFF"];
 const FILTER_METHODS = ["CASH", "BKASH", "NAGAD", "ROCKET", "BANK", "ONLINE"] as const;
 const FILTER_STATUSES: readonly PaymentRecordStatus[] = ["APPROVED", "PENDING", "REJECTED", "VOIDED", "REFUNDED"];
 
 const STATUS_TONE: Record<PaymentRecordStatus, PillTone> = { ...PAYMENT_TONE, REFUNDED: "warn" };
 
-/** The kinds the caller sees, as the API decides it: the Master Admin every stream; a System Admin fees, instructor pay and online purchases. */
+/** The kinds the caller sees, as the API decides it: the Master Admin every stream; a System Admin fees and online purchases. */
 function kindsFor(isMaster: boolean): RecordKind[] {
-  return isMaster ? [...RECORD_KINDS] : ["ONLINE", "FEE", "CLASS", "OTHER"];
+  return isMaster ? [...RECORD_KINDS] : ["ONLINE", "FEE"];
 }
 
 function statusLabel(status: PaymentRecordStatus, t: (key: string) => string): string {
@@ -198,18 +197,16 @@ function RecordsView({
   const item = params.item === "PACKAGE" || params.item === "EXAM" ? params.item : "";
   const method = (FILTER_METHODS as readonly string[]).includes(params.method) ? params.method : "";
   const status = (FILTER_STATUSES as readonly string[]).includes(params.status) ? (params.status as PaymentRecordStatus) : "";
-  // Which narrower filters apply: a package or exam for online and direct payments; a batch for fees and instructor pay; an
-  // instructor for instructor pay. With no source chosen, each shows when one of its sources is in the list.
+  // Which narrower filters apply: a package or exam for online and direct payments; a batch for fees. With no source chosen, each
+  // shows when one of its sources is in the list.
   const sources = kind ? [kind] : offered;
   const showsItem = sources.some((value) => value === "ONLINE" || value === "DIRECT");
-  const showsBatch = sources.some((value) => value === "FEE" || value === "CLASS" || value === "OTHER");
-  const showsInstructor = sources.some((value) => value === "CLASS" || value === "OTHER");
+  const showsBatch = sources.some((value) => value === "FEE");
   const records = usePaymentRecords({
     from: backwards ? "" : range.from,
     to: backwards ? "" : range.to,
     kind,
     batchId: showsBatch ? params.batchId : "",
-    instructorId: showsInstructor ? params.instructorId : "",
     q: params.q,
     direction,
     item: showsItem ? item : "",
@@ -219,7 +216,6 @@ function RecordsView({
   });
   const categories = useCategoryTree();
   const batches = useBatches();
-  const instructors = useOfflineInstructors(true);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
   const rows = useMemo(() => records.data ?? [], [records.data]);
   // The totals count what is paid and stands: approved payments, less what was refunded of an online purchase.
@@ -245,9 +241,6 @@ function RecordsView({
             {t(`paymentRecords.item.${row.itemType}`)}
             {itemName(row) ? `: ${itemName(row)}` : ""}
           </span>
-          {row.kind === "CLASS" && row.batchNameEn ? (
-            <span className="text-meta text-muted">{locale === "bn" ? row.batchNameBn || row.batchNameEn : row.batchNameEn}</span>
-          ) : null}
         </div>
       ),
     },
@@ -412,18 +405,6 @@ function RecordsView({
                 {(batches.data ?? []).map((batch) => (
                   <option key={batch.id} value={batch.id}>
                     {locale === "bn" ? batch.nameBn || batch.nameEn : batch.nameEn}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          {showsInstructor ? (
-            <Field label={t("paymentRecords.filters.instructor")}>
-              <Select value={params.instructorId} onChange={(event) => setParams({ instructorId: event.target.value })}>
-                <option value="">{t("paymentRecords.filters.allInstructors")}</option>
-                {(instructors.data ?? []).map((instructor) => (
-                  <option key={instructor.id} value={instructor.id}>
-                    {instructor.name}
                   </option>
                 ))}
               </Select>

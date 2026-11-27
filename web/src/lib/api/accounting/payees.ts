@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import { queryString } from "@/lib/api/exam/staff-ops";
 import { accountingKeys, useAccountingWrite, type ArchiveAction } from "./query";
-import type { LastPrice, Payee, PayeeRow } from "./types";
+import type { LastPrice, Payee, PayeeRow, Statement } from "./types";
 
 /** A payee's details as the form sends them. Aliases are for the Offline instructors group only; a user link is optional. */
 export type PayeeBody = {
@@ -70,5 +70,15 @@ export function useLinkableUsers(q: string, enabled = true) {
         signal,
       }),
     enabled,
+  });
+}
+
+/** One payee over a date range: the opening balance, what was charged and paid, the closing balance, and the lines (contract 3.2). */
+export function usePayeeStatement(id: string, from: string, to: string) {
+  return useQuery({
+    queryKey: [...accountingKeys.all, "statement", id, from, to],
+    queryFn: ({ signal }) =>
+      apiRequest<Statement>(`/api/v1/accounting/payees/${id}/statement${queryString({ from, to })}`, { signal }),
+    enabled: Boolean(id && from && to),
   });
 }
