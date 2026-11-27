@@ -343,6 +343,10 @@ class AuditLogIT extends PostgresIntegrationTest {
 			"GET /api/v1/me/admission/batch-routine.pdf",
 			"GET /api/v1/offline-admissions/{id}/history",
 			"GET /api/v1/me/admission/items",
+			// ACC-R: the accounting reads (home, entries list and CSV), accounting/report (R1)
+			"GET /api/v1/accounting/dashboard",
+			"GET /api/v1/accounting/entries",
+			"GET /api/v1/accounting/entries.csv",
 			"GET /api/v1/offline-admissions/counts",
 			"POST /api/v1/offline-admissions/desk",
 			"GET /api/v1/offline-admissions/{id}/activation-code",

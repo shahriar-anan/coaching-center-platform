@@ -123,4 +123,9 @@ public class AccTestData {
 		return prefix + " " + UUID.randomUUID();
 	}
 
+	/** Sets the description, reference and note of an entry (the search of the list, R1). Null leaves a field empty. */
+	public void annotate(UUID entry, String description, String reference, String note) {
+		jdbc.update("UPDATE acc_entries SET description = ?, reference = ?, note = ? WHERE id = ?", description, reference, note, entry);
+	}
+
 }
